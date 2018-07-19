@@ -1,0 +1,352 @@
+# See https://github.com/openshift/cluster-operator/blob/4735b13fb2613b0acc0c002f14df8589edfaba73/build/cluster-operator-ansible/playbooks/cluster-api-prep/files/cluster-api-template.yaml
+# See also https://github.com/kubernetes-sigs/cluster-api/blob/master/cloud/google/config/configtemplate.go
+#APIService
+#Aggregated API server
+#Controller manager
+#Machine controller
+
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: cluster-api-apiserver
+    namespace: ${CLUSTER_API_NAMESPACE}
+
+- apiVersion: v1
+  kind: ServiceAccount
+  metadata:
+    name: cluster-api-controller-manager
+    namespace: ${CLUSTER_API_NAMESPACE}
+
+- apiVersion: apiregistration.k8s.io/v1beta1
+  kind: APIService
+  metadata:
+    name: v1alpha1.cluster.k8s.io
+    labels:
+      api: clusterapi
+  spec:
+    version: v1alpha1
+    group: cluster.k8s.io
+    groupPriorityMinimum: 2000
+    priority: 200
+    service:
+      name: clusterapi
+      namespace: ${CLUSTER_API_NAMESPACE}
+    versionPriority: 10
+    caBundle: ${SERVING_CA}
+
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: clusterapi
+    namespace: ${CLUSTER_API_NAMESPACE}
+    labels:
+      app: cluster-api-apiserver
+  spec:
+    ports:
+    - port: 443
+      protocol: TCP
+      targetPort: 6443
+    selector:
+      app: cluster-api-apiserver
+
+- apiVersion: apps/v1beta1
+  kind: Deployment
+  metadata:
+    name: cluster-api-apiserver
+    namespace: ${CLUSTER_API_NAMESPACE}
+    labels:
+      app: cluster-api-apiserver
+  spec:
+    selector:
+      matchLabels:
+        app: cluster-api-apiserver
+    replicas: 1
+    template:
+      metadata:
+        labels:
+          app: cluster-api-apiserver
+      spec:
+        serviceAccountName: cluster-api-apiserver
+        containers:
+        - name: apiserver
+          image: ${CLUSTER_API_IMAGE}
+          imagePullPolicy: ${CLUSTER_API_IMAGE_PULL_POLICY}
+          volumeMounts:
+          - name: cluster-apiserver-certs
+            mountPath: /var/run/cluster-api-apiserver
+            readOnly: true
+          command:
+          - "./apiserver"
+          args:
+          - "--etcd-servers=http://localhost:2379"
+          - "--tls-cert-file=/var/run/cluster-api-apiserver/tls.crt"
+          - "--tls-private-key-file=/var/run/cluster-api-apiserver/tls.key"
+          - "--loglevel=10"
+          - "--secure-port=6443"
+          ports:
+          - containerPort: 6443
+            protocol: TCP
+          terminationMessagePath: /dev/termination-log
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 6443
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 2
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /healthz
+              port: 6443
+              scheme: HTTPS
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 2
+          resources:
+            requests:
+              cpu: 100m
+              memory: 40Mi
+            limits:
+              cpu: 100m
+              memory: 60Mi
+        - name: etcd
+          image: quay.io/coreos/etcd:latest
+          imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: 100m
+              memory: 20Mi
+            limits:
+              cpu: 100m
+              memory: 30Mi
+          env:
+          - name: ETCD_DATA_DIR
+            value: /etcd-data-dir
+          command:
+          - /usr/local/bin/etcd
+          - --listen-client-urls
+          - http://0.0.0.0:2379
+          - --advertise-client-urls
+          - http://localhost:2379
+          ports:
+          - containerPort: 2379
+          volumeMounts:
+          - name: etcd-data-dir
+            mountPath: /etcd-data-dir
+          readinessProbe:
+            httpGet:
+              port: 2379
+              path: /health
+            failureThreshold: 1
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet:
+              port: 2379
+              path: /health
+            failureThreshold: 3
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            successThreshold: 1
+            timeoutSeconds: 2
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: etcd-data-dir
+          emptyDir: {}
+        - name: cluster-apiserver-certs
+          secret:
+            secretName: cluster-apiserver-certs
+
+- apiVersion: apps/v1beta1
+  kind: Deployment
+  metadata:
+    name: aws-machine-controller
+    namespace: ${CLUSTER_API_NAMESPACE}
+    labels:
+      app: aws-machine-controller
+  spec:
+    selector:
+      matchLabels:
+        app: aws-machine-controller
+    replicas: 1
+    template:
+      metadata:
+        labels:
+          app: aws-machine-controller
+      spec:
+        serviceAccountName: cluster-api-controller-manager
+        nodeSelector:
+          node-role.kubernetes.io/master: "true"
+        containers:
+        - name: machine-controller
+          image: ${MACHINE_CONTROLLER_IMAGE}
+          imagePullPolicy: ${MACHINE_CONTROLLER_IMAGE_PULL_POLICY}
+          command:
+          - /opt/services/aws-machine-controller
+          args:
+          - --log-level=debug
+          - --default-availability-zone=${DEFAULT_AVAILABILITY_ZONE}
+          volumeMounts:
+          - name: bootstrap-kubeconfig
+            mountPath: /etc/origin/master
+            readOnly: true
+          resources:
+            requests:
+              cpu: 100m
+              memory: 20Mi
+            limits:
+              cpu: 100m
+              memory: 30Mi
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+        volumes:
+        - name: bootstrap-kubeconfig
+          secret:
+            secretName: bootstrap-kubeconfig
+
+- apiVersion: apps/v1beta1
+  kind: Deployment
+  metadata:
+    name: cluster-api-controller-manager
+    namespace: ${CLUSTER_API_NAMESPACE}
+    labels:
+      app: cluster-api-controller-manager
+  spec:
+    selector:
+      matchLabels:
+        app: cluster-api-controller-manager
+    replicas: 1
+    template:
+      metadata:
+        labels:
+          app: cluster-api-controller-manager
+      spec:
+        serviceAccountName: cluster-api-controller-manager
+        nodeSelector:
+          node-role.kubernetes.io/master: "true"
+        containers:
+        - name: controller-manager
+          image: ${CLUSTER_API_IMAGE}
+          imagePullPolicy: ${CLUSTER_API_IMAGE_PULL_POLICY}
+          command:
+          - "./controller-manager"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 20Mi
+            limits:
+              cpu: 100m
+              memory: 30Mi
+        dnsPolicy: ClusterFirst
+        restartPolicy: Always
+        securityContext: {}
+        terminationGracePeriodSeconds: 30
+
+- apiVersion: v1
+  kind: Secret
+  type: kubernetes.io/tls
+  metadata:
+    name: cluster-apiserver-certs
+    namespace: ${CLUSTER_API_NAMESPACE}
+    labels:
+      app: cluster-api-apiserver
+  data:
+    tls.crt: ${SERVING_CERT}
+    tls.key: ${SERVING_KEY}
+
+- apiVersion: v1
+  kind: Secret
+  type: Opaque
+  metadata:
+    name: bootstrap-kubeconfig
+    namespace: ${CLUSTER_API_NAMESPACE}
+  data:
+    bootstrap.kubeconfig: "${BOOTSTRAP_KUBECONFIG}"
+
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRoleBinding
+  metadata:
+    name: "clusterapi.openshift.io:apiserver-auth-delegator"
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: system:auth-delegator
+  subjects:
+  - apiGroup: ""
+    kind: ServiceAccount
+    name: cluster-api-apiserver
+    namespace: ${CLUSTER_API_NAMESPACE}
+
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: RoleBinding
+  metadata:
+    name: "clusterapi.openshift.io:apiserver-authentication-reader"
+    namespace: ${KUBE_SYSTEM_NAMESPACE}
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: Role
+    name: extension-apiserver-authentication-reader
+  subjects:
+  - apiGroup: ""
+    kind: ServiceAccount
+    name: cluster-api-apiserver
+    namespace: ${CLUSTER_API_NAMESPACE}
+
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRole
+  metadata:
+    name: "clusterapi.openshift.io:controller-manager"
+  rules:
+  # configmaps for leader election
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["create"]
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    resourceNames: ["cluster-operator-controller-manager"]
+    verbs: ["get", "update"]
+  # events for recording events
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch", "update"]
+  # allow all operations on all resources in our API group
+  - apiGroups: ["cluster.k8s.io"]
+    resources: ["*"]
+    verbs: ["create", "get", "list", "watch", "update", "patch", "delete"]
+  # allow operations on required resources in any namespace a cluster is created
+  - apiGroups: [""]
+    resources: ["configmaps", "pods", "secrets", "nodes"]
+    verbs: ["*"]
+  - apiGroups: ["batch"]
+    resources: ["jobs"]
+    verbs: ["*"]
+
+- apiVersion: rbac.authorization.k8s.io/v1
+  kind: ClusterRoleBinding
+  metadata:
+    name: "clusterapi.openshift.io:controller-manager"
+  roleRef:
+    apiGroup: rbac.authorization.k8s.io
+    kind: ClusterRole
+    name: "clusterapi.openshift.io:controller-manager"
+  subjects:
+  - apiGroup: ""
+    kind: ServiceAccount
+    name: cluster-api-apiserver
+    namespace: ${CLUSTER_API_NAMESPACE}
+  - apiGroup: ""
+    kind: ServiceAccount
+    name: cluster-api-controller-manager
+    namespace: ${CLUSTER_API_NAMESPACE}
