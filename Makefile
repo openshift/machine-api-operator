@@ -1,3 +1,8 @@
+#REGISTRY    ?=
+VERSION     ?= $(shell git describe --always --abbrev=7)
+MUTABLE_TAG ?= latest
+IMAGE        = $(REGISTRY)machine-api
+
 all: check build test
 
 DOCKER_CMD := docker run --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z -w /go/src/github.com/openshift/machine-api-operator golang:1.10
@@ -24,6 +29,19 @@ build: ## Build binary
 .PHONY: test
 test: ## Run tests
 	$(DOCKER_CMD) go test ./...
+
+.PHONY: images
+image: ## Build docker image
+	@echo -e "\033[32mBuilding image $(IMAGE):$(VERSION)...\033[0m"
+	docker build -t "$(IMAGE):$(VERSION)" -f ./cmd/Dockerfile
+	@echo -e "\033[32mTagging image as $(IMAGE):$(MUTABLE_TAG)...\033[0m"
+	docker tag "$(IMAGE):$(VERSION)" "$(IMAGE):$(MUTABLE_TAG)"
+
+.PHONY: push
+push: ## Push image to docker registry
+	@echo -e "\033[32mPushing images...\033[0m"
+	docker push "$(IMAGE):$(VERSION)"
+	docker push "$(IMAGE):$(MUTABLE_TAG)"
 
 .PHONY: help
 help:
