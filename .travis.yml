@@ -1,0 +1,16 @@
+---
+language: go
+go:
+  - 1.10
+git:
+  depth: 1
+install: true
+notifications:
+  email: false
+before_script:
+  - go get -u github.com/golang/lint
+  - apt update && apt install -y yamllint
+script:
+  - make check
+  - make test
+  - make build
