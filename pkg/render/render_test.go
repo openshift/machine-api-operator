@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/coreos-inc/tectonic-operators/x-operator/pkg/types"
-	machineAPI "github.com/coreos/tectonic-config/config/machine-api"
 )
 
 var (

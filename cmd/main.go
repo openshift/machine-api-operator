@@ -7,8 +7,8 @@ import (
 
 	opclient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	optypes "github.com/coreos-inc/tectonic-operators/operator-client/pkg/types"
-	"github.com/coreos-inc/tectonic-operators/operator/machine-api/pkg/render"
-	machineAPI "github.com/coreos-inc/tectonic-operators/operator/machine-api/pkg/types"
+	"github.com/openshift/machine-api-operator/pkg/render"
+	machineAPI "github.com/openshift/machine-api-operator/pkg/types"
 	xotypes "github.com/coreos-inc/tectonic-operators/x-operator/pkg/types"
 	"github.com/coreos-inc/tectonic-operators/x-operator/pkg/xoperator"
 )

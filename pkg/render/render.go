@@ -8,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 
-	machineAPI "github.com/coreos/tectonic-config/config/machine-api"
 	"github.com/ghodss/yaml"
 	"github.com/golang/glog"
 
@@ -19,7 +18,7 @@ import (
 // Manifests takes the config object that contains the templated value,
 // and uses that to render the templated manifest.
 // 'config' must be non-nil, 'data' is the rawdata of a manifest file.
-func Manifests(config *machineAPI.OperatorConfig, data []byte) ([]byte, error) {
+func Manifests(config *OperatorConfig, data []byte) ([]byte, error) {
 	if config == nil {
 		return nil, fmt.Errorf("no config is given")
 	}
@@ -40,7 +39,7 @@ func Manifests(config *machineAPI.OperatorConfig, data []byte) ([]byte, error) {
 
 // PopulateTemplates converts the config to manifests using the templates. Returns the temp directory of the manifests.
 // caller is responsible for cleaning up the directory
-func PopulateTemplates(config *machineAPI.OperatorConfig, templateDir string) (string, error) {
+func PopulateTemplates(config *OperatorConfig, templateDir string) (string, error) {
 
 	absDir, err := filepath.Abs(templateDir)
 	if err != nil {
@@ -96,7 +95,7 @@ func PopulateTemplates(config *machineAPI.OperatorConfig, templateDir string) (s
 }
 
 // MakeRenderer returns a new renderer function for the given config object and manifest directory.
-func MakeRenderer(config *machineAPI.OperatorConfig, manifestDir string) xoperator.Renderer {
+func MakeRenderer(config *OperatorConfig, manifestDir string) xoperator.Renderer {
 	return func() []types.UpgradeSpec {
 		specs, err := processManifestsDir(config, manifestDir)
 		if err != nil {
@@ -107,7 +106,7 @@ func MakeRenderer(config *machineAPI.OperatorConfig, manifestDir string) xoperat
 }
 
 // MakeRendererWithManifests returns a renderer function for the given config object and the list of manifests.
-func MakeRendererWithManifests(config *machineAPI.OperatorConfig, manifests map[string][]byte) xoperator.Renderer {
+func MakeRendererWithManifests(config *OperatorConfig, manifests map[string][]byte) xoperator.Renderer {
 	return func() []types.UpgradeSpec {
 
 		// Order doesn't matter here because it's only used
@@ -126,23 +125,23 @@ func MakeRendererWithManifests(config *machineAPI.OperatorConfig, manifests map[
 }
 
 // Config reads the local config file.
-func Config(configFile string) (*machineAPI.OperatorConfig, error) {
+func Config(configFile string) (*OperatorConfig, error) {
 	config, err := ioutil.ReadFile(configFile)
 	if err != nil {
 		return nil, fmt.Errorf("read config file %q: %v", configFile, err)
 	}
 
 	// Marshal into machineAPI config object
-	var config machineAPI.OperatorConfig
+	var oConfig OperatorConfig
 	if err := yaml.Unmarshal(config, &config); err != nil {
 		return nil, fmt.Errorf("unmarshal config file: %v", err)
 	}
 
-	return &config, nil
+	return &oConfig, nil
 }
 
 // processManifestsDir converts the templates in the templateDir with the cluster config.
-func processManifestsDir(config *machineAPI.OperatorConfig, templateDir string) ([]types.UpgradeSpec, error) {
+func processManifestsDir(config *OperatorConfig, templateDir string) ([]types.UpgradeSpec, error) {
 	var manifests []types.File
 
 	// Render a manifest for each template
@@ -173,7 +172,7 @@ func processManifestsDir(config *machineAPI.OperatorConfig, templateDir string) 
 }
 
 // processManifests converts the templates in the template list with the cluster config.
-func processManifests(config *machineAPI.OperatorConfig, manifests []types.File) ([]types.UpgradeSpec, error) {
+func processManifests(config *OperatorConfig, manifests []types.File) ([]types.UpgradeSpec, error) {
 	var speclist []types.UpgradeSpec
 
 	for _, f := range manifests {
