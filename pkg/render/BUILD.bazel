@@ -6,10 +6,10 @@ go_library(
         "golden.go",
         "render.go",
     ],
-    importpath = "github.com/coreos-inc/tectonic-operators/operator/machine-api/pkg/render",
+    importpath = "github.com/openshift/machine-api-operator/pkg/render",
     visibility = ["//visibility:public"],
     deps = [
-        "//vendor/github.com/coreos/tectonic-config/config/machine-api:go_default_library",
+        "//vendor/github.com/openshift/machine-api-operator/pkg/config:go_default_library",
         "//vendor/github.com/ghodss/yaml:go_default_library",
         "//vendor/github.com/golang/glog:go_default_library",
         "//x-operator/pkg/types:go_default_library",

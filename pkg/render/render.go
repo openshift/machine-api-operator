@@ -8,9 +8,9 @@ import (
 	"os"
 	"path/filepath"
 
-	machineAPI "github.com/coreos/tectonic-config/config/machine-api"
 	"github.com/ghodss/yaml"
 	"github.com/golang/glog"
+	machineAPI "github.com/openshift/machine-api-operator/pkg/config"
 
 	"github.com/coreos-inc/tectonic-operators/x-operator/pkg/types"
 	"github.com/coreos-inc/tectonic-operators/x-operator/pkg/xoperator"
@@ -133,12 +133,12 @@ func Config(configFile string) (*machineAPI.OperatorConfig, error) {
 	}
 
 	// Marshal into machineAPI config object
-	var config machineAPI.OperatorConfig
-	if err := yaml.Unmarshal(config, &config); err != nil {
+	var machineAPIconfig machineAPI.OperatorConfig
+	if err := yaml.Unmarshal(config, &machineAPIconfig); err != nil {
 		return nil, fmt.Errorf("unmarshal config file: %v", err)
 	}
 
-	return &config, nil
+	return &machineAPIconfig, nil
 }
 
 // processManifestsDir converts the templates in the templateDir with the cluster config.
