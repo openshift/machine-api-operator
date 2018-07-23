@@ -1,5 +1,7 @@
 all: check build test
 
+DOCKER_CMD := docker run --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z -w /go/src/github.com/openshift/machine-api-operator golang:1.10
+
 .PHONY: check
 check: ## Lint code
 	@echo -e "\033[32mRunning golint...\033[0m"
@@ -12,19 +14,16 @@ check: ## Lint code
 		$$file; \
 	done
 	@echo -e "\033[32mRunning go vet...\033[0m"
-	go vet cmd/
-#	go vet ./... #TODO fix when vendoring is complete
+	$(DOCKER_CMD) go vet ./...
 
 .PHONY: build
 build: ## Build binary
-	@echo -e "\033[31mNO BUILD :-(\033[0m"
-
+	mkdir -p bin
+	$(DOCKER_CMD) go build -v -o bin/machine-api-operator cmd/main.go
 
 .PHONY: test
 test: ## Run tests
-	@echo -e "\033[31mNO TESTS :-(\033[0m"
-
-
+	$(DOCKER_CMD) go test ./...
 
 .PHONY: help
 help:
