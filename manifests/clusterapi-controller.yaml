@@ -1,0 +1,57 @@
+apiVersion: apps/v1beta1
+kind: Deployment
+metadata:
+  name: clusterapi-controllers
+  labels:
+    api: clusterapi
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        api: clusterapi
+    spec:
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      tolerations:
+      - effect: NoSchedule
+        key: node-role.kubernetes.io/master
+      - key: CriticalAddonsOnly
+        operator: Exists
+      - effect: NoExecute
+        key: node.alpha.kubernetes.io/notReady
+        operator: Exists
+      - effect: NoExecute
+        key: node.alpha.kubernetes.io/unreachable
+        operator: Exists
+      containers:
+      - name: controller-manager
+        image: gcr.io/k8s-cluster-api/controller-manager:0.0.7
+        command:
+        - "./controller-manager"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 20Mi
+          limits:
+            cpu: 100m
+            memory: 30Mi
+      - name: aws-machine-controller
+        image: quay.io/alberto_lamela/aws-machine-controller:canary # TODO: move this to openshift org
+        env:
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+        command:
+          - /opt/services/aws-machine-controller
+        args:
+          - --log-level=debug
+          - --default-availability-zone=eu-west-1b
+        resources:
+          requests:
+            cpu: 100m
+            memory: 20Mi
+          limits:
+            cpu: 100m
+            memory: 30Mi

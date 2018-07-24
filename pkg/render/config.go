@@ -4,7 +4,7 @@ import metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 const (
 	// Kind is the TypeMeta.Kind for the OperatorConfig.
-	Kind = "KubeAddonOperatorConfig"
+	Kind = "MachineAPIOperatorConfig"
 	// APIVersion is the TypeMeta.APIVersion for the OperatorConfig.
 	APIVersion = "v1"
 )

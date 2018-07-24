@@ -1,4 +1,2 @@
 apiVersion: v1
-kind: machineAPIConfig
-dnsConfig:
-  clusterIP: 127.0.0.1
+kind: machineAPIOperatorConfig
