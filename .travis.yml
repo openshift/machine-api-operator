@@ -12,5 +12,5 @@ before_script:
   - apt update && apt install -y yamllint
 script:
   - make check
-  - make test
   - make build
+  - make test
