@@ -2,14 +2,22 @@ apiVersion: apps/v1beta1
 kind: Deployment
 metadata:
   name: clusterapi-controllers
+  namespace: default
   labels:
     api: clusterapi
+    k8s-app: controller
+    tectonic-operators.coreos.com/managed-by: machine-api-operator
 spec:
+  selector:
+    matchLabels:
+      api: clusterapi
+      k8s-app: controller
   replicas: 1
   template:
     metadata:
       labels:
         api: clusterapi
+        k8s-app: controller
     spec:
       nodeSelector:
         node-role.kubernetes.io/master: ""
