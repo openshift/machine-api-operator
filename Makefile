@@ -1,8 +1,9 @@
-#REGISTRY    ?=
+#REGISTRY    ?= quay.io/openshift/
 VERSION     ?= $(shell git describe --always --abbrev=7)
 MUTABLE_TAG ?= latest
-IMAGE        = $(REGISTRY)machine-api
+IMAGE        = $(REGISTRY)machine-api-operator
 
+.PHONY: all
 all: check build test
 
 DOCKER_CMD := docker run --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z -w /go/src/github.com/openshift/machine-api-operator golang:1.10
@@ -23,17 +24,19 @@ check: ## Lint code
 
 .PHONY: build
 build: ## Build binary
+	@echo -e "\033[32mBuilding package...\033[0m"
 	mkdir -p bin
 	$(DOCKER_CMD) go build -v -o bin/machine-api-operator cmd/main.go
 
 .PHONY: test
 test: ## Run tests
+	@echo -e "\033[32mTesting...\033[0m"
 	$(DOCKER_CMD) go test ./...
 
 .PHONY: images
 image: ## Build docker image
 	@echo -e "\033[32mBuilding image $(IMAGE):$(VERSION)...\033[0m"
-	docker build -t "$(IMAGE):$(VERSION)" -f ./cmd/Dockerfile
+	docker build -t "$(IMAGE):$(VERSION)" -f ./cmd/Dockerfile ./
 	@echo -e "\033[32mTagging image as $(IMAGE):$(MUTABLE_TAG)...\033[0m"
 	docker tag "$(IMAGE):$(VERSION)" "$(IMAGE):$(MUTABLE_TAG)"
 
