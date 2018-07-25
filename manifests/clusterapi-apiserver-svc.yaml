@@ -2,7 +2,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: clusterapi
-  namespace: default
+  namespace: kube-cluster
   labels:
     api: clusterapi
     apiserver: "true"

@@ -2,7 +2,7 @@ apiVersion: apps/v1beta1
 kind: Deployment
 metadata:
   name: clusterapi-apiserver
-  namespace: default
+  namespace: kube-cluster
   labels:
     api: clusterapi
     apiserver: "true"
