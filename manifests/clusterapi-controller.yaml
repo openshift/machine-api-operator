@@ -2,6 +2,7 @@ apiVersion: apps/v1beta1
 kind: Deployment
 metadata:
   name: clusterapi-controllers
+  namespace: kube-cluster
   labels:
     api: clusterapi
 spec:

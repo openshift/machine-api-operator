@@ -2,7 +2,7 @@ apiVersion: apps/v1beta1
 kind: StatefulSet
 metadata:
   name: etcd-clusterapi
-  namespace: default
+  namespace: kube-cluster
 spec:
   serviceName: "etcd"
   replicas: 1
