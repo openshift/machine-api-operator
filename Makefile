@@ -33,8 +33,8 @@ test: ## Run tests
 	@echo -e "\033[32mTesting...\033[0m"
 	$(DOCKER_CMD) go test ./...
 
-.PHONY: images
-image: ## Build docker image
+.PHONY: image
+image: build ## Build docker image
 	@echo -e "\033[32mBuilding image $(IMAGE):$(VERSION)...\033[0m"
 	docker build -t "$(IMAGE):$(VERSION)" -f ./cmd/Dockerfile ./
 	@echo -e "\033[32mTagging image as $(IMAGE):$(MUTABLE_TAG)...\033[0m"
