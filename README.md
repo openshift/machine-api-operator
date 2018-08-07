@@ -4,7 +4,7 @@ Operator for rendering, deploying and updating cluster-api components:
 - Controller manager
 - Machine controller (AWS actuator)
 
-The cluster-api is levereaged by Openshift for running machines under the machine-api-operator control.
+The cluster-api is levereaged by Openshift for running machines under the machine-api control.
 
 # CI & tests
 
