@@ -13,3 +13,4 @@ FROM debian:stretch-slim
 RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /go/src/github.com/openshift/machine-api-operator/bin/machine-api-operator .
+COPY --from=builder /go/src/github.com/openshift/machine-api-operator/manifests manifests

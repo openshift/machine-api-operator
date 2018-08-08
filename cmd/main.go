@@ -45,9 +45,5 @@ func main() {
 // rendererFromFile reads the config object on demand from the path and then passes it to the
 // renderer.
 func rendererFromFile() []xotypes.UpgradeSpec {
-	config, err := render.Config(configPath)
-	if err != nil {
-		glog.Exitf("Error reading machine-api config: %v", err)
-	}
-	return render.MakeRenderer(config, manifestDir)()
+  return render.MakeRenderer(&render.OperatorConfig{}, manifestDir)()
 }
