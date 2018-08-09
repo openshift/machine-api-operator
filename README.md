@@ -11,7 +11,7 @@ The cluster-api is levereaged by OpenShift for running machines under the machin
 Tests are located in [machine-api-operator repository][1] and executed with `make test` in prow CI system. A link to failing tests is published as a comment in PR by @openshift-ci-robot. Current test status for all OpenShift components can be found in https://deck-ci.svc.ci.openshift.org.
 
 CI configuration is stored in [openshift/release][2] repository and is split into 3 files:
-  - [cluster/ci/config/prow/plugins.yaml][3] - says which prow plugins are available and where is job config stored
+  - [cluster/ci/config/prow/plugins.yaml][3] - says which prow plugins are available and where job config is stored
   - [ci-operator/config/openshift/machine-api-operator/master.json][4] - configuration for machine-api-operator component repository
   - [cluster/ci/config/prow/config.yaml][5] - prow jobs configuration
 
