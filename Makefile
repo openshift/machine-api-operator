@@ -6,7 +6,9 @@ IMAGE        = $(REGISTRY)machine-api-operator
 .PHONY: all
 all: check build test
 
-DOCKER_CMD := docker run --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z -w /go/src/github.com/openshift/machine-api-operator golang:1.10
+ifndef NO_DOCKER
+  DOCKER_CMD := docker run --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z -w /go/src/github.com/openshift/machine-api-operator golang:1.10
+endif
 
 .PHONY: check
 check: ## Lint code
