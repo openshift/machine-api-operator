@@ -1,0 +1,41 @@
+apiVersion: cluster.k8s.io/v1alpha1
+kind: MachineSet
+metadata:
+  name: extra-worker-machinset
+  namespace: test
+  labels:
+    machineapioperator.openshift.io/cluster: test
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      machineapioperator.openshift.io/machineset: extra-worker-machinset
+      machineapioperator.openshift.io/cluster: test
+  template:
+    metadata:
+      labels:
+        machineapioperator.openshift.io/machineset: extra-worker-machinset
+        machineapioperator.openshift.io/cluster: test
+    spec:
+      providerConfig:
+        value:
+          apiVersion: awsproviderconfig/v1alpha1
+          kind: AWSMachineProviderConfig
+          clusterId: meh.tectonic.kuwit.rocks
+          clusterHardware:
+            aws:
+              keyPairName: tectonic
+              region: eu-west-1
+          hardware:
+            aws:
+              instanceType: m4.large
+          infra: false
+          vmImage:
+            # CoreOS-beta-1828.3.0-hvm
+            awsImage: ami-0518e1ac70d8a3389
+      versions:
+        kubelet: 0.0.0
+        controlPlane: 0.0.0
+      roles:
+      - Master
+
