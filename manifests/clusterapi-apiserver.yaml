@@ -110,5 +110,5 @@ spec:
         emptyDir: {}
       - name: cluster-apiserver-certs
         secret:
-          secretName: cluster-apiserver-secrets
+          secretName: cluster-apiserver-certs
 # TODO: add readiness and liveness probe
