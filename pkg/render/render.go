@@ -132,12 +132,12 @@ func Config(configFile string) (*OperatorConfig, error) {
 	}
 
 	// Marshal into machineAPI config object
-	var oConfig OperatorConfig
-	if err := yaml.Unmarshal(config, &config); err != nil {
+	var operatorConfig OperatorConfig
+	if err := yaml.Unmarshal(config, &operatorConfig); err != nil {
 		return nil, fmt.Errorf("unmarshal config file: %v", err)
 	}
 
-	return &oConfig, nil
+	return &operatorConfig, nil
 }
 
 // processManifestsDir converts the templates in the templateDir with the cluster config.
