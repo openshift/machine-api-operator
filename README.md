@@ -13,8 +13,8 @@ Tests are located in [machine-api-operator repository][1] and executed with `mak
 CI configuration is stored in [openshift/release][2] repository and is split into 3 files:
   - [cluster/ci/config/prow/plugins.yaml][3] - says which prow plugins are available and where job config is stored
   - [ci-operator/config/openshift/machine-api-operator/master.json][4] - configuration for machine-api-operator component repository
-  - [ci-operator/jobs/openshift/machine-api-operator/openshift-machine-api-operator-presubmits.yaml][5] - prow jobs configuration for presubmits
-  - [ci-operator/jobs/openshift/machine-api-operator/openshift-machine-api-operator-postsubmits.yaml][6] - prow jobs configuration for postsubmits
+  - [ci-operator/jobs/openshift/machine-api-operator/openshift-machine-api-operator-presubmits.yml][5] - prow jobs configuration for presubmits
+  - [ci-operator/jobs/openshift/machine-api-operator/openshift-machine-api-operator-postsubmits.yml][6] - prow jobs configuration for postsubmits
 
 More information about those files can be found in [ci-operator onboarding file][7]
 
@@ -24,7 +24,7 @@ Initial configuration for machine-api-operator CI pipeline can be found in [PR #
 [2]: https://github.com/openshift/release
 [3]: https://github.com/openshift/release/blob/master/cluster/ci/config/prow/plugins.yaml
 [4]: https://github.com/openshift/release/blob/master/ci-operator/config/openshift/machine-api-operator/master.json
-[5]: https://github.com/openshift/release/blob/master/ci-operator/jobs/openshift/machine-api-operator/openshift-machine-api-operator-postsubmits.yaml
-[6]: https://github.com/openshift/release/blob/master/ci-operator/jobs/openshift/machine-api-operator/openshift-machine-api-operator-postsubmits.yaml
+[5]: https://github.com/openshift/release/blob/master/ci-operator/jobs/openshift/machine-api-operator/openshift-machine-api-operator-presubmits.yml
+[6]: https://github.com/openshift/release/blob/master/ci-operator/jobs/openshift/machine-api-operator/openshift-machine-api-operator-postsubmits.yml
 [7]: https://github.com/openshift/ci-operator/blob/master/ONBOARD.md
 [8]: https://github.com/openshift/release/pull/1095
