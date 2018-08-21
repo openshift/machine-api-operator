@@ -4,7 +4,41 @@ Operator for rendering, deploying and updating cluster-api components:
 - Controller manager
 - Machine controller (AWS actuator)
 
-The cluster-api is levereaged by OpenShift for running machines under the machine-api control.
+The cluster-api is leveraged by OpenShift for running machines under the machine-api control.
+
+# Manual deployment (for Kubernetes cluster)
+
+In order to deploy the machine-api-operator from scratch, one needs to:
+
+1. create `tectonic-system` namespace
+1. create [CRD definition](https://raw.githubusercontent.com/openshift/installer/master/modules/tectonic/resources/manifests/updater/app-version-kind.yaml)
+   and `AppVersion` manifest:
+
+   ```yaml
+   apiVersion: tco.coreos.com/v1
+   kind: AppVersion
+   metadata:
+     name: machine-api
+     namespace: tectonic-system
+     labels:
+       managed-by-channel-operator: "true"
+   spec:
+     desiredVersion:
+     paused: false
+   status:
+     currentVersion:
+     paused: false
+   upgradereq:  1
+   upgradecomp: 0
+   ```
+1. Build:
+   ```sh
+   go build -o bin/machine-api-operator github.com/openshift/machine-api-operator/cmd
+   ```
+   and run the `machine-api-operator` binary:
+   ```sh
+   ./bin/machine-api-operator --kubeconfig /root/.kube/config  --config pkg/render/machine-api-operator-config.yaml --manifest-dir manifests
+   ```
 
 # CI & tests
 
