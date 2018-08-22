@@ -37,7 +37,7 @@ In order to deploy the machine-api-operator from scratch, one needs to:
    ```
    and run the `machine-api-operator` binary:
    ```sh
-   ./bin/machine-api-operator --kubeconfig /root/.kube/config  --config pkg/render/machine-api-operator-config.yaml --manifest-dir manifests
+   ./bin/machine-api-operator --kubeconfig ${HOME}/.kube/config  --config pkg/render/machine-api-operator-config.yaml --manifest-dir manifests
    ```
 
 # CI & tests
