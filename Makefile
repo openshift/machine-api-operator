@@ -9,8 +9,10 @@ all: check build test
 NO_DOCKER ?= 0
 ifeq ($(NO_DOCKER), 1)
   DOCKER_CMD =
+  IMAGE_BUILD_CMD = imagebuilder
 else
   DOCKER_CMD := docker run --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z -w /go/src/github.com/openshift/machine-api-operator golang:1.10
+  IMAGE_BUILD_CMD = docker build
 endif
 
 .PHONY: check
@@ -40,10 +42,8 @@ test: ## Run tests
 
 .PHONY: image
 image: build ## Build docker image
-	@echo -e "\033[32mBuilding image $(IMAGE):$(VERSION)...\033[0m"
-	docker build -t "$(IMAGE):$(VERSION)" ./
-	@echo -e "\033[32mTagging image as $(IMAGE):$(MUTABLE_TAG)...\033[0m"
-	docker tag "$(IMAGE):$(VERSION)" "$(IMAGE):$(MUTABLE_TAG)"
+	@echo -e "\033[32mBuilding image $(IMAGE):$(VERSION) and tagging also as $(IMAGE):$(MUTABLE_TAG)...\033[0m"
+	$(IMAGE_BUILD_CMD) -t "$(IMAGE):$(VERSION)" -t "$(IMAGE):$(MUTABLE_TAG)" ./
 
 .PHONY: push
 push: ## Push image to docker registry
