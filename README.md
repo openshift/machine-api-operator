@@ -33,7 +33,7 @@ In order to deploy the machine-api-operator from scratch, one needs to:
    ```
 1. Build:
    ```sh
-   go build -o bin/machine-api-operator github.com/openshift/machine-api-operator/cmd
+   make build
    ```
    and run the `machine-api-operator` binary:
    ```sh
