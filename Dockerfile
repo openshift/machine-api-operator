@@ -1,5 +1,5 @@
 # Reproducible builder image
-FROM golang:1.10.0 as build
+FROM openshift/origin-release:golang-1.10 as build
 WORKDIR /go/src/github.com/openshift/machine-api-operator
 # This expects that the context passed to the docker build command is
 # the machine-api-operator directory.
