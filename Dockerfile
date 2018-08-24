@@ -1,5 +1,5 @@
 # Reproducible builder image
-FROM golang:1.10.0 as builder
+FROM openshift/origin-release:golang-1.10 as build
 WORKDIR /go/src/github.com/openshift/machine-api-operator
 # This expects that the context passed to the docker build command is
 # the machine-api-operator directory.
@@ -9,9 +9,9 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go install -a -ldflags '-extldflags "-static"' cmd/
 
 # Final container
-FROM debian:stretch-slim
-RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/*
+FROM openshift/origin-base
+RUN yum install -y ca-certificates
 
-COPY --from=builder /go/src/github.com/openshift/machine-api-operator/bin/machine-api-operator .
-COPY --from=builder /go/src/github.com/openshift/machine-api-operator/manifests manifests
-COPY --from=builder /go/src/github.com/openshift/machine-api-operator/machines machines
+COPY --from=build /go/src/github.com/openshift/machine-api-operator/machine-api-operator .
+COPY --from=build /go/src/github.com/openshift/machine-api-operator/manifests manifests
+COPY --from=build /go/src/github.com/openshift/machine-api-operator/machines machines
