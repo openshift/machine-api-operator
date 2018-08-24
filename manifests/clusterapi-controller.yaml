@@ -45,14 +45,14 @@ spec:
             cpu: 100m
             memory: 30Mi
       - name: aws-machine-controller
-        image: quay.io/alberto_lamela/aws-machine-controller:mvp # TODO: move this to openshift org
+        image: quay.io/bison/aws-machine-controller:cfc14e5 # TODO: move this to openshift org
         env:
           - name: NODE_NAME
             valueFrom:
               fieldRef:
                 fieldPath: spec.nodeName
         command:
-          - /opt/services/aws-machine-controller
+          - /machine-controller
         args:
           - --log-level=debug
         resources:

@@ -1,4 +1,5 @@
-apiVersion: "cluster.k8s.io/v1alpha1"
+---
+apiVersion: cluster.k8s.io/v1alpha1
 kind: Cluster
 metadata:
   name: test
@@ -16,24 +17,6 @@ spec:
     value:
       apiVersion: awsproviderconfig/v1alpha1
       kind: AWSClusterProviderConfig
-      clusterId: {{.VpcName}}
-      clusterVersionRef:
-        namespace: test
-        name: test
-      hardware:
-        aws:
-          region: {{.Region}}
-          keyPairName: {{.SshKey}}
-      defaultHardwareSpec:
-        aws:
-          instanceType: m4.large
-      machineSets:
-      - nodeType: Master
-        size: 1
-      - shortName: infra
-        nodeType: Compute
-        infra: true
-        size: 1
-      - shortName: compute
-        nodeType: Compute
-        size: 1
+      region: "{{ .ClusterConfig.Region }}"
+      keyPairName: "{{ .ClusterConfig.KeyPairName }}"
+      vpcName: "{{ .ClusterConfig.VPCName }}"
