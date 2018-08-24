@@ -35,6 +35,12 @@ build: ## Build binary
 	mkdir -p bin
 	$(DOCKER_CMD) go build -v -o bin/machine-api-operator cmd/main.go
 
+.PHONY: build-e2e
+build-e2e: ## Build binary
+	@echo -e "\033[32mBuilding e2e test binary...\033[0m"
+	mkdir -p bin
+	$(DOCKER_CMD) go build -v -o bin/e2e github.com/openshift/machine-api-operator/tests/e2e
+
 .PHONY: test
 test: ## Run tests
 	@echo -e "\033[32mTesting...\033[0m"
