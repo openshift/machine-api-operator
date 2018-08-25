@@ -47,7 +47,7 @@ test: ## Run tests
 	$(DOCKER_CMD) go test ./...
 
 .PHONY: image
-image: build ## Build docker image
+image: ## Build docker image
 	@echo -e "\033[32mBuilding image $(IMAGE):$(VERSION) and tagging also as $(IMAGE):$(MUTABLE_TAG)...\033[0m"
 	$(IMAGE_BUILD_CMD) -t "$(IMAGE):$(VERSION)" -t "$(IMAGE):$(MUTABLE_TAG)" ./
 

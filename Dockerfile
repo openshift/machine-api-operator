@@ -6,12 +6,12 @@ WORKDIR /go/src/github.com/openshift/machine-api-operator
 # e.g. docker build -t <tag> -f <this_Dockerfile> <path_to_machine-api-operator>
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go install -a -ldflags '-extldflags "-static"' cmd/
+RUN CGO_ENABLED=0 GOOS=linux go build -o bin/machine-api-operator -a -ldflags '-extldflags "-static"' github.com/openshift/machine-api-operator/cmd
 
 # Final container
 FROM openshift/origin-base
 RUN yum install -y ca-certificates
 
-COPY --from=build /go/src/github.com/openshift/machine-api-operator/machine-api-operator .
+COPY --from=build /go/src/github.com/openshift/machine-api-operator/bin/machine-api-operator .
 COPY --from=build /go/src/github.com/openshift/machine-api-operator/manifests manifests
 COPY --from=build /go/src/github.com/openshift/machine-api-operator/machines machines
