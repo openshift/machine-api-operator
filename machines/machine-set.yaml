@@ -1,40 +1,55 @@
+---
 apiVersion: cluster.k8s.io/v1alpha1
 kind: MachineSet
 metadata:
   name: worker
   namespace: test
   labels:
-    machineapioperator.openshift.io/cluster: test
+    sigs.k8s.io/cluster-api-cluster: test
+    sigs.k8s.io/cluster-api-machine-role: worker
+    sigs.k8s.io/cluster-api-machine-type: worker
 spec:
   replicas: 3
   selector:
     matchLabels:
-      machineapioperator.openshift.io/machineset: worker
-      machineapioperator.openshift.io/cluster: test
+      sigs.k8s.io/cluster-api-machineset: worker
+      sigs.k8s.io/cluster-api-cluster: test
   template:
     metadata:
       labels:
-        machineapioperator.openshift.io/machineset: worker
-        machineapioperator.openshift.io/cluster: test
+        sigs.k8s.io/cluster-api-machineset: worker
+        sigs.k8s.io/cluster-api-cluster: test
+        sigs.k8s.io/cluster-api-machine-role: worker
+        sigs.k8s.io/cluster-api-machine-type: worker
     spec:
       providerConfig:
         value:
           apiVersion: awsproviderconfig/v1alpha1
           kind: AWSMachineProviderConfig
-          clusterId: {{.VpcName}}
-          clusterHardware:
-            aws:
-              keyPairName: {{.SshKey}}
-              region: {{.Region}}
-          hardware:
-            aws:
-              instanceType: m4.large
-          infra: false
-          vmImage:
-            awsImage: {{.Image}}
-      versions:
-        kubelet: 0.0.0
-        controlPlane: 0.0.0
-      roles:
-      - Master
-
+          ami:
+            id: "{{ .MachineConfig.AMI }}"
+          {{- if .AWSCredentialsSecret }}
+          credentialsSecret:
+            name: "{{ .AWSCredentialsSecret }}"
+          {{- end }}
+          instanceType: m4.xlarge
+          placement:
+            region: "{{ .ClusterConfig.Region }}"
+            availabilityZone: "{{ .MachineConfig.AvailabilityZone }}"
+          subnet:
+            id: "{{ .MachineConfig.Subnet }}"
+          iamInstanceProfile:
+            id: "{{ .MachineConfig.IAMInstanceProfile }}"
+          keyName: "{{ .ClusterConfig.KeyPairName }}"
+          tags:
+            - name: openshift-node-group-config
+              value: node-config-worker
+            - name: host-type
+              value: worker
+            - name: sub-host-type
+              value: default
+          securityGroups:
+          {{- range .MachineConfig.SecurityGroups }}
+            - id: "{{ . }}"
+          {{- end }}
+          publicIP: true

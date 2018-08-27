@@ -2,10 +2,120 @@ package render
 
 import (
 	"io/ioutil"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
 )
+
+var testConfig = OperatorConfig{
+	AWSCredentialsSecret: "TestClusterManifest-AWSCredentialsSecret",
+
+	ClusterConfig: ClusterConfig{
+		KeyPairName: "TestClusterManifest-KeyPairName",
+		Region:      "TestClusterManifest-Region",
+		VPCName:     "TestClusterManifest-VPCName",
+	},
+
+	MachineConfig: MachineConfig{
+		AMI:                "TestClusterManifest-AMI",
+		AvailabilityZone:   "TestClusterManifest-AvailabilityZone",
+		Subnet:             "TestClusterManifest-Subnet",
+		IAMInstanceProfile: "TestClusterManifest-IAMInstanceProfile",
+		SecurityGroups: []string{
+			"TestClusterManifest-SecurityGroup-0",
+			"TestClusterManifest-SecurityGroup-1",
+		},
+	},
+}
+
+const expectedClusterYAML = `
+---
+apiVersion: cluster.k8s.io/v1alpha1
+kind: Cluster
+metadata:
+  name: test
+  namespace: test
+spec:
+  clusterNetwork:
+    services:
+      cidrBlocks:
+        - "10.0.0.1/24"
+    pods:
+      cidrBlocks:
+        - "10.0.0.2/24"
+    serviceDomain: example.com
+  providerConfig:
+    value:
+      apiVersion: awsproviderconfig/v1alpha1
+      kind: AWSClusterProviderConfig
+      region: "TestClusterManifest-Region"
+      keyPairName: "TestClusterManifest-KeyPairName"
+      vpcName: "TestClusterManifest-VPCName"
+`
+
+const expectedMachineSetYAML = `
+---
+apiVersion: cluster.k8s.io/v1alpha1
+kind: MachineSet
+metadata:
+  name: worker
+  namespace: test
+  labels:
+    sigs.k8s.io/cluster-api-cluster: test
+    sigs.k8s.io/cluster-api-machine-role: worker
+    sigs.k8s.io/cluster-api-machine-type: worker
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      sigs.k8s.io/cluster-api-machineset: worker
+      sigs.k8s.io/cluster-api-cluster: test
+  template:
+    metadata:
+      labels:
+        sigs.k8s.io/cluster-api-machineset: worker
+        sigs.k8s.io/cluster-api-cluster: test
+        sigs.k8s.io/cluster-api-machine-role: worker
+        sigs.k8s.io/cluster-api-machine-type: worker
+    spec:
+      providerConfig:
+        value:
+          apiVersion: awsproviderconfig/v1alpha1
+          kind: AWSMachineProviderConfig
+          ami:
+            id: "TestClusterManifest-AMI"
+          credentialsSecret:
+            name: "TestClusterManifest-AWSCredentialsSecret"
+          instanceType: m4.xlarge
+          placement:
+            region: "TestClusterManifest-Region"
+            availabilityZone: "TestClusterManifest-AvailabilityZone"
+          subnet:
+            id: "TestClusterManifest-Subnet"
+          iamInstanceProfile:
+            id: "TestClusterManifest-IAMInstanceProfile"
+          keyName: "TestClusterManifest-KeyPairName"
+          tags:
+            - name: openshift-node-group-config
+              value: node-config-worker
+            - name: host-type
+              value: worker
+            - name: sub-host-type
+              value: default
+          securityGroups:
+            - id: "TestClusterManifest-SecurityGroup-0"
+            - id: "TestClusterManifest-SecurityGroup-1"
+          publicIP: true
+`
+
+var renderTests = []struct {
+	in  string
+	out string
+}{
+	{"../../machines/cluster.yaml", expectedClusterYAML},
+	{"../../machines/machine-set.yaml", expectedMachineSetYAML},
+}
 
 func testRenderManifest(t *testing.T, filename string, config *OperatorConfig, expectedConfig string) {
 	t.Helper()
@@ -33,106 +143,10 @@ func testRenderManifest(t *testing.T, filename string, config *OperatorConfig, e
 	}
 }
 
-func TestClusterManifest(t *testing.T) {
-	config := OperatorConfig{
-		VpcName:       "TestClusterManifest-VpcName",
-		SshKey:        "TestClusterManifest-SshKey",
-		ClusterName:   "TestClusterManifest-ClusterName",
-		ClusterDomain: "TestClusterManifest.ClusterDomain", // TODO(frobware) - currently not a template value
-		Region:        "TestClusterManifest-Region",
-		Image:         "TestClusterManifest-Image",
+func TestRendering(t *testing.T) {
+	for _, tt := range renderTests {
+		t.Run(path.Base(tt.in), func(t *testing.T) {
+			testRenderManifest(t, tt.in, &testConfig, tt.out)
+		})
 	}
-
-	testRenderManifest(t, "../../machines/cluster.yaml", &config, `
-apiVersion: "cluster.k8s.io/v1alpha1"
-kind: Cluster
-metadata:
-  name: test
-  namespace: test
-spec:
-  clusterNetwork:
-    services:
-      cidrBlocks:
-        - "10.0.0.1/24"
-    pods:
-      cidrBlocks:
-        - "10.0.0.2/24"
-    serviceDomain: example.com
-  providerConfig:
-    value:
-      apiVersion: awsproviderconfig/v1alpha1
-      kind: AWSClusterProviderConfig
-      clusterId: TestClusterManifest-VpcName
-      clusterVersionRef:
-        namespace: test
-        name: test
-      hardware:
-        aws:
-          region: TestClusterManifest-Region
-          keyPairName: TestClusterManifest-SshKey
-      defaultHardwareSpec:
-        aws:
-          instanceType: m4.large
-      machineSets:
-      - nodeType: Master
-        size: 1
-      - shortName: infra
-        nodeType: Compute
-        infra: true
-        size: 1
-      - shortName: compute
-        nodeType: Compute
-        size: 1`)
-}
-
-func TestMachineSetManifest(t *testing.T) {
-	config := OperatorConfig{
-		VpcName:       "TestMachineSetManifest-VpcName",
-		SshKey:        "TestMachineSetManifest-SshKey",
-		ClusterName:   "TestMachineSetManifest-ClusterName",
-		ClusterDomain: "TestMachineSetManifest.ClusterDomain", // TODO(frobware) - currently not a template value
-		Region:        "TestMachineSetManifest-Region",
-		Image:         "TestMachineSetManifest-Image",
-	}
-
-	testRenderManifest(t, "../../machines/machine-set.yaml", &config, `
-apiVersion: cluster.k8s.io/v1alpha1
-kind: MachineSet
-metadata:
-  name: worker
-  namespace: test
-  labels:
-    machineapioperator.openshift.io/cluster: test
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      machineapioperator.openshift.io/machineset: worker
-      machineapioperator.openshift.io/cluster: test
-  template:
-    metadata:
-      labels:
-        machineapioperator.openshift.io/machineset: worker
-        machineapioperator.openshift.io/cluster: test
-    spec:
-      providerConfig:
-        value:
-          apiVersion: awsproviderconfig/v1alpha1
-          kind: AWSMachineProviderConfig
-          clusterId: TestMachineSetManifest-VpcName
-          clusterHardware:
-            aws:
-              keyPairName: TestMachineSetManifest-SshKey
-              region: TestMachineSetManifest-Region
-          hardware:
-            aws:
-              instanceType: m4.large
-          infra: false
-          vmImage:
-            awsImage: TestMachineSetManifest-Image
-      versions:
-        kubelet: 0.0.0
-        controlPlane: 0.0.0
-      roles:
-      - Master`)
 }

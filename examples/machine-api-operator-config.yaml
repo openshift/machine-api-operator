@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: machineAPIOperatorConfig
+clusterConfig:
+  vpcName: "test"
+  keyPairName: "test"
+  region: "us-east-1"
+machineConfig:
+  ami: "ami-00cc4337762ba4a52"
+  availabilityZone: "us-east-1a"
+  iamInstanceProfile: "test"
+  subnet: "subnet-864ff9ce"
+  securityGroups: ["sg-105fda6e"]
