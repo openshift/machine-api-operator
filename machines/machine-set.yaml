@@ -1,40 +1,56 @@
+---
 apiVersion: cluster.k8s.io/v1alpha1
 kind: MachineSet
 metadata:
   name: worker
-  namespace: test
+  namespace: default
   labels:
-    machineapioperator.openshift.io/cluster: test
+    sigs.k8s.io/cluster-api-cluster: {{.ClusterName}}
+    sigs.k8s.io/cluster-api-machine-role: worker
+    sigs.k8s.io/cluster-api-machine-type: worker
 spec:
-  replicas: 3
+  replicas: {{.Replicas}}
   selector:
     matchLabels:
-      machineapioperator.openshift.io/machineset: worker
-      machineapioperator.openshift.io/cluster: test
+      sigs.k8s.io/cluster-api-machineset: worker
+      sigs.k8s.io/cluster-api-cluster: {{.ClusterName}}
   template:
     metadata:
       labels:
-        machineapioperator.openshift.io/machineset: worker
-        machineapioperator.openshift.io/cluster: test
+        sigs.k8s.io/cluster-api-machineset: worker
+        sigs.k8s.io/cluster-api-cluster: {{.ClusterName}}
+        sigs.k8s.io/cluster-api-machine-role: worker
+        sigs.k8s.io/cluster-api-machine-type: worker
     spec:
       providerConfig:
         value:
-          apiVersion: awsproviderconfig/v1alpha1
+          apiVersion: aws.cluster.k8s.io/v1alpha1
           kind: AWSMachineProviderConfig
-          clusterId: {{.VpcName}}
-          clusterHardware:
-            aws:
-              keyPairName: {{.SshKey}}
-              region: {{.Region}}
-          hardware:
-            aws:
-              instanceType: m4.large
-          infra: false
-          vmImage:
-            awsImage: {{.Image}}
+          ami:
+            id: {{.Image}}
+          instanceType: m4.large
+          placement:
+            region: {{.Region}}
+            availabilityZone: {{.AvailabilityZone}}
+          subnet:
+            filters:
+            - name: "tag:Name"
+              values:
+              - {{.ClusterName}}-worker-{{.AvailabilityZone}}
+          publicIp: true
+          iamInstanceProfile:
+            id: {{.ClusterName}}-master-profile
+          keyName: tectonic
+          tags:
+            - name: tectonicClusterID
+              value: {{.ClusterID}}
+          securityGroups:
+            - filters:
+              - name: "tag:Name"
+                values:
+                - {{.ClusterName}}_worker_sg
+          userDataSecret:
+            name: ignition-worker
       versions:
-        kubelet: 0.0.0
-        controlPlane: 0.0.0
-      roles:
-      - Master
-
+        kubelet: ""
+        controlPlane: ""

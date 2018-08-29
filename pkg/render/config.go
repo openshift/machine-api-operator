@@ -11,11 +11,11 @@ const (
 
 // OperatorConfig contains configuration for KAO managed add-ons
 type OperatorConfig struct {
-	metav1.TypeMeta `json:",inline"`
-	VpcName         string `json:"vpcName"`
-	SshKey          string `json:"sshKey"`
-	ClusterName     string `json:"clusterName"`
-	ClusterDomain   string `json:"clusterDomain"`
-	Region          string `json:"region"`
-	Image           string `json:"image"`
+	metav1.TypeMeta  `json:",inline"`
+	ClusterName      string `json:"clusterName"`
+	ClusterID        string `json:"clusterID"`
+	Region           string `json:"region"`
+	AvailabilityZone string `json:"availabilityZone"`
+	Image            string `json:"image"`
+	Replicas         string `json:"replicas"`
 }
