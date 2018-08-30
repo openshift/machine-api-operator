@@ -1,0 +1,43 @@
+---
+apiVersion: cluster.k8s.io/v1alpha1
+kind: MachineSet
+metadata:
+  name: worker
+  namespace: default
+  labels:
+    sigs.k8s.io/cluster-api-cluster: {{.Libvirt.ClusterName}}
+    sigs.k8s.io/cluster-api-machine-role: worker
+    sigs.k8s.io/cluster-api-machine-type: worker
+spec:
+  replicas: {{.Libvirt.Replicas}}
+  selector:
+    matchLabels:
+      sigs.k8s.io/cluster-api-machineset: worker
+      sigs.k8s.io/cluster-api-cluster: {{.Libvirt.ClusterName}}
+      sigs.k8s.io/cluster-api-machine-role: worker
+      sigs.k8s.io/cluster-api-machine-type: worker
+  template:
+    metadata:
+      labels:
+        sigs.k8s.io/cluster-api-machineset: worker
+        sigs.k8s.io/cluster-api-cluster: {{.Libvirt.ClusterName}}
+        sigs.k8s.io/cluster-api-machine-role: infra
+        sigs.k8s.io/cluster-api-machine-type: worker
+    spec:
+      providerConfig:
+        value:
+          apiVersion: libvirtproviderconfig/v1alpha1
+          kind: LibvirtMachineProviderConfig
+          domainMemory: 2048
+          domainVcpu: 2
+          ignKey: /var/lib/libvirt/images/worker.ign
+          volume:
+            poolName: default
+            baseVolumeID: /var/lib/libvirt/images/coreos_base
+          networkInterfaceName: tectonic
+          networkInterfaceAddress: 192.168.124.12
+          autostart: false
+          uri: {{.Libvirt.URI}}
+      versions:
+        kubelet: ""
+        controlPlane: ""

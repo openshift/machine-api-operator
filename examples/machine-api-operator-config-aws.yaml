@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: machineAPIOperatorConfig
+provider: aws
+aws:
+  clusterName: meh
+  clusterID: b302cf66-f5ff-4d5d-1cc1-0ab2755d2065
+  image: ami-0e502f54daeb8686e
+  region: eu-west-1
+  availabilityZone: eu-west-1a
+  replicas: 1

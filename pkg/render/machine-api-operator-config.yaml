@@ -1,6 +1,0 @@
-apiVersion: v1
-kind: machineAPIOperatorConfig
-vpcName: "test"
-sshKey: "test"
-clusterName: "test"
-clusterDomain: "test"

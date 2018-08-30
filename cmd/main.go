@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"time"
 
@@ -34,6 +35,11 @@ func init() {
 	flag.StringVar(&configPath, "config", "/etc/mao-config/config", "Cluster config file from which to obtain configuration options")
 	flag.Parse()
 }
+
+const (
+	providerAWS     = "aws"
+	providerLibvirt = "libvirt"
+)
 
 func main() {
 
@@ -84,7 +90,6 @@ func deployMachineSet() {
 	if err != nil {
 		glog.Fatalf("Error building kube config %#v", err)
 	}
-
 	client, err := clientset.NewForConfig(config)
 	clusterApiScheme.AddToScheme(scheme.Scheme)
 	decode := scheme.Codecs.UniversalDeserializer().Decode
@@ -95,8 +100,15 @@ func deployMachineSet() {
 		glog.Fatalf("Error reading machine-api-operator config: %v", err)
 	}
 
+	var machinesFolder string
+	if operatorConfig.Provider == providerAWS {
+		machinesFolder = "machines/aws"
+	} else if operatorConfig.Provider == providerLibvirt {
+		machinesFolder = "machines/libvirt"
+	}
+
 	// Create Cluster object
-	clusterTemplateData, err := ioutil.ReadFile("machines/cluster.yaml") // just pass the file name
+	clusterTemplateData, err := ioutil.ReadFile(fmt.Sprintf("%s/cluster.yaml", machinesFolder)) // just pass the file name
 	if err != nil {
 		glog.Fatalf("Error reading %#v", err)
 	}
@@ -113,7 +125,7 @@ func deployMachineSet() {
 	cluster := clusterObj.(*clusterv1.Cluster)
 
 	// Create MachineSet object
-	machineSetTemplateData, err := ioutil.ReadFile("machines/machine-set.yaml") // just pass the file name
+	machineSetTemplateData, err := ioutil.ReadFile(fmt.Sprintf("%s/machine-set.yaml", machinesFolder)) // just pass the file name
 	if err != nil {
 		glog.Fatalf("Error reading %#v", err)
 	}
@@ -131,14 +143,14 @@ func deployMachineSet() {
 
 	for {
 		glog.Info("Trying to deploy Cluster object")
-		if _, err := v1alphaClient.Clusters("test").Create(cluster); err != nil {
+		if _, err := v1alphaClient.Clusters("default").Create(cluster); err != nil {
 			glog.Infof("Cannot create cluster, retrying in 5 secs: %v", err)
 		} else {
 			glog.Info("Created Cluster object")
 		}
 
 		glog.Info("Trying to deploy MachineSet object")
-		_, err = v1alphaClient.MachineSets("test").Create(machineSet)
+		_, err = v1alphaClient.MachineSets("default").Create(machineSet)
 		if err != nil {
 			glog.Infof("Cannot create MachineSet, retrying in 5 secs: %v", err)
 		} else {

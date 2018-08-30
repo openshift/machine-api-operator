@@ -3,10 +3,10 @@ package render
 import (
 	"bytes"
 	"fmt"
-	"html/template"
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"text/template"
 
 	"github.com/ghodss/yaml"
 	"github.com/golang/glog"

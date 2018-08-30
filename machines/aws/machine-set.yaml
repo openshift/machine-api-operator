@@ -1,0 +1,56 @@
+---
+apiVersion: cluster.k8s.io/v1alpha1
+kind: MachineSet
+metadata:
+  name: worker
+  namespace: default
+  labels:
+    sigs.k8s.io/cluster-api-cluster: {{.AWS.ClusterName}}
+    sigs.k8s.io/cluster-api-machine-role: worker
+    sigs.k8s.io/cluster-api-machine-type: worker
+spec:
+  replicas: {{.AWS.Replicas}}
+  selector:
+    matchLabels:
+      sigs.k8s.io/cluster-api-machineset: worker
+      sigs.k8s.io/cluster-api-cluster: {{.AWS.ClusterName}}
+  template:
+    metadata:
+      labels:
+        sigs.k8s.io/cluster-api-machineset: worker
+        sigs.k8s.io/cluster-api-cluster: {{.AWS.ClusterName}}
+        sigs.k8s.io/cluster-api-machine-role: worker
+        sigs.k8s.io/cluster-api-machine-type: worker
+    spec:
+      providerConfig:
+        value:
+          apiVersion: aws.cluster.k8s.io/v1alpha1
+          kind: AWSMachineProviderConfig
+          ami:
+            id: {{.AWS.Image}}
+          instanceType: m4.large
+          placement:
+            region: {{.AWS.Region}}
+            availabilityZone: {{.AWS.AvailabilityZone}}
+          subnet:
+            filters:
+            - name: "tag:Name"
+              values:
+              - {{.AWS.ClusterName}}-worker-{{.AWS.AvailabilityZone}}
+          publicIp: true
+          iamInstanceProfile:
+            id: {{.AWS.ClusterName}}-master-profile
+          keyName: tectonic
+          tags:
+            - name: tectonicClusterID
+              value: {{.AWS.ClusterID}}
+          securityGroups:
+            - filters:
+              - name: "tag:Name"
+                values:
+                - {{.AWS.ClusterName}}_worker_sg
+          userDataSecret:
+            name: ignition-worker
+      versions:
+        kubelet: ""
+        controlPlane: ""

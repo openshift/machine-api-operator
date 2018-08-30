@@ -2,12 +2,15 @@ apiVersion: apps/v1beta1
 kind: Deployment
 metadata:
   name: clusterapi-controllers
-  namespace: default
+  namespace: kube-system
   labels:
     api: clusterapi
     k8s-app: controller
     tectonic-operators.coreos.com/managed-by: machine-api-operator
 spec:
+  securityContext:
+    runAsNonRoot: true
+    runAsUser: 65534
   selector:
     matchLabels:
       api: clusterapi
@@ -44,15 +47,20 @@ spec:
           limits:
             cpu: 100m
             memory: 30Mi
+      {{- if .AWS }}
       - name: aws-machine-controller
-        image: quay.io/alberto_lamela/aws-machine-controller:mvp # TODO: move this to openshift org
+        image: quay.io/alberto_lamela/aws-machine-controller:dev # TODO: move this to openshift org
+      {{- else if .Libvirt}}
+      - name: libvirt-machine-controller
+        image: quay.io/alberto_lamela/libvirt-machine-controller:0.0.1-dev # TODO: move this to openshift org
+      {{- end}}
         env:
           - name: NODE_NAME
             valueFrom:
               fieldRef:
                 fieldPath: spec.nodeName
         command:
-          - /opt/services/aws-machine-controller
+          - /machine-controller
         args:
           - --log-level=debug
         resources:
