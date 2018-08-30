@@ -11,7 +11,19 @@ const (
 
 // OperatorConfig contains configuration for KAO managed add-ons
 type OperatorConfig struct {
-	metav1.TypeMeta  `json:",inline"`
+	metav1.TypeMeta `json:",inline"`
+	Provider        string         `json:"provider"`
+	AWS             *awsConfig     `json:"aws"`
+	Libvirt         *libvirtConfig `json:"libvirt"`
+}
+
+type libvirtConfig struct {
+	URI         string `json:"uri"`
+	ClusterName string `json:"clusterName"`
+	Replicas    string `json:"replicas"`
+}
+
+type awsConfig struct {
 	ClusterName      string `json:"clusterName"`
 	ClusterID        string `json:"clusterID"`
 	Region           string `json:"region"`

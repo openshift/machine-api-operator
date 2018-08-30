@@ -5,20 +5,20 @@ metadata:
   name: worker
   namespace: default
   labels:
-    sigs.k8s.io/cluster-api-cluster: {{.ClusterName}}
+    sigs.k8s.io/cluster-api-cluster: {{.AWS.ClusterName}}
     sigs.k8s.io/cluster-api-machine-role: worker
     sigs.k8s.io/cluster-api-machine-type: worker
 spec:
-  replicas: {{.Replicas}}
+  replicas: {{.AWS.Replicas}}
   selector:
     matchLabels:
       sigs.k8s.io/cluster-api-machineset: worker
-      sigs.k8s.io/cluster-api-cluster: {{.ClusterName}}
+      sigs.k8s.io/cluster-api-cluster: {{.AWS.ClusterName}}
   template:
     metadata:
       labels:
         sigs.k8s.io/cluster-api-machineset: worker
-        sigs.k8s.io/cluster-api-cluster: {{.ClusterName}}
+        sigs.k8s.io/cluster-api-cluster: {{.AWS.ClusterName}}
         sigs.k8s.io/cluster-api-machine-role: worker
         sigs.k8s.io/cluster-api-machine-type: worker
     spec:
@@ -27,28 +27,28 @@ spec:
           apiVersion: aws.cluster.k8s.io/v1alpha1
           kind: AWSMachineProviderConfig
           ami:
-            id: {{.Image}}
+            id: {{.AWS.Image}}
           instanceType: m4.large
           placement:
-            region: {{.Region}}
-            availabilityZone: {{.AvailabilityZone}}
+            region: {{.AWS.Region}}
+            availabilityZone: {{.AWS.AvailabilityZone}}
           subnet:
             filters:
             - name: "tag:Name"
               values:
-              - {{.ClusterName}}-worker-{{.AvailabilityZone}}
+              - {{.AWS.ClusterName}}-worker-{{.AWS.AvailabilityZone}}
           publicIp: true
           iamInstanceProfile:
-            id: {{.ClusterName}}-master-profile
+            id: {{.AWS.ClusterName}}-master-profile
           keyName: tectonic
           tags:
             - name: tectonicClusterID
-              value: {{.ClusterID}}
+              value: {{.AWS.ClusterID}}
           securityGroups:
             - filters:
               - name: "tag:Name"
                 values:
-                - {{.ClusterName}}_worker_sg
+                - {{.AWS.ClusterName}}_worker_sg
           userDataSecret:
             name: ignition-worker
       versions:
