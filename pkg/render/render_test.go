@@ -121,7 +121,6 @@ spec:
           publicIp: true
           iamInstanceProfile:
             id: TestClusterManifest-ClusterName-master-profile
-          keyName: tectonic
           tags:
             - name: tectonicClusterID
               value: TestClusterManifest-ClusterID

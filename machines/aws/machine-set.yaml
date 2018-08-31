@@ -40,7 +40,6 @@ spec:
           publicIp: true
           iamInstanceProfile:
             id: {{.AWS.ClusterName}}-master-profile
-          keyName: tectonic
           tags:
             - name: tectonicClusterID
               value: {{.AWS.ClusterID}}
