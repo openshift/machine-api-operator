@@ -20,6 +20,7 @@ type OperatorConfig struct {
 type libvirtConfig struct {
 	URI         string `json:"uri"`
 	NetworkName string `json:"networkName"`
+	IPRange     string `json:"ipRange"`
 	ClusterName string `json:"clusterName"`
 	Replicas    string `json:"replicas"`
 }

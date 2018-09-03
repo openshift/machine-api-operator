@@ -35,7 +35,7 @@ spec:
             poolName: default
             baseVolumeID: /var/lib/libvirt/images/coreos_base
           networkInterfaceName: {{.Libvirt.NetworkName}}
-          networkInterfaceAddress: 192.168.124.12
+          networkInterfaceAddress: {{.Libvirt.IPRange}}
           autostart: false
           uri: {{.Libvirt.URI}}
       versions:

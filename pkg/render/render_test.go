@@ -142,6 +142,7 @@ func TestMachineSetLibvirtManifest(t *testing.T) {
 		Libvirt: &libvirtConfig{
 			URI:         "qemu+tcp://host_private_ip/system",
 			NetworkName: "testNet",
+			IPRange:     "192.168.124.0/24",
 			Replicas:    "2",
 			ClusterName: "test",
 		},
@@ -185,7 +186,7 @@ spec:
             poolName: default
             baseVolumeID: /var/lib/libvirt/images/coreos_base
           networkInterfaceName: testNet
-          networkInterfaceAddress: 192.168.124.12
+          networkInterfaceAddress: 192.168.124.0/24
           autostart: false
           uri: qemu+tcp://host_private_ip/system
       versions:
@@ -199,6 +200,7 @@ func TestClusterapiControllerManifest(t *testing.T) {
 		Libvirt: &libvirtConfig{
 			URI:         "qemu+tcp://host_private_ip/system",
 			NetworkName: "testNet",
+			IPRange:     "192.168.124.0/24",
 			Replicas:    "2",
 			ClusterName: "test",
 		},
