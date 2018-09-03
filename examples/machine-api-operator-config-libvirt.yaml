@@ -3,3 +3,5 @@ kind: machineAPIOperatorConfig
 provider: libvirt
 libvirt:
   uri: qemu+tcp://host_private_ip/system
+  networkName: openshift
+  replicas: 1

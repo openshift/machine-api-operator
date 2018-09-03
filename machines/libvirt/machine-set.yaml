@@ -21,7 +21,7 @@ spec:
       labels:
         sigs.k8s.io/cluster-api-machineset: worker
         sigs.k8s.io/cluster-api-cluster: {{.Libvirt.ClusterName}}
-        sigs.k8s.io/cluster-api-machine-role: infra
+        sigs.k8s.io/cluster-api-machine-role: worker
         sigs.k8s.io/cluster-api-machine-type: worker
     spec:
       providerConfig:
@@ -34,8 +34,8 @@ spec:
           volume:
             poolName: default
             baseVolumeID: /var/lib/libvirt/images/coreos_base
-          networkInterfaceName: tectonic
-          networkInterfaceAddress: 192.168.124.12
+          networkInterfaceName: {{.Libvirt.NetworkName}}
+          networkInterfaceAddress: {{.Libvirt.IPRange}}
           autostart: false
           uri: {{.Libvirt.URI}}
       versions:

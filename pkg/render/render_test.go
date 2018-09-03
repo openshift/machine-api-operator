@@ -121,7 +121,6 @@ spec:
           publicIp: true
           iamInstanceProfile:
             id: TestClusterManifest-ClusterName-master-profile
-          keyName: tectonic
           tags:
             - name: tectonicClusterID
               value: TestClusterManifest-ClusterID
@@ -142,6 +141,8 @@ func TestMachineSetLibvirtManifest(t *testing.T) {
 		Provider: "libvirt",
 		Libvirt: &libvirtConfig{
 			URI:         "qemu+tcp://host_private_ip/system",
+			NetworkName: "testNet",
+			IPRange:     "192.168.124.0/24",
 			Replicas:    "2",
 			ClusterName: "test",
 		},
@@ -171,7 +172,7 @@ spec:
       labels:
         sigs.k8s.io/cluster-api-machineset: worker
         sigs.k8s.io/cluster-api-cluster: test
-        sigs.k8s.io/cluster-api-machine-role: infra
+        sigs.k8s.io/cluster-api-machine-role: worker
         sigs.k8s.io/cluster-api-machine-type: worker
     spec:
       providerConfig:
@@ -184,8 +185,8 @@ spec:
           volume:
             poolName: default
             baseVolumeID: /var/lib/libvirt/images/coreos_base
-          networkInterfaceName: tectonic
-          networkInterfaceAddress: 192.168.124.12
+          networkInterfaceName: testNet
+          networkInterfaceAddress: 192.168.124.0/24
           autostart: false
           uri: qemu+tcp://host_private_ip/system
       versions:
@@ -198,6 +199,8 @@ func TestClusterapiControllerManifest(t *testing.T) {
 		Provider: "libvirt",
 		Libvirt: &libvirtConfig{
 			URI:         "qemu+tcp://host_private_ip/system",
+			NetworkName: "testNet",
+			IPRange:     "192.168.124.0/24",
 			Replicas:    "2",
 			ClusterName: "test",
 		},
