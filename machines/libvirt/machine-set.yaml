@@ -34,7 +34,7 @@ spec:
           volume:
             poolName: default
             baseVolumeID: /var/lib/libvirt/images/coreos_base
-          networkInterfaceName: tectonic
+          networkInterfaceName: {{.Libvirt.NetworkName}}
           networkInterfaceAddress: 192.168.124.12
           autostart: false
           uri: {{.Libvirt.URI}}
