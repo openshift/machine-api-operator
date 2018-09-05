@@ -26,10 +26,12 @@ type libvirtConfig struct {
 }
 
 type awsConfig struct {
-	ClusterName      string `json:"clusterName"`
-	ClusterID        string `json:"clusterID"`
-	Region           string `json:"region"`
-	AvailabilityZone string `json:"availabilityZone"`
-	Image            string `json:"image"`
-	Replicas         string `json:"replicas"`
+	ClusterName           string `json:"clusterName"`
+	ClusterID             string `json:"clusterID"`
+	Region                string `json:"region"`
+	AvailabilityZone      string `json:"availabilityZone"`
+	Image                 string `json:"image"`
+	ReleaseChannel        string `json:"releaseChannel"`
+	ContainerLinuxVersion string `json:"containerLinuxVersion"`
+	Replicas              string `json:"replicas"`
 }
