@@ -28,6 +28,19 @@ spec:
           kind: AWSMachineProviderConfig
           ami:
             id: {{.AWS.Image}}
+            filters:
+              - name: "name"
+                values:
+                - CoreOS-{{.AWS.ReleaseChannel}}-{{.AWS.ContainerLinuxVersion}}-*
+              - name: "architecture"
+                values:
+                - "x86_64"
+              - name: "virtualization-type"
+                values:
+                - "hvm"
+              - name: "owner-id"
+                values:
+                - "595879546273"
           instanceType: m4.large
           placement:
             region: {{.AWS.Region}}
@@ -36,7 +49,7 @@ spec:
             filters:
             - name: "tag:Name"
               values:
-              - {{.AWS.ClusterName}}-worker-{{.AWS.AvailabilityZone}}
+              - {{.AWS.ClusterName}}-worker-*
           publicIp: true
           iamInstanceProfile:
             id: {{.AWS.ClusterName}}-master-profile

@@ -69,12 +69,14 @@ func TestMachineSetAWSManifest(t *testing.T) {
 	config := OperatorConfig{
 		Provider: "aws",
 		AWS: &awsConfig{
-			ClusterName:      "TestClusterManifest-ClusterName",
-			ClusterID:        "TestClusterManifest-ClusterID",
-			Region:           "TestClusterManifest-Region",
-			AvailabilityZone: "TestClusterManifest-AvailabilityZone",
-			Image:            "TestClusterManifest-Image",
-			Replicas:         "TestClusterManifest-Replicas",
+			ClusterName:           "TestClusterManifest-ClusterName",
+			ClusterID:             "TestClusterManifest-ClusterID",
+			ReleaseChannel:        "TestChannel",
+			ContainerLinuxVersion: "TestCLVersion",
+			Region:                "TestClusterManifest-Region",
+			AvailabilityZone:      "TestClusterManifest-AvailabilityZone",
+			Image:                 "TestClusterManifest-Image",
+			Replicas:              "TestClusterManifest-Replicas",
 		},
 	}
 
@@ -109,6 +111,19 @@ spec:
           kind: AWSMachineProviderConfig
           ami:
             id: TestClusterManifest-Image
+            filters:
+              - name: "name"
+                values:
+                - CoreOS-TestChannel-TestCLVersion-*
+              - name: "architecture"
+                values:
+                - "x86_64"
+              - name: "virtualization-type"
+                values:
+                - "hvm"
+              - name: "owner-id"
+                values:
+                - "595879546273"
           instanceType: m4.large
           placement:
             region: TestClusterManifest-Region
@@ -117,7 +132,7 @@ spec:
             filters:
             - name: "tag:Name"
               values:
-              - TestClusterManifest-ClusterName-worker-TestClusterManifest-AvailabilityZone
+              - TestClusterManifest-ClusterName-worker-*
           publicIp: true
           iamInstanceProfile:
             id: TestClusterManifest-ClusterName-master-profile
