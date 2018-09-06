@@ -35,7 +35,8 @@ func testRenderManifest(t *testing.T, filename string, config *OperatorConfig, e
 
 func TestClusterAWSManifest(t *testing.T) {
 	config := OperatorConfig{
-		Provider: "AWS",
+		TargetNamespace: "go-test",
+		Provider:        "AWS",
 		AWS: &awsConfig{
 			ClusterName:      "TestClusterManifest-ClusterName",
 			ClusterID:        "TestClusterManifest-ClusterID",
@@ -52,7 +53,7 @@ apiVersion: "cluster.k8s.io/v1alpha1"
 kind: Cluster
 metadata:
   name: TestClusterManifest-ClusterName
-  namespace: default
+  namespace: go-test
 spec:
   clusterNetwork:
     services:
@@ -67,7 +68,8 @@ spec:
 
 func TestMachineSetAWSManifest(t *testing.T) {
 	config := OperatorConfig{
-		Provider: "aws",
+		TargetNamespace: "go-test",
+		Provider:        "aws",
 		AWS: &awsConfig{
 			ClusterName:           "TestClusterManifest-ClusterName",
 			ClusterID:             "TestClusterManifest-ClusterID",
@@ -86,7 +88,7 @@ apiVersion: cluster.k8s.io/v1alpha1
 kind: MachineSet
 metadata:
   name: worker
-  namespace: default
+  namespace: go-test
   labels:
     sigs.k8s.io/cluster-api-cluster: TestClusterManifest-ClusterName
     sigs.k8s.io/cluster-api-machine-role: worker
@@ -153,7 +155,8 @@ spec:
 
 func TestMachineSetLibvirtManifest(t *testing.T) {
 	config := OperatorConfig{
-		Provider: "libvirt",
+		TargetNamespace: "go-test",
+		Provider:        "libvirt",
 		Libvirt: &libvirtConfig{
 			URI:         "qemu+tcp://host_private_ip/system",
 			NetworkName: "testNet",
@@ -169,7 +172,7 @@ apiVersion: cluster.k8s.io/v1alpha1
 kind: MachineSet
 metadata:
   name: worker
-  namespace: default
+  namespace: go-test
   labels:
     sigs.k8s.io/cluster-api-cluster: test
     sigs.k8s.io/cluster-api-machine-role: worker
@@ -211,7 +214,8 @@ spec:
 
 func TestClusterapiControllerManifest(t *testing.T) {
 	config := OperatorConfig{
-		Provider: "libvirt",
+		TargetNamespace: "go-test",
+		Provider:        "libvirt",
 		Libvirt: &libvirtConfig{
 			URI:         "qemu+tcp://host_private_ip/system",
 			NetworkName: "testNet",
@@ -226,7 +230,7 @@ apiVersion: apps/v1beta1
 kind: Deployment
 metadata:
   name: clusterapi-controllers
-  namespace: kube-system
+  namespace: go-test
   labels:
     api: clusterapi
     k8s-app: controller

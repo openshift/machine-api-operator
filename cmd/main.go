@@ -7,7 +7,13 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+
+	apiv1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
+
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	opclient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
 	optypes "github.com/coreos-inc/tectonic-operators/operator-client/pkg/types"
@@ -42,6 +48,15 @@ const (
 )
 
 func main() {
+	config, err := render.Config(configPath)
+	if err != nil {
+		glog.Fatalf("Error reading machine-api config: %v", err)
+	}
+
+	err = createNamespace(config.TargetNamespace)
+	if err != nil {
+		glog.Fatalf("Error creating namespace: %v", err)
+	}
 
 	// Hack to deploy cluster and machineSet objects
 	// TODO: manage the machineSet object by the operator
@@ -58,7 +73,9 @@ func main() {
 		},
 		OperatorName:   machineAPI.MachineAPIOperatorName,
 		AppVersionName: machineAPI.MachineAPIVersionName,
-		Renderer:       rendererFromFile,
+		Renderer: func() []xotypes.UpgradeSpec {
+			return rendererFromFile(config)
+		},
 	}); err != nil {
 		glog.Fatalf("Failed to run machine-api operator: %v", err)
 	}
@@ -66,11 +83,7 @@ func main() {
 
 // rendererFromFile reads the config object on demand from the path and then passes it to the
 // renderer.
-func rendererFromFile() []xotypes.UpgradeSpec {
-	config, err := render.Config(configPath)
-	if err != nil {
-		glog.Exitf("Error reading machine-api config: %v", err)
-	}
+func rendererFromFile(config *render.OperatorConfig) []xotypes.UpgradeSpec {
 	return render.MakeRenderer(config, manifestDir)()
 }
 
@@ -82,6 +95,35 @@ func getConfig(kubeconfig string) (*rest.Config, error) {
 		glog.V(4).Infof("Using in-cluster kube client config")
 		return rest.InClusterConfig()
 	}
+}
+
+func createNamespace(namespace string) error {
+	config, err := getConfig(kubeconfig)
+	if err != nil {
+		glog.Fatalf("Error building kube config %#v", err)
+	}
+
+	client, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		glog.Fatalf("Error creating kube client %#v", err)
+	}
+
+	_, err = client.CoreV1().Namespaces().Create(&apiv1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{Name: namespace},
+	})
+
+	switch {
+	case apierrors.IsAlreadyExists(err):
+		glog.Infof("Namespace %s already exists.", namespace)
+
+	case err == nil:
+		glog.Infof("Created namespace %s.", namespace)
+
+	default:
+		return err
+	}
+
+	return nil
 }
 
 func deployMachineSet() {

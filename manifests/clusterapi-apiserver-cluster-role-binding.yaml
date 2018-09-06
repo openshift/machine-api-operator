@@ -10,4 +10,4 @@ subjects:
 - apiGroup: ""
   kind: ServiceAccount
   name: default
-  namespace: default
+  namespace: {{ .TargetNamespace }}

@@ -2,7 +2,7 @@ apiVersion: apps/v1beta1
 kind: Deployment
 metadata:
   name: clusterapi-apiserver
-  namespace: default
+  namespace: {{ .TargetNamespace }}
   labels:
     api: clusterapi
     tectonic-operators.coreos.com/managed-by: machine-api-operator
