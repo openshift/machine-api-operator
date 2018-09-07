@@ -132,10 +132,10 @@ spec:
             filters:
             - name: "tag:Name"
               values:
-              - TestClusterManifest-ClusterName-worker-*
+              - "TestClusterManifest-ClusterName-worker-*"
           publicIp: true
           iamInstanceProfile:
-            id: TestClusterManifest-ClusterName-master-profile
+            id: "TestClusterManifest-ClusterName-master-profile"
           tags:
             - name: tectonicClusterID
               value: TestClusterManifest-ClusterID
@@ -143,7 +143,7 @@ spec:
             - filters:
               - name: "tag:Name"
                 values:
-                - TestClusterManifest-ClusterName_worker_sg
+                - "TestClusterManifest-ClusterName_worker_sg"
           userDataSecret:
             name: ignition-worker
       versions:
