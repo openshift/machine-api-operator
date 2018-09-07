@@ -49,10 +49,10 @@ spec:
             filters:
             - name: "tag:Name"
               values:
-              - {{.AWS.ClusterName}}-worker-*
+              - "{{.AWS.ClusterName}}-worker-*"
           publicIp: true
           iamInstanceProfile:
-            id: {{.AWS.ClusterName}}-master-profile
+            id: "{{.AWS.ClusterName}}-master-profile"
           tags:
             - name: tectonicClusterID
               value: {{.AWS.ClusterID}}
@@ -60,7 +60,7 @@ spec:
             - filters:
               - name: "tag:Name"
                 values:
-                - {{.AWS.ClusterName}}_worker_sg
+                - "{{.AWS.ClusterName}}_worker_sg"
           userDataSecret:
             name: ignition-worker
       versions:
