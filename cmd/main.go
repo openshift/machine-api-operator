@@ -78,10 +78,9 @@ func getConfig(kubeconfig string) (*rest.Config, error) {
 	if kubeconfig != "" {
 		glog.V(4).Infof("Loading kube client config from path %q", kubeconfig)
 		return clientcmd.BuildConfigFromFlags("", kubeconfig)
-	} else {
-		glog.V(4).Infof("Using in-cluster kube client config")
-		return rest.InClusterConfig()
 	}
+	glog.V(4).Infof("Using in-cluster kube client config")
+	return rest.InClusterConfig()
 }
 
 func deployMachineSet() {
