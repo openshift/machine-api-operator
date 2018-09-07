@@ -184,14 +184,14 @@ func deployMachineSet() {
 
 	for {
 		glog.Info("Trying to deploy Cluster object")
-		if _, err := v1alphaClient.Clusters("default").Create(cluster); err != nil {
+		if _, err := v1alphaClient.Clusters(operatorConfig.TargetNamespace).Create(cluster); err != nil {
 			glog.Infof("Cannot create cluster, retrying in 5 secs: %v", err)
 		} else {
 			glog.Info("Created Cluster object")
 		}
 
 		glog.Info("Trying to deploy MachineSet object")
-		_, err = v1alphaClient.MachineSets("default").Create(machineSet)
+		_, err = v1alphaClient.MachineSets(operatorConfig.TargetNamespace).Create(machineSet)
 		if err != nil {
 			glog.Infof("Cannot create MachineSet, retrying in 5 secs: %v", err)
 		} else {
