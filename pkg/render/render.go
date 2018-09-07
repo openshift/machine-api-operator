@@ -2,6 +2,7 @@ package render
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -14,6 +15,10 @@ import (
 	"github.com/coreos-inc/tectonic-operators/x-operator/pkg/types"
 	"github.com/coreos-inc/tectonic-operators/x-operator/pkg/xoperator"
 )
+
+// DefaultNamespace is the default namespace for components to be
+// installed in.
+const DefaultNamespace = "openshift-cluster-api"
 
 // Manifests takes the config object that contains the templated value,
 // and uses that to render the templated manifest.
@@ -30,7 +35,17 @@ func Manifests(config *OperatorConfig, data []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	if err := tmpl.Execute(buf, config); err != nil {
+	encodedCA := base64.StdEncoding.EncodeToString([]byte(config.APIServiceCA))
+
+	tmplData := struct {
+		OperatorConfig
+		EncodedAPIServiceCA string
+	}{
+		OperatorConfig:      *config,
+		EncodedAPIServiceCA: encodedCA,
+	}
+
+	if err := tmpl.Execute(buf, tmplData); err != nil {
 		return nil, err
 	}
 
@@ -135,6 +150,10 @@ func Config(configFile string) (*OperatorConfig, error) {
 	var operatorConfig OperatorConfig
 	if err := yaml.Unmarshal(config, &operatorConfig); err != nil {
 		return nil, fmt.Errorf("unmarshal config file: %v", err)
+	}
+
+	if operatorConfig.TargetNamespace == "" {
+		operatorConfig.TargetNamespace = DefaultNamespace
 	}
 
 	return &operatorConfig, nil

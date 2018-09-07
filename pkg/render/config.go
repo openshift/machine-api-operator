@@ -12,6 +12,8 @@ const (
 // OperatorConfig contains configuration for KAO managed add-ons
 type OperatorConfig struct {
 	metav1.TypeMeta `json:",inline"`
+	TargetNamespace string         `json:"targetNamespace"`
+	APIServiceCA    string         `json:"apiServiceCA"`
 	Provider        string         `json:"provider"`
 	AWS             *awsConfig     `json:"aws"`
 	Libvirt         *libvirtConfig `json:"libvirt"`

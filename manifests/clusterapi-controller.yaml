@@ -2,7 +2,7 @@ apiVersion: apps/v1beta1
 kind: Deployment
 metadata:
   name: clusterapi-controllers
-  namespace: kube-system
+  namespace: {{ .TargetNamespace }}
   labels:
     api: clusterapi
     k8s-app: controller
