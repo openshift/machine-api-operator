@@ -21,25 +21,30 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
-	v1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 )
 
 const (
 	pollInterval                            = 1 * time.Second
 	timeoutPoolInterval                     = 5 * time.Second
-	timeoutPoolClusterAPIDeploymentInterval = 2 * time.Minute
-	timeoutPoolClusterAPIServingInterval    = 2 * time.Minute
+	timeoutPoolClusterAPIDeploymentInterval = 5 * time.Minute
+	timeoutPoolMachineSetRunningInterval    = 5 * time.Minute
 
-	controllerLogName = "awsMachine"
-	defaultLogLevel   = "info"
+	defaultLogLevel = "info"
 
-	maoConfigData = `apiVersion: v1
+	maoAWSConfigData = `apiVersion: v1
+aws:
+  availabilityZone: ""
+  clusterID: e1b5d05b-ab2e-486b-f50e-4d23cf4a59b2
+  clusterName: testCluster
+  containerLinuxVersion: 1800.7.0
+  image: ""
+  region: eu-west-1
+  releaseChannel: stable
+  replicas: 2
 kind: machineAPIOperatorConfig
-vpcName: tb-asg-35
-sshKey: libra
-clusterName: tb-asg-35
-clusterDomain: example.com
+libvirt: null
+provider: aws
 `
 )
 
@@ -181,18 +186,6 @@ func createDeployment(testConfig *TestConfig, deployment *appsv1beta2.Deployment
 	return nil
 }
 
-func createMachine(testConfig *TestConfig, machine *v1alpha1.Machine) error {
-	log.Info("Creating machine...")
-	machineClient := testConfig.CAPIClient.ClusterV1alpha1().Machines(machine.Namespace)
-	if _, err := machineClient.Get(machine.Name, metav1.GetOptions{}); err != nil {
-		if _, err := machineClient.Create(machine); err != nil {
-			return fmt.Errorf("unable to create Machine: %v", err)
-		}
-	}
-
-	return nil
-}
-
 var rootCmd = &cobra.Command{
 	Use:   "e2e",
 	Short: "Test deployment of cluster-api stack",
@@ -246,7 +239,7 @@ var rootCmd = &cobra.Command{
 				Namespace: "kube-system",
 			},
 			Data: map[string]string{
-				"mao-config": maoConfigData,
+				"mao-config": maoAWSConfigData,
 			},
 		}
 
@@ -375,25 +368,30 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		// Create empty machine objcet
-		testMachine := &v1alpha1.Machine{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test",
-				Namespace: "default",
-			},
-		}
-
-		err = wait.Poll(pollInterval, timeoutPoolClusterAPIServingInterval, func() (bool, error) {
-			if err := createMachine(testConfig, testMachine); err != nil {
-				log.Infof("trying to create machine: %v", err)
-				return false, nil
+		// Verify cluster, machineSet and machines have been deployed
+		var cluster, machineSet, workers bool
+		err = wait.Poll(pollInterval, timeoutPoolMachineSetRunningInterval, func() (bool, error) {
+			if _, err := testConfig.CAPIClient.ClusterV1alpha1().Clusters("default").Get("testCluster", metav1.GetOptions{}); err == nil {
+				cluster = true
+				log.Info("Cluster object has been created")
 			}
 
-			if _, err := testConfig.CAPIClient.ClusterV1alpha1().Machines("default").Get(testMachine.Name, metav1.GetOptions{}); err == nil {
+			if _, err := testConfig.CAPIClient.ClusterV1alpha1().MachineSets("default").Get("worker", metav1.GetOptions{}); err == nil {
+				machineSet = true
+				log.Info("MachineSet object has been created")
+			}
+
+			if workersList, err := testConfig.CAPIClient.ClusterV1alpha1().Machines("default").List(metav1.ListOptions{}); err == nil {
+				if len(workersList.Items) == 2 {
+					workers = true
+					log.Info("Machine objects has been created")
+				}
+			}
+
+			if cluster && machineSet && workers {
 				return true, nil
 			}
-
-			log.Info("Waiting for machine to be created")
+			log.Info("Waiting for cluster, machineSet and machines to be created")
 			return false, nil
 		})
 
@@ -402,6 +400,8 @@ var rootCmd = &cobra.Command{
 		}
 
 		log.Info("The cluster-api stack is ready")
+		log.Info("The cluster, the machineSet and the machines have been deployed")
+		// TODO(alberto): verify machines are running against aws API. We'll need an ignition stub
 
 		return nil
 	},
