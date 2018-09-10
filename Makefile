@@ -18,16 +18,11 @@ endif
 .PHONY: check
 check: ## Lint code
 	@echo -e "\033[32mRunning golint...\033[0m"
-#	go get -u github.com/golang/lint # TODO figure out how to install when there is no golint
-	golint ./...
+	hack/go-lint.sh $(go list -f '{{ .ImportPath }}' ./...)
 	@echo -e "\033[32mRunning yamllint...\033[0m"
-	@for file in $(shell find $(CURDIR) -name "*.yaml" -o -name "*.yml"); do \
-		yamllint --config-data \
-		'{extends: default, rules: {indentation: {indent-sequences: consistent}, line-length: {level: warning, max: 120}}}'\
-		$$file; \
-	done
+	hack/yaml-lint.sh
 	@echo -e "\033[32mRunning go vet...\033[0m"
-	$(DOCKER_CMD) go vet ./...
+	hack/go-vet.sh ./...
 
 .PHONY: build
 build: ## Build binary
