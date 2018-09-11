@@ -96,7 +96,7 @@ func (optr *Operator) syncMachineSets(config render.OperatorConfig) error {
 		}
 	}
 	for _, machineSet := range machineSets {
-		machineSetBytes, err := render.RenderAsset(&config, machineSet)
+		machineSetBytes, err := render.PopulateTemplate(&config, machineSet)
 		if err != nil {
 			return err
 		}
@@ -111,7 +111,7 @@ func (optr *Operator) syncMachineSets(config render.OperatorConfig) error {
 }
 
 func (optr *Operator) syncClusterAPIServer(config render.OperatorConfig) error {
-	crbBytes, err := render.RenderAsset(&config, "manifests/clusterapi-apiserver-cluster-role-binding.yaml")
+	crbBytes, err := render.PopulateTemplate(&config, "manifests/clusterapi-apiserver-cluster-role-binding.yaml")
 	if err != nil {
 		return err
 	}
@@ -121,7 +121,7 @@ func (optr *Operator) syncClusterAPIServer(config render.OperatorConfig) error {
 		return err
 	}
 
-	rbBytes, err := render.RenderAsset(&config, "manifests/clusterapi-apiserver-role-binding.yaml")
+	rbBytes, err := render.PopulateTemplate(&config, "manifests/clusterapi-apiserver-role-binding.yaml")
 	if err != nil {
 		return err
 	}
@@ -131,7 +131,7 @@ func (optr *Operator) syncClusterAPIServer(config render.OperatorConfig) error {
 		return err
 	}
 
-	svcBytes, err := render.RenderAsset(&config, "manifests/clusterapi-apiserver-svc.yaml")
+	svcBytes, err := render.PopulateTemplate(&config, "manifests/clusterapi-apiserver-svc.yaml")
 	if err != nil {
 		return err
 	}
@@ -141,7 +141,7 @@ func (optr *Operator) syncClusterAPIServer(config render.OperatorConfig) error {
 		return err
 	}
 
-	apiServiceBytes, err := render.RenderAsset(&config, "manifests/clusterapi-apiservice.yaml")
+	apiServiceBytes, err := render.PopulateTemplate(&config, "manifests/clusterapi-apiservice.yaml")
 	if err != nil {
 		return err
 	}
@@ -151,7 +151,7 @@ func (optr *Operator) syncClusterAPIServer(config render.OperatorConfig) error {
 		return err
 	}
 
-	controllerBytes, err := render.RenderAsset(&config, "manifests/clusterapi-apiserver.yaml")
+	controllerBytes, err := render.PopulateTemplate(&config, "manifests/clusterapi-apiserver.yaml")
 	if err != nil {
 		return err
 	}
@@ -167,7 +167,7 @@ func (optr *Operator) syncClusterAPIServer(config render.OperatorConfig) error {
 }
 
 func (optr *Operator) syncClusterAPIController(config render.OperatorConfig) error {
-	crBytes, err := render.RenderAsset(&config, "manifests/clusterapi-controller-cluster-role.yaml")
+	crBytes, err := render.PopulateTemplate(&config, "manifests/clusterapi-controller-cluster-role.yaml")
 	if err != nil {
 		return err
 	}
@@ -177,7 +177,7 @@ func (optr *Operator) syncClusterAPIController(config render.OperatorConfig) err
 		return err
 	}
 
-	crbBytes, err := render.RenderAsset(&config, "manifests/clusterapi-controller-cluster-role-binding.yaml")
+	crbBytes, err := render.PopulateTemplate(&config, "manifests/clusterapi-controller-cluster-role-binding.yaml")
 	if err != nil {
 		return err
 	}
@@ -187,7 +187,7 @@ func (optr *Operator) syncClusterAPIController(config render.OperatorConfig) err
 		return err
 	}
 
-	controllerBytes, err := render.RenderAsset(&config, "manifests/clusterapi-controller.yaml")
+	controllerBytes, err := render.PopulateTemplate(&config, "manifests/clusterapi-controller.yaml")
 	if err != nil {
 		return err
 	}
