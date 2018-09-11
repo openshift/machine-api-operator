@@ -16,6 +16,11 @@ import (
 	"github.com/coreos-inc/tectonic-operators/x-operator/pkg/xoperator"
 )
 
+const (
+	providerAWS     = "aws"
+	providerLibvirt = "libvirt"
+)
+
 // DefaultNamespace is the default namespace for components to be
 // installed in.
 const DefaultNamespace = "openshift-cluster-api"
@@ -209,4 +214,19 @@ func processManifests(config *OperatorConfig, manifests []types.File) ([]types.U
 		speclist = append(speclist, spec)
 	}
 	return speclist, nil
+}
+
+// PopulateTemplate takes the config object, and uses that to render the templated manifest
+func PopulateTemplate(config *OperatorConfig, path string) ([]byte, error) {
+
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		glog.Fatalf("Error reading %#v", err)
+	}
+
+	populatedData, err := Manifests(config, data)
+	if err != nil {
+		glog.Fatalf("Unable to render manifests %q: %v", data, err)
+	}
+	return populatedData, nil
 }
