@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
-	"github.com/openshift/cluster-version-operator/pkg/apis/clusterversion.openshift.io/v1"
+	"github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 	"github.com/openshift/machine-api-operator/pkg/version"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -27,7 +27,7 @@ func (optr *Operator) syncStatus(cond v1.OperatorStatusCondition) error {
 		Version:    version.Raw,
 		LastUpdate: metav1.Now(),
 	}
-	_, _, err := resourceapply.ApplyOperatorStatus(optr.cvoClient.ClusterversionV1(), status)
+	_, _, err := resourceapply.ApplyOperatorStatus(optr.cvoClient.Operatorstatus(), status)
 	return err
 }
 
@@ -53,7 +53,7 @@ func (optr *Operator) syncDegradedStatus(ierr error) error {
 		LastUpdate: metav1.Now(),
 		Extension:  runtime.RawExtension{},
 	}
-	_, _, err := resourceapply.ApplyOperatorStatus(optr.cvoClient.ClusterversionV1(), status)
+	_, _, err := resourceapply.ApplyOperatorStatus(optr.cvoClient.Operatorstatus(), status)
 	if err != nil {
 		return err
 	}

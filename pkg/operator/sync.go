@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/openshift/cluster-version-operator/pkg/apis/clusterversion.openshift.io/v1"
+	"github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
