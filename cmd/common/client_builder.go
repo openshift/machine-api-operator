@@ -17,22 +17,22 @@ type ClientBuilder struct {
 	config *rest.Config
 }
 
-// ClientOrDie returns the kubernetes client interface for machine config.
+// ClusterAPIClientOrDie returns the kubernetes client interface for machine config.
 func (cb *ClientBuilder) ClusterAPIClientOrDie(name string) clusterapiclientset.Interface {
 	return clusterapiclientset.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
 }
 
-// ClientOrDie returns the kubernetes client interface for machine config.
+// APIRegistrationClientOrDie returns the kubernetes client interface for machine config.
 func (cb *ClientBuilder) APIRegistrationClientOrDie(name string) apiregistrationclientset.Interface {
 	return apiregistrationclientset.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
 }
 
-// ClientOrDie returns the kubernetes client interface for general kubernetes objects.
+// KubeClientOrDie returns the kubernetes client interface for general kubernetes objects.
 func (cb *ClientBuilder) KubeClientOrDie(name string) kubernetes.Interface {
 	return kubernetes.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
 }
 
-// ClientOrDie returns the kubernetes client interface for extended kubernetes objects.
+// APIExtClientOrDie returns the kubernetes client interface for extended kubernetes objects.
 func (cb *ClientBuilder) APIExtClientOrDie(name string) apiext.Interface {
 	return apiext.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
 }
