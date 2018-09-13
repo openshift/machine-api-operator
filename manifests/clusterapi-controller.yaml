@@ -52,7 +52,7 @@ spec:
         image: openshift/origin-machine-controller:v4.0.0
       {{- else if .Libvirt}}
       - name: libvirt-machine-controller
-        image: quay.io/alberto_lamela/libvirt-machine-controller:0.0.1-dev # TODO: move this to openshift org
+        image: quay.io/coreos/cluster-api-provider-libvirt:cd386e4 # TODO: move this to openshift org
       {{- end}}
         env:
           - name: NODE_NAME

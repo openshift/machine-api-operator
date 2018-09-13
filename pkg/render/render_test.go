@@ -276,7 +276,7 @@ spec:
             cpu: 100m
             memory: 30Mi
       - name: libvirt-machine-controller
-        image: quay.io/alberto_lamela/libvirt-machine-controller:0.0.1-dev # TODO: move this to openshift org
+        image: quay.io/coreos/cluster-api-provider-libvirt:cd386e4 # TODO: move this to openshift org
         env:
           - name: NODE_NAME
             valueFrom:
