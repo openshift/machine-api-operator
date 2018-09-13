@@ -9,20 +9,25 @@ import (
 
 const (
 	componentName      = "machine-api-operator"
-	componentNamespace = "openshift-machine-api-operator"
+	componentNamespace = "openshift-api-operator"
 )
 
 var (
 	rootCmd = &cobra.Command{
 		Use:   componentName,
-		Short: "Run Machine Config Controller",
+		Short: "Run Machine API Controller",
 		Long:  "",
 	}
-	config string
+
+	rootOpts struct {
+		manifestDir string
+		config      string
+	}
 )
 
 func init() {
-	rootCmd.PersistentFlags().StringVar(&config, "config", "/etc/mao-config/config", "path to the mao config")
+	rootCmd.PersistentFlags().StringVar(&rootOpts.manifestDir, "manifest-dir", "/manifests", "Path to dir with manifest templates.")
+	rootCmd.PersistentFlags().StringVar(&rootOpts.config, "config", "/etc/mao-config/config", "Cluster config file from which to obtain configuration options")
 	rootCmd.PersistentFlags().AddGoFlagSet(flag.CommandLine)
 }
 
