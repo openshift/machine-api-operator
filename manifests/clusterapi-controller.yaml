@@ -56,7 +56,7 @@ spec:
         image: openshift/origin-aws-machine-controllers:v4.0.0
       {{- else if .Libvirt}}
       - name: libvirt-machine-controller
-        image: quay.io/coreos/cluster-api-provider-libvirt:cd386e4 # TODO: move this to openshift org
+        image: openshift/origin-libvirt-machine-controllers:v4.0.0
       {{- end}}
         env:
           - name: NODE_NAME
