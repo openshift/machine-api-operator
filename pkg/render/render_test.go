@@ -137,7 +137,7 @@ spec:
               - "TestClusterManifest-ClusterName-worker-*"
           publicIp: true
           iamInstanceProfile:
-            id: "TestClusterManifest-ClusterName-master-profile"
+            id: "TestClusterManifest-ClusterName-worker-profile"
           tags:
             - name: tectonicClusterID
               value: TestClusterManifest-ClusterID

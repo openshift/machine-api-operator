@@ -52,7 +52,7 @@ spec:
               - "{{.AWS.ClusterName}}-worker-*"
           publicIp: true
           iamInstanceProfile:
-            id: "{{.AWS.ClusterName}}-master-profile"
+            id: "{{.AWS.ClusterName}}-worker-profile"
           tags:
             - name: tectonicClusterID
               value: {{.AWS.ClusterID}}
