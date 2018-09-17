@@ -38,8 +38,9 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 	// To help debugging, immediately log version
 	glog.Infof("Version: %+v", version.Version)
 
+	// TODO(vikasc) Read images using json file so that CI tools can inject different images
 	if startOpts.imagesFile == "" {
-		glog.Fatal("--images-json cannot be empty")
+		glog.Warningf("--images-json should be empty")
 	}
 
 	cb, err := common.NewClientBuilder(startOpts.kubeconfig)

@@ -9,7 +9,7 @@ import (
 	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 )
 
-// ApplyMachineSet applies the required machineconfig to the cluster.
+// ApplyMachineSet applies the required machineset to the cluster.
 func ApplyMachineSet(client clientset.Interface, required *clusterv1alpha.MachineSet) (*clusterv1alpha.MachineSet, bool, error) {
 	v1alphaClient := client.ClusterV1alpha1()
 	existing, err := v1alphaClient.MachineSets(required.GetNamespace()).Get(required.GetName(), metav1.GetOptions{})
@@ -28,5 +28,27 @@ func ApplyMachineSet(client clientset.Interface, required *clusterv1alpha.Machin
 	}
 
 	actual, err := v1alphaClient.MachineSets(required.GetNamespace()).Update(existing)
+	return actual, true, err
+}
+
+// ApplyCluster applies the required cluster object to the cluster.
+func ApplyCluster(client clientset.Interface, required *clusterv1alpha.Cluster) (*clusterv1alpha.Cluster, bool, error) {
+	v1alphaClient := client.ClusterV1alpha1()
+	existing, err := v1alphaClient.Clusters(required.GetNamespace()).Get(required.GetName(), metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		actual, err := v1alphaClient.Clusters(required.GetNamespace()).Create(required)
+		return actual, true, err
+	}
+	if err != nil {
+		return nil, false, err
+	}
+
+	modified := resourcemerge.BoolPtr(false)
+	resourcemerge.EnsureCluster(modified, existing, required)
+	if !*modified {
+		return existing, false, nil
+	}
+
+	actual, err := v1alphaClient.Clusters(required.GetNamespace()).Update(existing)
 	return actual, true, err
 }

@@ -9,13 +9,13 @@ import (
 
 const (
 	componentName      = "machine-api-operator"
-	componentNamespace = "openshift-machine-api-operator"
+	componentNamespace = "kube-system"
 )
 
 var (
 	rootCmd = &cobra.Command{
 		Use:   componentName,
-		Short: "Run Machine Config Controller",
+		Short: "Run Cluster API Controller",
 		Long:  "",
 	}
 	config string

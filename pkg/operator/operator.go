@@ -138,9 +138,28 @@ func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer optr.queue.ShutDown()
 
-	glog.Info("Starting MachineAPIOperator")
+	glog.Info("Starting MachineAPIO--rator")
 	defer glog.Info("Shutting down MachineAPIOperator")
 
+	// TODO(alberto) operatorConfig as CRD?
+	operatorConfig, err := render.Config(optr.config)
+	if err != nil {
+		glog.Fatalf("Failed getting operatorConfig: %v", err)
+		return
+	}
+	glog.Infof("operator config %+v", operatorConfig)
+	err = optr.syncClusterAPIServer(*operatorConfig)
+	if err != nil {
+		glog.Fatalf("Failed sync-up cluster apiserver: %v", err)
+		return
+	}
+	glog.Info("Synched up cluster api server")
+	err = optr.syncClusterAPIController(*operatorConfig)
+	if err != nil {
+		glog.Fatalf("Failed sync-up cluster api controller: %v", err)
+		return
+	}
+	glog.Info("Synched up cluster api controller")
 	if !cache.WaitForCacheSync(stopCh,
 		optr.crdListerSynced,
 		optr.machineSetSynced,
@@ -148,7 +167,7 @@ func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 		glog.Error("failed to sync caches")
 		return
 	}
-
+	glog.Info("Synched up caches")
 	for i := 0; i < workers; i++ {
 		go wait.Until(optr.worker, time.Second, stopCh)
 	}
@@ -217,7 +236,7 @@ func (optr *Operator) sync(key string) error {
 	// TODO(alberto) operatorConfig as CRD?
 	operatorConfig, err := render.Config(optr.config)
 	if err != nil {
-
+		return err
 	}
 	return optr.syncAll(*operatorConfig)
 }

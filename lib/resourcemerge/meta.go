@@ -25,6 +25,16 @@ func setStringIfSet(modified *bool, existing *string, required string) {
 	}
 }
 
+func setInt32IfSet(modified *bool, existing *int32, required int32) {
+	if required == 0 {
+		return
+	}
+	if required != *existing {
+		*existing = required
+		*modified = true
+	}
+}
+
 func mergeMap(modified *bool, existing *map[string]string, required map[string]string) {
 	if *existing == nil {
 		*existing = map[string]string{}

@@ -1,10 +1,10 @@
-apiVersion: apps/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: clusterapi-apiserver
   namespace: {{ .TargetNamespace }}
   labels:
-    api: clusterapi
+    api: clusterai
     tectonic-operators.coreos.com/managed-by: machine-api-operator
     apiserver: "true"
 spec:

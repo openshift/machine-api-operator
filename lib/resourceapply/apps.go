@@ -1,6 +1,7 @@
 package resourceapply
 
 import (
+	"github.com/golang/glog"
 	"github.com/openshift/machine-api-operator/lib/resourcemerge"
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -34,18 +35,22 @@ func ApplyDeployment(client appsclientv1.DeploymentsGetter, required *appsv1.Dep
 	existing, err := client.Deployments(required.Namespace).Get(required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		actual, err := client.Deployments(required.Namespace).Create(required)
+		glog.Infof("vikas actual : %+v", actual)
 		return actual, true, err
 	}
 	if err != nil {
 		return nil, false, err
 	}
+	glog.Infof("vikas required apiversion: %+v", required.APIVersion)
 
 	modified := resourcemerge.BoolPtr(false)
 	resourcemerge.EnsureDeployment(modified, existing, *required)
 	if !*modified {
+		glog.Infof("vikas returnign unmodified existing : %+v", existing.APIVersion)
 		return existing, false, nil
 	}
 
 	actual, err := client.Deployments(required.Namespace).Update(existing)
+	glog.Infof("vikas returnign modified actual : %+v", actual.APIVersion)
 	return actual, true, err
 }

@@ -28,6 +28,7 @@ func (optr *Operator) syncAll(rconfig render.OperatorConfig) error {
 		// TODO(alberto): implement this once https://github.com/kubernetes-sigs/cluster-api/pull/488/files gets in
 		//optr.syncMachineClasses,
 		optr.syncMachineSets,
+		optr.syncCluster,
 	}
 
 	if err := optr.syncStatus(v1.OperatorStatusCondition{
@@ -110,6 +111,33 @@ func (optr *Operator) syncMachineSets(config render.OperatorConfig) error {
 	return nil
 }
 
+func (optr *Operator) syncCluster(config render.OperatorConfig) error {
+	var clusters []string
+	switch provider := config.Provider; provider {
+	case providerAWS:
+		clusters = []string{
+			"machines/aws/cluster.yaml",
+		}
+	case providerLibvirt:
+		clusters = []string{
+			"machines/libvirt/cluster.yaml",
+		}
+	}
+	for _, cluster := range clusters {
+		clusterBytes, err := render.PopulateTemplate(&config, cluster)
+		if err != nil {
+			return err
+		}
+		p := resourceread.ReadClusterV1alphaOrDie(clusterBytes)
+		_, _, err = resourceapply.ApplyCluster(optr.clusterAPIClient, p)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (optr *Operator) syncClusterAPIServer(config render.OperatorConfig) error {
 	crbBytes, err := render.PopulateTemplate(&config, "manifests/clusterapi-apiserver-cluster-role-binding.yaml")
 	if err != nil {
@@ -156,6 +184,7 @@ func (optr *Operator) syncClusterAPIServer(config render.OperatorConfig) error {
 		return err
 	}
 	controller := resourceread.ReadDeploymentV1OrDie(controllerBytes)
+	glog.Infof("vikas: APIVersion %v", controller.APIVersion)
 	_, updated, err := resourceapply.ApplyDeployment(optr.kubeClient.AppsV1(), controller)
 	if err != nil {
 		return err
@@ -171,34 +200,39 @@ func (optr *Operator) syncClusterAPIController(config render.OperatorConfig) err
 	if err != nil {
 		return err
 	}
+	glog.Infof("1")
 	cr := resourceread.ReadClusterRoleV1OrDie(crBytes)
 	_, _, err = resourceapply.ApplyClusterRole(optr.kubeClient.RbacV1(), cr)
 	if err != nil {
 		return err
 	}
-
+	glog.Infof("12")
 	crbBytes, err := render.PopulateTemplate(&config, "manifests/clusterapi-controller-cluster-role-binding.yaml")
 	if err != nil {
 		return err
 	}
+	glog.Infof("13")
 	crb := resourceread.ReadClusterRoleBindingV1OrDie(crbBytes)
 	_, _, err = resourceapply.ApplyClusterRoleBinding(optr.kubeClient.RbacV1(), crb)
 	if err != nil {
 		return err
 	}
-
+	glog.Infof("14")
 	controllerBytes, err := render.PopulateTemplate(&config, "manifests/clusterapi-controller.yaml")
 	if err != nil {
 		return err
 	}
+	glog.Infof("15")
 	controller := resourceread.ReadDeploymentV1OrDie(controllerBytes)
 	_, updated, err := resourceapply.ApplyDeployment(optr.kubeClient.AppsV1(), controller)
 	if err != nil {
 		return err
 	}
+	glog.Infof("16")
 	if updated {
 		return optr.waitForDeploymentRollout(controller)
 	}
+	glog.Infof("17")
 	return nil
 }
 
@@ -231,9 +265,11 @@ func (optr *Operator) waitForCustomResourceDefinition(resource *apiextv1beta1.Cu
 func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment) error {
 	return wait.Poll(deploymentRolloutPollInterval, deploymentRolloutTimeout, func() (bool, error) {
 		d, err := optr.deployLister.Deployments(resource.Namespace).Get(resource.Name)
+		glog.Infof("namespace %v", resource.Namespace)
 		if apierrors.IsNotFound(err) {
 			// exit early to recreate the deployment.
-			return false, err
+			glog.Infof("Lets not early exit :)")
+			//return false, err
 		}
 		if err != nil {
 			// Do not return error here, as we could be updating the API Server itself, in which case we

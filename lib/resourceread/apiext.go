@@ -8,12 +8,17 @@ import (
 )
 
 var (
-	apiExtensionsScheme = runtime.NewScheme()
-	apiExtensionsCodecs = serializer.NewCodecFactory(apiExtensionsScheme)
+	apiExtensionsScheme   = runtime.NewScheme()
+	apiExtensionsCodecs   = serializer.NewCodecFactory(apiExtensionsScheme)
+	apiRegistrationScheme = runtime.NewScheme()
+	apiRegistrationCodecs = serializer.NewCodecFactory(apiRegistrationScheme)
 )
 
 func init() {
 	if err := apiextv1beta1.AddToScheme(apiExtensionsScheme); err != nil {
+		panic(err)
+	}
+	if err := apiregistrationv1beta1.AddToScheme(apiRegistrationScheme); err != nil {
 		panic(err)
 	}
 }
@@ -29,7 +34,7 @@ func ReadCustomResourceDefinitionV1Beta1OrDie(objBytes []byte) *apiextv1beta1.Cu
 
 // ReadAPIServiceDefinitionV1Beta1OrDie reads crd object from bytes. Panics on error.
 func ReadAPIServiceDefinitionV1Beta1OrDie(objBytes []byte) *apiregistrationv1beta1.APIService {
-	requiredObj, err := runtime.Decode(apiExtensionsCodecs.UniversalDecoder(apiextv1beta1.SchemeGroupVersion), objBytes)
+	requiredObj, err := runtime.Decode(apiRegistrationCodecs.UniversalDecoder(apiregistrationv1beta1.SchemeGroupVersion), objBytes)
 	if err != nil {
 		panic(err)
 	}
