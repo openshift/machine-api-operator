@@ -39,7 +39,6 @@ func ApplyDeployment(client appsclientv1.DeploymentsGetter, required *appsv1.Dep
 	if err != nil {
 		return nil, false, err
 	}
-
 	modified := resourcemerge.BoolPtr(false)
 	resourcemerge.EnsureDeployment(modified, existing, *required)
 	if !*modified {
