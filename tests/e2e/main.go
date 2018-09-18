@@ -2,11 +2,15 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/openshift/machine-api-operator/pkg/render"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -21,31 +25,22 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 )
 
 const (
 	pollInterval                            = 1 * time.Second
 	timeoutPoolInterval                     = 5 * time.Second
-	timeoutPoolClusterAPIDeploymentInterval = 5 * time.Minute
-	timeoutPoolMachineSetRunningInterval    = 5 * time.Minute
+	timeoutPoolAWSInterval                  = 25 * time.Second
+	timeoutPoolClusterAPIDeploymentInterval = 10 * time.Minute
+	timeoutPoolMachineSetRunningInterval    = 10 * time.Minute
 
-	defaultLogLevel = "info"
-
-	maoAWSConfigData = `apiVersion: v1
-aws:
-  availabilityZone: ""
-  clusterID: e1b5d05b-ab2e-486b-f50e-4d23cf4a59b2
-  clusterName: testCluster
-  containerLinuxVersion: 1800.7.0
-  image: ""
-  region: eu-west-1
-  releaseChannel: stable
-  replicas: 2
-kind: machineAPIOperatorConfig
-libvirt: null
-provider: aws
-`
+	defaultLogLevel          = "info"
+	targetNamespace          = "default"
+	awsCredentialsSecretName = "aws-credentials-secret"
+	region                   = "us-east-1"
+	machineSetReplicas       = 2
 )
 
 func usage() {
@@ -58,6 +53,7 @@ type TestConfig struct {
 	APIExtensionsClient *apiextensionsclientset.Clientset
 	KubeClient          *kubernetes.Clientset
 	OperatorClient      operatorclient.Interface
+	AWSClient           *AWSClient
 }
 
 // NewTestConfig creates new test config with clients
@@ -174,6 +170,17 @@ func createConfigMap(testConfig *TestConfig, configMap *apiv1.ConfigMap) error {
 	return nil
 }
 
+func createSecret(testConfig *TestConfig, secret *apiv1.Secret) error {
+	log.Infof("Creating %q secret...", strings.Join([]string{secret.Namespace, secret.Name}, "/"))
+	if _, err := testConfig.KubeClient.CoreV1().Secrets(secret.Namespace).Get(secret.Name, metav1.GetOptions{}); err != nil {
+		if _, err := testConfig.KubeClient.CoreV1().Secrets(secret.Namespace).Create(secret); err != nil {
+			return fmt.Errorf("unable to create secret: %v", err)
+		}
+	}
+
+	return nil
+}
+
 func createDeployment(testConfig *TestConfig, deployment *appsv1beta2.Deployment) error {
 	log.Info("Creating machine-api-operator...")
 	deploymentsClient := testConfig.KubeClient.AppsV1beta2().Deployments(deployment.Namespace)
@@ -186,6 +193,15 @@ func createDeployment(testConfig *TestConfig, deployment *appsv1beta2.Deployment
 	return nil
 }
 
+func cmdRun(assetsDir string, binaryPath string, args ...string) error {
+	cmd := exec.Command(binaryPath, args...)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	cmd.Dir = assetsDir
+	return cmd.Run()
+}
+
 var rootCmd = &cobra.Command{
 	Use:   "e2e",
 	Short: "Test deployment of cluster-api stack",
@@ -193,6 +209,8 @@ var rootCmd = &cobra.Command{
 		kubeconfig := cmd.Flag("kubeconfig").Value.String()
 		logLevel := cmd.Flag("log-level").Value.String()
 		maoImage := cmd.Flag("mao-image").Value.String()
+		assetsPath := cmd.Flag("assets-path").Value.String()
+		clusterID := cmd.Flag("cluster-id").Value.String()
 
 		if kubeconfig == "" {
 			return fmt.Errorf("--kubeconfig option is required")
@@ -207,10 +225,28 @@ var rootCmd = &cobra.Command{
 
 		testConfig := NewTestConfig(kubeconfig)
 
+		// create terraform stub enviroment
+		if err := cmdRun(assetsPath, "terraform", "init"); err != nil {
+			glog.Fatalf("unable to run terraform init: %v", err)
+		}
+		tfVars := fmt.Sprintf("-var=enviroment_id=%s", clusterID)
+		if err := cmdRun(assetsPath, "terraform", "apply", tfVars, "-auto-approve"); err != nil {
+			glog.Fatalf("unable to run terraform apply -auto-approve: %v", err)
+		}
+		defer tearDown(testConfig, assetsPath)
+
+		// create mao deployment and assumptions, i.e secrets, namespaces, appVersion, mao config
+		// generate aws creds kube secret
+		if err := cmdRun(assetsPath, "./generate.sh"); err != nil {
+			glog.Fatalf("unable to run generate.sh: %v", err)
+		}
+
+		// generate assumed namespaces
 		if err := createNamespace(testConfig, "tectonic-system"); err != nil {
 			return err
 		}
 
+		// create appVersion
 		crd := &apiextensionsv1beta1.CustomResourceDefinition{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: "appversions.tco.coreos.com",
@@ -233,20 +269,89 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		mapConfigMap := &apiv1.ConfigMap{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "mao-config-v1",
-				Namespace: "kube-system",
-			},
-			Data: map[string]string{
-				"mao-config": maoAWSConfigData,
+		maoConfigTemplateData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests/mao-config.yaml"))
+		if err != nil {
+			glog.Fatalf("Error reading %#v", err)
+		}
+
+		configValues := &render.OperatorConfig{
+			AWS: &render.AWSConfig{
+				ClusterID:   clusterID,
+				ClusterName: clusterID,
+				Region:      region,
 			},
 		}
 
-		if err := createConfigMap(testConfig, mapConfigMap); err != nil {
-			return err
+		maoConfigPopulatedData, err := render.Manifests(configValues, maoConfigTemplateData)
+		if err != nil {
+			glog.Fatalf("Unable to render manifests %q: %v", maoConfigTemplateData, err)
+		} else {
+			mapConfigMap := &apiv1.ConfigMap{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "mao-config-v1",
+					Namespace: "kube-system",
+				},
+				Data: map[string]string{
+					"mao-config": string(maoConfigPopulatedData),
+				},
+			}
+			if err := createConfigMap(testConfig, mapConfigMap); err != nil {
+				return err
+			}
 		}
 
+		// secrets
+		// create cluster api server secrets
+		decode := scheme.Codecs.UniversalDeserializer().Decode
+		if secretData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests/clusterapi-apiserver-certs.yaml")); err != nil {
+			glog.Fatalf("Error reading %#v", err)
+		} else {
+			secretObj, _, err := decode([]byte(secretData), nil, nil)
+			if err != nil {
+				glog.Fatalf("Error decoding %#v", err)
+			}
+			secret := secretObj.(*apiv1.Secret)
+
+			if err := createSecret(testConfig, secret); err != nil {
+				return err
+			}
+		}
+
+		// create aws creds secret
+		if secretData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests/aws-credentials.yaml")); err != nil {
+			glog.Fatalf("Error reading %#v", err)
+		} else {
+			secretObj, _, err := decode([]byte(secretData), nil, nil)
+			if err != nil {
+				glog.Fatalf("Error decoding %#v", err)
+			}
+			secret := secretObj.(*apiv1.Secret)
+			if err := createSecret(testConfig, secret); err != nil {
+				return err
+			}
+		}
+
+		// create ign config secret
+		if secretData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests/ign-config.yaml")); err != nil {
+			glog.Fatalf("Error reading %#v", err)
+		} else {
+			secretObj, _, err := decode([]byte(secretData), nil, nil)
+			if err != nil {
+				glog.Fatalf("Error decoding %#v", err)
+			}
+			secret := secretObj.(*apiv1.Secret)
+			if err := createSecret(testConfig, secret); err != nil {
+				return err
+			}
+		}
+
+		awsClient, err := NewClient(testConfig.KubeClient, awsCredentialsSecretName, targetNamespace, region)
+		if err != nil {
+			glog.Fatalf("Could not create aws client: %v", err)
+		}
+		testConfig.AWSClient = awsClient
+
+		// create operator
 		var replicas int32 = 1
 		runAsNonRoot := true
 		var runAsUser int64 = 65534
@@ -350,7 +455,7 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		err := wait.Poll(pollInterval, timeoutPoolClusterAPIDeploymentInterval, func() (bool, error) {
+		err = wait.Poll(pollInterval, timeoutPoolClusterAPIDeploymentInterval, func() (bool, error) {
 			if clusterAPIDeployment, err := testConfig.KubeClient.AppsV1beta2().Deployments("default").Get("clusterapi-apiserver", metav1.GetOptions{}); err == nil {
 				// Check all the pods are running
 				log.Infof("Waiting for all cluster-api deployment pods to be ready, have %v, expecting 1", clusterAPIDeployment.Status.ReadyReplicas)
@@ -371,17 +476,17 @@ var rootCmd = &cobra.Command{
 		// Verify cluster, machineSet and machines have been deployed
 		var cluster, machineSet, workers bool
 		err = wait.Poll(pollInterval, timeoutPoolMachineSetRunningInterval, func() (bool, error) {
-			if _, err := testConfig.CAPIClient.ClusterV1alpha1().Clusters("default").Get("testCluster", metav1.GetOptions{}); err == nil {
+			if _, err := testConfig.CAPIClient.ClusterV1alpha1().Clusters(targetNamespace).Get(clusterID, metav1.GetOptions{}); err == nil {
 				cluster = true
 				log.Info("Cluster object has been created")
 			}
 
-			if _, err := testConfig.CAPIClient.ClusterV1alpha1().MachineSets("default").Get("worker", metav1.GetOptions{}); err == nil {
+			if _, err := testConfig.CAPIClient.ClusterV1alpha1().MachineSets(targetNamespace).Get("worker", metav1.GetOptions{}); err == nil {
 				machineSet = true
 				log.Info("MachineSet object has been created")
 			}
 
-			if workersList, err := testConfig.CAPIClient.ClusterV1alpha1().Machines("default").List(metav1.ListOptions{}); err == nil {
+			if workersList, err := testConfig.CAPIClient.ClusterV1alpha1().Machines(targetNamespace).List(metav1.ListOptions{}); err == nil {
 				if len(workersList.Items) == 2 {
 					workers = true
 					log.Info("Machine objects has been created")
@@ -401,16 +506,50 @@ var rootCmd = &cobra.Command{
 
 		log.Info("The cluster-api stack is ready")
 		log.Info("The cluster, the machineSet and the machines have been deployed")
-		// TODO(alberto): verify machines are running against aws API. We'll need an ignition stub
 
+		err = wait.Poll(pollInterval, timeoutPoolAWSInterval, func() (bool, error) {
+			log.Info("Waiting for aws instances to come up")
+			runningInstances, err := testConfig.AWSClient.GetRunningInstances(clusterID)
+			if err != nil {
+				return false, fmt.Errorf("unable to get running instances from aws: %v", err)
+			}
+			if len(runningInstances) == machineSetReplicas {
+				log.Info("Two instances are running on aws")
+				return true, nil
+			}
+			return false, nil
+		})
+
+		if err != nil {
+			return err
+		}
+
+		log.Info("All verified successfully. Tearing down...")
 		return nil
 	},
+}
+
+func tearDown(testConfig *TestConfig, assetsPath string) error {
+	// delete machine set
+	// not erroring here so we try to terraform destroy
+	if err := testConfig.CAPIClient.ClusterV1alpha1().MachineSets(targetNamespace).Delete("worker", &metav1.DeleteOptions{}); err != nil {
+		log.Warningf("unable to delete machineSet, %v", err)
+	}
+
+	// delete terraform stub environment
+	log.Info("Running terraform destroy")
+	if err := cmdRun(assetsPath, "terraform", "destroy", "-force"); err != nil {
+		return fmt.Errorf("unable run terraform destroy: %v", err)
+	}
+	return nil
 }
 
 func init() {
 	rootCmd.PersistentFlags().StringP("kubeconfig", "m", "", "Kubernetes config")
 	rootCmd.PersistentFlags().StringP("log-level", "l", defaultLogLevel, "Log level (debug,info,warn,error,fatal)")
 	rootCmd.PersistentFlags().StringP("mao-image", "", "machine-api-operator:mvp", "machine-api-operator docker image to run")
+	rootCmd.PersistentFlags().StringP("assets-path", "", "./tests/e2e", "path to terraform and kube assets")
+	rootCmd.PersistentFlags().StringP("cluster-id", "", "testCluster", "A unique id for the environment to build")
 }
 
 func main() {
