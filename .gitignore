@@ -12,3 +12,7 @@
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 bin
+
+tests/e2e/.terraform*
+tests/e2e/manifests/aws-credentials.yaml
+tests/e2e/terraform.*

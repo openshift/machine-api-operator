@@ -9,17 +9,18 @@ const (
 	APIVersion = "v1"
 )
 
-// OperatorConfig contains configuration for KAO managed add-ons
+// OperatorConfig contains configuration for MAO
 type OperatorConfig struct {
 	metav1.TypeMeta `json:",inline"`
 	TargetNamespace string         `json:"targetNamespace"`
 	APIServiceCA    string         `json:"apiServiceCA"`
 	Provider        string         `json:"provider"`
-	AWS             *awsConfig     `json:"aws"`
-	Libvirt         *libvirtConfig `json:"libvirt"`
+	AWS             *AWSConfig     `json:"aws"`
+	Libvirt         *LibvirtConfig `json:"libvirt"`
 }
 
-type libvirtConfig struct {
+// LibvirtConfig contains specific config for Libvirt
+type LibvirtConfig struct {
 	URI         string `json:"uri"`
 	NetworkName string `json:"networkName"`
 	IPRange     string `json:"ipRange"`
@@ -27,7 +28,8 @@ type libvirtConfig struct {
 	Replicas    string `json:"replicas"`
 }
 
-type awsConfig struct {
+// AWSConfig contains specific config for AWS
+type AWSConfig struct {
 	ClusterName           string `json:"clusterName"`
 	ClusterID             string `json:"clusterID"`
 	Region                string `json:"region"`
@@ -36,4 +38,5 @@ type awsConfig struct {
 	ReleaseChannel        string `json:"releaseChannel"`
 	ContainerLinuxVersion string `json:"containerLinuxVersion"`
 	Replicas              string `json:"replicas"`
+	WithCreds             bool   `json:"withCreds"`
 }

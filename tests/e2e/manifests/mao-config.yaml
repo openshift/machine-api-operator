@@ -1,0 +1,33 @@
+apiVersion: v1
+aws:
+  availabilityZone: ""
+  clusterID: {{.AWS.ClusterID}}
+  clusterName: {{.AWS.ClusterName}}
+  containerLinuxVersion: 1800.7.0
+  image: ""
+  region: {{.AWS.Region}}
+  releaseChannel: stable
+  replicas: 2
+  WithCreds: true
+kind: machineAPIOperatorConfig
+provider: aws
+targetNamespace: default
+apiServiceCA: |
+  -----BEGIN CERTIFICATE-----
+  MIIC9DCCAdygAwIBAgIBADANBgkqhkiG9w0BAQsFADArMSkwJwYDVQQDEyBjbHVz
+  dGVyYXBpLWNlcnRpZmljYXRlLWF1dGhvcml0eTAeFw0xODA3MTAwODM4NDhaFw0y
+  ODA3MDcwODM4NDhaMCsxKTAnBgNVBAMTIGNsdXN0ZXJhcGktY2VydGlmaWNhdGUt
+  YXV0aG9yaXR5MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAuTwLdz6R
+  m5qSm04/DKV7eEufqkBhtKMFds70k0iEUZ9JqjMIa8pSdSgLsuVAspnEYbbqq1Tp
+  uQTGnzh6tPSilFzk9ee8U//GCBe978Myywzh2pPzZ0FhFG31eiSrr4+FU1DZOTb0
+  AnqOPC54BjT8VSr/ZfoNfAhNoa+TqxKxw7Cp6LnaKVi3Gu5JZ0K1U+Vvlkzj8VPi
+  Snzk32T2Be6DCC0MHXEyQEwhXUkM89y3G16mTmvgBbHz0SazV78PM6oITu/Grh//
+  vE5haGNq1tEV4M4O0dy+i6wMkeOoWz520968/CUf0rwsfU0l1X/X+TaNi+2n0xHu
+  BjIaylFZ3z1mTQIDAQABoyMwITAOBgNVHQ8BAf8EBAMCAqQwDwYDVR0TAQH/BAUw
+  AwEB/zANBgkqhkiG9w0BAQsFAAOCAQEAhTZLJkNkAbl18orDsfcxSyLN424D9Ym/
+  WYZ5wTi47sPwapo22zd1qt7GCkC3rBknCLnv/87BZ7+ZhWGBkc/126QRWpMGhco7
+  N3Ehp6i98J74F6QY3FXUFOa5e047FRFT8fv7dKB4z6n97NXXOYx2HgwzGj34ibLa
+  eK7JJ+LE//pOOHzmQyP6VvE8jOu00W5m1LjlOLlo6y1zsj5ysao3y+QOtJ5/UF55
+  wqeVEmn9SqY6DzjwechzU78am7R6zwug35Ejta5/mSoLiASEmpESCXIRHb+pKIsh
+  6EFcWlP/qcgn5gdI6hPhvUpsYykdLXzPwUJQRKbuO5eFPlAS03Gd3g==
+  -----END CERTIFICATE-----
