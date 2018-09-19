@@ -12,5 +12,5 @@ spec:
 status:
   currentVersion:
   paused: false
-upgradereq:  1
+upgradereq: 1
 upgradecomp: 0

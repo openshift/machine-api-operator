@@ -38,4 +38,3 @@ spec:
         controlPlane: 0.0.0
       roles:
       - Master
-
