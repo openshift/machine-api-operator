@@ -57,6 +57,10 @@ spec:
       {{- else if .Libvirt}}
       - name: libvirt-machine-controller
         image: quay.io/coreos/cluster-api-provider-libvirt:cd386e4 # TODO: move this to openshift org
+        volumeMounts:
+        - mountPath: /etc/pki/libvirt
+          name: libvirt-certs
+          readOnly: true
       {{- end}}
         env:
           - name: NODE_NAME
@@ -74,3 +78,9 @@ spec:
           limits:
             cpu: 100m
             memory: 30Mi
+      {{- if .Libvirt }}
+      volumes:
+      - name: libvirt-certs
+        secret:
+          secretName: libvirt-certs
+      {{- end }}
