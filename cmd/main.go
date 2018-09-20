@@ -15,7 +15,7 @@ const (
 var (
 	rootCmd = &cobra.Command{
 		Use:   componentName,
-		Short: "Run Machine Config Controller",
+		Short: "Run Cluster API Controller",
 		Long:  "",
 	}
 	config string

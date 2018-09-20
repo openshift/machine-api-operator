@@ -9,6 +9,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
 
@@ -23,19 +24,18 @@ func (optr *Operator) syncAll(rconfig render.OperatorConfig) error {
 	// syncFuncs is the list of sync functions that are executed in order.
 	// any error marks sync as failure but continues to next syncFunc
 	syncFuncs := []syncFunc{
-		optr.syncClusterAPIServer,
-		optr.syncClusterAPIController,
 		// TODO(alberto): implement this once https://github.com/kubernetes-sigs/cluster-api/pull/488/files gets in
 		//optr.syncMachineClasses,
 		optr.syncMachineSets,
+		optr.syncCluster,
 	}
 
-	if err := optr.syncStatus(v1.OperatorStatusCondition{
-		Type:    v1.OperatorStatusConditionTypeWorking,
-		Message: "Running sync functions",
-	}); err != nil {
-		return fmt.Errorf("error syncing status: %v", err)
-	}
+	//if err := optr.syncStatus(v1.OperatorStatusCondition{
+	//	Type:    v1.OperatorStatusConditionTypeWorking,
+	//	Message: "Running sync functions",
+	//}); err != nil {
+	//	return fmt.Errorf("error syncing status: %v", err)
+	//}
 
 	var errs []error
 	for _, f := range syncFuncs {
@@ -110,6 +110,33 @@ func (optr *Operator) syncMachineSets(config render.OperatorConfig) error {
 	return nil
 }
 
+func (optr *Operator) syncCluster(config render.OperatorConfig) error {
+	var clusters []string
+	switch provider := config.Provider; provider {
+	case providerAWS:
+		clusters = []string{
+			"machines/aws/cluster.yaml",
+		}
+	case providerLibvirt:
+		clusters = []string{
+			"machines/libvirt/cluster.yaml",
+		}
+	}
+	for _, cluster := range clusters {
+		clusterBytes, err := render.PopulateTemplate(&config, cluster)
+		if err != nil {
+			return err
+		}
+		p := resourceread.ReadClusterV1alphaOrDie(clusterBytes)
+		_, _, err = resourceapply.ApplyCluster(optr.clusterAPIClient, p)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func (optr *Operator) syncClusterAPIServer(config render.OperatorConfig) error {
 	crbBytes, err := render.PopulateTemplate(&config, "manifests/clusterapi-apiserver-cluster-role-binding.yaml")
 	if err != nil {
@@ -176,7 +203,6 @@ func (optr *Operator) syncClusterAPIController(config render.OperatorConfig) err
 	if err != nil {
 		return err
 	}
-
 	crbBytes, err := render.PopulateTemplate(&config, "manifests/clusterapi-controller-cluster-role-binding.yaml")
 	if err != nil {
 		return err
@@ -186,7 +212,6 @@ func (optr *Operator) syncClusterAPIController(config render.OperatorConfig) err
 	if err != nil {
 		return err
 	}
-
 	controllerBytes, err := render.PopulateTemplate(&config, "manifests/clusterapi-controller.yaml")
 	if err != nil {
 		return err
@@ -230,10 +255,12 @@ func (optr *Operator) waitForCustomResourceDefinition(resource *apiextv1beta1.Cu
 
 func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment) error {
 	return wait.Poll(deploymentRolloutPollInterval, deploymentRolloutTimeout, func() (bool, error) {
-		d, err := optr.deployLister.Deployments(resource.Namespace).Get(resource.Name)
+		// TODO(vikas): When using deployLister, an issue is happening related to the apiVersion of cluster-api objects.
+		// This will be debugged later on to find out the root cause. For now, working aound is to use kubeClient.AppsV1
+		// d, err := optr.deployLister.Deployments(resource.Namespace).Get(resource.Name)
+		d, err := optr.kubeClient.AppsV1().Deployments(resource.Namespace).Get(resource.Name, metav1.GetOptions{})
 		if apierrors.IsNotFound(err) {
-			// exit early to recreate the deployment.
-			return false, err
+			return false, nil
 		}
 		if err != nil {
 			// Do not return error here, as we could be updating the API Server itself, in which case we
