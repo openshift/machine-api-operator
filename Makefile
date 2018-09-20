@@ -16,13 +16,7 @@ else
 endif
 
 .PHONY: check
-check: ## Lint code
-	@echo -e "\033[32mRunning golint...\033[0m"
-	hack/go-lint.sh $(go list -f '{{ .ImportPath }}' ./...)
-	@echo -e "\033[32mRunning yamllint...\033[0m"
-	hack/yaml-lint.sh
-	@echo -e "\033[32mRunning go vet...\033[0m"
-	hack/go-vet.sh ./...
+check: lint fmt vet test
 
 .PHONY: build
 build: ## Build binary
@@ -31,7 +25,7 @@ build: ## Build binary
 	$(DOCKER_CMD) go build -v -o bin/machine-api-operator cmd/main.go
 
 .PHONY: build-e2e
-build-e2e: ## Build binary
+build-e2e: ## Build end-to-end test binary
 	@echo -e "\033[32mBuilding e2e test binary...\033[0m"
 	mkdir -p bin
 	$(DOCKER_CMD) go build -v -o bin/e2e github.com/openshift/machine-api-operator/tests/e2e
@@ -51,6 +45,18 @@ push: ## Push image to docker registry
 	@echo -e "\033[32mPushing images...\033[0m"
 	docker push "$(IMAGE):$(VERSION)"
 	docker push "$(IMAGE):$(MUTABLE_TAG)"
+
+.PHONY: lint
+lint: ## Go lint your code
+	hack/go-lint.sh $(go list -f '{{ .ImportPath }}' ./...)
+
+.PHONY: fmt
+fmt: ## Go fmt your code
+	hack/verify-gofmt.sh
+
+.PHONY: vet
+vet: ## Apply go vet to all go files
+	hack/go-vet.sh ./...
 
 .PHONY: help
 help:
