@@ -37,7 +37,7 @@ func TestClusterAWSManifest(t *testing.T) {
 	config := OperatorConfig{
 		TargetNamespace: "go-test",
 		Provider:        "AWS",
-		AWS: &awsConfig{
+		AWS: &AWSConfig{
 			ClusterName:      "TestClusterManifest-ClusterName",
 			ClusterID:        "TestClusterManifest-ClusterID",
 			Region:           "TestClusterManifest-Region",
@@ -70,7 +70,7 @@ func TestMachineSetAWSManifest(t *testing.T) {
 	config := OperatorConfig{
 		TargetNamespace: "go-test",
 		Provider:        "aws",
-		AWS: &awsConfig{
+		AWS: &AWSConfig{
 			ClusterName:           "TestClusterManifest-ClusterName",
 			ClusterID:             "TestClusterManifest-ClusterID",
 			ReleaseChannel:        "TestChannel",
@@ -157,7 +157,7 @@ func TestMachineSetLibvirtManifest(t *testing.T) {
 	config := OperatorConfig{
 		TargetNamespace: "go-test",
 		Provider:        "libvirt",
-		Libvirt: &libvirtConfig{
+		Libvirt: &LibvirtConfig{
 			URI:         "qemu+tcp://host_private_ip/system",
 			NetworkName: "testNet",
 			IPRange:     "192.168.124.0/24",
@@ -216,7 +216,7 @@ func TestClusterapiControllerManifest(t *testing.T) {
 	config := OperatorConfig{
 		TargetNamespace: "go-test",
 		Provider:        "libvirt",
-		Libvirt: &libvirtConfig{
+		Libvirt: &LibvirtConfig{
 			URI:         "qemu+tcp://host_private_ip/system",
 			NetworkName: "testNet",
 			IPRange:     "192.168.124.0/24",
