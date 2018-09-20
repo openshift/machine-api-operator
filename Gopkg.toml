@@ -51,7 +51,11 @@
 
 [[override]]
   name = "github.com/openshift/cluster-version-operator"
-  version = "master"
+  branch = "master"
+
+[[override]]
+  name = "k8s.io/kube-aggregator"
+  branch = "release-1.10"
 
 [prune]
   go-tests = true

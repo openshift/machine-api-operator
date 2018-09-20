@@ -9,6 +9,27 @@ import (
 	"k8s.io/utils/pointer"
 )
 
+// ApplyNamespace merges objectmeta, does not worry about anything else
+func ApplyNamespace(client coreclientv1.NamespacesGetter, required *corev1.Namespace) (*corev1.Namespace, bool, error) {
+	existing, err := client.Namespaces().Get(required.Name, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		actual, err := client.Namespaces().Create(required)
+		return actual, true, err
+	}
+	if err != nil {
+		return nil, false, err
+	}
+
+	modified := pointer.BoolPtr(false)
+	resourcemerge.EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
+	if !*modified {
+		return existing, false, nil
+	}
+
+	actual, err := client.Namespaces().Update(existing)
+	return actual, true, err
+}
+
 // ApplyServiceAccount applies the required serviceaccount to the cluster.
 func ApplyServiceAccount(client coreclientv1.ServiceAccountsGetter, required *corev1.ServiceAccount) (*corev1.ServiceAccount, bool, error) {
 	existing, err := client.ServiceAccounts(required.Namespace).Get(required.Name, metav1.GetOptions{})
