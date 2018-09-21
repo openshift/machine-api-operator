@@ -14,14 +14,12 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
-	operatorclient "github.com/coreos-inc/tectonic-operators/operator-client/pkg/client"
-	operatorclienttypes "github.com/coreos-inc/tectonic-operators/operator-client/pkg/types"
 	"github.com/kubernetes-incubator/apiserver-builder/pkg/controller"
 	appsv1beta2 "k8s.io/api/apps/v1beta2"
 	apiv1 "k8s.io/api/core/v1"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
-	"k8s.io/apimachinery/pkg/api/resource"
+	apiextensionsscheme "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
@@ -37,7 +35,7 @@ const (
 	timeoutPoolMachineSetRunningInterval    = 10 * time.Minute
 
 	defaultLogLevel          = "info"
-	targetNamespace          = "default"
+	targetNamespace          = "openshift-machine-api-operator"
 	awsCredentialsSecretName = "aws-credentials-secret"
 	region                   = "us-east-1"
 	machineSetReplicas       = 2
@@ -52,7 +50,6 @@ type TestConfig struct {
 	CAPIClient          *clientset.Clientset
 	APIExtensionsClient *apiextensionsclientset.Clientset
 	KubeClient          *kubernetes.Clientset
-	OperatorClient      operatorclient.Interface
 	AWSClient           *AWSClient
 }
 
@@ -78,16 +75,14 @@ func NewTestConfig(kubeconfig string) *TestConfig {
 		glog.Fatalf("Could not create kubernetes client to talk to the apiserver: %v", err)
 	}
 
-	opclient := operatorclient.NewClient(kubeconfig)
-
 	return &TestConfig{
 		CAPIClient:          capiclient,
 		APIExtensionsClient: apiextensionsclient,
 		KubeClient:          kubeClient,
-		OperatorClient:      opclient,
 	}
 }
 
+// Kube library
 func createNamespace(testConfig *TestConfig, namespace string) error {
 	nsObj := &apiv1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -124,41 +119,6 @@ func createCRD(testConfig *TestConfig, crd *apiextensionsv1beta1.CustomResourceD
 	})
 }
 
-func createAppVersionCRD(testConfig *TestConfig) error {
-	appVersion := &operatorclienttypes.AppVersion{
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "AppVersion",
-			APIVersion: "tco.coreos.com/v1",
-		},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "machine-api",
-			Namespace: "tectonic-system",
-			Labels: map[string]string{
-				"managed-by-channel-operator": "true",
-			},
-		},
-		Spec: operatorclienttypes.AppVersionSpec{
-			DesiredVersion: "",
-			Paused:         false,
-		},
-		Status: operatorclienttypes.AppVersionStatus{
-			CurrentVersion: "1",
-			Paused:         false,
-		},
-		UpgradeReq:  1,
-		UpgradeComp: 0,
-	}
-
-	log.Infof("Creating %q AppVersion...", strings.Join([]string{appVersion.Namespace, appVersion.Name}, "/"))
-	if _, err := testConfig.OperatorClient.GetAppVersion("tectonic-system", "machine-api"); err != nil {
-		if _, err := testConfig.OperatorClient.CreateAppVersion(appVersion); err != nil {
-			return fmt.Errorf("unable to create AppVersion: %v", err)
-		}
-	}
-
-	return nil
-}
-
 func createConfigMap(testConfig *TestConfig, configMap *apiv1.ConfigMap) error {
 	log.Infof("Creating %q ConfigMap...", strings.Join([]string{configMap.Namespace, configMap.Name}, "/"))
 	if _, err := testConfig.KubeClient.CoreV1().ConfigMaps(configMap.Namespace).Get(configMap.Name, metav1.GetOptions{}); err != nil {
@@ -193,6 +153,7 @@ func createDeployment(testConfig *TestConfig, deployment *appsv1beta2.Deployment
 	return nil
 }
 
+// binary runner
 func cmdRun(assetsDir string, binaryPath string, args ...string) error {
 	cmd := exec.Command(binaryPath, args...)
 	cmd.Stdin = os.Stdin
@@ -242,38 +203,32 @@ var rootCmd = &cobra.Command{
 		}
 
 		// generate assumed namespaces
-		if err := createNamespace(testConfig, "tectonic-system"); err != nil {
+		if err := createNamespace(testConfig, targetNamespace); err != nil {
 			return err
 		}
 
-		// create appVersion
-		crd := &apiextensionsv1beta1.CustomResourceDefinition{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: "appversions.tco.coreos.com",
-			},
-			Spec: apiextensionsv1beta1.CustomResourceDefinitionSpec{
-				Group:   "tco.coreos.com",
-				Version: "v1",
-				Names: apiextensionsv1beta1.CustomResourceDefinitionNames{
-					Plural: "appversions",
-					Kind:   "AppVersion",
-				},
-			},
+		// create status CRD
+		apiextensionsscheme.AddToScheme(scheme.Scheme)
+		decode := scheme.Codecs.UniversalDeserializer().Decode
+		if statusCRD, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests/status-crd.yaml")); err != nil {
+			glog.Fatalf("Error reading %#v", err)
+		} else {
+			CRDObj, _, err := decode([]byte(statusCRD), nil, nil)
+			if err != nil {
+				glog.Fatalf("Error decoding %#v", err)
+			}
+			CRD := CRDObj.(*apiextensionsv1beta1.CustomResourceDefinition)
+
+			if err := createCRD(testConfig, CRD); err != nil {
+				return err
+			}
 		}
 
-		if err := createCRD(testConfig, crd); err != nil {
-			return err
-		}
-
-		if err := createAppVersionCRD(testConfig); err != nil {
-			return err
-		}
-
+		// genereate mao config
 		maoConfigTemplateData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests/mao-config.yaml"))
 		if err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		}
-
 		configValues := &render.OperatorConfig{
 			AWS: &render.AWSConfig{
 				ClusterID:   clusterID,
@@ -281,14 +236,13 @@ var rootCmd = &cobra.Command{
 				Region:      region,
 			},
 		}
-
 		maoConfigPopulatedData, err := render.Manifests(configValues, maoConfigTemplateData)
 		if err != nil {
 			glog.Fatalf("Unable to render manifests %q: %v", maoConfigTemplateData, err)
 		} else {
 			mapConfigMap := &apiv1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "mao-config-v1",
+					Name:      "cluster-config-v1",
 					Namespace: "kube-system",
 				},
 				Data: map[string]string{
@@ -302,7 +256,6 @@ var rootCmd = &cobra.Command{
 
 		// secrets
 		// create cluster api server secrets
-		decode := scheme.Codecs.UniversalDeserializer().Decode
 		if secretData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests/clusterapi-apiserver-certs.yaml")); err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
@@ -351,112 +304,30 @@ var rootCmd = &cobra.Command{
 		}
 		testConfig.AWSClient = awsClient
 
-		// create operator
-		var replicas int32 = 1
-		runAsNonRoot := true
-		var runAsUser int64 = 65534
-
-		maoManifest := &appsv1beta2.Deployment{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      "machine-api-operator",
-				Namespace: "kube-system",
-				Labels: map[string]string{
-					"k8s-app":                     "machine-api-operator",
-					"managed-by-channel-operator": "true",
-				},
-			},
-			Spec: appsv1beta2.DeploymentSpec{
-				Replicas: &replicas,
-				Selector: &metav1.LabelSelector{
-					MatchLabels: map[string]string{
-						"k8s-app": "machine-api-operator",
-					},
-				},
-				Template: apiv1.PodTemplateSpec{
-					ObjectMeta: metav1.ObjectMeta{
-						Labels: map[string]string{
-							"k8s-app":                     "machine-api-operator",
-							"managed-by-channel-operator": "true",
-						},
-					},
-					Spec: apiv1.PodSpec{
-						Containers: []apiv1.Container{
-							{
-								Name:  "machine-api-operator",
-								Image: maoImage,
-								Command: []string{
-									"/machine-api-operator",
-								},
-								Args: []string{
-									"-v=4",
-								},
-								Resources: apiv1.ResourceRequirements{
-									Limits: apiv1.ResourceList{
-										"cpu":    resource.MustParse("20m"),
-										"memory": resource.MustParse("50Mi"),
-									},
-									Requests: apiv1.ResourceList{
-										"cpu":    resource.MustParse("20m"),
-										"memory": resource.MustParse("50Mi"),
-									},
-								},
-								VolumeMounts: []apiv1.VolumeMount{
-									{
-										Name:      "mao-config",
-										MountPath: "/etc/mao-config",
-									},
-								},
-							},
-						},
-						ImagePullSecrets: []apiv1.LocalObjectReference{
-							{
-								Name: "coreos-pull-secret",
-							},
-						},
-						NodeSelector: map[string]string{
-							"node-role.kubernetes.io/master": "",
-						},
-						RestartPolicy: "Always",
-						SecurityContext: &apiv1.PodSecurityContext{
-							RunAsNonRoot: &runAsNonRoot,
-							RunAsUser:    &runAsUser,
-						},
-						Tolerations: []apiv1.Toleration{
-							{
-								Key:      "node-role.kubernetes.io/master",
-								Operator: "Exists",
-								Effect:   "NoSchedule",
-							},
-						},
-						Volumes: []apiv1.Volume{
-							{
-								Name: "mao-config",
-								VolumeSource: apiv1.VolumeSource{
-									ConfigMap: &apiv1.ConfigMapVolumeSource{
-										LocalObjectReference: apiv1.LocalObjectReference{
-											Name: "mao-config-v1",
-										},
-										Items: []apiv1.KeyToPath{
-											{
-												Key:  "mao-config",
-												Path: "config",
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
+		// create operator deployment
+		type deploymentValues struct {
+			Image string
+		}
+		dv := deploymentValues{
+			Image: maoImage,
+		}
+		if deploymentData, err := RenderTemplateFromFile(dv, filepath.Join(assetsPath, "manifests/operator-deployment.yaml")); err != nil {
+			glog.Fatalf("Error reading %#v", err)
+		} else {
+			deploymentObj, _, err := decode([]byte(deploymentData), nil, nil)
+			if err != nil {
+				glog.Fatalf("Error decoding %#v", err)
+			}
+			deployment := deploymentObj.(*appsv1beta2.Deployment)
+			if err := createDeployment(testConfig, deployment); err != nil {
+				return err
+			}
 		}
 
-		if err := createDeployment(testConfig, maoManifest); err != nil {
-			return err
-		}
-
+		// TESTS
+		// verify the cluster-api is running
 		err = wait.Poll(pollInterval, timeoutPoolClusterAPIDeploymentInterval, func() (bool, error) {
-			if clusterAPIDeployment, err := testConfig.KubeClient.AppsV1beta2().Deployments("default").Get("clusterapi-apiserver", metav1.GetOptions{}); err == nil {
+			if clusterAPIDeployment, err := testConfig.KubeClient.AppsV1beta2().Deployments(targetNamespace).Get("clusterapi-apiserver", metav1.GetOptions{}); err == nil {
 				// Check all the pods are running
 				log.Infof("Waiting for all cluster-api deployment pods to be ready, have %v, expecting 1", clusterAPIDeployment.Status.ReadyReplicas)
 				if clusterAPIDeployment.Status.ReadyReplicas < 1 {
@@ -507,6 +378,7 @@ var rootCmd = &cobra.Command{
 		log.Info("The cluster-api stack is ready")
 		log.Info("The cluster, the machineSet and the machines have been deployed")
 
+		// verify aws instances are running
 		err = wait.Poll(pollInterval, timeoutPoolAWSInterval, func() (bool, error) {
 			log.Info("Waiting for aws instances to come up")
 			runningInstances, err := testConfig.AWSClient.GetRunningInstances(clusterID)
