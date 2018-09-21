@@ -226,7 +226,7 @@ func TestClusterapiControllerManifest(t *testing.T) {
 	}
 
 	testRenderManifest(t, "../../manifests/clusterapi-controller.yaml", &config, `
-apiVersion: apps/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: clusterapi-controllers
