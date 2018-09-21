@@ -35,12 +35,12 @@ spec:
         aws:
           instanceType: m4.large
       machineSets:
-      - nodeType: Master
-        size: 1
-      - shortName: infra
-        nodeType: Compute
-        infra: true
-        size: 1
-      - shortName: compute
-        nodeType: Compute
-        size: 1
+        - nodeType: Master
+          size: 1
+        - shortName: infra
+          nodeType: Compute
+          infra: true
+          size: 1
+        - shortName: compute
+          nodeType: Compute
+          size: 1
