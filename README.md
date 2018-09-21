@@ -1,48 +1,38 @@
-# machine-api-operator
-Operator for rendering, deploying and updating cluster-api components:
+# Machine API Operator
+An Operator for managing the cluster-api stack and the Openshift owned machineSets:
 - Aggregated API server
 - Controller manager
-- Machine controller (AWS actuator)
-
-The cluster-api is leveraged by OpenShift for running machines under the machine-api control.
+- Machine controller (AWS/Libvirt actuator)
 
 # Manual deployment (for Kubernetes cluster)
 
-In order to deploy the machine-api-operator from scratch, one needs to:
+When running the mao on the installer it assumes some existing resources that make it work as expected.
+To deploy the machine-api-operator in a vanilla kubernetes environment, one needs to precreate these assumptions:
 
-1. create `tectonic-system` namespace
-1. create [CRD definition](https://raw.githubusercontent.com/openshift/installer/master/modules/tectonic/resources/manifests/updater/app-version-kind.yaml)
-   and `AppVersion` manifest:
+- Create the `openshift-machine-api-operator` namespace
+- Create the [CRD Status definition](tests/e2e/manifests/status-crd.yaml)
+- Create the [mao config](tests/e2e/manifests/mao-config.yaml)
+- Create the [apiserver certs](tests/e2e/manifests/clusterapi-apiserver-certs.yaml)
+- Create a given [ign config](tests/e2e/manifests/ign-config.yaml)
+- You can run it as a deployment with [this manifest](tests/e2e/manifests/operator-deployment.yaml)
+- Build:
+    ```sh
+    make build
+    ```
+- Run:
+    ```sh
+    ./bin/machine-api-operator --kubeconfig ${HOME}/.kube/config  --config tests/e2e/manifests/mao-config.yaml --manifest-dir manifests
+    ```
+- Image:
+    ```
+    make image
+    ```
+For running all this steps automatically check [e2e test](tests)
 
-   ```yaml
-   apiVersion: tco.coreos.com/v1
-   kind: AppVersion
-   metadata:
-     name: machine-api
-     namespace: tectonic-system
-     labels:
-       managed-by-channel-operator: "true"
-   spec:
-     desiredVersion:
-     paused: false
-   status:
-     currentVersion:
-     paused: false
-   upgradereq:  1
-   upgradecomp: 0
-   ```
-1. Apply the example TLS assets:
-   `kubectl apply -f examples/clusterapi-apiserver-secret.yaml`
-1. Build:
-   ```sh
-   make build
-   ```
-   and run the `machine-api-operator` binary:
-   ```sh
-   ./bin/machine-api-operator --kubeconfig ${HOME}/.kube/config  --config examples/machine-api-operator-config.yaml --manifest-dir manifests
-   ```
 
 # CI & tests
+
+[e2e test in a vanilla Kubernetes environment](tests/e2e)
 
 Tests are located in [machine-api-operator repository][1] and executed with `make test` in prow CI system. A link to failing tests is published as a comment in PR by @openshift-ci-robot. Current test status for all OpenShift components can be found in https://deck-ci.svc.ci.openshift.org.
 
