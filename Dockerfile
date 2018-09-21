@@ -10,7 +10,6 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o bin/machine-api-operator -a -ldflags '-
 
 # Final container
 FROM openshift/origin-base
-RUN yum install -y ca-certificates
 
 COPY --from=build /go/src/github.com/openshift/machine-api-operator/bin/machine-api-operator .
 COPY --from=build /go/src/github.com/openshift/machine-api-operator/manifests manifests
