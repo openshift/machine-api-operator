@@ -82,7 +82,7 @@ func TestMachineSetAWSManifest(t *testing.T) {
 		},
 	}
 
-	testRenderManifest(t, "../../machines/aws/machine-set.yaml", &config, `
+	testRenderManifest(t, "../../machines/aws/worker.machineset.yaml", &config, `
 ---
 apiVersion: cluster.k8s.io/v1alpha1
 kind: MachineSet
@@ -166,7 +166,7 @@ func TestMachineSetLibvirtManifest(t *testing.T) {
 		},
 	}
 
-	testRenderManifest(t, "../../machines/libvirt/machine-set.yaml", &config, `
+	testRenderManifest(t, "../../machines/libvirt/worker.machineset.yaml", &config, `
 ---
 apiVersion: cluster.k8s.io/v1alpha1
 kind: MachineSet
@@ -226,7 +226,7 @@ func TestClusterapiControllerManifest(t *testing.T) {
 	}
 
 	testRenderManifest(t, "../../manifests/clusterapi-controller.yaml", &config, `
-apiVersion: apps/v1beta1
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: clusterapi-controllers

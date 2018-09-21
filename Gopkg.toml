@@ -26,20 +26,12 @@
 
 
 [[constraint]]
-  name = "github.com/coreos-inc/tectonic-operators"
-  branch = "master"
-
-[[constraint]]
   name = "github.com/ghodss/yaml"
   version = "1.0.0"
 
-[[constraint]]
-  name = "k8s.io/apimachinery"
-  version = "kubernetes-1.9.0"
-
 [[override]]
   name = "k8s.io/api"
-  version= "kubernetes-1.9.0"
+  version= "kubernetes-1.11.1"
 
 [[override]]
   name = "k8s.io/client-go"
@@ -56,6 +48,14 @@
 [[override]]
   name = "github.com/spf13/pflag"
   version = "1.0.2"
+
+[[override]]
+  name = "github.com/openshift/cluster-version-operator"
+  branch = "master"
+
+[[override]]
+  name = "k8s.io/kube-aggregator"
+  branch = "release-1.10"
 
 [prune]
   go-tests = true
