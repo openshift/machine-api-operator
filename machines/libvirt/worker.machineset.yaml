@@ -30,10 +30,10 @@ spec:
           kind: LibvirtMachineProviderConfig
           domainMemory: 2048
           domainVcpu: 2
-          ignKey: /var/lib/libvirt/images/worker.ign
+          ignKey: worker.ign
           volume:
             poolName: default
-            baseVolumeID: /var/lib/libvirt/images/coreos_base
+            baseVolumeID: coreos_base
           networkInterfaceName: {{.Libvirt.NetworkName}}
           networkInterfaceAddress: {{.Libvirt.IPRange}}
           autostart: false
