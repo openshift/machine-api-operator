@@ -34,7 +34,7 @@ spec:
         operator: Exists
       containers:
       - name: apiserver
-        image: gcr.io/k8s-cluster-api/cluster-apiserver:0.0.5
+        image: {{ .Images.ClusterAPIServer }}
         volumeMounts:
         - name: cluster-apiserver-certs
           mountPath: /apiserver.local.config/certificates
@@ -60,7 +60,7 @@ spec:
             cpu: 300m
             memory: 200Mi
       - name: etcd
-        image: quay.io/coreos/etcd:latest
+        image: {{ .Images.Etcd }}
         imagePullPolicy: Always
         resources:
           requests:

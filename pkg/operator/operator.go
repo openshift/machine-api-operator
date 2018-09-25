@@ -1,7 +1,9 @@
 package operator
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"time"
 
 	"github.com/golang/glog"
@@ -210,11 +212,32 @@ func (optr *Operator) sync(key string) error {
 	if err := optr.syncCustomResourceDefinitions(); err != nil {
 		return err
 	}
+
+	filesData := map[string][]byte{}
+	files := []string{
+		optr.imagesFile,
+	}
+	for _, file := range files {
+		data, err := ioutil.ReadFile(file)
+		if err != nil {
+			return err
+		}
+		filesData[file] = data
+	}
+
+	var imgs render.Images
+	if err := json.Unmarshal(filesData[optr.imagesFile], &imgs); err != nil {
+		return err
+	}
+
 	// TODO(alberto) operatorConfig as CRD?
 	operatorConfig, err := render.Config(optr.config)
 	if err != nil {
+		glog.Errorf("Error decoding operator config: %v", err)
 		return err
 	}
+	(*operatorConfig).Images = &imgs
+
 	err = optr.syncClusterAPIServer(*operatorConfig)
 	if err != nil {
 		glog.Fatalf("Failed sync-up cluster apiserver: %v", err)

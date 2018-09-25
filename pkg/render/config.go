@@ -17,6 +17,7 @@ type OperatorConfig struct {
 	Provider        string         `json:"provider"`
 	AWS             *AWSConfig     `json:"aws"`
 	Libvirt         *LibvirtConfig `json:"libvirt"`
+	Images          *Images        `json:"images"`
 }
 
 // LibvirtConfig contains specific config for Libvirt
@@ -39,4 +40,14 @@ type AWSConfig struct {
 	ContainerLinuxVersion string `json:"containerLinuxVersion"`
 	Replicas              string `json:"replicas"`
 	WithCreds             bool   `json:"withCreds"`
+}
+
+// Images allows build systems to inject images for MAO components.
+type Images struct {
+	ClusterAPIControllerAWS            string `json:"clusterAPIControllerAWS"`
+	ClusterAPIControllerLibvirt        string `json:"clusterAPIControllerLibvirt"`
+	ClusterAPIControllerManagerAWS     string `json:"clusterAPIControllerManagerAWS"`
+	ClusterAPIControllerManagerLibvirt string `json:"clusterAPIControllerManagerLibvirt"`
+	ClusterAPIServer                   string `json:"clusterAPIServer"`
+	Etcd                               string `json:"Etcd"`
 }

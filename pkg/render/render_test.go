@@ -223,6 +223,10 @@ func TestClusterapiControllerManifest(t *testing.T) {
 			Replicas:    "2",
 			ClusterName: "test",
 		},
+		Images: &Images{
+			ClusterAPIControllerManagerLibvirt: "gcr.io/k8s-cluster-api/controller-manager:0.0.7",
+			ClusterAPIControllerLibvirt:        "quay.io/coreos/cluster-api-provider-libvirt:cd386e4",
+		},
 	}
 
 	testRenderManifest(t, "../../manifests/clusterapi-controller.yaml", &config, `
@@ -276,7 +280,7 @@ spec:
             cpu: 100m
             memory: 30Mi
       - name: libvirt-machine-controller
-        image: quay.io/coreos/cluster-api-provider-libvirt:cd386e4 # TODO: move this to openshift org
+        image: quay.io/coreos/cluster-api-provider-libvirt:cd386e4
         env:
           - name: NODE_NAME
             valueFrom:

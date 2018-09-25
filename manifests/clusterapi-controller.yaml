@@ -38,9 +38,9 @@ spec:
       containers:
       - name: controller-manager
       {{- if .AWS }}
-        image: openshift/origin-aws-machine-controllers:v4.0.0
+        image: {{ .Images.ClusterAPIControllerManagerAWS }}
       {{- else if .Libvirt}}
-        image: gcr.io/k8s-cluster-api/controller-manager:0.0.7
+        image: {{ .Images.ClusterAPIControllerManagerLibvirt }}
       {{- end}}
         command:
         - "./controller-manager"
@@ -53,10 +53,10 @@ spec:
             memory: 30Mi
       {{- if .AWS }}
       - name: aws-machine-controller
-        image: openshift/origin-aws-machine-controllers:v4.0.0
+        image: {{ .Images.ClusterAPIControllerAWS }}
       {{- else if .Libvirt}}
       - name: libvirt-machine-controller
-        image: quay.io/coreos/cluster-api-provider-libvirt:cd386e4 # TODO: move this to openshift org
+        image: {{ .Images.ClusterAPIControllerLibvirt }} 
       {{- end}}
         env:
           - name: NODE_NAME

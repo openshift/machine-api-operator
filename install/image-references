@@ -1,0 +1,38 @@
+kind: ImageStream
+apiVersion: image.openshift.io/v1
+spec:
+  tags:
+  - name: machine-api-operator
+    from:
+      kind: DockerImage
+      name: openshift/origin-machine-api-operator:v4.0.0
+  - name: clusterapi-controller-manager-aws
+    from:
+      kind: DockerImage
+      name: openshift/origin-aws-machine-controllers:v4.0.0
+  - name: clusterapi-controller-manager-libvirt
+    from:
+      kind: DockerImage
+      name: gcr.io/k8s-cluster-api/controller-manager:0.0.7
+  - name: clusterapi-controller-aws
+    from:
+      kind: DockerImage
+      name: openshift/origin-aws-machine-controllers:v4.0.0
+  - name: clusterapi-controller-libvirt
+    from:
+      kind: DockerImage
+      name: quay.io/coreos/cluster-api-provider-libvirt:cd386e4
+  - name: clusterapi-apiserver
+    from:
+      kind: DockerImage
+      name: gcr.io/k8s-cluster-api/cluster-apiserver:0.0.5
+  - name: etcd
+    from:
+      kind: DockerImage
+      name: quay.io/coreos/etcd:latest
+
+
+
+
+
+    
