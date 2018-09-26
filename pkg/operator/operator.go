@@ -147,6 +147,38 @@ func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 		return
 	}
 	glog.Info("Synched up caches")
+	go func() {
+		err := wait.Poll(machineRolloutPollInterval, machineRolloutTimeout, func() (bool, error) {
+			//TODO(vikasc) move operatorconfig rendering logic to main() to fail fast
+			operatorConfig, err := render.Config(optr.config)
+			if err != nil {
+				return false, fmt.Errorf("error decoding operator config: %v", err)
+			}
+			err = optr.updateImageDetails(operatorConfig)
+			if err != nil {
+				return false, fmt.Errorf("error getting image details: %v", err)
+			}
+			glog.Infof("images %+v", operatorConfig.Images)
+
+			glog.Info("Trying to deploy Cluster object")
+			if err := optr.syncCluster(*operatorConfig); err != nil {
+				glog.Infof("Cannot create cluster, retrying: %v", err)
+				return false, nil
+			}
+			glog.Info("Created Cluster object")
+			glog.Info("Trying to deploy MachineSet object")
+			if err := optr.syncMachineSets(*operatorConfig); err != nil {
+				glog.Infof("Cannot create MachineSet, retrying: %v", err)
+				return false, nil
+			}
+			glog.Info("Created MachineSet object Successfully")
+			return true, nil
+		})
+		if err != nil {
+			glog.Fatalf("Error out while trying to deploy machines: %v", err)
+		}
+	}()
+
 	for i := 0; i < workers; i++ {
 		go wait.Until(optr.worker, time.Second, stopCh)
 	}
@@ -202,17 +234,7 @@ func (optr *Operator) handleErr(err error, key interface{}) {
 	optr.queue.Forget(key)
 }
 
-func (optr *Operator) sync(key string) error {
-	startTime := time.Now()
-	glog.V(4).Infof("Started syncing operator %q (%v)", key, startTime)
-	defer func() {
-		glog.V(4).Infof("Finished syncing operator %q (%v)", key, time.Since(startTime))
-	}()
-
-	if err := optr.syncCustomResourceDefinitions(); err != nil {
-		return err
-	}
-
+func (optr *Operator) updateImageDetails(config *render.OperatorConfig) error {
 	filesData := map[string][]byte{}
 	files := []string{
 		optr.imagesFile,
@@ -224,19 +246,38 @@ func (optr *Operator) sync(key string) error {
 		}
 		filesData[file] = data
 	}
-
 	var imgs render.Images
 	if err := json.Unmarshal(filesData[optr.imagesFile], &imgs); err != nil {
+		return err
+	}
+	(*config).Images = &imgs
+	glog.Infof("images %+v", config)
+	return nil
+}
+
+func (optr *Operator) sync(key string) error {
+	startTime := time.Now()
+	glog.V(4).Infof("Started syncing operator %q (%v)", key, startTime)
+	defer func() {
+		glog.V(4).Infof("Finished syncing operator %q (%v)", key, time.Since(startTime))
+	}()
+
+	if err := optr.syncCustomResourceDefinitions(); err != nil {
 		return err
 	}
 
 	// TODO(alberto) operatorConfig as CRD?
 	operatorConfig, err := render.Config(optr.config)
+
 	if err != nil {
-		glog.Errorf("Error decoding operator config: %v", err)
+		glog.Fatalf("Error decoding operator config: %v", err)
 		return err
 	}
-	(*operatorConfig).Images = &imgs
+	err = optr.updateImageDetails(operatorConfig)
+	if err != nil {
+		glog.Fatalf("Error getting image details: %v", err)
+		return err
+	}
 
 	err = optr.syncClusterAPIServer(*operatorConfig)
 	if err != nil {
