@@ -64,8 +64,7 @@ const (
 	controllerName = "nodelink"
 
 	// machineAnnotationKey is the annotation storing a link between a node and it's machine. Should match upstream cluster-api machine controller. (node.go)
-	machineAnnotationKey  = "machine"
-	nodeRoleAnnotationKey = "sigs.k8s.io/cluster-api-node-role"
+	machineAnnotationKey = "machine"
 )
 
 // NewController returns a new *Controller.
@@ -399,22 +398,6 @@ func (c *Controller) processNode(node *corev1.Node) error {
 
 	if modNode.Labels == nil {
 		modNode.Labels = map[string]string{}
-	}
-
-	nodeRole, exists := matchingMachine.Annotations[nodeRoleAnnotationKey]
-	if !exists {
-		nodeLog.WithField("machine", fmt.Sprintf("%v/%v", matchingMachine.Namespace, matchingMachine.Name)).Warnf("Unable to find machine's %q annotation", nodeRoleAnnotationKey)
-	} else {
-		switch nodeRole {
-		case "master":
-			modNode.Labels["node-role.kubernetes.io/master"] = ""
-		case "infra":
-			modNode.Labels["node-role.kubernetes.io/infra"] = ""
-		case "compute":
-			modNode.Labels["node-role.kubernetes.io/compute"] = ""
-		default:
-			nodeLog.Infof("machine %q's annotation %q can contain only 'master', 'infra' or 'compute' value, %v given\n", machineKey, nodeRoleAnnotationKey, nodeRole)
-		}
 	}
 
 	for k, v := range matchingMachine.Spec.Labels {
