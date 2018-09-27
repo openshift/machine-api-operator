@@ -229,7 +229,7 @@ func TestClusterapiControllerManifest(t *testing.T) {
 		},
 	}
 
-	testRenderManifest(t, "../../manifests/clusterapi-controller.yaml", &config, `
+	testRenderManifest(t, "../../owned-manifests/clusterapi-controller.yaml", &config, `
 apiVersion: apps/v1
 kind: Deployment
 metadata:

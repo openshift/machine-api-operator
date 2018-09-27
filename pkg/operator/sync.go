@@ -137,7 +137,7 @@ func (optr *Operator) syncCluster(config render.OperatorConfig) error {
 }
 
 func (optr *Operator) syncClusterAPIServer(config render.OperatorConfig) error {
-	crbBytes, err := render.PopulateTemplate(&config, "manifests/clusterapi-apiserver-cluster-role-binding.yaml")
+	crbBytes, err := render.PopulateTemplate(&config, fmt.Sprintf("%s/clusterapi-apiserver-cluster-role-binding.yaml", ownedManifestsDir))
 	if err != nil {
 		return err
 	}
@@ -147,7 +147,7 @@ func (optr *Operator) syncClusterAPIServer(config render.OperatorConfig) error {
 		return err
 	}
 
-	rbBytes, err := render.PopulateTemplate(&config, "manifests/clusterapi-apiserver-role-binding.yaml")
+	rbBytes, err := render.PopulateTemplate(&config, fmt.Sprintf("%s/clusterapi-apiserver-role-binding.yaml", ownedManifestsDir))
 	if err != nil {
 		return err
 	}
@@ -157,7 +157,7 @@ func (optr *Operator) syncClusterAPIServer(config render.OperatorConfig) error {
 		return err
 	}
 
-	svcBytes, err := render.PopulateTemplate(&config, "manifests/clusterapi-apiserver-svc.yaml")
+	svcBytes, err := render.PopulateTemplate(&config, fmt.Sprintf("%s/clusterapi-apiserver-svc.yaml", ownedManifestsDir))
 	if err != nil {
 		return err
 	}
@@ -167,7 +167,7 @@ func (optr *Operator) syncClusterAPIServer(config render.OperatorConfig) error {
 		return err
 	}
 
-	apiServiceBytes, err := render.PopulateTemplate(&config, "manifests/clusterapi-apiservice.yaml")
+	apiServiceBytes, err := render.PopulateTemplate(&config, fmt.Sprintf("%s/clusterapi-apiservice.yaml", ownedManifestsDir))
 	if err != nil {
 		return err
 	}
@@ -177,7 +177,7 @@ func (optr *Operator) syncClusterAPIServer(config render.OperatorConfig) error {
 		return err
 	}
 
-	controllerBytes, err := render.PopulateTemplate(&config, "manifests/clusterapi-apiserver.yaml")
+	controllerBytes, err := render.PopulateTemplate(&config, fmt.Sprintf("%s/clusterapi-apiserver.yaml", ownedManifestsDir))
 	if err != nil {
 		return err
 	}
@@ -193,7 +193,7 @@ func (optr *Operator) syncClusterAPIServer(config render.OperatorConfig) error {
 }
 
 func (optr *Operator) syncClusterAPIController(config render.OperatorConfig) error {
-	crBytes, err := render.PopulateTemplate(&config, "manifests/clusterapi-controller-cluster-role.yaml")
+	crBytes, err := render.PopulateTemplate(&config, fmt.Sprintf("%s/clusterapi-controller-cluster-role.yaml", ownedManifestsDir))
 	if err != nil {
 		return err
 	}
@@ -202,7 +202,7 @@ func (optr *Operator) syncClusterAPIController(config render.OperatorConfig) err
 	if err != nil {
 		return err
 	}
-	crbBytes, err := render.PopulateTemplate(&config, "manifests/clusterapi-controller-cluster-role-binding.yaml")
+	crbBytes, err := render.PopulateTemplate(&config, fmt.Sprintf("%s/clusterapi-controller-cluster-role-binding.yaml", ownedManifestsDir))
 	if err != nil {
 		return err
 	}
@@ -211,7 +211,7 @@ func (optr *Operator) syncClusterAPIController(config render.OperatorConfig) err
 	if err != nil {
 		return err
 	}
-	controllerBytes, err := render.PopulateTemplate(&config, "manifests/clusterapi-controller.yaml")
+	controllerBytes, err := render.PopulateTemplate(&config, fmt.Sprintf("%s/clusterapi-controller.yaml", ownedManifestsDir))
 	if err != nil {
 		return err
 	}
