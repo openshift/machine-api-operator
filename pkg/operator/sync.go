@@ -26,7 +26,6 @@ func (optr *Operator) syncAll(rconfig render.OperatorConfig) error {
 	syncFuncs := []syncFunc{
 		// TODO(alberto): implement this once https://github.com/kubernetes-sigs/cluster-api/pull/488/files gets in
 		//optr.syncMachineClasses,
-		optr.syncMachineSets,
 		optr.syncCluster,
 	}
 
@@ -228,6 +227,9 @@ func (optr *Operator) syncClusterAPIController(config render.OperatorConfig) err
 }
 
 const (
+	machineRolloutPollInterval = 5 * time.Second
+	machineRolloutTimeout      = 10 * time.Minute
+
 	deploymentRolloutPollInterval = time.Second
 	deploymentRolloutTimeout      = 5 * time.Minute
 

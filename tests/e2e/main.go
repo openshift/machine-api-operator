@@ -254,6 +254,20 @@ var rootCmd = &cobra.Command{
 			}
 		}
 
+		// Create images configmap
+		imagesConfigData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests/images.configmap.yaml"))
+		if err != nil {
+			glog.Fatalf("Error reading %#v", err)
+		} else {
+			imagesObj, _, err := decode([]byte(imagesConfigData), nil, nil)
+			if err != nil {
+				glog.Fatalf("Error decoding %#v", err)
+			}
+			imagesConfigMap := imagesObj.(*apiv1.ConfigMap)
+			if err := createConfigMap(testConfig, imagesConfigMap); err != nil {
+				return err
+			}
+		}
 		// secrets
 		// create cluster api server secrets
 		if secretData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests/clusterapi-apiserver-certs.yaml")); err != nil {
