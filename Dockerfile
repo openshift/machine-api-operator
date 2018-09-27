@@ -8,7 +8,6 @@ COPY . .
 
 RUN CGO_ENABLED=0 GOOS=linux go build -o bin/machine-api-operator -a -ldflags '-extldflags "-static"' github.com/openshift/machine-api-operator/cmd/machine-api-operator
 RUN CGO_ENABLED=0 GOOS=linux go build -o bin/nodelink-controller -a -ldflags '-extldflags "-static"' github.com/openshift/machine-api-operator/cmd/nodelink-controller
-COPY install /manifests
 
 LABEL io.openshift.release.operator true
 
@@ -16,6 +15,7 @@ LABEL io.openshift.release.operator true
 FROM openshift/origin-base
 
 COPY --from=build /go/src/github.com/openshift/machine-api-operator/bin/machine-api-operator .
-COPY --from=build /go/src/github.com/openshift/machine-api-operator/manifests manifests
 COPY --from=build /go/src/github.com/openshift/machine-api-operator/machines machines
+COPY --from=build /go/src/github.com/openshift/machine-api-operator/owned-manifests owned-manifests
+COPY --from=build /go/src/github.com/openshift/machine-api-operator/install manifests
 COPY --from=build /go/src/github.com/openshift/machine-api-operator/bin/nodelink-controller .
