@@ -46,9 +46,6 @@ const (
 	providerAWS       = "aws"
 	providerLibvirt   = "libvirt"
 	ownedManifestsDir = "owned-manifests"
-	// DefaultNamespace is the default namespace for components to be
-	// installed in.
-	DefaultNamespace = "openshift-cluster-api"
 )
 
 // Operator defines machince config operator.
@@ -300,21 +297,17 @@ func (optr *Operator) sync(key string) error {
 }
 
 func (optr *Operator) getOperatorConfig() (*render.OperatorConfig, error) {
-	var (
-		clusterConfigNamespace = "kube-system"
-		clusterConfigName      = "cluster-config-v1"
-	)
+	clusterConfigNamespace := "kube-system"
+	clusterConfigName := "cluster-config-v1"
 	clusterConfig, err := optr.kubeClient.CoreV1().ConfigMaps(clusterConfigNamespace).Get(clusterConfigName, metav1.GetOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("could not find cluster-config-v1 namespace: %v", err)
 	}
-	return mcFromClusterConfig(clusterConfig)
+	return optr.mcFromClusterConfig(clusterConfig)
 }
 
-func mcFromClusterConfig(cm *v1.ConfigMap) (*render.OperatorConfig, error) {
-	var (
-		mcKey = "mao-config"
-	)
+func (optr *Operator) mcFromClusterConfig(cm *v1.ConfigMap) (*render.OperatorConfig, error) {
+	mcKey := "mao-config"
 	var operatorConfig render.OperatorConfig
 	mcData, ok := cm.Data[mcKey]
 	if !ok {
@@ -325,7 +318,7 @@ func mcFromClusterConfig(cm *v1.ConfigMap) (*render.OperatorConfig, error) {
 		return nil, fmt.Errorf("failed unmarshalling config file: %v", err)
 	}
 	if operatorConfig.TargetNamespace == "" {
-		operatorConfig.TargetNamespace = DefaultNamespace
+		operatorConfig.TargetNamespace = optr.namespace
 	}
 	return &operatorConfig, nil
 }

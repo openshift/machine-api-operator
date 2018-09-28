@@ -17,6 +17,7 @@ import (
 	"github.com/kubernetes-incubator/apiserver-builder/pkg/controller"
 	appsv1beta2 "k8s.io/api/apps/v1beta2"
 	apiv1 "k8s.io/api/core/v1"
+	rbacv1beta1 "k8s.io/api/rbac/v1beta1"
 	apiextensionsv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apiextensionsscheme "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme"
@@ -119,6 +120,17 @@ func createCRD(testConfig *TestConfig, crd *apiextensionsv1beta1.CustomResourceD
 	})
 }
 
+func createClusterRoleBinding(testConfig *TestConfig, binding *rbacv1beta1.ClusterRoleBinding) error {
+	log.Infof("Creating %q ClusterRoleBinding...", binding.Name)
+	if _, err := testConfig.KubeClient.RbacV1beta1().ClusterRoleBindings().Get(binding.Name, metav1.GetOptions{}); err != nil {
+		if _, err := testConfig.KubeClient.RbacV1beta1().ClusterRoleBindings().Create(binding); err != nil {
+			return fmt.Errorf("unable to create ClusterRoleBinding: %v", err)
+		}
+	}
+
+	return nil
+}
+
 func createConfigMap(testConfig *TestConfig, configMap *apiv1.ConfigMap) error {
 	log.Infof("Creating %q ConfigMap...", strings.Join([]string{configMap.Namespace, configMap.Name}, "/"))
 	if _, err := testConfig.KubeClient.CoreV1().ConfigMaps(configMap.Namespace).Get(configMap.Name, metav1.GetOptions{}); err != nil {
@@ -207,9 +219,24 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		// create status CRD
 		apiextensionsscheme.AddToScheme(scheme.Scheme)
 		decode := scheme.Codecs.UniversalDeserializer().Decode
+		// create rbac
+		if rbacData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests/rbac.yaml")); err != nil {
+			glog.Fatalf("Error reading %#v", err)
+		} else {
+			rbacObj, _, err := decode([]byte(rbacData), nil, nil)
+			if err != nil {
+				glog.Fatalf("Error decoding %#v", err)
+			}
+			rbac := rbacObj.(*rbacv1beta1.ClusterRoleBinding)
+
+			if err := createClusterRoleBinding(testConfig, rbac); err != nil {
+				return err
+			}
+		}
+
+		// create status CRD
 		if statusCRD, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests/status-crd.yaml")); err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
