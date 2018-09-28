@@ -5,34 +5,12 @@ spec:
   - name: machine-api-operator
     from:
       kind: DockerImage
-      name: openshift/origin-machine-api-operator:v4.0.0
-  - name: clusterapi-controller-manager-aws
+      name: docker.io/openshift/origin-machine-api-operator:v4.0
+  - name: aws-machine-controllers
     from:
       kind: DockerImage
-      name: openshift/origin-aws-machine-controllers:v4.0.0
-  - name: clusterapi-controller-manager-libvirt
+      name: docker.io/openshift/origin-aws-machine-controllers:v4.0
+  - name: libvirt-machine-controllers
     from:
       kind: DockerImage
-      name: gcr.io/k8s-cluster-api/controller-manager:0.0.7
-  - name: clusterapi-controller-aws
-    from:
-      kind: DockerImage
-      name: openshift/origin-aws-machine-controllers:v4.0.0
-  - name: clusterapi-controller-libvirt
-    from:
-      kind: DockerImage
-      name: quay.io/coreos/cluster-api-provider-libvirt:cd386e4
-  - name: clusterapi-apiserver
-    from:
-      kind: DockerImage
-      name: gcr.io/k8s-cluster-api/cluster-apiserver:0.0.6
-  - name: etcd
-    from:
-      kind: DockerImage
-      name: quay.io/coreos/etcd:latest
-
-
-
-
-
-    
+      name: docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0
