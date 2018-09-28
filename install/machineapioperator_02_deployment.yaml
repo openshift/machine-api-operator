@@ -33,8 +33,6 @@ spec:
             cpu: 20m
             memory: 50Mi
         volumeMounts:
-        - name: cluster-config
-          mountPath: /etc/mao-config
         - name: images
           mountPath: /etc/mao-config/images
       imagePullSecrets:
@@ -50,12 +48,6 @@ spec:
         operator: "Exists"
         effect: "NoSchedule"
       volumes:
-      - name: cluster-config
-        configMap:
-          name: cluster-config-v1
-          items:
-          - key: mao-config
-            path: config
       - name: images
         configMap:
                 name: machine-api-operator-images

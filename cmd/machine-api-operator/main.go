@@ -22,7 +22,6 @@ var (
 )
 
 func init() {
-	rootCmd.PersistentFlags().StringVar(&config, "config", "/etc/mao-config/config", "path to the mao config")
 	rootCmd.PersistentFlags().AddGoFlagSet(flag.CommandLine)
 }
 
