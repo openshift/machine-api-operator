@@ -25,7 +25,7 @@ spec:
   - name: clusterapi-apiserver
     from:
       kind: DockerImage
-      name: gcr.io/k8s-cluster-api/cluster-apiserver:0.0.5
+      name: gcr.io/k8s-cluster-api/cluster-apiserver:0.0.6
   - name: etcd
     from:
       kind: DockerImage
