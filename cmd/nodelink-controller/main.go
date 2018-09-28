@@ -160,12 +160,12 @@ func (c *Controller) deleteNode(obj interface{}) {
 	if !ok {
 		tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
 		if !ok {
-			utilruntime.HandleError(fmt.Errorf("Couldn't get object from tombstone %#v", obj))
+			utilruntime.HandleError(fmt.Errorf("couldn't get object from tombstone %#v", obj))
 			return
 		}
 		node, ok = tombstone.Obj.(*corev1.Node)
 		if !ok {
-			utilruntime.HandleError(fmt.Errorf("Tombstone contained object that is not a Node %#v", obj))
+			utilruntime.HandleError(fmt.Errorf("tombstone contained object that is not a Node %#v", obj))
 			return
 		}
 	}
@@ -232,7 +232,7 @@ func WaitForCacheSync(controllerName string, stopCh <-chan struct{}, cacheSyncs 
 	glog.Infof("Waiting for caches to sync for %s controller", controllerName)
 
 	if !cache.WaitForCacheSync(stopCh, cacheSyncs...) {
-		utilruntime.HandleError(fmt.Errorf("Unable to sync caches for %s controller", controllerName))
+		utilruntime.HandleError(fmt.Errorf("unable to sync caches for %s controller", controllerName))
 		return false
 	}
 
@@ -267,7 +267,7 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 func (c *Controller) enqueue(node *corev1.Node) {
 	key, err := cache.DeletionHandlingMetaNamespaceKeyFunc(node)
 	if err != nil {
-		utilruntime.HandleError(fmt.Errorf("Couldn't get key for object %#v: %v", node, err))
+		utilruntime.HandleError(fmt.Errorf("couldn't get key for object %#v: %v", node, err))
 		return
 	}
 

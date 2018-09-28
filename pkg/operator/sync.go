@@ -272,7 +272,7 @@ func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment) erro
 		}
 
 		if d.DeletionTimestamp != nil {
-			return false, fmt.Errorf("Deployment %s is being deleted", resource.Name)
+			return false, fmt.Errorf("deployment %s is being deleted", resource.Name)
 		}
 
 		if d.Generation <= d.Status.ObservedGeneration && d.Status.UpdatedReplicas == d.Status.Replicas && d.Status.UnavailableReplicas == 0 {
