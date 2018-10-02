@@ -9,7 +9,7 @@ import (
 
 const (
 	componentName      = "machine-api-operator"
-	componentNamespace = "kube-system"
+	componentNamespace = "openshift-machine-api-operator"
 )
 
 var (
@@ -22,7 +22,6 @@ var (
 )
 
 func init() {
-	rootCmd.PersistentFlags().StringVar(&config, "config", "/etc/mao-config/config", "path to the mao config")
 	rootCmd.PersistentFlags().AddGoFlagSet(flag.CommandLine)
 }
 

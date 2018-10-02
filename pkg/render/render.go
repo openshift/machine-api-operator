@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"text/template"
 
-	"github.com/ghodss/yaml"
 	"github.com/golang/glog"
 )
 
@@ -15,10 +14,6 @@ const (
 	providerAWS     = "aws"
 	providerLibvirt = "libvirt"
 )
-
-// DefaultNamespace is the default namespace for components to be
-// installed in.
-const DefaultNamespace = "openshift-cluster-api"
 
 // Manifests takes the config object that contains the templated value,
 // and uses that to render the templated manifest.
@@ -50,26 +45,6 @@ func Manifests(config *OperatorConfig, data []byte) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
-}
-
-// Config reads the local config file.
-func Config(configFile string) (*OperatorConfig, error) {
-	config, err := ioutil.ReadFile(configFile)
-	if err != nil {
-		return nil, fmt.Errorf("read config file %q: %v", configFile, err)
-	}
-
-	// Marshal into machineAPI config object
-	var operatorConfig OperatorConfig
-	if err := yaml.Unmarshal(config, &operatorConfig); err != nil {
-		return nil, fmt.Errorf("unmarshal config file: %v", err)
-	}
-
-	if operatorConfig.TargetNamespace == "" {
-		operatorConfig.TargetNamespace = DefaultNamespace
-	}
-
-	return &operatorConfig, nil
 }
 
 // PopulateTemplate takes the config object, and uses that to render the templated manifest

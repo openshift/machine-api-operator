@@ -6,6 +6,7 @@ import (
 	"io/ioutil"
 	"time"
 
+	"github.com/ghodss/yaml"
 	"github.com/golang/glog"
 	cvoclientset "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
 
@@ -13,6 +14,7 @@ import (
 	apiextclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apiextinformersv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions/apiextensions/v1beta1"
 	apiextlistersv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/listers/apiextensions/v1beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	appsinformersv1 "k8s.io/client-go/informers/apps/v1"
@@ -151,7 +153,7 @@ func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 	go func() {
 		err := wait.Poll(machineRolloutPollInterval, machineRolloutTimeout, func() (bool, error) {
 			//TODO(vikasc) move operatorconfig rendering logic to main() to fail fast
-			operatorConfig, err := render.Config(optr.config)
+			operatorConfig, err := optr.getOperatorConfig()
 			if err != nil {
 				return false, fmt.Errorf("error decoding operator config: %v", err)
 			}
@@ -252,7 +254,6 @@ func (optr *Operator) updateImageDetails(config *render.OperatorConfig) error {
 		return err
 	}
 	(*config).Images = &imgs
-	glog.Infof("images %+v", config)
 	return nil
 }
 
@@ -268,8 +269,8 @@ func (optr *Operator) sync(key string) error {
 	}
 
 	// TODO(alberto) operatorConfig as CRD?
-	operatorConfig, err := render.Config(optr.config)
-
+	glog.Infof("Getting operator config using kubeclient")
+	operatorConfig, err := optr.getOperatorConfig()
 	if err != nil {
 		glog.Fatalf("Error decoding operator config: %v", err)
 		return err
@@ -293,4 +294,31 @@ func (optr *Operator) sync(key string) error {
 	}
 	glog.Info("Synched up cluster api controller")
 	return optr.syncAll(*operatorConfig)
+}
+
+func (optr *Operator) getOperatorConfig() (*render.OperatorConfig, error) {
+	clusterConfigNamespace := "kube-system"
+	clusterConfigName := "cluster-config-v1"
+	clusterConfig, err := optr.kubeClient.CoreV1().ConfigMaps(clusterConfigNamespace).Get(clusterConfigName, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("could not find cluster-config-v1 namespace: %v", err)
+	}
+	return optr.mcFromClusterConfig(clusterConfig)
+}
+
+func (optr *Operator) mcFromClusterConfig(cm *v1.ConfigMap) (*render.OperatorConfig, error) {
+	mcKey := "mao-config"
+	var operatorConfig render.OperatorConfig
+	mcData, ok := cm.Data[mcKey]
+	if !ok {
+		return nil, fmt.Errorf("%s doesn't exist", mcKey)
+	}
+
+	if err := yaml.Unmarshal([]byte(mcData), &operatorConfig); err != nil {
+		return nil, fmt.Errorf("failed unmarshalling config file: %v", err)
+	}
+	if operatorConfig.TargetNamespace == "" {
+		operatorConfig.TargetNamespace = optr.namespace
+	}
+	return &operatorConfig, nil
 }
