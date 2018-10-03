@@ -13,7 +13,7 @@ import (
 type ControllerContext struct {
 	ClientBuilder *ClientBuilder
 
-	NamespacedInformerFactory     clusterapiinformers.SharedInformerFactory
+	CAPINamespacedInformerFactory clusterapiinformers.SharedInformerFactory
 	KubeInformerFactory           informers.SharedInformerFactory
 	KubeNamespacedInformerFactory informers.SharedInformerFactory
 	APIExtInformerFactory         apiextinformers.SharedInformerFactory
@@ -43,7 +43,7 @@ func CreateControllerContext(cb *ClientBuilder, stop <-chan struct{}, targetName
 
 	return &ControllerContext{
 		ClientBuilder:                 cb,
-		NamespacedInformerFactory:     sharedNamespacedInformers,
+		CAPINamespacedInformerFactory: sharedNamespacedInformers,
 		KubeInformerFactory:           kubeSharedInformer,
 		KubeNamespacedInformerFactory: kubeNamespacedSharedInformer,
 		APIExtInformerFactory:         apiExtSharedInformer,

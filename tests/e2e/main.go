@@ -36,7 +36,7 @@ const (
 	timeoutPoolMachineSetRunningInterval    = 10 * time.Minute
 
 	defaultLogLevel          = "info"
-	targetNamespace          = "openshift-machine-api-operator"
+	targetNamespace          = "openshift-cluster-api"
 	awsCredentialsSecretName = "aws-credentials-secret"
 	region                   = "us-east-1"
 	machineSetReplicas       = 2
