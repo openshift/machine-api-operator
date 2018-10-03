@@ -9,7 +9,7 @@ import (
 
 const (
 	componentName      = "machine-api-operator"
-	componentNamespace = "openshift-machine-api-operator"
+	componentNamespace = "openshift-cluster-api"
 )
 
 var (

@@ -54,7 +54,7 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 			glog.Fatalf("error starting controllers: %v", err)
 		}
 
-		ctx.NamespacedInformerFactory.Start(ctx.Stop)
+		ctx.CAPINamespacedInformerFactory.Start(ctx.Stop)
 		ctx.KubeInformerFactory.Start(ctx.Stop)
 		ctx.KubeNamespacedInformerFactory.Start(ctx.Stop)
 		ctx.APIExtInformerFactory.Start(ctx.Stop)
@@ -84,7 +84,7 @@ func startControllers(ctx *common.ControllerContext) error {
 		startOpts.imagesFile,
 
 		config,
-		ctx.NamespacedInformerFactory.Cluster().V1alpha1().MachineSets(),
+		ctx.CAPINamespacedInformerFactory.Cluster().V1alpha1().MachineSets(),
 		ctx.KubeInformerFactory.Core().V1().ConfigMaps(),
 		ctx.KubeNamespacedInformerFactory.Core().V1().ServiceAccounts(),
 		ctx.APIExtInformerFactory.Apiextensions().V1beta1().CustomResourceDefinitions(),

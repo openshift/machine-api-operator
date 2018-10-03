@@ -204,12 +204,14 @@ func (optr *Operator) worker() {
 }
 
 func (optr *Operator) processNextWorkItem() bool {
+	glog.V(4).Info("processing next work item")
 	key, quit := optr.queue.Get()
 	if quit {
 		return false
 	}
 	defer optr.queue.Done(key)
 
+	glog.V(4).Infof("processing key %s", key)
 	err := optr.syncHandler(key.(string))
 	optr.handleErr(err, key)
 
