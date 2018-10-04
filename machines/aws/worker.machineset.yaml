@@ -54,7 +54,6 @@ spec:
             - name: "tag:Name"
               values:
               - "{{.AWS.ClusterName}}-worker-*"
-          publicIp: true
           iamInstanceProfile:
             id: "{{.AWS.ClusterName}}-worker-profile"
           tags:
