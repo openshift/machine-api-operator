@@ -12,12 +12,13 @@ const (
 // OperatorConfig contains configuration for MAO
 type OperatorConfig struct {
 	metav1.TypeMeta `json:",inline"`
-	TargetNamespace string         `json:"targetNamespace"`
-	APIServiceCA    string         `json:"apiServiceCA"`
-	Provider        string         `json:"provider"`
-	AWS             *AWSConfig     `json:"aws"`
-	Libvirt         *LibvirtConfig `json:"libvirt"`
-	Images          *Images        `json:"images"`
+	TargetNamespace string           `json:"targetNamespace"`
+	APIServiceCA    string           `json:"apiServiceCA"`
+	Provider        string           `json:"provider"`
+	AWS             *AWSConfig       `json:"aws"`
+	OpenStack       *OpenStackConfig `json:"openstack,omitempty"`
+	Libvirt         *LibvirtConfig   `json:"libvirt"`
+	Images          *Images          `json:"images"`
 }
 
 // LibvirtConfig contains specific config for Libvirt
@@ -42,12 +43,17 @@ type AWSConfig struct {
 	WithCreds             bool   `json:"withCreds"`
 }
 
+type OpenStackConfig struct {
+}
+
 // Images allows build systems to inject images for MAO components.
 type Images struct {
-	ClusterAPIControllerAWS            string `json:"clusterAPIControllerAWS"`
-	ClusterAPIControllerLibvirt        string `json:"clusterAPIControllerLibvirt"`
-	ClusterAPIControllerManagerAWS     string `json:"clusterAPIControllerManagerAWS"`
-	ClusterAPIControllerManagerLibvirt string `json:"clusterAPIControllerManagerLibvirt"`
-	ClusterAPIServer                   string `json:"clusterAPIServer"`
-	Etcd                               string `json:"Etcd"`
+	ClusterAPIControllerAWS              string `json:"clusterAPIControllerAWS"`
+	ClusterAPIControllerOpenStack        string `json:"clusterAPIControllerOpenStack"`
+	ClusterAPIControllerLibvirt          string `json:"clusterAPIControllerLibvirt"`
+	ClusterAPIControllerManagerAWS       string `json:"clusterAPIControllerManagerAWS"`
+	ClusterAPIControllerManagerOpenStack string `json:"clusterAPIControllerManagerOpenStack"`
+	ClusterAPIControllerManagerLibvirt   string `json:"clusterAPIControllerManagerLibvirt"`
+	ClusterAPIServer                     string `json:"clusterAPIServer"`
+	Etcd                                 string `json:"Etcd"`
 }

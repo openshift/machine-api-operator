@@ -2,7 +2,7 @@
 An Operator for managing the cluster-api stack and the Openshift owned machineSets:
 - Aggregated API server
 - Controller manager
-- Machine controller (AWS/Libvirt actuator)
+- Machine controller (AWS/OpenStack/Libvirt actuator)
 
 # Manual deployment (for Kubernetes cluster)
 

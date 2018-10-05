@@ -10,6 +10,10 @@ spec:
     from:
       kind: DockerImage
       name: docker.io/openshift/origin-aws-machine-controllers:v4.0.0
+  - name: openstack-machine-controllers
+    from:
+      kind: DockerImage
+      name: registry.svc.ci.openshift.org/openshift/origin-v4.0:openstack-machine-controllers
   - name: libvirt-machine-controllers
     from:
       kind: DockerImage

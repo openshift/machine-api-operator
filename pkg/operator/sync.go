@@ -118,6 +118,10 @@ func (optr *Operator) syncCluster(config render.OperatorConfig) error {
 		clusters = []string{
 			"machines/aws/cluster.yaml",
 		}
+	case providerOpenStack:
+		clusters = []string{
+			"machines/openstack/cluster.yaml",
+		}
 	case providerLibvirt:
 		clusters = []string{
 			"machines/libvirt/cluster.yaml",

@@ -39,6 +39,8 @@ spec:
       - name: controller-manager
       {{- if .AWS }}
         image: {{ .Images.ClusterAPIControllerManagerAWS }}
+      {{- else if .OpenStack}}
+        image: {{ .Images.ClusterAPIControllerManagerOpenStack }}
       {{- else if .Libvirt}}
         image: {{ .Images.ClusterAPIControllerManagerLibvirt }}
       {{- end}}
@@ -54,6 +56,9 @@ spec:
       {{- if .AWS }}
       - name: aws-machine-controller
         image: {{ .Images.ClusterAPIControllerAWS }}
+      {{- else if .OpenStack }}
+      - name: openstack-machine-controller
+        image: {{ .Images.ClusterAPIControllerOpenStack }}
       {{- else if .Libvirt}}
       - name: libvirt-machine-controller
         image: {{ .Images.ClusterAPIControllerLibvirt }} 
