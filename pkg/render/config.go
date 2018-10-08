@@ -40,6 +40,7 @@ type AWSConfig struct {
 	ContainerLinuxVersion string `json:"containerLinuxVersion"`
 	Replicas              string `json:"replicas"`
 	WithCreds             bool   `json:"withCreds"`
+	InstanceType          string `json:"instanceType"`
 }
 
 // Images allows build systems to inject images for MAO components.

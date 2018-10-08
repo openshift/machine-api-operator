@@ -38,11 +38,11 @@ func TestClusterAWSManifest(t *testing.T) {
 		TargetNamespace: "go-test",
 		Provider:        "AWS",
 		AWS: &AWSConfig{
-			ClusterName:      "TestClusterManifest-ClusterName",
-			ClusterID:        "TestClusterManifest-ClusterID",
-			Region:           "TestClusterManifest-Region",
 			AvailabilityZone: "TestClusterManifest-AvailabilityZone",
+			ClusterID:        "TestClusterManifest-ClusterID",
+			ClusterName:      "TestClusterManifest-ClusterName",
 			Image:            "TestClusterManifest-Image",
+			Region:           "TestClusterManifest-Region",
 			Replicas:         "TestClusterManifest-Replicas",
 		},
 	}
@@ -71,14 +71,15 @@ func TestMachineSetAWSManifest(t *testing.T) {
 		TargetNamespace: "go-test",
 		Provider:        "aws",
 		AWS: &AWSConfig{
-			ClusterName:           "TestClusterManifest-ClusterName",
-			ClusterID:             "TestClusterManifest-ClusterID",
-			ReleaseChannel:        "TestChannel",
-			ContainerLinuxVersion: "TestCLVersion",
-			Region:                "TestClusterManifest-Region",
 			AvailabilityZone:      "TestClusterManifest-AvailabilityZone",
-			Image:                 "TestClusterManifest-Image",
-			Replicas:              "TestClusterManifest-Replicas",
+			ClusterID:             "TestClusterManifest-ClusterID",
+			ClusterName:           "TestClusterManifest-ClusterName",
+			ContainerLinuxVersion: "TestCLVersion",
+			Image:          "TestClusterManifest-Image",
+			InstanceType:   "TestClusterManifest-InstanceType",
+			Region:         "TestClusterManifest-Region",
+			ReleaseChannel: "TestChannel",
+			Replicas:       "TestClusterManifest-Replicas",
 		},
 	}
 
@@ -126,7 +127,7 @@ spec:
               - name: "owner-id"
                 values:
                 - "595879546273"
-          instanceType: m4.large
+          instanceType: TestClusterManifest-InstanceType
           placement:
             region: TestClusterManifest-Region
             availabilityZone: TestClusterManifest-AvailabilityZone
