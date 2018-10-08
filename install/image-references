@@ -5,11 +5,11 @@ spec:
   - name: machine-api-operator
     from:
       kind: DockerImage
-      name: docker.io/openshift/origin-machine-api-operator:v4.0
+      name: docker.io/openshift/origin-machine-api-operator:v4.0.0
   - name: aws-machine-controllers
     from:
       kind: DockerImage
-      name: docker.io/openshift/origin-aws-machine-controllers:v4.0
+      name: docker.io/openshift/origin-aws-machine-controllers:v4.0.0
   - name: libvirt-machine-controllers
     from:
       kind: DockerImage
