@@ -39,6 +39,7 @@ const (
 	targetNamespace          = "openshift-cluster-api"
 	awsCredentialsSecretName = "aws-credentials-secret"
 	region                   = "us-east-1"
+	instanceType             = "m4.large"
 	machineSetReplicas       = 2
 )
 
@@ -258,9 +259,10 @@ var rootCmd = &cobra.Command{
 		}
 		configValues := &render.OperatorConfig{
 			AWS: &render.AWSConfig{
-				ClusterID:   clusterID,
-				ClusterName: clusterID,
-				Region:      region,
+				ClusterID:    clusterID,
+				ClusterName:  clusterID,
+				Region:       region,
+				InstanceType: instanceType,
 			},
 		}
 		maoConfigPopulatedData, err := render.Manifests(configValues, maoConfigTemplateData)

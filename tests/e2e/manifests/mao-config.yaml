@@ -6,6 +6,7 @@ aws:
   containerLinuxVersion: 1800.7.0
   image: ""
   region: {{.AWS.Region}}
+  instanceType: {{.AWS.InstanceType}}
   releaseChannel: stable
   replicas: 2
   WithCreds: true
