@@ -135,7 +135,6 @@ spec:
             - name: "tag:Name"
               values:
               - "TestClusterManifest-ClusterName-worker-*"
-          publicIp: true
           iamInstanceProfile:
             id: "TestClusterManifest-ClusterName-worker-profile"
           tags:
