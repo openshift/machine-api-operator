@@ -28,13 +28,15 @@ func (optr *Operator) syncAll(rconfig render.OperatorConfig) error {
 		//optr.syncMachineClasses,
 		optr.syncCluster,
 	}
+	glog.Infof("Syncing operatorstatus")
 
-	//if err := optr.syncStatus(v1.OperatorStatusCondition{
-	//	Type:    v1.OperatorStatusConditionTypeWorking,
-	//	Message: "Running sync functions",
-	//}); err != nil {
-	//	return fmt.Errorf("error syncing status: %v", err)
-	//}
+	if err := optr.syncStatus(v1.OperatorStatusCondition{
+		Type:    v1.OperatorStatusConditionTypeWorking,
+		Message: "Running sync functions",
+	}); err != nil {
+		glog.Errorf("Error synching operatorstatus: %v", err)
+		return fmt.Errorf("error syncing status: %v", err)
+	}
 
 	var errs []error
 	for _, f := range syncFuncs {
