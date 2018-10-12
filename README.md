@@ -4,6 +4,23 @@ An Operator for managing the cluster-api stack and the Openshift owned machineSe
 - Controller manager
 - Machine controller (AWS/Libvirt actuator)
 
+# Deployment on top of an existing Installer cluster
+The fastest method to deploy a custom image of machine-api-operator is to deploy it on top on existing installer cluster.
+
+1. Deploy a cluster using the [openshift installer][installer].
+2. Build and push your `machine-api-operator` image to a test registry:
+```
+REGISTRY=quay.io/<your repo>/machine-api-operator:test make image
+REGISTRY=quay.io/<your repo>/machine-api-operator:test make push
+```
+3. Edit the machine-api-operator deployment to switch to your newly created image:
+```
+kubectl edit deployment machine-api-operator -n openshift-cluster-api
+```
+4. Delete the pre-existing `machine-api-operator` pod, and it will re-deploy using the custom image.
+
+[installer]: https://github.com/openshift/installer "openshift installer"
+
 # Manual deployment (for Kubernetes cluster)
 
 When running the mao on the installer it assumes some existing resources that make it work as expected.
