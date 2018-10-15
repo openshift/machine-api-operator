@@ -1,7 +1,12 @@
+DBG         ?= 0
 #REGISTRY    ?= quay.io/openshift/
 VERSION     ?= $(shell git describe --always --abbrev=7)
 MUTABLE_TAG ?= latest
 IMAGE        = $(REGISTRY)machine-api-operator
+
+ifeq ($(DBG),1)
+GOGCFLAGS ?= -gcflags=all="-N -l"
+endif
 
 .PHONY: all
 all: check build test
@@ -22,18 +27,18 @@ check: lint fmt vet test
 build: ## Build binary
 	@echo -e "\033[32mBuilding package...\033[0m"
 	mkdir -p bin
-	$(DOCKER_CMD) go build -o bin/machine-api-operator github.com/openshift/machine-api-operator/cmd/machine-api-operator
+	$(DOCKER_CMD) go build $(GOGCFLAGS) -o bin/machine-api-operator github.com/openshift/machine-api-operator/cmd/machine-api-operator
 
 .PHONY: nodelink-controller
 nodelink-controller:
 	@echo -e "\033[32mBuilding node link controller binary...\033[0m"
-	$(DOCKER_CMD) go build -o bin/nodelink-controller github.com/openshift/machine-api-operator/cmd/nodelink-controller
+	$(DOCKER_CMD) go build $(GOGCFLAGS) -o bin/nodelink-controller github.com/openshift/machine-api-operator/cmd/nodelink-controller
 
 .PHONY: build-e2e
 build-e2e: ## Build end-to-end test binary
 	@echo -e "\033[32mBuilding e2e test binary...\033[0m"
 	mkdir -p bin
-	$(DOCKER_CMD) go build -o bin/e2e github.com/openshift/machine-api-operator/tests/e2e
+	$(DOCKER_CMD) go build $(GOGCFLAGS) -o bin/e2e github.com/openshift/machine-api-operator/tests/e2e
 
 .PHONY: test
 test: ## Run tests
