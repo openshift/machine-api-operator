@@ -152,6 +152,30 @@ spec:
         controlPlane: ""`)
 }
 
+func TestClusterOpenStackManifest(t *testing.T) {
+	config := OperatorConfig{
+		TargetNamespace: "go-test",
+		Provider:        "OpenStack",
+	}
+
+	testRenderManifest(t, "../../machines/openstack/cluster.yaml", &config, `
+---
+apiVersion: "cluster.k8s.io/v1alpha1"
+kind: Cluster
+metadata:
+  namespace: go-test
+spec:
+  clusterNetwork:
+    services:
+      cidrBlocks:
+      - "10.0.0.1/24"
+    pods:
+      cidrBlocks:
+      - "10.0.0.2/24"
+    serviceDomain: unused
+`)
+}
+
 func TestMachineSetLibvirtManifest(t *testing.T) {
 	config := OperatorConfig{
 		TargetNamespace: "go-test",

@@ -11,8 +11,9 @@ import (
 )
 
 const (
-	providerAWS     = "aws"
-	providerLibvirt = "libvirt"
+	providerAWS       = "aws"
+	providerOpenStack = "openstack"
+	providerLibvirt   = "libvirt"
 )
 
 // Manifests takes the config object that contains the templated value,
