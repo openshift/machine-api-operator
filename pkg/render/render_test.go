@@ -247,8 +247,8 @@ func TestClusterapiControllerManifest(t *testing.T) {
 			ClusterName: "test",
 		},
 		Images: &Images{
-			ClusterAPIControllerManagerLibvirt: "gcr.io/k8s-cluster-api/controller-manager:0.0.7",
-			ClusterAPIControllerLibvirt:        "quay.io/coreos/cluster-api-provider-libvirt:cd386e4",
+			ClusterAPIControllerManagerLibvirt: "docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0",
+			ClusterAPIControllerLibvirt:        "docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0",
 		},
 	}
 
@@ -292,7 +292,7 @@ spec:
         operator: Exists
       containers:
       - name: controller-manager
-        image: gcr.io/k8s-cluster-api/controller-manager:0.0.7
+        image: docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0
         command:
         - "./controller-manager"
         resources:
@@ -303,7 +303,7 @@ spec:
             cpu: 100m
             memory: 30Mi
       - name: libvirt-machine-controller
-        image: quay.io/coreos/cluster-api-provider-libvirt:cd386e4
+        image: docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0
         env:
           - name: NODE_NAME
             valueFrom:
