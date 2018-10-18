@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
       - name: machine-api-operator
-        image: openshift/origin-machine-api-operator:v4.0.0
+        image: docker.io/openshift/origin-machine-api-operator:v4.0.0
         command:
         - "/machine-api-operator"
         args:
