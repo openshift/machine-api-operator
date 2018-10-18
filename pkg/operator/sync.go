@@ -24,8 +24,6 @@ func (optr *Operator) syncAll(rconfig render.OperatorConfig) error {
 	// syncFuncs is the list of sync functions that are executed in order.
 	// any error marks sync as failure but continues to next syncFunc
 	syncFuncs := []syncFunc{
-		// TODO(alberto): implement this once https://github.com/kubernetes-sigs/cluster-api/pull/488/files gets in
-		//optr.syncMachineClasses,
 		optr.syncCluster,
 	}
 	glog.Infof("Syncing operatorstatus")
@@ -56,31 +54,30 @@ func (optr *Operator) syncAll(rconfig render.OperatorConfig) error {
 	})
 }
 
-func (optr *Operator) syncCustomResourceDefinitions() error {
-	// TODO(alberto): implement this once https://github.com/kubernetes-sigs/cluster-api/pull/494 gets in
-	//crds := []string{
-	//	"manifests/machine.crd.yaml",
-	//	"manifests/machineSet.crd.yaml",
-	//	"manifests/cluster.crd.yaml",
-	//}
-	//
-	//for _, crd := range crds {
-	//	crdBytes, err := assets.Asset(crd)
-	//	if err != nil {
-	//		return fmt.Errorf("error getting asset %s: %v", crd, err)
-	//	}
-	//	c := resourceread.ReadCustomResourceDefinitionV1Beta1OrDie(crdBytes)
-	//	_, updated, err := resourceapply.ApplyCustomResourceDefinition(optr.apiExtClient.ApiextensionsV1beta1(), c)
-	//	if err != nil {
-	//		return err
-	//	}
-	//	if updated {
-	//		if err := optr.waitForCustomResourceDefinition(c); err != nil {
-	//			return err
-	//		}
-	//	}
-	//}
+func (optr *Operator) syncCustomResourceDefinitions(config render.OperatorConfig) error {
+	crds := []string{
+		"/machine.crd.yaml",
+		"/machineset.crd.yaml",
+		"/machinedeployment.crd.yaml",
+		"/cluster.crd.yaml",
+	}
 
+	for _, crd := range crds {
+		crdBytes, err := render.PopulateTemplate(&config, ownedManifestsDir+crd)
+		if err != nil {
+			return fmt.Errorf("error getting asset %s: %v", crd, err)
+		}
+		c := resourceread.ReadCustomResourceDefinitionV1Beta1OrDie(crdBytes)
+		_, updated, err := resourceapply.ApplyCustomResourceDefinition(optr.apiExtClient.ApiextensionsV1beta1(), c)
+		if err != nil {
+			return err
+		}
+		if updated {
+			if err := optr.waitForCustomResourceDefinition(c); err != nil {
+				return err
+			}
+		}
+	}
 	return nil
 }
 
@@ -142,64 +139,8 @@ func (optr *Operator) syncCluster(config render.OperatorConfig) error {
 	return nil
 }
 
-func (optr *Operator) syncClusterAPIServer(config render.OperatorConfig) error {
-	crbBytes, err := render.PopulateTemplate(&config, fmt.Sprintf("%s/clusterapi-apiserver-cluster-role-binding.yaml", ownedManifestsDir))
-	if err != nil {
-		return err
-	}
-	crb := resourceread.ReadClusterRoleBindingV1OrDie(crbBytes)
-	_, _, err = resourceapply.ApplyClusterRoleBinding(optr.kubeClient.RbacV1(), crb)
-	if err != nil {
-		return err
-	}
-
-	rbBytes, err := render.PopulateTemplate(&config, fmt.Sprintf("%s/clusterapi-apiserver-role-binding.yaml", ownedManifestsDir))
-	if err != nil {
-		return err
-	}
-	rb := resourceread.ReadRoleBindingV1OrDie(rbBytes)
-	_, _, err = resourceapply.ApplyRoleBinding(optr.kubeClient.RbacV1(), rb)
-	if err != nil {
-		return err
-	}
-
-	svcBytes, err := render.PopulateTemplate(&config, fmt.Sprintf("%s/clusterapi-apiserver-svc.yaml", ownedManifestsDir))
-	if err != nil {
-		return err
-	}
-	svc := resourceread.ReadServiceV1OrDie(svcBytes)
-	_, _, err = resourceapply.ApplyService(optr.kubeClient.CoreV1(), svc)
-	if err != nil {
-		return err
-	}
-
-	apiServiceBytes, err := render.PopulateTemplate(&config, fmt.Sprintf("%s/clusterapi-apiservice.yaml", ownedManifestsDir))
-	if err != nil {
-		return err
-	}
-	apiService := resourceread.ReadAPIServiceDefinitionV1Beta1OrDie(apiServiceBytes)
-	_, _, err = resourceapply.ApplyAPIServiceDefinition(optr.apiregistrationClient, apiService)
-	if err != nil {
-		return err
-	}
-
-	controllerBytes, err := render.PopulateTemplate(&config, fmt.Sprintf("%s/clusterapi-apiserver.yaml", ownedManifestsDir))
-	if err != nil {
-		return err
-	}
-	controller := resourceread.ReadDeploymentV1OrDie(controllerBytes)
-	_, updated, err := resourceapply.ApplyDeployment(optr.kubeClient.AppsV1(), controller)
-	if err != nil {
-		return err
-	}
-	if updated {
-		return optr.waitForDeploymentRollout(controller)
-	}
-	return nil
-}
-
 func (optr *Operator) syncClusterAPIController(config render.OperatorConfig) error {
-	crBytes, err := render.PopulateTemplate(&config, fmt.Sprintf("%s/clusterapi-controller-cluster-role.yaml", ownedManifestsDir))
+	crBytes, err := render.PopulateTemplate(&config, fmt.Sprintf("%s/clusterapi-manager-cluster-role.yaml", ownedManifestsDir))
 	if err != nil {
 		return err
 	}
@@ -208,7 +149,7 @@ func (optr *Operator) syncClusterAPIController(config render.OperatorConfig) err
 	if err != nil {
 		return err
 	}
-	crbBytes, err := render.PopulateTemplate(&config, fmt.Sprintf("%s/clusterapi-controller-cluster-role-binding.yaml", ownedManifestsDir))
+	crbBytes, err := render.PopulateTemplate(&config, fmt.Sprintf("%s/clusterapi-manager-cluster-role-binding.yaml", ownedManifestsDir))
 	if err != nil {
 		return err
 	}
@@ -217,7 +158,7 @@ func (optr *Operator) syncClusterAPIController(config render.OperatorConfig) err
 	if err != nil {
 		return err
 	}
-	controllerBytes, err := render.PopulateTemplate(&config, fmt.Sprintf("%s/clusterapi-controller.yaml", ownedManifestsDir))
+	controllerBytes, err := render.PopulateTemplate(&config, fmt.Sprintf("%s/clusterapi-manager-controllers.yaml", ownedManifestsDir))
 	if err != nil {
 		return err
 	}
