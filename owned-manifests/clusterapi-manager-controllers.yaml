@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: clusterapi-controllers
+  name: clusterapi-manager-controllers
   namespace: {{ .TargetNamespace }}
   labels:
     api: clusterapi
@@ -45,7 +45,7 @@ spec:
         image: {{ .Images.ClusterAPIControllerManagerLibvirt }}
       {{- end}}
         command:
-        - "./controller-manager"
+        - "./manager"
         resources:
           requests:
             cpu: 100m
@@ -69,7 +69,7 @@ spec:
               fieldRef:
                 fieldPath: spec.nodeName
         command:
-          - /machine-controller
+          - /machine-controller-manager
         args:
           - --log-level=debug
         resources:
