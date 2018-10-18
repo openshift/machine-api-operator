@@ -5,10 +5,8 @@ metadata:
   namespace: openshift-cluster-api
 data:
   images.json: '{
-	"clusterAPIControllerAWS": "docker.io/openshift/origin-aws-machine-controllers:v4.0.0",
-	"clusterAPIControllerManagerAWS": "docker.io/openshift/origin-aws-machine-controllers:v4.0.0",
+	"clusterAPIControllerAWS": "quay.io/alberto_lamela/origin-aws-machine-controllers:7bc2a82",
+	"clusterAPIControllerManagerAWS": "quay.io/alberto_lamela/origin-aws-machine-controllers:7bc2a82",
 	"clusterAPIControllerManagerLibvirt": "docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0",
-	"clusterAPIControllerLibvirt": "docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0",
-	"clusterAPIServer": "gcr.io/k8s-cluster-api/cluster-apiserver:0.0.6",
-	"Etcd": "quay.io/coreos/etcd:latest"
+	"clusterAPIControllerLibvirt": "docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0"
 }'

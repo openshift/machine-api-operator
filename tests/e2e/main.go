@@ -251,7 +251,7 @@ var rootCmd = &cobra.Command{
 			}
 		}
 
-		// genereate mao config
+		// generate mao config
 		maoConfigTemplateData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests/mao-config.yaml"))
 		if err != nil {
 			glog.Fatalf("Error reading %#v", err)
@@ -292,21 +292,6 @@ var rootCmd = &cobra.Command{
 			}
 			imagesConfigMap := imagesObj.(*apiv1.ConfigMap)
 			if err := createConfigMap(testConfig, imagesConfigMap); err != nil {
-				return err
-			}
-		}
-		// secrets
-		// create cluster api server secrets
-		if secretData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests/clusterapi-apiserver-certs.yaml")); err != nil {
-			glog.Fatalf("Error reading %#v", err)
-		} else {
-			secretObj, _, err := decode([]byte(secretData), nil, nil)
-			if err != nil {
-				glog.Fatalf("Error decoding %#v", err)
-			}
-			secret := secretObj.(*apiv1.Secret)
-
-			if err := createSecret(testConfig, secret); err != nil {
 				return err
 			}
 		}
@@ -368,16 +353,16 @@ var rootCmd = &cobra.Command{
 		// TESTS
 		// verify the cluster-api is running
 		err = wait.Poll(pollInterval, timeoutPoolClusterAPIDeploymentInterval, func() (bool, error) {
-			if clusterAPIDeployment, err := testConfig.KubeClient.AppsV1beta2().Deployments(targetNamespace).Get("clusterapi-apiserver", metav1.GetOptions{}); err == nil {
+			if clusterAPIDeployment, err := testConfig.KubeClient.AppsV1beta2().Deployments(targetNamespace).Get("clusterapi-manager-controllers", metav1.GetOptions{}); err == nil {
 				// Check all the pods are running
-				log.Infof("Waiting for all cluster-api deployment pods to be ready, have %v, expecting 1", clusterAPIDeployment.Status.ReadyReplicas)
+				log.Infof("Waiting for all clusterapi-manager-controllers deployment pods to be ready, have %v, expecting 1", clusterAPIDeployment.Status.ReadyReplicas)
 				if clusterAPIDeployment.Status.ReadyReplicas < 1 {
 					return false, nil
 				}
 				return true, nil
 			}
 
-			log.Info("Waiting for cluster-api deployment to be created")
+			log.Info("Waiting for clusterapi-manager-controllers deployment to be created")
 			return false, nil
 		})
 
