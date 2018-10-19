@@ -252,11 +252,11 @@ func TestClusterapiControllerManifest(t *testing.T) {
 		},
 	}
 
-	testRenderManifest(t, "../../owned-manifests/clusterapi-controller.yaml", &config, `
+	testRenderManifest(t, "../../owned-manifests/clusterapi-manager-controllers.yaml", &config, `
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: clusterapi-controllers
+  name: clusterapi-manager-controllers
   namespace: go-test
   labels:
     api: clusterapi
@@ -294,7 +294,7 @@ spec:
       - name: controller-manager
         image: docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0
         command:
-        - "./controller-manager"
+        - "./manager"
         resources:
           requests:
             cpu: 100m
@@ -310,7 +310,7 @@ spec:
               fieldRef:
                 fieldPath: spec.nodeName
         command:
-          - /machine-controller
+          - /machine-controller-manager
         args:
           - --log-level=debug
         resources:
