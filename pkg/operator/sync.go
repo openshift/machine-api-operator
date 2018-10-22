@@ -10,7 +10,6 @@ import (
 	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"github.com/openshift/machine-api-operator/lib/resourceapply"
@@ -21,11 +20,6 @@ import (
 type syncFunc func(config render.OperatorConfig) error
 
 func (optr *Operator) syncAll(rconfig render.OperatorConfig) error {
-	// syncFuncs is the list of sync functions that are executed in order.
-	// any error marks sync as failure but continues to next syncFunc
-	syncFuncs := []syncFunc{
-		optr.syncCluster,
-	}
 	glog.Infof("Syncing operatorstatus")
 
 	if err := optr.syncStatus(v1.OperatorStatusCondition{
@@ -34,18 +28,6 @@ func (optr *Operator) syncAll(rconfig render.OperatorConfig) error {
 	}); err != nil {
 		glog.Errorf("Error synching operatorstatus: %v", err)
 		return fmt.Errorf("error syncing status: %v", err)
-	}
-
-	var errs []error
-	for _, f := range syncFuncs {
-		errs = append(errs, f(rconfig))
-	}
-
-	agg := utilerrors.NewAggregate(errs)
-	if agg != nil {
-		errs = append(errs, optr.syncDegradedStatus(agg))
-		agg = utilerrors.NewAggregate(errs)
-		return fmt.Errorf("error syncing: %v", agg.Error())
 	}
 
 	return optr.syncStatus(v1.OperatorStatusCondition{
@@ -78,64 +60,6 @@ func (optr *Operator) syncCustomResourceDefinitions(config render.OperatorConfig
 			}
 		}
 	}
-	return nil
-}
-
-func (optr *Operator) syncMachineSets(config render.OperatorConfig) error {
-	var machineSets []string
-	switch provider := config.Provider; provider {
-	case providerAWS:
-		machineSets = []string{
-			"machines/aws/worker.machineset.yaml",
-		}
-	case providerLibvirt:
-		machineSets = []string{
-			"machines/libvirt/worker.machineset.yaml",
-		}
-	}
-	for _, machineSet := range machineSets {
-		machineSetBytes, err := render.PopulateTemplate(&config, machineSet)
-		if err != nil {
-			return err
-		}
-		p := resourceread.ReadMachineSetV1alphaOrDie(machineSetBytes)
-		_, _, err = resourceapply.ApplyMachineSet(optr.clusterAPIClient, p)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func (optr *Operator) syncCluster(config render.OperatorConfig) error {
-	var clusters []string
-	switch provider := config.Provider; provider {
-	case providerAWS:
-		clusters = []string{
-			"machines/aws/cluster.yaml",
-		}
-	case providerOpenStack:
-		clusters = []string{
-			"machines/openstack/cluster.yaml",
-		}
-	case providerLibvirt:
-		clusters = []string{
-			"machines/libvirt/cluster.yaml",
-		}
-	}
-	for _, cluster := range clusters {
-		clusterBytes, err := render.PopulateTemplate(&config, cluster)
-		if err != nil {
-			return err
-		}
-		p := resourceread.ReadClusterV1alphaOrDie(clusterBytes)
-		_, _, err = resourceapply.ApplyCluster(optr.clusterAPIClient, p)
-		if err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
@@ -174,9 +98,6 @@ func (optr *Operator) syncClusterAPIController(config render.OperatorConfig) err
 }
 
 const (
-	machineRolloutPollInterval = 5 * time.Second
-	machineRolloutTimeout      = 10 * time.Minute
-
 	deploymentRolloutPollInterval = time.Second
 	deploymentRolloutTimeout      = 5 * time.Minute
 
