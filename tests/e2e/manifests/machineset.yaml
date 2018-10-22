@@ -1,0 +1,53 @@
+apiVersion: cluster.k8s.io/v1alpha1
+kind: MachineSet
+metadata:
+  labels:
+    sigs.k8s.io/cluster-api-cluster: {{ .ClusterID }}
+    sigs.k8s.io/cluster-api-machine-role: worker
+    sigs.k8s.io/cluster-api-machine-type: worker
+  name: worker
+  namespace: openshift-cluster-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      sigs.k8s.io/cluster-api-cluster: {{ .ClusterID }}
+      sigs.k8s.io/cluster-api-machineset: worker
+  template:
+    metadata:
+      labels:
+        sigs.k8s.io/cluster-api-cluster: {{ .ClusterID }}
+        sigs.k8s.io/cluster-api-machine-role: worker
+        sigs.k8s.io/cluster-api-machine-type: worker
+        sigs.k8s.io/cluster-api-machineset: worker
+    spec:
+      providerConfig:
+        value:
+          credentialsSecret:
+            name: aws-credentials-secret
+          ami:
+            id: ami-05c79276d240b93bc
+          apiVersion: aws.cluster.k8s.io/v1alpha1
+          iamInstanceProfile:
+            id: {{ .ClusterID }}-worker-profile
+          instanceType: t2.medium
+          kind: AWSMachineProviderConfig
+          placement:
+            region: us-east-1
+          securityGroups:
+          - filters:
+            - name: tag:Name
+              values:
+              - {{ .ClusterID }}_worker_sg
+          subnet:
+            filters:
+            - name: tag:Name
+              values:
+              - {{ .ClusterID }}-worker-*
+          tags:
+          - name: tectonicClusterID
+            value: {{ .ClusterID }}
+          userDataSecret:
+            name: ignition-worker
+      versions:
+        kubelet: ""
