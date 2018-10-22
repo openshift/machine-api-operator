@@ -1,35 +1,4 @@
 apiVersion: v1
-aws:
-  availabilityZone: ""
-  clusterID: {{.AWS.ClusterID}}
-  clusterName: {{.AWS.ClusterName}}
-  containerLinuxVersion: 1800.7.0
-  image: ""
-  region: {{.AWS.Region}}
-  releaseChannel: stable
-  replicas: 2
-  WithCreds: true
 kind: machineAPIOperatorConfig
 provider: aws
 targetNamespace: openshift-cluster-api
-apiServiceCA: |
-  -----BEGIN CERTIFICATE-----
-  MIIDUDCCAjgCCQDhU1FW+oorKTANBgkqhkiG9w0BAQsFADBqMQswCQYDVQQGEwJ1
-  bjELMAkGA1UECAwCc3QxCjAIBgNVBAcMAWwxCjAIBgNVBAoMAW8xCzAJBgNVBAsM
-  Am91MSkwJwYDVQQDDCBjbHVzdGVyYXBpLWNlcnRpZmljYXRlLWF1dGhvcml0eTAe
-  Fw0xODEwMDMxNDIwMzhaFw0xOTEwMDMxNDIwMzhaMGoxCzAJBgNVBAYTAnVuMQsw
-  CQYDVQQIDAJzdDEKMAgGA1UEBwwBbDEKMAgGA1UECgwBbzELMAkGA1UECwwCb3Ux
-  KTAnBgNVBAMMIGNsdXN0ZXJhcGktY2VydGlmaWNhdGUtYXV0aG9yaXR5MIIBIjAN
-  BgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA3A3qoOHiLxMtaKlRkkepMFlwzeit
-  OZV+1HfOK2IrLIp96oRup0JuTAFSIdnGiuhTwYdbIxotp00ucbkfofWGKp+d9ipu
-  dfbqUdvmpySIrEMd6bX9fbyvUTDs8sAUBqa+rmKItlQrJlp6yEZ2uoiFENn81zoi
-  pi3BS5G+P7cpDdlTa6agnZDB/rwZC9fMZnpJt4upBFC7kkX0XXVbFQV8364+GaWK
-  QAzsG7MuX918mu77K72zW4u0KOV0JbkmYIwzUQe6rk0hA02tgNm1MZ5ErDDRkRmv
-  cUd2xQvarmynVSW5uNMm0W1Wti/a9fUTEdi0VITbHWe6UW4YLsAo3DmEdwIDAQAB
-  MA0GCSqGSIb3DQEBCwUAA4IBAQBzKlJC2xha3RQQzsE2YZ9SUxqEjvpvp5tsrxCG
-  SJcysHqSigU/c0+n8gEACXUEaAx+qsMlwepnQrDXkATeLnJec8pkMuV3Dsjf4hMl
-  xGhBYbltCJE99jbBRC5jpXqudl3EaZOIhK8okdA6nFbLp61UxmmMehUgmLEQ7oh/
-  nQD8xXi+Hm1eOO9DmlqateFH+YqdqVl3Q6Wc1xiSQXwZoVEzTkoK1EBUtGESarzc
-  SjFhQwJRFcadljxrJn45ThEC2a68H3XMxoSAezcEToFHn7DcNY8MDXUTWXXQVWBv
-  ALhGsUi59bp6kbKgutU91EOynikbDJ8bckbWcZBPtRm948b+
-  -----END CERTIFICATE-----
