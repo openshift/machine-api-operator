@@ -267,10 +267,6 @@ func (optr *Operator) sync(key string) error {
 		glog.V(4).Infof("Finished syncing operator %q (%v)", key, time.Since(startTime))
 	}()
 
-	if err := optr.syncCustomResourceDefinitions(); err != nil {
-		return err
-	}
-
 	// TODO(alberto) operatorConfig as CRD?
 	glog.Infof("Getting operator config using kubeclient")
 	operatorConfig, err := optr.getOperatorConfig()
@@ -284,12 +280,12 @@ func (optr *Operator) sync(key string) error {
 		return err
 	}
 
-	err = optr.syncClusterAPIServer(*operatorConfig)
-	if err != nil {
-		glog.Fatalf("Failed sync-up cluster apiserver: %v", err)
+	if err := optr.syncCustomResourceDefinitions(*operatorConfig); err != nil {
+		glog.Fatalf("Failed sync-up custom resources definitions: %v", err)
 		return err
 	}
-	glog.Info("Synched up cluster api server")
+
+	glog.Info("Synched up cluster api CRDs")
 	err = optr.syncClusterAPIController(*operatorConfig)
 	if err != nil {
 		glog.Fatalf("Failed sync-up cluster api controller: %v", err)
