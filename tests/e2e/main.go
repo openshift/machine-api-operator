@@ -261,9 +261,8 @@ var rootCmd = &cobra.Command{
 		}
 		configValues := &render.OperatorConfig{
 			AWS: &render.AWSConfig{
-				ClusterID:   clusterID,
-				ClusterName: clusterID,
-				Region:      region,
+				ClusterID: clusterID,
+				Region:    region,
 			},
 		}
 		maoConfigPopulatedData, err := render.Manifests(configValues, maoConfigTemplateData)

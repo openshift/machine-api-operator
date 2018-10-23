@@ -42,7 +42,7 @@ func TestClusterapiControllerManifest(t *testing.T) {
 			NetworkName: "testNet",
 			IPRange:     "192.168.124.0/24",
 			Replicas:    "2",
-			ClusterName: "test",
+			ClusterID:   "test",
 		},
 		Images: &Images{
 			ClusterAPIControllerManagerLibvirt: "docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0",

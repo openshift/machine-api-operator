@@ -26,13 +26,12 @@ type LibvirtConfig struct {
 	URI         string `json:"uri"`
 	NetworkName string `json:"networkName"`
 	IPRange     string `json:"ipRange"`
-	ClusterName string `json:"clusterName"`
+	ClusterID   string `json:"clusterID"`
 	Replicas    string `json:"replicas"`
 }
 
 // AWSConfig contains specific config for AWS
 type AWSConfig struct {
-	ClusterName           string `json:"clusterName"`
 	ClusterID             string `json:"clusterID"`
 	Region                string `json:"region"`
 	AvailabilityZone      string `json:"availabilityZone"`
