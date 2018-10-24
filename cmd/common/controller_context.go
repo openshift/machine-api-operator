@@ -6,14 +6,12 @@ import (
 	apiextinformers "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/informers"
-	clusterapiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions"
 )
 
 // ControllerContext stores all the informers for a variety of kubernetes objects.
 type ControllerContext struct {
 	ClientBuilder *ClientBuilder
 
-	CAPINamespacedInformerFactory clusterapiinformers.SharedInformerFactory
 	KubeInformerFactory           informers.SharedInformerFactory
 	KubeNamespacedInformerFactory informers.SharedInformerFactory
 	APIExtInformerFactory         apiextinformers.SharedInformerFactory
@@ -31,11 +29,8 @@ type ControllerContext struct {
 
 // CreateControllerContext creates the ControllerContext with the ClientBuilder.
 func CreateControllerContext(cb *ClientBuilder, stop <-chan struct{}, targetNamespace string) *ControllerContext {
-	clusterAPIClient := cb.ClusterAPIClientOrDie("cluster-api-shared-informer")
 	kubeClient := cb.KubeClientOrDie("kube-shared-informer")
 	apiExtClient := cb.APIExtClientOrDie("apiext-shared-informer")
-
-	sharedNamespacedInformers := clusterapiinformers.NewFilteredSharedInformerFactory(clusterAPIClient, resyncPeriod()(), targetNamespace, nil)
 
 	kubeSharedInformer := informers.NewSharedInformerFactory(kubeClient, resyncPeriod()())
 	kubeNamespacedSharedInformer := informers.NewFilteredSharedInformerFactory(kubeClient, resyncPeriod()(), targetNamespace, nil)
@@ -43,7 +38,6 @@ func CreateControllerContext(cb *ClientBuilder, stop <-chan struct{}, targetName
 
 	return &ControllerContext{
 		ClientBuilder:                 cb,
-		CAPINamespacedInformerFactory: sharedNamespacedInformers,
 		KubeInformerFactory:           kubeSharedInformer,
 		KubeNamespacedInformerFactory: kubeNamespacedSharedInformer,
 		APIExtInformerFactory:         apiExtSharedInformer,

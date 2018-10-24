@@ -25,7 +25,9 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/scheme"
+	capiv1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
+	capiv1alpha1scheme "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/scheme"
 )
 
 const (
@@ -219,6 +221,7 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
+		capiv1alpha1scheme.AddToScheme(scheme.Scheme)
 		apiextensionsscheme.AddToScheme(scheme.Scheme)
 		decode := scheme.Codecs.UniversalDeserializer().Decode
 		// create rbac
@@ -370,6 +373,40 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
+		// create cluster and machineSet objects
+		type clusterConfig struct {
+			ClusterID string
+		}
+		ccgf := clusterConfig{
+			ClusterID: clusterID,
+		}
+		clusterData, err := RenderTemplateFromFile(ccgf, filepath.Join(assetsPath, "manifests/cluster.yaml"))
+		if err != nil {
+			glog.Fatalf("Error reading %#v", err)
+		} else {
+			clusterObj, _, err := decode([]byte(clusterData), nil, nil)
+			if err != nil {
+				glog.Fatalf("Error decoding %#v", err)
+			}
+			cluster := clusterObj.(*capiv1alpha1.Cluster)
+			if _, err := testConfig.CAPIClient.ClusterV1alpha1().Clusters(targetNamespace).Create(cluster); err != nil {
+				return err
+			}
+		}
+		machineSetData, err := RenderTemplateFromFile(ccgf, filepath.Join(assetsPath, "manifests/machineset.yaml"))
+		if err != nil {
+			glog.Fatalf("Error reading %#v", err)
+		} else {
+			machineSetObj, _, err := decode([]byte(machineSetData), nil, nil)
+			if err != nil {
+				glog.Fatalf("Error decoding %#v", err)
+			}
+			machineSet := machineSetObj.(*capiv1alpha1.MachineSet)
+			if _, err := testConfig.CAPIClient.ClusterV1alpha1().MachineSets(targetNamespace).Create(machineSet); err != nil {
+				return err
+			}
+		}
+
 		// Verify cluster, machineSet and machines have been deployed
 		var cluster, machineSet, workers bool
 		err = wait.Poll(pollInterval, timeoutPoolMachineSetRunningInterval, func() (bool, error) {
@@ -384,7 +421,7 @@ var rootCmd = &cobra.Command{
 			}
 
 			if workersList, err := testConfig.CAPIClient.ClusterV1alpha1().Machines(targetNamespace).List(metav1.ListOptions{}); err == nil {
-				if len(workersList.Items) == 2 {
+				if len(workersList.Items) == machineSetReplicas {
 					workers = true
 					log.Info("Machine objects has been created")
 				}

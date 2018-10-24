@@ -32,7 +32,6 @@ import (
 	apiregistrationclientset "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/scheme"
-	clusterapiinformersv1alpha1 "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions/cluster/v1alpha1"
 	clusterapilisterv1alpha1 "sigs.k8s.io/cluster-api/pkg/client/listers_generated/cluster/v1alpha1"
 )
 
@@ -85,7 +84,6 @@ func New(
 
 	config string,
 
-	machineSetInformer clusterapiinformersv1alpha1.MachineSetInformer,
 	configMapInformer coreinformersv1.ConfigMapInformer,
 	serviceAccountInfomer coreinformersv1.ServiceAccountInformer,
 	crdInformer apiextinformersv1beta1.CustomResourceDefinitionInformer,
@@ -116,7 +114,6 @@ func New(
 		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
 	}
 
-	machineSetInformer.Informer().AddEventHandler(optr.eventHandler())
 	configMapInformer.Informer().AddEventHandler(optr.eventHandler())
 	serviceAccountInfomer.Informer().AddEventHandler(optr.eventHandler())
 	crdInformer.Informer().AddEventHandler(optr.eventHandler())
@@ -129,8 +126,6 @@ func New(
 
 	optr.crdLister = crdInformer.Lister()
 	optr.crdListerSynced = crdInformer.Informer().HasSynced
-	optr.machineSetLister = machineSetInformer.Lister()
-	optr.machineSetSynced = machineSetInformer.Informer().HasSynced
 	optr.deployLister = deployInformer.Lister()
 	optr.deployListerSynced = deployInformer.Informer().HasSynced
 
@@ -146,43 +141,12 @@ func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 	defer glog.Info("Shutting down MachineAPIOperator")
 
 	if !cache.WaitForCacheSync(stopCh,
-		optr.deployListerSynced) {
+		optr.deployListerSynced,
+		optr.crdListerSynced) {
 		glog.Error("failed to sync caches")
 		return
 	}
 	glog.Info("Synched up caches")
-	go func() {
-		err := wait.Poll(machineRolloutPollInterval, machineRolloutTimeout, func() (bool, error) {
-			//TODO(vikasc) move operatorconfig rendering logic to main() to fail fast
-			operatorConfig, err := optr.getOperatorConfig()
-			if err != nil {
-				return false, fmt.Errorf("error decoding operator config: %v", err)
-			}
-			err = optr.updateImageDetails(operatorConfig)
-			if err != nil {
-				return false, fmt.Errorf("error getting image details: %v", err)
-			}
-			glog.Infof("images %+v", operatorConfig.Images)
-
-			glog.Info("Trying to deploy Cluster object")
-			if err := optr.syncCluster(*operatorConfig); err != nil {
-				glog.Infof("Cannot create cluster, retrying: %v", err)
-				return false, nil
-			}
-			glog.Info("Created Cluster object")
-			glog.Info("Trying to deploy MachineSet object")
-			if err := optr.syncMachineSets(*operatorConfig); err != nil {
-				glog.Infof("Cannot create MachineSet, retrying: %v", err)
-				return false, nil
-			}
-			glog.Info("Created MachineSet object Successfully")
-			return true, nil
-		})
-		if err != nil {
-			glog.Fatalf("Error out while trying to deploy machines: %v", err)
-		}
-	}()
-
 	for i := 0; i < workers; i++ {
 		go wait.Until(optr.worker, time.Second, stopCh)
 	}
@@ -267,7 +231,6 @@ func (optr *Operator) sync(key string) error {
 		glog.V(4).Infof("Finished syncing operator %q (%v)", key, time.Since(startTime))
 	}()
 
-	// TODO(alberto) operatorConfig as CRD?
 	glog.Infof("Getting operator config using kubeclient")
 	operatorConfig, err := optr.getOperatorConfig()
 	if err != nil {
