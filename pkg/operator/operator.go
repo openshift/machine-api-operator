@@ -1,12 +1,9 @@
 package operator
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"time"
 
-	"github.com/ghodss/yaml"
 	"github.com/golang/glog"
 	cvoclientset "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
 
@@ -14,7 +11,6 @@ import (
 	apiextclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	apiextinformersv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions/apiextensions/v1beta1"
 	apiextlistersv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/listers/apiextensions/v1beta1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	appsinformersv1 "k8s.io/client-go/informers/apps/v1"
@@ -26,8 +22,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
-
-	"github.com/openshift/machine-api-operator/pkg/render"
 
 	apiregistrationclientset "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
 	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
@@ -42,9 +36,6 @@ const (
 	//
 	// 5ms, 10ms, 20ms, 40ms, 80ms, 160ms, 320ms, 640ms, 1.3s, 2.6s, 5.1s, 10.2s, 20.4s, 41s, 82s
 	maxRetries        = 15
-	providerAWS       = "aws"
-	providerOpenStack = "openstack"
-	providerLibvirt   = "libvirt"
 	ownedManifestsDir = "owned-manifests"
 )
 
@@ -204,26 +195,6 @@ func (optr *Operator) handleErr(err error, key interface{}) {
 	optr.queue.Forget(key)
 }
 
-func (optr *Operator) updateImageDetails(config *render.OperatorConfig) error {
-	filesData := map[string][]byte{}
-	files := []string{
-		optr.imagesFile,
-	}
-	for _, file := range files {
-		data, err := ioutil.ReadFile(file)
-		if err != nil {
-			return err
-		}
-		filesData[file] = data
-	}
-	var imgs render.Images
-	if err := json.Unmarshal(filesData[optr.imagesFile], &imgs); err != nil {
-		return err
-	}
-	(*config).Images = &imgs
-	return nil
-}
-
 func (optr *Operator) sync(key string) error {
 	startTime := time.Now()
 	glog.V(4).Infof("Started syncing operator %q (%v)", key, startTime)
@@ -232,14 +203,9 @@ func (optr *Operator) sync(key string) error {
 	}()
 
 	glog.Infof("Getting operator config using kubeclient")
-	operatorConfig, err := optr.getOperatorConfig()
+	operatorConfig, err := optr.maoConfigFromInstallConfig()
 	if err != nil {
-		glog.Fatalf("Error decoding operator config: %v", err)
-		return err
-	}
-	err = optr.updateImageDetails(operatorConfig)
-	if err != nil {
-		glog.Fatalf("Error getting image details: %v", err)
+		glog.Fatalf("failed getting operator config: %v", err)
 		return err
 	}
 
@@ -258,29 +224,29 @@ func (optr *Operator) sync(key string) error {
 	return optr.syncAll(*operatorConfig)
 }
 
-func (optr *Operator) getOperatorConfig() (*render.OperatorConfig, error) {
-	clusterConfigNamespace := "kube-system"
-	clusterConfigName := "cluster-config-v1"
-	clusterConfig, err := optr.kubeClient.CoreV1().ConfigMaps(clusterConfigNamespace).Get(clusterConfigName, metav1.GetOptions{})
+func (optr *Operator) maoConfigFromInstallConfig() (*OperatorConfig, error) {
+	installConfig, err := getInstallConfig(optr.kubeClient)
 	if err != nil {
-		return nil, fmt.Errorf("could not find cluster-config-v1 namespace: %v", err)
-	}
-	return optr.mcFromClusterConfig(clusterConfig)
-}
-
-func (optr *Operator) mcFromClusterConfig(cm *v1.ConfigMap) (*render.OperatorConfig, error) {
-	mcKey := "mao-config"
-	var operatorConfig render.OperatorConfig
-	mcData, ok := cm.Data[mcKey]
-	if !ok {
-		return nil, fmt.Errorf("%s doesn't exist", mcKey)
+		return nil, err
 	}
 
-	if err := yaml.Unmarshal([]byte(mcData), &operatorConfig); err != nil {
-		return nil, fmt.Errorf("failed unmarshalling config file: %v", err)
+	provider, err := getProviderFromInstallConfig(installConfig)
+	if err != nil {
+		return nil, err
 	}
-	if operatorConfig.TargetNamespace == "" {
-		operatorConfig.TargetNamespace = optr.namespace
+
+	images, err := getImagesFromJSONFile(optr.imagesFile)
+	if err != nil {
+		return nil, err
 	}
-	return &operatorConfig, nil
+
+	controllerImage, err := getProviderControllerFromImages(provider, *images)
+	if err != nil {
+		return nil, err
+	}
+
+	return &OperatorConfig{
+		optr.namespace,
+		controllerImage,
+	}, nil
 }

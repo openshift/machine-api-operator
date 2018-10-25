@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/openshift/machine-api-operator/pkg/render"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
@@ -254,21 +253,9 @@ var rootCmd = &cobra.Command{
 			}
 		}
 
-		// generate mao config
-		maoConfigTemplateData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests/mao-config.yaml"))
+		installConfigData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests/install-config.yaml"))
 		if err != nil {
-			glog.Fatalf("Error reading %#v", err)
-		}
-		configValues := &render.OperatorConfig{
-			AWS: &render.AWSConfig{
-				ClusterID:   clusterID,
-				ClusterName: clusterID,
-				Region:      region,
-			},
-		}
-		maoConfigPopulatedData, err := render.Manifests(configValues, maoConfigTemplateData)
-		if err != nil {
-			glog.Fatalf("Unable to render manifests %q: %v", maoConfigTemplateData, err)
+			glog.Fatalf("Unable to render manifests %q: %v", installConfigData, err)
 		} else {
 			mapConfigMap := &apiv1.ConfigMap{
 				ObjectMeta: metav1.ObjectMeta{
@@ -276,7 +263,7 @@ var rootCmd = &cobra.Command{
 					Namespace: "kube-system",
 				},
 				Data: map[string]string{
-					"mao-config": string(maoConfigPopulatedData),
+					"install-config": string(installConfigData),
 				},
 			}
 			if err := createConfigMap(testConfig, mapConfigMap); err != nil {
