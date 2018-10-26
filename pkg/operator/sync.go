@@ -14,6 +14,7 @@ import (
 
 	"github.com/openshift/machine-api-operator/lib/resourceapply"
 	"github.com/openshift/machine-api-operator/lib/resourceread"
+	"path/filepath"
 )
 
 type syncFunc func(config OperatorConfig) error
@@ -37,14 +38,14 @@ func (optr *Operator) syncAll(config OperatorConfig) error {
 
 func (optr *Operator) syncCustomResourceDefinitions(config OperatorConfig) error {
 	crds := []string{
-		"/machine.crd.yaml",
-		"/machineset.crd.yaml",
-		"/machinedeployment.crd.yaml",
-		"/cluster.crd.yaml",
+		"machine.crd.yaml",
+		"machineset.crd.yaml",
+		"machinedeployment.crd.yaml",
+		"cluster.crd.yaml",
 	}
 
 	for _, crd := range crds {
-		crdBytes, err := PopulateTemplate(&config, ownedManifestsDir+crd)
+		crdBytes, err := PopulateTemplate(&config, filepath.Join(ownedManifestsDir, crd))
 		if err != nil {
 			return fmt.Errorf("error getting asset %s: %v", crd, err)
 		}
@@ -63,7 +64,7 @@ func (optr *Operator) syncCustomResourceDefinitions(config OperatorConfig) error
 }
 
 func (optr *Operator) syncClusterAPIController(config OperatorConfig) error {
-	crBytes, err := PopulateTemplate(&config, fmt.Sprintf("%s/clusterapi-manager-cluster-role.yaml", ownedManifestsDir))
+	crBytes, err := PopulateTemplate(&config, filepath.Join(ownedManifestsDir, "clusterapi-manager-cluster-role.yaml"))
 	if err != nil {
 		return err
 	}
@@ -72,7 +73,7 @@ func (optr *Operator) syncClusterAPIController(config OperatorConfig) error {
 	if err != nil {
 		return err
 	}
-	crbBytes, err := PopulateTemplate(&config, fmt.Sprintf("%s/clusterapi-manager-cluster-role-binding.yaml", ownedManifestsDir))
+	crbBytes, err := PopulateTemplate(&config, filepath.Join(ownedManifestsDir, "clusterapi-manager-cluster-role-binding.yaml"))
 	if err != nil {
 		return err
 	}
@@ -81,7 +82,7 @@ func (optr *Operator) syncClusterAPIController(config OperatorConfig) error {
 	if err != nil {
 		return err
 	}
-	controllerBytes, err := PopulateTemplate(&config, fmt.Sprintf("%s/clusterapi-manager-controllers.yaml", ownedManifestsDir))
+	controllerBytes, err := PopulateTemplate(&config, filepath.Join(ownedManifestsDir, "clusterapi-manager-controllers.yaml"))
 	if err != nil {
 		return err
 	}

@@ -224,7 +224,7 @@ var rootCmd = &cobra.Command{
 		apiextensionsscheme.AddToScheme(scheme.Scheme)
 		decode := scheme.Codecs.UniversalDeserializer().Decode
 		// create rbac
-		if rbacData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests/rbac.yaml")); err != nil {
+		if rbacData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests", "rbac.yaml")); err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
 			rbacObj, _, err := decode([]byte(rbacData), nil, nil)
@@ -239,7 +239,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		// create status CRD
-		if statusCRD, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests/status-crd.yaml")); err != nil {
+		if statusCRD, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests", "status-crd.yaml")); err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
 			CRDObj, _, err := decode([]byte(statusCRD), nil, nil)
@@ -253,7 +253,7 @@ var rootCmd = &cobra.Command{
 			}
 		}
 
-		installConfigData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests/install-config.yaml"))
+		installConfigData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests", "install-config.yaml"))
 		if err != nil {
 			glog.Fatalf("Unable to render manifests %q: %v", installConfigData, err)
 		} else {
@@ -272,7 +272,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		// Create images configmap
-		imagesConfigData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests/images.configmap.yaml"))
+		imagesConfigData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests", "images.configmap.yaml"))
 		if err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
@@ -287,7 +287,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		// create aws creds secret
-		if secretData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests/aws-credentials.yaml")); err != nil {
+		if secretData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests", "aws-credentials.yaml")); err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
 			secretObj, _, err := decode([]byte(secretData), nil, nil)
@@ -301,7 +301,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		// create ign config secret
-		if secretData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests/ign-config.yaml")); err != nil {
+		if secretData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests", "ign-config.yaml")); err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
 			secretObj, _, err := decode([]byte(secretData), nil, nil)
@@ -327,7 +327,7 @@ var rootCmd = &cobra.Command{
 		dv := deploymentValues{
 			Image: maoImage,
 		}
-		if deploymentData, err := RenderTemplateFromFile(dv, filepath.Join(assetsPath, "manifests/operator-deployment.yaml")); err != nil {
+		if deploymentData, err := RenderTemplateFromFile(dv, filepath.Join(assetsPath, "manifests", "operator-deployment.yaml")); err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
 			deploymentObj, _, err := decode([]byte(deploymentData), nil, nil)
@@ -367,7 +367,7 @@ var rootCmd = &cobra.Command{
 		ccgf := clusterConfig{
 			ClusterID: clusterID,
 		}
-		clusterData, err := RenderTemplateFromFile(ccgf, filepath.Join(assetsPath, "manifests/cluster.yaml"))
+		clusterData, err := RenderTemplateFromFile(ccgf, filepath.Join(assetsPath, "manifests", "cluster.yaml"))
 		if err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
@@ -380,7 +380,7 @@ var rootCmd = &cobra.Command{
 				return err
 			}
 		}
-		machineSetData, err := RenderTemplateFromFile(ccgf, filepath.Join(assetsPath, "manifests/machineset.yaml"))
+		machineSetData, err := RenderTemplateFromFile(ccgf, filepath.Join(assetsPath, "manifests", "machineset.yaml"))
 		if err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
