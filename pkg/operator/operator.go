@@ -205,19 +205,19 @@ func (optr *Operator) sync(key string) error {
 	glog.Infof("Getting operator config using kubeclient")
 	operatorConfig, err := optr.maoConfigFromInstallConfig()
 	if err != nil {
-		glog.Fatalf("failed getting operator config: %v", err)
+		glog.Errorf("failed getting operator config: %v", err)
 		return err
 	}
 
 	if err := optr.syncCustomResourceDefinitions(*operatorConfig); err != nil {
-		glog.Fatalf("Failed sync-up custom resources definitions: %v", err)
+		glog.Errorf("Failed sync-up custom resources definitions: %v", err)
 		return err
 	}
 
 	glog.Info("Synched up cluster api CRDs")
 	err = optr.syncClusterAPIController(*operatorConfig)
 	if err != nil {
-		glog.Fatalf("Failed sync-up cluster api controller: %v", err)
+		glog.Errorf("Failed sync-up cluster api controller: %v", err)
 		return err
 	}
 	glog.Info("Synched up cluster api controller")
