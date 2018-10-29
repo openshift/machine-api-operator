@@ -37,15 +37,7 @@ spec:
         operator: Exists
       containers:
       - name: controller-manager
-      {{- if eq .Provider "aws" }}
-        image: {{ .Images.ClusterAPIControllerManagerAWS }}
-      {{end}}
-      {{- if eq .Provider "openstack" }}
-        image: {{ .Images.ClusterAPIControllerManagerOpenStack }}
-      {{end}}
-      {{- if eq .Provider "libvirt" }}
-        image: {{ .Images.ClusterAPIControllerManagerLibvirt }}
-      {{- end}}
+        image: {{ .Controller }}
         command:
         - "./manager"
         resources:
@@ -55,18 +47,8 @@ spec:
           limits:
             cpu: 100m
             memory: 30Mi
-      {{- if eq .Provider "aws" }}
-      - name: aws-machine-controller
-        image: {{ .Images.ClusterAPIControllerAWS }}
-      {{end}}
-      {{- if eq .Provider "openstack" }}
-      - name: openstack-machine-controller
-        image: {{ .Images.ClusterAPIControllerOpenStack }}
-      {{end}}
-      {{- if eq .Provider "libvirt" }}
-      - name: libvirt-machine-controller
-        image: {{ .Images.ClusterAPIControllerLibvirt }} 
-      {{- end}}
+      - name: machine-controller
+        image: {{ .Controller }}
         env:
           - name: NODE_NAME
             valueFrom:

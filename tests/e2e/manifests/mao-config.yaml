@@ -1,4 +1,0 @@
-apiVersion: v1
-kind: machineAPIOperatorConfig
-provider: aws
-targetNamespace: openshift-cluster-api
