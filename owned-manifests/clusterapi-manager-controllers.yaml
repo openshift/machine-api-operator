@@ -57,7 +57,8 @@ spec:
         command:
           - /machine-controller-manager
         args:
-          - --log-level=debug
+          - --logtostderr=true
+          - --v=3
         resources:
           requests:
             cpu: 100m
