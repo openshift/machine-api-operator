@@ -62,7 +62,7 @@ lint: ## Go lint your code
 
 .PHONY: fmt
 fmt: ## Go fmt your code
-	hack/go-fmt.sh
+	hack/go-fmt.sh .
 
 .PHONY: vet
 vet: ## Apply go vet to all go files
