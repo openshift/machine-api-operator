@@ -8,54 +8,13 @@ rules:
   - cluster.k8s.io
   resources:
   - clusters
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - cluster.k8s.io
-  resources:
+  - clusters/status
   - machines
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - cluster.k8s.io
-  resources:
-  - machinedeployments
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - cluster.k8s.io
-  resources:
+  - machines/status
   - machinesets
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-- apiGroups:
-  - cluster.k8s.io
-  resources:
-  - machines
+  - machinesets/status
+  - machinedeployments
+  - machinedeployments/status
   verbs:
   - get
   - list
@@ -76,15 +35,4 @@ rules:
   - update
   - patch
   - delete
-- apiGroups:
-  - cluster.k8s.io
-  resources:
-  - machines
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
+
