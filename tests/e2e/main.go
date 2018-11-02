@@ -41,6 +41,7 @@ const (
 	awsCredentialsSecretName = "aws-credentials-secret"
 	region                   = "us-east-1"
 	machineSetReplicas       = 2
+	manifestsFolder          = "manifests"
 )
 
 func usage() {
@@ -224,7 +225,7 @@ var rootCmd = &cobra.Command{
 		apiextensionsscheme.AddToScheme(scheme.Scheme)
 		decode := scheme.Codecs.UniversalDeserializer().Decode
 		// create rbac
-		if rbacData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests", "rbac.yaml")); err != nil {
+		if rbacData, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "rbac.yaml")); err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
 			rbacObj, _, err := decode([]byte(rbacData), nil, nil)
@@ -239,7 +240,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		// create status CRD
-		if statusCRD, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests", "status-crd.yaml")); err != nil {
+		if statusCRD, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "status-crd.yaml")); err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
 			CRDObj, _, err := decode([]byte(statusCRD), nil, nil)
@@ -253,7 +254,7 @@ var rootCmd = &cobra.Command{
 			}
 		}
 
-		installConfigData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests", "install-config.yaml"))
+		installConfigData, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "install-config.yaml"))
 		if err != nil {
 			glog.Fatalf("Unable to render manifests %q: %v", installConfigData, err)
 		} else {
@@ -271,8 +272,17 @@ var rootCmd = &cobra.Command{
 			}
 		}
 
-		// Create images configmap
-		imagesConfigData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests", "images.configmap.yaml"))
+		// Create per test run config for populating templates
+		type Config struct {
+			Image     string
+			ClusterID string
+		}
+		cfg := Config{
+			Image:     maoImage,
+			ClusterID: clusterID,
+		}
+
+		imagesConfigData, err := PopulateTemplate(cfg, filepath.Join(assetsPath, manifestsFolder, "images.configmap.yaml"))
 		if err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
@@ -287,7 +297,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		// create aws creds secret
-		if secretData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests", "aws-credentials.yaml")); err != nil {
+		if secretData, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "aws-credentials.yaml")); err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
 			secretObj, _, err := decode([]byte(secretData), nil, nil)
@@ -301,7 +311,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		// create ign config secret
-		if secretData, err := ioutil.ReadFile(filepath.Join(assetsPath, "manifests", "ign-config.yaml")); err != nil {
+		if secretData, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "ign-config.yaml")); err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
 			secretObj, _, err := decode([]byte(secretData), nil, nil)
@@ -321,13 +331,7 @@ var rootCmd = &cobra.Command{
 		testConfig.AWSClient = awsClient
 
 		// create operator deployment
-		type deploymentValues struct {
-			Image string
-		}
-		dv := deploymentValues{
-			Image: maoImage,
-		}
-		if deploymentData, err := RenderTemplateFromFile(dv, filepath.Join(assetsPath, "manifests", "operator-deployment.yaml")); err != nil {
+		if deploymentData, err := PopulateTemplate(cfg, filepath.Join(assetsPath, manifestsFolder, "operator-deployment.yaml")); err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
 			deploymentObj, _, err := decode([]byte(deploymentData), nil, nil)
@@ -360,14 +364,7 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		// create cluster and machineSet objects
-		type clusterConfig struct {
-			ClusterID string
-		}
-		ccgf := clusterConfig{
-			ClusterID: clusterID,
-		}
-		clusterData, err := RenderTemplateFromFile(ccgf, filepath.Join(assetsPath, "manifests", "cluster.yaml"))
+		clusterData, err := PopulateTemplate(cfg, filepath.Join(assetsPath, manifestsFolder, "cluster.yaml"))
 		if err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
@@ -380,7 +377,7 @@ var rootCmd = &cobra.Command{
 				return err
 			}
 		}
-		machineSetData, err := RenderTemplateFromFile(ccgf, filepath.Join(assetsPath, "manifests", "machineset.yaml"))
+		machineSetData, err := PopulateTemplate(cfg, filepath.Join(assetsPath, manifestsFolder, "machineset.yaml"))
 		if err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
