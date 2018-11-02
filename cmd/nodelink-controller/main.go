@@ -19,7 +19,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"os"
 	"reflect"
 	"sync"
 	"time"
@@ -35,11 +34,9 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
-	"k8s.io/kubernetes/pkg/kubectl/util/logs"
 
 	"github.com/golang/glog"
 	"github.com/kubernetes-incubator/apiserver-builder/pkg/controller"
-	log "github.com/sirupsen/logrus"
 	"github.com/spf13/pflag"
 	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 
@@ -73,7 +70,7 @@ func NewController(
 	machineInformer capiinformers.MachineInformer,
 	kubeClient kubeclientset.Interface,
 	capiClient capiclient.Interface,
-	logger log.FieldLogger) *Controller {
+) *Controller {
 
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
@@ -106,7 +103,6 @@ func NewController(
 
 	c.syncHandler = c.syncNode
 	c.enqueueNode = c.enqueue
-	c.logger = logger
 
 	c.machineAddress = make(map[string]*capiv1.Machine)
 
@@ -133,8 +129,6 @@ type Controller struct {
 	// Machines that need to be synced
 	queue workqueue.RateLimitingInterface
 
-	logger log.FieldLogger
-
 	// machines cache map[internalIP]machine
 	machineAddress    map[string]*capiv1.Machine
 	machineAddressMux sync.Mutex
@@ -142,7 +136,7 @@ type Controller struct {
 
 func (c *Controller) addNode(obj interface{}) {
 	node := obj.(*corev1.Node)
-	c.logger.WithField("node", node.Name).Debug("adding node")
+	glog.V(3).Infof("adding node: %s", node.Name)
 	c.enqueueNode(node)
 }
 
@@ -150,7 +144,7 @@ func (c *Controller) updateNode(old, cur interface{}) {
 	//oldNode := old.(*corev1.Node)
 	curNode := cur.(*corev1.Node)
 
-	c.logger.WithField("node", curNode.Name).Debug("updating node")
+	glog.V(3).Infof("updating node: %s", curNode.Name)
 	c.enqueueNode(curNode)
 }
 
@@ -170,7 +164,7 @@ func (c *Controller) deleteNode(obj interface{}) {
 		}
 	}
 
-	c.logger.WithField("node", node.Name).Debug("deleting node")
+	glog.V(3).Infof("deleting node")
 	c.enqueueNode(node)
 }
 
@@ -183,12 +177,11 @@ func (c *Controller) addMachine(obj interface{}) {
 	for _, a := range machine.Status.Addresses {
 		// Use the internal IP to look for matches:
 		if a.Type == corev1.NodeInternalIP {
+			glog.V(3).Infof("adding machine %s into machineAddress list for %s", machine.Name, a.Address)
 			c.machineAddress[a.Address] = machine
 			break
 		}
 	}
-
-	c.logger.WithField("machine", machine.Name).Debug("adding machine into cache")
 }
 
 func (c *Controller) updateMachine(old, cur interface{}) {
@@ -201,11 +194,10 @@ func (c *Controller) updateMachine(old, cur interface{}) {
 		// Use the internal IP to look for matches:
 		if a.Type == corev1.NodeInternalIP {
 			c.machineAddress[a.Address] = machine
+			glog.V(3).Infof("updating machine addresses list. Machine: %s, address: %s", machine.Name, a.Address)
 			break
 		}
 	}
-
-	c.logger.WithField("machine", machine.Name).Debug("updating node")
 }
 
 func (c *Controller) deleteMachine(obj interface{}) {
@@ -222,7 +214,7 @@ func (c *Controller) deleteMachine(obj interface{}) {
 		}
 	}
 
-	c.logger.WithField("machine", machine.Name).Debug("adding node")
+	glog.V(3).Infof("delete obsolete machines from machine adressses list")
 }
 
 // WaitForCacheSync is a wrapper around cache.WaitForCacheSync that generates log messages
@@ -246,8 +238,8 @@ func (c *Controller) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer c.queue.ShutDown()
 
-	log.Infof("Starting nodelink controller")
-	defer log.Infof("Shutting down nodelink controller")
+	glog.Infof("Starting nodelink controller")
+	defer glog.Infof("Shutting down nodelink controller")
 
 	if !WaitForCacheSync("machine", stopCh, c.machinesSynced) {
 		return
@@ -301,13 +293,13 @@ func (c *Controller) handleErr(err error, key interface{}) {
 	}
 
 	if c.queue.NumRequeues(key) < maxRetries {
-		c.logger.Infof("Error syncing node %v: %v", key, err)
+		glog.Infof("Error syncing node %v: %v", key, err)
 		c.queue.AddRateLimited(key)
 		return
 	}
 
 	utilruntime.HandleError(err)
-	c.logger.Infof("Dropping node %q out of the queue: %v", key, err)
+	glog.Infof("Dropping node %q out of the queue: %v", key, err)
 	c.queue.Forget(key)
 }
 
@@ -315,12 +307,9 @@ func (c *Controller) handleErr(err error, key interface{}) {
 // This function is not meant to be invoked concurrently with the same key.
 func (c *Controller) syncNode(key string) error {
 	startTime := time.Now()
-	c.logger.WithField("key", key).Debug("syncing node")
+	glog.V(3).Infof("syncing node")
 	defer func() {
-		c.logger.WithFields(log.Fields{
-			"key":      key,
-			"duration": time.Now().Sub(startTime),
-		}).Debug("finished syncing node")
+		glog.V(3).Infof("finished syncing node, duration: %s", time.Now().Sub(startTime))
 	}()
 
 	_, _, err := cache.SplitMetaNamespaceKey(key)
@@ -330,7 +319,7 @@ func (c *Controller) syncNode(key string) error {
 
 	node, err := c.nodeLister.Get(key)
 	if errors.IsNotFound(err) {
-		c.logger.WithField("key", key).Info("node has been deleted")
+		glog.Info("node has been deleted")
 		return nil
 	}
 	if err != nil {
@@ -340,7 +329,6 @@ func (c *Controller) syncNode(key string) error {
 	return c.processNode(node)
 }
 func (c *Controller) processNode(node *corev1.Node) error {
-	nodeLog := c.logger.WithField("node", node.Name)
 	machineKey, ok := node.Annotations[machineAnnotationKey]
 	// No machine annotation, this is likely the first time we've seen the node,
 	// need to load all machines and search for one with matching IP.
@@ -349,14 +337,14 @@ func (c *Controller) processNode(node *corev1.Node) error {
 		var err error
 		namespace, machineName, err := cache.SplitMetaNamespaceKey(machineKey)
 		if err != nil {
-			nodeLog.Infof("machine annotation format is incorrect %v: %v\n", machineKey, err)
+			glog.Infof("machine annotation format is incorrect %v: %v\n", machineKey, err)
 			return err
 		}
 		matchingMachine, err = c.machinesLister.Machines(namespace).Get(machineName)
 		// If machine matching annotation is not found, we'll still try to find one via IP matching:
 		if err != nil {
 			if errors.IsNotFound(err) {
-				nodeLog.WithField("machine", machineKey).Warn("machine matching node has been deleted, will attempt to find new machine by IP")
+				glog.Warning("machine matching node has been deleted, will attempt to find new machine by IP")
 			} else {
 				return err
 			}
@@ -373,11 +361,11 @@ func (c *Controller) processNode(node *corev1.Node) error {
 			}
 		}
 		if nodeInternalIP == "" {
-			nodeLog.Warnf("unable to find InternalIP for node")
+			glog.Warning("unable to find InternalIP for node")
 			return fmt.Errorf("unable to find InternalIP for node: %s", node.Name)
 		}
 
-		nodeLog.Debug("searching machine cache for IP match for node")
+		glog.V(3).Infof("searching machine cache for IP match for node")
 		c.machineAddressMux.Lock()
 		machine, found := c.machineAddress[nodeInternalIP]
 		c.machineAddressMux.Unlock()
@@ -388,7 +376,7 @@ func (c *Controller) processNode(node *corev1.Node) error {
 	}
 
 	if matchingMachine == nil {
-		nodeLog.Warnf("no matching machine found for node")
+		glog.Warning("no matching machine found for node")
 		return fmt.Errorf("no matching machine found for node: %s", node.Name)
 	}
 
@@ -401,7 +389,7 @@ func (c *Controller) processNode(node *corev1.Node) error {
 	}
 
 	for k, v := range matchingMachine.Spec.Labels {
-		nodeLog.Debugf("copying label %s = %s", k, v)
+		glog.V(3).Infof("copying label %s = %s", k, v)
 		modNode.Labels[k] = v
 	}
 
@@ -409,10 +397,10 @@ func (c *Controller) processNode(node *corev1.Node) error {
 	modNode.Spec.Taints = matchingMachine.Spec.Taints
 
 	if !reflect.DeepEqual(node, modNode) {
-		nodeLog.Debug("node has changed, updating")
+		glog.V(3).Infof("node has changed, updating")
 		_, err := c.kubeClient.CoreV1().Nodes().Update(modNode)
 		if err != nil {
-			nodeLog.Errorf("error updating node: %v", err)
+			glog.Errorf("error updating node: %v", err)
 			return err
 		}
 	}
@@ -425,22 +413,12 @@ var (
 
 func init() {
 	config.ControllerConfig.AddFlags(pflag.CommandLine)
-	pflag.CommandLine.StringVar(&logLevel, "log-level", defaultLogLevel, "Log level (debug,info,warn,error,fatal)")
 }
-
-const (
-	controllerLogName = "nodelink"
-	defaultLogLevel   = "info"
-)
 
 func main() {
 
-	// the following line exists to make glog happy, for more information, see: https://github.com/kubernetes/kubernetes/issues/17162
-	flag.CommandLine.Parse([]string{})
+	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
 	pflag.Parse()
-
-	logs.InitLogs()
-	defer logs.FlushLogs()
 
 	config, err := controller.GetConfig(config.ControllerConfig.Kubeconfig)
 	if err != nil {
@@ -457,15 +435,6 @@ func main() {
 		glog.Fatalf("Could not create kubernetes client to talk to the apiserver: %v", err)
 	}
 
-	log.SetOutput(os.Stdout)
-	if lvl, err := log.ParseLevel(logLevel); err != nil {
-		log.Panic(err)
-	} else {
-		log.SetLevel(lvl)
-	}
-
-	logger := log.WithField("controller", controllerLogName)
-
 	// TODO(jchaloup): set the resync period reasonably
 	kubeSharedInformers := kubeinformers.NewSharedInformerFactory(kubeClient, 5*time.Second)
 	capiInformers := capiinformersfactory.NewSharedInformerFactory(client, 5*time.Second)
@@ -475,7 +444,6 @@ func main() {
 		capiInformers.Cluster().V1alpha1().Machines(),
 		kubeClient,
 		client,
-		logger,
 	)
 
 	go ctrl.Run(1, wait.NeverStop)
@@ -484,5 +452,4 @@ func main() {
 	kubeSharedInformers.Start(wait.NeverStop)
 
 	select {}
-
 }
