@@ -240,13 +240,17 @@ func (optr *Operator) maoConfigFromInstallConfig() (*OperatorConfig, error) {
 		return nil, err
 	}
 
-	controllerImage, err := getProviderControllerFromImages(provider, *images)
+	providerControllerImage, err := getProviderControllerFromImages(provider, *images)
+	machineAPIOperatorImage, err := getMachineAPIOperatorFromImages(*images)
 	if err != nil {
 		return nil, err
 	}
 
 	return &OperatorConfig{
 		optr.namespace,
-		controllerImage,
+		Controllers{
+			providerControllerImage,
+			machineAPIOperatorImage,
+		},
 	}, nil
 }

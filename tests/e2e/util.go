@@ -8,32 +8,23 @@ import (
 	"github.com/golang/glog"
 )
 
-func renderTemplate(tmplData interface{}, data []byte) ([]byte, error) {
-	buf := new(bytes.Buffer)
+// PopulateTemplate receives a template file path and renders its content populated with the config
+func PopulateTemplate(config interface{}, path string) ([]byte, error) {
 
+	data, err := ioutil.ReadFile(path)
+	if err != nil {
+		glog.Fatalf("failed reading file, %v", err)
+	}
+
+	buf := &bytes.Buffer{}
 	tmpl, err := template.New("").Option("missingkey=error").Parse(string(data))
 	if err != nil {
 		return nil, err
 	}
 
-	if err := tmpl.Execute(buf, tmplData); err != nil {
+	if err := tmpl.Execute(buf, config); err != nil {
 		return nil, err
 	}
 
 	return buf.Bytes(), nil
-}
-
-// RenderTemplateFromFile takes the config object, and uses that to render the templated manifest
-func RenderTemplateFromFile(config interface{}, path string) ([]byte, error) {
-
-	data, err := ioutil.ReadFile(path)
-	if err != nil {
-		glog.Fatalf("Error reading %#v", err)
-	}
-
-	populatedData, err := renderTemplate(config, data)
-	if err != nil {
-		glog.Fatalf("Unable to render manifests %q: %v", data, err)
-	}
-	return populatedData, nil
 }
