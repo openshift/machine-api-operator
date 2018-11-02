@@ -35,11 +35,17 @@ type Provider string
 // OperatorConfig contains configuration for MAO
 type OperatorConfig struct {
 	TargetNamespace string `json:"targetNamespace"`
-	Controller      string `json:"images"`
+	Controllers     Controllers
+}
+
+type Controllers struct {
+	Provider string
+	NodeLink string
 }
 
 // Images allows build systems to inject images for MAO components
 type Images struct {
+	MachineAPIOperator            string `json:"machineAPIOperator"`
 	ClusterAPIControllerAWS       string `json:"clusterAPIControllerAWS"`
 	ClusterAPIControllerOpenStack string `json:"clusterAPIControllerOpenStack"`
 	ClusterAPIControllerLibvirt   string `json:"clusterAPIControllerLibvirt"`
@@ -133,6 +139,13 @@ func getProviderControllerFromImages(provider Provider, images Images) (string, 
 		return images.ClusterAPIControllerOpenStack, nil
 	}
 	return "", fmt.Errorf("not known platform provider given %s", provider)
+}
+
+func getMachineAPIOperatorFromImages(images Images) (string, error) {
+	if images.MachineAPIOperator == "" {
+		return "", fmt.Errorf("failed gettingMachineAPIOperator image. It is empty")
+	}
+	return images.MachineAPIOperator, nil
 }
 
 // PopulateTemplate receives a template file path and renders its content populated with the config

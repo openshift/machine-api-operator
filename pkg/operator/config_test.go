@@ -7,10 +7,11 @@ import (
 )
 
 var (
-	imagesJSONFile         = "fixtures/images.json"
-	expectedAWSImage       = "docker.io/openshift/origin-aws-machine-controllers:v4.0.0"
-	expectedLibvirtImage   = "docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0"
-	expectedOpenstackImage = "docker.io/openshift/origin-openstack-machine-controllers:v4.0.0"
+	imagesJSONFile                  = "fixtures/images.json"
+	expectedAWSImage                = "docker.io/openshift/origin-aws-machine-controllers:v4.0.0"
+	expectedLibvirtImage            = "docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0"
+	expectedOpenstackImage          = "docker.io/openshift/origin-openstack-machine-controllers:v4.0.0"
+	expectedMachineAPIOperatorImage = "docker.io/openshift/origin-machine-api-operator:v4.0.0"
 )
 
 func TestInstallConfigFromClusterConfig(t *testing.T) {
@@ -166,5 +167,21 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 		if test.expectedImage != res {
 			t.Errorf("failed getProviderControllerFromImages. Expected: %q, got: %q", test.expectedImage, res)
 		}
+	}
+}
+
+func TestGetMachineAPIOperatorFromImages(t *testing.T) {
+	imagesJSONFile := "fixtures/images.json"
+	img, err := getImagesFromJSONFile(imagesJSONFile)
+	if err != nil {
+		t.Errorf("failed getImagesFromJSONFile, %v", err)
+	}
+
+	res, err := getMachineAPIOperatorFromImages(*img)
+	if err != nil {
+		t.Errorf("failed getMachineAPIOperatorFromImages : %v", err)
+	}
+	if res != expectedMachineAPIOperatorImage {
+		t.Errorf("failed getMachineAPIOperatorFromImages. Expected: %s, got: %s", expectedMachineAPIOperatorImage, res)
 	}
 }
