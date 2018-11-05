@@ -241,6 +241,10 @@ func (optr *Operator) maoConfigFromInstallConfig() (*OperatorConfig, error) {
 	}
 
 	providerControllerImage, err := getProviderControllerFromImages(provider, *images)
+	if err != nil {
+		return nil, err
+	}
+
 	machineAPIOperatorImage, err := getMachineAPIOperatorFromImages(*images)
 	if err != nil {
 		return nil, err
