@@ -1,0 +1,16 @@
+{
+  "Vendor": true,
+  "Concurrency": 2,
+  "DisableAll": true,
+  "Enable": [
+    "vet",
+    "golint",
+    "varcheck",
+    "structcheck",
+    "gosimple",
+    "unused",
+    "errcheck",
+    "ineffassign"
+  ],
+  "Deadline": "12m"
+}
