@@ -23,10 +23,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 
-	apiregistrationclientset "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
-	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/scheme"
-	clusterapilisterv1alpha1 "sigs.k8s.io/cluster-api/pkg/client/listers_generated/cluster/v1alpha1"
 )
 
 const (
@@ -46,23 +43,18 @@ type Operator struct {
 	imagesFile string
 	config     string
 
-	clusterAPIClient      clientset.Interface
-	kubeClient            kubernetes.Interface
-	apiExtClient          apiextclientset.Interface
-	apiregistrationClient apiregistrationclientset.Interface
-	cvoClient             cvoclientset.Interface
-	eventRecorder         record.EventRecorder
+	kubeClient    kubernetes.Interface
+	apiExtClient  apiextclientset.Interface
+	cvoClient     cvoclientset.Interface
+	eventRecorder record.EventRecorder
 
 	syncHandler func(ic string) error
 
-	crdLister        apiextlistersv1beta1.CustomResourceDefinitionLister
-	machineSetLister clusterapilisterv1alpha1.MachineSetLister
-	deployLister     appslisterv1.DeploymentLister
+	crdLister    apiextlistersv1beta1.CustomResourceDefinitionLister
+	deployLister appslisterv1.DeploymentLister
 
-	crdListerSynced       cache.InformerSynced
-	machineSetSynced      cache.InformerSynced
-	deployListerSynced    cache.InformerSynced
-	daemonsetListerSynced cache.InformerSynced
+	crdListerSynced    cache.InformerSynced
+	deployListerSynced cache.InformerSynced
 
 	// queue only ever has one item, but it has nice error handling backoff/retry semantics
 	queue workqueue.RateLimitingInterface
@@ -84,25 +76,21 @@ func New(
 
 	kubeClient kubernetes.Interface,
 	apiExtClient apiextclientset.Interface,
-	apiregistrationClient apiregistrationclientset.Interface,
 	cvoClient cvoclientset.Interface,
-	clusterAPIClient clientset.Interface,
 ) *Operator {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
 	eventBroadcaster.StartRecordingToSink(&coreclientsetv1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
 
 	optr := &Operator{
-		namespace:             namespace,
-		name:                  name,
-		imagesFile:            imagesFile,
-		clusterAPIClient:      clusterAPIClient,
-		kubeClient:            kubeClient,
-		apiExtClient:          apiExtClient,
-		apiregistrationClient: apiregistrationClient,
-		cvoClient:             cvoClient,
-		eventRecorder:         eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "machineapioperator"}),
-		queue:                 workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
+		namespace:     namespace,
+		name:          name,
+		imagesFile:    imagesFile,
+		kubeClient:    kubeClient,
+		apiExtClient:  apiExtClient,
+		cvoClient:     cvoClient,
+		eventRecorder: eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "machineapioperator"}),
+		queue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
 	}
 
 	configMapInformer.Informer().AddEventHandler(optr.eventHandler())
