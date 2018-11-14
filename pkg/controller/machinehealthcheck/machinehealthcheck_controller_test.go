@@ -15,10 +15,15 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"testing"
+	"time"
 )
 
 const (
 	namespace = "openshift-cluster-api"
+)
+
+var (
+	knownDate = metav1.Time{Time: time.Date(1985, 06, 03, 0, 0, 0, 0, time.Local)}
 )
 
 func init() {
@@ -47,8 +52,9 @@ func node(name string, ready bool) *v1.Node {
 		Status: corev1.NodeStatus{
 			Conditions: []corev1.NodeCondition{
 				{
-					Type:   corev1.NodeReady,
-					Status: nodeReadyStatus,
+					Type:               corev1.NodeReady,
+					Status:             nodeReadyStatus,
+					LastTransitionTime: knownDate,
 				},
 			},
 		},
@@ -63,6 +69,11 @@ func machine(name string) *capiv1alpha1.Machine {
 			Labels: map[string]string{
 				"foo": "a",
 				"bar": "b",
+			},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					Kind: ownerControllerKind,
+				},
 			},
 		},
 		TypeMeta: metav1.TypeMeta{
@@ -147,7 +158,7 @@ func TestHasMatchingLabels(t *testing.T) {
 
 	for _, tc := range testsCases {
 		if got := hasMatchingLabels(tc.machineHealthCheck, tc.machine); got != tc.expected {
-			t.Errorf("Expected %t, got %t", tc.expected, got)
+			t.Errorf("Test case: %s. Expected: %t, got: %t", tc.machineHealthCheck.Name, tc.expected, got)
 		}
 	}
 }
@@ -157,14 +168,15 @@ func TestIsHealthy(t *testing.T) {
 	nodeUnhealthy := node("unhealthy", false)
 
 	if health := isHealthy(nodeHealthy); !health {
-		t.Errorf("Expected true, got %t", health)
+		t.Errorf("isHealthy expected true, got %t", health)
 	}
 	if health := isHealthy(nodeUnhealthy); health {
-		t.Errorf("Expected false, got %t", health)
+		t.Errorf("isHealthy expected false, got %t", health)
 	}
 }
 
 func TestGetNodeCondition(t *testing.T) {
+
 	testsCases := []struct {
 		node      *corev1.Node
 		condition *corev1.NodeCondition
@@ -177,8 +189,9 @@ func TestGetNodeCondition(t *testing.T) {
 				Status: corev1.ConditionTrue,
 			},
 			expected: &corev1.NodeCondition{
-				Type:   corev1.NodeReady,
-				Status: corev1.ConditionTrue,
+				Type:               corev1.NodeReady,
+				Status:             corev1.ConditionTrue,
+				LastTransitionTime: knownDate,
 			},
 		},
 		{
@@ -194,7 +207,7 @@ func TestGetNodeCondition(t *testing.T) {
 	for _, tc := range testsCases {
 		got := getNodeCondition(tc.node, tc.condition.Type)
 		if !reflect.DeepEqual(got, tc.expected) {
-			t.Errorf("Expected %v, got %v", tc.expected, got)
+			t.Errorf("Test case: %s. Expected: %v, got: %v", tc.node.Name, tc.expected, got)
 		}
 	}
 
@@ -213,6 +226,12 @@ func TestReconcile(t *testing.T) {
 	nodeAnnotatedWithNoExistentMachine := node("noExistentMachine", true)
 	nodeAnnotatedWithNoExistentMachine.Annotations[machineAnnotationKey] = "noExistentMachine"
 	fakeMachine := machine("fakeMachine")
+	fakeMachine.Status = capiv1alpha1.MachineStatus{
+		NodeRef: &corev1.ObjectReference{
+			Namespace: "",
+			Name:      "healthy",
+		},
+	}
 
 	testsCases := []struct {
 		node     *v1.Node
@@ -265,19 +284,193 @@ func TestReconcile(t *testing.T) {
 		}
 		result, err := r.Reconcile(request)
 		if result != tc.expected.result {
-			t.Errorf("Expected %v, got: %v", tc.expected.result, result)
+			t.Errorf("Test case : %v. Expected: %v, got: %v", tc.node.Name, tc.expected.result, result)
 		}
 		if tc.expected.error != (err != nil) {
-			t.Errorf("Expected error, got %v", err)
+			var errorExpectation string
+			if !tc.expected.error == true {
+				errorExpectation = "no"
+			}
+			t.Errorf("Test case: %s. Expected %s error, got: %v", tc.node.Name, errorExpectation, err)
 		}
 	}
 }
 
 // newFakeReconciler returns a new reconcile.Reconciler with a fake client
-func newFakeReconciler(initObjects ...runtime.Object) reconcile.Reconciler {
+func newFakeReconciler(initObjects ...runtime.Object) *ReconcileMachineHealthCheck {
 	fakeClient := fake.NewFakeClient(initObjects...)
 	return &ReconcileMachineHealthCheck{
 		client: fakeClient,
 		scheme: scheme.Scheme,
+	}
+}
+
+func TestHasMachineSetOwner(t *testing.T) {
+	machineWithMachineSet := machine("machineWithMachineSet")
+	machineWithNoMachineSet := machine("machineWithNoMachineSet")
+	machineWithNoMachineSet.OwnerReferences = nil
+
+	testsCases := []struct {
+		machine  *capiv1alpha1.Machine
+		expected bool
+	}{
+		{
+			machine:  machineWithNoMachineSet,
+			expected: false,
+		},
+		{
+			machine:  machineWithMachineSet,
+			expected: true,
+		},
+	}
+
+	for _, tc := range testsCases {
+		if got := hasMachineSetOwner(*tc.machine); got != tc.expected {
+			t.Errorf("Test case: Machine %s. Expected: %t, got: %t", tc.machine.Name, tc.expected, got)
+		}
+	}
+
+}
+
+func TestLastTransitionTime(t *testing.T) {
+	node := node("test", true)
+	testsCases := []struct {
+		node      *v1.Node
+		condition corev1.NodeConditionType
+		expected  metav1.Time
+	}{
+		{
+			node:      node,
+			condition: corev1.NodeReady,
+			expected:  knownDate,
+		},
+		{
+			node:      node,
+			condition: corev1.NodeOutOfDisk,
+			expected:  metav1.Time{Time: metav1.Now().Add(-2 * remediationWaitTime)},
+		},
+	}
+
+	for _, tc := range testsCases {
+		got := lastTransitionTime(tc.node, tc.condition)
+		if got.Sub(tc.expected.Time) > time.Second {
+			t.Errorf("Expected %s, got %s", tc.expected.String(), got.String())
+		}
+	}
+}
+
+func TestUnhealthyForTooLong(t *testing.T) {
+	nodeUnhealthyForTooLong := node("nodeUnhealthyForTooLong", false)
+	nodeRecentlyUnhealthy := node("nodeRecentlyUnhealthy", false)
+	nodeRecentlyUnhealthy.Status.Conditions[0].LastTransitionTime = metav1.Time{Time: time.Now()}
+	testsCases := []struct {
+		node     *corev1.Node
+		expected bool
+	}{
+		{
+			node:     nodeUnhealthyForTooLong,
+			expected: true,
+		},
+		{
+			node:     nodeRecentlyUnhealthy,
+			expected: false,
+		},
+	}
+	for _, tc := range testsCases {
+		if got := unhealthyForTooLong(tc.node); got != tc.expected {
+			t.Errorf("Test case: %s. Expected: %t, got: %t", tc.node.Name, tc.expected, got)
+		}
+	}
+}
+
+func TestRemediate(t *testing.T) {
+	nodeHealthy := node("nodeHealthy", true)
+	nodeHealthy.Annotations = map[string]string{
+		"machine": fmt.Sprintf("%s/%s", namespace, "machineWithNodehealthy"),
+	}
+
+	nodeRecentlyUnhealthy := node("nodeRecentlyUnhealthy", false)
+	nodeRecentlyUnhealthy.Status.Conditions[0].LastTransitionTime = metav1.Time{Time: time.Now()}
+	nodeRecentlyUnhealthy.Annotations = map[string]string{
+		"machine": fmt.Sprintf("%s/%s", namespace, "machineWithNodeRecentlyUnhealthy"),
+	}
+
+	machineWithNodeRecentlyUnhealthy := machine("machineWithNodeRecentlyUnhealthy")
+	machineWithNodeRecentlyUnhealthy.Status = capiv1alpha1.MachineStatus{
+		NodeRef: &corev1.ObjectReference{
+			Namespace: "",
+			Name:      "nodeRecentlyUnhealthy",
+		},
+	}
+
+	machineWithNodeHealthy := machine("machineWithNodehealthy")
+	machineWithNodeHealthy.Status = capiv1alpha1.MachineStatus{
+		NodeRef: &corev1.ObjectReference{
+			Namespace: "",
+			Name:      "nodeHealthy",
+		},
+	}
+
+	machineWithNoOwnerController := machine("machineWithNoOwnerController")
+	machineWithNoOwnerController.OwnerReferences = nil
+
+	machineWithNoNodeRef := machine("machineWithNoNodeRef")
+
+	testsCases := []struct {
+		machine  *capiv1alpha1.Machine
+		expected expectedReconcile
+	}{
+		{
+			machine: machineWithNodeHealthy,
+			expected: expectedReconcile{
+				result: reconcile.Result{},
+				error:  false,
+			},
+		},
+		{
+			machine: machineWithNodeRecentlyUnhealthy,
+			expected: expectedReconcile{
+				result: reconcile.Result{
+					Requeue:      true,
+					RequeueAfter: remediationWaitTime,
+				},
+				error: false,
+			},
+		},
+		{
+			machine: machineWithNoOwnerController,
+			expected: expectedReconcile{
+				result: reconcile.Result{},
+				error:  false,
+			},
+		},
+		{
+			machine: machineWithNoNodeRef,
+			expected: expectedReconcile{
+				result: reconcile.Result{},
+				error:  true,
+			},
+		},
+	}
+
+	r := newFakeReconciler(
+		nodeHealthy,
+		nodeRecentlyUnhealthy,
+		machineWithNodeHealthy,
+		machineWithNodeRecentlyUnhealthy,
+		machineWithNoOwnerController,
+		machineWithNoNodeRef)
+	for _, tc := range testsCases {
+		result, err := remediate(r, tc.machine)
+		if result != tc.expected.result {
+			t.Errorf("Test case: %s. Expected: %v, got: %v", tc.machine.Name, tc.expected.result, result)
+		}
+		if tc.expected.error != (err != nil) {
+			var errorExpectation string
+			if !tc.expected.error == true {
+				errorExpectation = "no"
+			}
+			t.Errorf("Test case: %s. Expected: %s error, got: %v", tc.machine.Name, errorExpectation, err)
+		}
 	}
 }
