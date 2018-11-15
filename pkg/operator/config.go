@@ -39,8 +39,9 @@ type OperatorConfig struct {
 }
 
 type Controllers struct {
-	Provider string
-	NodeLink string
+	Provider           string
+	NodeLink           string
+	MachineHealthCheck string
 }
 
 // Images allows build systems to inject images for MAO components

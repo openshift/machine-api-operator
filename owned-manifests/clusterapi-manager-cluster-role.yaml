@@ -36,3 +36,9 @@ rules:
   - patch
   - delete
 
+- apiGroups:
+  - healthchecking.openshift.io
+  resources:
+  - '*'
+  verbs:
+  - '*'
