@@ -150,6 +150,10 @@ func getMachineHealthCheckListOptions() *client.ListOptions {
 
 func remediate(r *ReconcileMachineHealthCheck, machine *capiv1.Machine) (reconcile.Result, error) {
 	glog.Infof("Initialising remediation logic for machine %s", machine.Name)
+	if isMaster(*machine, r.client) {
+		glog.Info("The machine %s is a master node, skipping remediation", machine.Name)
+		return reconcile.Result{}, nil
+	}
 	if !hasMachineSetOwner(*machine) {
 		glog.Info("Machine %s has no machineSet controller owner, skipping remediation", machine.Name)
 		return reconcile.Result{}, nil
@@ -178,7 +182,7 @@ func remediate(r *ReconcileMachineHealthCheck, machine *capiv1.Machine) (reconci
 			currentTime := time.Now()
 			lastTimeHealthy := lastTransitionTime(node, healthCriteria)
 			durationUnhealthy := currentTime.Sub(lastTimeHealthy.Time)
-			glog.Warningf("machine %s have had node %s unhealthy for %s", machine.Name, node.Name, durationUnhealthy.String())
+			glog.Warningf("machine %s have had node %s unhealthy for %s. Requeuing...", machine.Name, node.Name, durationUnhealthy.String())
 			return reconcile.Result{Requeue: true, RequeueAfter: remediationWaitTime}, nil
 		}
 	}
@@ -260,4 +264,34 @@ func hasMatchingLabels(machineHealthCheck *healthcheckingv1alpha1.MachineHealthC
 		return false
 	}
 	return true
+}
+
+func isMaster(machine capiv1.Machine, client client.Client) bool {
+	machineMasterLabels := []string{
+		"sigs.k8s.io/cluster-api-machine-role",
+		"sigs.k8s.io/cluster-api-machine-type",
+	}
+	nodeMasterLabels := []string{
+		"node-role.kubernetes.io/master",
+	}
+
+	machineLabels := labels.Set(machine.Labels)
+	for _, masterLabel := range machineMasterLabels {
+		if machineLabels.Get(masterLabel) == "master" {
+			return true
+		}
+	}
+
+	node, err := getNodeFromMachine(machine, client)
+	if err != nil {
+		glog.Warningf("Couldn't get node for machine %s", machine.Name)
+		return false
+	}
+	nodeLabels := labels.Set(node.Labels)
+	for _, masterLabel := range nodeMasterLabels {
+		if nodeLabels.Has(masterLabel) {
+			return true
+		}
+	}
+	return false
 }

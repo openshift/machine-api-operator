@@ -45,6 +45,7 @@ func node(name string, ready bool) *v1.Node {
 			Annotations: map[string]string{
 				"machine": fmt.Sprintf("%s/%s", namespace, "fakeMachine"),
 			},
+			Labels: map[string]string{},
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind: "Node",
@@ -284,11 +285,11 @@ func TestReconcile(t *testing.T) {
 		}
 		result, err := r.Reconcile(request)
 		if result != tc.expected.result {
-			t.Errorf("Test case : %v. Expected: %v, got: %v", tc.node.Name, tc.expected.result, result)
+			t.Errorf("Test case: %v. Expected: %v, got: %v", tc.node.Name, tc.expected.result, result)
 		}
 		if tc.expected.error != (err != nil) {
 			var errorExpectation string
-			if !tc.expected.error == true {
+			if !tc.expected.error {
 				errorExpectation = "no"
 			}
 			t.Errorf("Test case: %s. Expected %s error, got: %v", tc.node.Name, errorExpectation, err)
@@ -473,4 +474,58 @@ func TestRemediate(t *testing.T) {
 			t.Errorf("Test case: %s. Expected: %s error, got: %v", tc.machine.Name, errorExpectation, err)
 		}
 	}
+}
+
+func TestIsMaster(t *testing.T) {
+	masterMachine := machine("master")
+	masterMachine.Labels["sigs.k8s.io/cluster-api-machine-role"] = "master"
+	masterMachine.Labels["sigs.k8s.io/cluster-api-machine-type"] = "master"
+	masterMachine.Status = capiv1alpha1.MachineStatus{
+		NodeRef: &corev1.ObjectReference{
+			Namespace: "",
+			Name:      "master",
+		},
+	}
+	masterNode := node("master", true)
+	masterNode.Annotations = map[string]string{
+		"machine": fmt.Sprintf("%s/%s", namespace, "master"),
+	}
+	masterNode.Labels["node-role.kubernetes.io/master"] = ""
+
+	workerMachine := machine("worker")
+	workerMachine.Labels["sigs.k8s.io/cluster-api-machine-role"] = "worker"
+	workerMachine.Labels["sigs.k8s.io/cluster-api-machine-type"] = "worker"
+
+	workerMachine.Status = capiv1alpha1.MachineStatus{
+		NodeRef: &corev1.ObjectReference{
+			Namespace: "",
+			Name:      "worker",
+		},
+	}
+	workerNode := node("worker", true)
+	workerNode.Annotations = map[string]string{
+		"machine": fmt.Sprintf("%s/%s", namespace, "worker"),
+	}
+	workerNode.Labels["node-role.kubernetes.io/worker"] = ""
+
+	testCases := []struct {
+		machine  *capiv1alpha1.Machine
+		expected bool
+	}{
+		{
+			machine:  masterMachine,
+			expected: true,
+		},
+		{
+			machine:  workerMachine,
+			expected: false,
+		},
+	}
+	fakeClient := fake.NewFakeClient(masterNode, workerNode)
+	for _, tc := range testCases {
+		if got := isMaster(*tc.machine, fakeClient); got != tc.expected {
+			t.Errorf("Test case: %s. Expected: %t, got: %t", tc.machine.Name, tc.expected, got)
+		}
+	}
+
 }
