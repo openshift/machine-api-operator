@@ -3,6 +3,8 @@ package main
 import (
 	"flag"
 	"github.com/golang/glog"
+	"k8s.io/client-go/kubernetes/scheme"
+	capiv1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 )
@@ -16,6 +18,10 @@ var (
 )
 
 func init() {
+	if err := capiv1alpha1.AddToScheme(scheme.Scheme); err != nil {
+		glog.Fatal(err)
+	}
+
 	if err := newClient(); err != nil {
 		glog.Fatal(err)
 	}
@@ -59,5 +65,11 @@ func runSuite() error {
 		return err
 	}
 	glog.Info("PASS: ExpectOperatorAvailable")
+
+	if err := ExpectOneClusterObject(); err != nil {
+		glog.Errorf("FAIL: ExpectOneClusterObject: %v", err)
+		return err
+	}
+	glog.Info("PASS: ExpectOneClusterObject")
 	return nil
 }
