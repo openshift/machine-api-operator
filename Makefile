@@ -45,10 +45,13 @@ build-e2e: ## Build end-to-end test binary
 	mkdir -p bin
 	$(DOCKER_CMD) go build $(GOGCFLAGS) -o bin/e2e github.com/openshift/machine-api-operator/tests/e2e
 
+test-e2e:
+	go test -v ./test/e2e/...
+
 .PHONY: test
 test: ## Run tests
 	@echo -e "\033[32mTesting...\033[0m"
-	$(DOCKER_CMD) go test ./...
+	$(DOCKER_CMD) go test ./pkg... ./cmd/...
 
 .PHONY: image
 image: ## Build docker image
