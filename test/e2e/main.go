@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"github.com/golang/glog"
+	osv1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	capiv1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -22,6 +23,9 @@ func init() {
 		glog.Fatal(err)
 	}
 
+	if err := osv1.AddToScheme(scheme.Scheme); err != nil {
+		glog.Fatal(err)
+	}
 	if err := newClient(); err != nil {
 		glog.Fatal(err)
 	}
@@ -41,7 +45,6 @@ func newClient() error {
 		return err
 	}
 
-	// TODO:(alberto) add schemes
 	client, err := client.New(cfg, client.Options{})
 	if err != nil {
 		return err
@@ -71,5 +74,11 @@ func runSuite() error {
 		return err
 	}
 	glog.Info("PASS: ExpectOneClusterObject")
+
+	if err := ExpectOperatorStatusConditionDone(); err != nil {
+		glog.Errorf("FAIL: ExpectOperatorStatusConditionDone: %v", err)
+		return err
+	}
+	glog.Info("PASS: ExpectOperatorStatusConditionDone")
 	return nil
 }

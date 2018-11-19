@@ -17,8 +17,6 @@ import (
 	"path/filepath"
 )
 
-type syncFunc func(config OperatorConfig) error
-
 func (optr *Operator) syncAll(config OperatorConfig) error {
 	glog.Infof("Syncing operatorstatus")
 
@@ -29,6 +27,13 @@ func (optr *Operator) syncAll(config OperatorConfig) error {
 		glog.Errorf("Error synching operatorstatus: %v", err)
 		return fmt.Errorf("error syncing status: %v", err)
 	}
+
+	err := optr.syncClusterAPIController(config)
+	if err != nil {
+		glog.Errorf("Failed sync-up cluster api controller: %v", err)
+		return err
+	}
+	glog.Info("Synched up cluster api controller")
 
 	return optr.syncStatus(v1.OperatorStatusCondition{
 		Type:    v1.OperatorStatusConditionTypeDone,
