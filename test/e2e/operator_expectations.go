@@ -5,9 +5,11 @@ import (
 
 	"context"
 	"errors"
+	"fmt"
 	"github.com/golang/glog"
 	osv1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 	kappsapi "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	capiv1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
@@ -74,4 +76,48 @@ func ExpectOperatorStatusConditionDone() error {
 		return true, nil
 	})
 	return err
+}
+
+func ExpectAllMachinesLinkedToANode() error {
+	machineAnnotationKey := "machine"
+	listOptions := client.ListOptions{
+		Namespace: namespace,
+	}
+	machineList := capiv1alpha1.MachineList{}
+	nodeList := corev1.NodeList{}
+
+	err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
+		if err := F.Client.List(context.TODO(), &listOptions, &machineList); err != nil {
+			glog.Errorf("error querying api for machineList object: %v, retrying...", err)
+			return false, nil
+		}
+		return true, nil
+	})
+	if err != nil {
+		return err
+	}
+
+	err = wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
+		if err := F.Client.List(context.TODO(), &listOptions, &nodeList); err != nil {
+			glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
+			return false, nil
+		}
+		return true, nil
+	})
+	if err != nil {
+		return err
+	}
+
+	nodeNameToMachineAnnotation := make(map[string]string)
+	for _, node := range nodeList.Items {
+		nodeNameToMachineAnnotation[node.Name] = node.Annotations[machineAnnotationKey]
+	}
+	for _, machine := range machineList.Items {
+		nodeName := machine.Status.NodeRef.Name
+		if nodeNameToMachineAnnotation[nodeName] != fmt.Sprintf("%s/%s", namespace, machine.Name) {
+			glog.Errorf("node name %s does not match expected machine name %s", nodeName, machine.Name)
+			return errors.New("not all nodes are linked to a machine")
+		}
+	}
+	return nil
 }
