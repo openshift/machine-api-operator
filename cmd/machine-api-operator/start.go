@@ -55,7 +55,6 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 		}
 
 		ctx.KubeNamespacedInformerFactory.Start(ctx.Stop)
-		ctx.APIExtInformerFactory.Start(ctx.Stop)
 		close(ctx.InformersStarted)
 
 		select {}
@@ -83,13 +82,11 @@ func startControllers(ctx *common.ControllerContext) error {
 
 		config,
 		ctx.KubeNamespacedInformerFactory.Core().V1().ServiceAccounts(),
-		ctx.APIExtInformerFactory.Apiextensions().V1beta1().CustomResourceDefinitions(),
 		ctx.KubeNamespacedInformerFactory.Apps().V1().Deployments(),
 		ctx.KubeNamespacedInformerFactory.Rbac().V1().ClusterRoles(),
 		ctx.KubeNamespacedInformerFactory.Rbac().V1().ClusterRoleBindings(),
 
 		ctx.ClientBuilder.KubeClientOrDie(componentName),
-		ctx.ClientBuilder.APIExtClientOrDie(componentName),
 		ctx.ClientBuilder.ClusterversionClientOrDie(componentName),
 	).Run(2, ctx.Stop)
 
