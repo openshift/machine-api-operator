@@ -86,5 +86,11 @@ func runSuite() error {
 		return err
 	}
 	glog.Info("PASS: ExpectAllMachinesLinkedToANode")
+
+	if err := ExpectReconcileControllersDeployment(); err != nil {
+		glog.Errorf("FAIL: ExpectReconcileControllersDeployment: %v", err)
+		return err
+	}
+	glog.Info("PASS: ExpectReconcileControllersDeployment")
 	return nil
 }
