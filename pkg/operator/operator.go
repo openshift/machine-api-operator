@@ -201,14 +201,7 @@ func (optr *Operator) sync(key string) error {
 		glog.Errorf("Failed sync-up custom resources definitions: %v", err)
 		return err
 	}
-
 	glog.Info("Synched up cluster api CRDs")
-	err = optr.syncClusterAPIController(*operatorConfig)
-	if err != nil {
-		glog.Errorf("Failed sync-up cluster api controller: %v", err)
-		return err
-	}
-	glog.Info("Synched up cluster api controller")
 	return optr.syncAll(*operatorConfig)
 }
 
