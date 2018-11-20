@@ -3,6 +3,7 @@ package machinehealthcheck
 import (
 	"context"
 
+	golangerrors "errors"
 	"github.com/golang/glog"
 	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -19,10 +20,16 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+	"time"
 )
 
 const (
 	machineAnnotationKey = "machine"
+	// TODO(alberto) ensure we handle the case for when a new machine comes up
+	// so remediation doesn't kill it before it goes healthy
+	remediationWaitTime = 5 * time.Minute
+	healthCriteria      = corev1.NodeReady
+	ownerControllerKind = "MachineSet"
 )
 
 // Add creates a new MachineHealthCheck Controller and adds it to the Manager. The Manager will set fields on the Controller
@@ -64,6 +71,7 @@ type ReconcileMachineHealthCheck struct {
 func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	glog.Infof("Reconciling MachineHealthCheck triggered by %s/%s\n", request.Namespace, request.Name)
 
+	// Get node from request
 	node := &corev1.Node{}
 	err := r.client.Get(context.TODO(), request.NamespacedName, node)
 	glog.V(4).Infof("Reconciling, getting node %v", node.Name)
@@ -80,11 +88,11 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 
 	machineKey, ok := node.Annotations[machineAnnotationKey]
 	if !ok {
-		glog.Infof("No machine annotation for node %s", node.Name)
+		glog.Warningf("No machine annotation for node %s", node.Name)
 		return reconcile.Result{}, nil
 	}
 
-	glog.Infof("Node %s is annotated for machine %s", node.Name, machineKey)
+	glog.Infof("Node %s is annotated with machine %s", node.Name, machineKey)
 	machine := &capiv1.Machine{}
 	namespace, machineName, err := cache.SplitMetaNamespaceKey(machineKey)
 	if err != nil {
@@ -94,18 +102,17 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 		Namespace: namespace,
 		Name:      machineName,
 	}
-
 	err = r.client.Get(context.TODO(), *key, machine)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			glog.Warning("machine %s not found", machineKey)
+			glog.Warningf("machine %s not found", machineKey)
 			// Request object not found, could have been deleted after reconcile request.
 			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
 			// Return and don't requeue
 			return reconcile.Result{}, nil
 		}
 		// Error reading the object - requeue the request.
-		glog.Errorf("error getting machine %s, requeuing", machineKey)
+		glog.Errorf("error getting machine %s. Error: %v. Requeuing...", machineKey, err)
 		return reconcile.Result{}, err
 	}
 
@@ -120,14 +127,15 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 	for _, hc := range allMachineHealthChecks.Items {
 		if hasMatchingLabels(&hc, machine) {
 			glog.V(4).Infof("Machine %s has a matching machineHealthCheck: %s", machineKey, hc.Name)
-			remediate(node)
+			return remediate(r, machine)
 		}
 	}
 
+	glog.Infof("Machine %s has no MachineHealthCheck associated", machineName)
 	return reconcile.Result{}, nil
 }
 
-// This set so the fake client can be used for unit test. See:
+// This is set so the fake client can be used for unit test. See:
 // https://github.com/kubernetes-sigs/controller-runtime/issues/168
 func getMachineHealthCheckListOptions() *client.ListOptions {
 	return &client.ListOptions{
@@ -140,16 +148,95 @@ func getMachineHealthCheckListOptions() *client.ListOptions {
 	}
 }
 
-func remediate(node *corev1.Node) {
-	// TODO(alberto): implement Remediate logic via hash or CRD
-	if !isHealthy(node) {
+func remediate(r *ReconcileMachineHealthCheck, machine *capiv1.Machine) (reconcile.Result, error) {
+	glog.Infof("Initialising remediation logic for machine %s", machine.Name)
+	if isMaster(*machine, r.client) {
+		glog.Info("The machine %s is a master node, skipping remediation", machine.Name)
+		return reconcile.Result{}, nil
 	}
-	return
+	if !hasMachineSetOwner(*machine) {
+		glog.Info("Machine %s has no machineSet controller owner, skipping remediation", machine.Name)
+		return reconcile.Result{}, nil
+	}
+
+	node, err := getNodeFromMachine(*machine, r.client)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			glog.Warningf("Node %s not found for machine %s", node.Name, machine.Name)
+			return reconcile.Result{}, nil
+		}
+		// Error reading the object - requeue the request.
+		return reconcile.Result{}, err
+	}
+
+	if !isHealthy(node) {
+		if unhealthyForTooLong(node) {
+			// delete
+			glog.Infof("machine %s has been unhealthy for too long, deleting", machine.Name)
+			if err := r.client.Delete(context.TODO(), machine); err != nil {
+				glog.Errorf("failed to delete machine %s, requeuing referenced node", machine.Name)
+				return reconcile.Result{}, err
+			}
+			return reconcile.Result{}, nil
+		} else {
+			currentTime := time.Now()
+			lastTimeHealthy := lastTransitionTime(node, healthCriteria)
+			durationUnhealthy := currentTime.Sub(lastTimeHealthy.Time)
+			glog.Warningf("machine %s have had node %s unhealthy for %s. Requeuing...", machine.Name, node.Name, durationUnhealthy.String())
+			return reconcile.Result{Requeue: true, RequeueAfter: remediationWaitTime}, nil
+		}
+	}
+	glog.Infof("No remediaton action was taken. Machine %s with node %v is healthy", machine.Name, node.Name)
+	return reconcile.Result{}, nil
+}
+
+func getNodeFromMachine(machine capiv1.Machine, client client.Client) (*corev1.Node, error) {
+	if machine.Status.NodeRef == nil {
+		glog.Errorf("node NodeRef not found in machine %s", machine.Name)
+		return nil, golangerrors.New("node NodeRef not found in machine")
+	}
+	node := &corev1.Node{}
+	nodeKey := types.NamespacedName{
+		Namespace: machine.Status.NodeRef.Namespace,
+		Name:      machine.Status.NodeRef.Name,
+	}
+	err := client.Get(context.TODO(), nodeKey, node)
+	return node, err
+}
+
+func unhealthyForTooLong(node *corev1.Node) bool {
+	currentTime := time.Now()
+	lastTimeHealthy := lastTransitionTime(node, healthCriteria)
+	if lastTimeHealthy.Add(remediationWaitTime).Before(currentTime) {
+		return true
+	}
+	return false
+}
+
+func hasMachineSetOwner(machine capiv1.Machine) bool {
+	ownerRefs := machine.ObjectMeta.GetOwnerReferences()
+	for _, or := range ownerRefs {
+		if or.Kind == ownerControllerKind {
+			return true
+		}
+	}
+	return false
 }
 
 func isHealthy(node *corev1.Node) bool {
-	nodeReady := getNodeCondition(node, corev1.NodeReady)
+	nodeReady := getNodeCondition(node, healthCriteria)
+	glog.V(4).Infof("condition %v", nodeReady)
 	return nodeReady.Status == corev1.ConditionTrue
+}
+
+func lastTransitionTime(node *corev1.Node, conditionType corev1.NodeConditionType) metav1.Time {
+	condition := getNodeCondition(node, conditionType)
+	currentTime := metav1.Now()
+	if condition == nil {
+		return metav1.Time{Time: currentTime.Add(-2 * remediationWaitTime)}
+	}
+	return condition.LastTransitionTime
+
 }
 
 func getNodeCondition(node *corev1.Node, conditionType corev1.NodeConditionType) *corev1.NodeCondition {
@@ -177,4 +264,34 @@ func hasMatchingLabels(machineHealthCheck *healthcheckingv1alpha1.MachineHealthC
 		return false
 	}
 	return true
+}
+
+func isMaster(machine capiv1.Machine, client client.Client) bool {
+	machineMasterLabels := []string{
+		"sigs.k8s.io/cluster-api-machine-role",
+		"sigs.k8s.io/cluster-api-machine-type",
+	}
+	nodeMasterLabels := []string{
+		"node-role.kubernetes.io/master",
+	}
+
+	machineLabels := labels.Set(machine.Labels)
+	for _, masterLabel := range machineMasterLabels {
+		if machineLabels.Get(masterLabel) == "master" {
+			return true
+		}
+	}
+
+	node, err := getNodeFromMachine(machine, client)
+	if err != nil {
+		glog.Warningf("Couldn't get node for machine %s", machine.Name)
+		return false
+	}
+	nodeLabels := labels.Set(node.Labels)
+	for _, masterLabel := range nodeMasterLabels {
+		if nodeLabels.Has(masterLabel) {
+			return true
+		}
+	}
+	return false
 }
