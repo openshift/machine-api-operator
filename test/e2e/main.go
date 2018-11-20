@@ -80,5 +80,11 @@ func runSuite() error {
 		return err
 	}
 	glog.Info("PASS: ExpectOperatorStatusConditionDone")
+
+	if err := ExpectAllMachinesLinkedToANode(); err != nil {
+		glog.Errorf("FAIL: ExpectAllMachinesLinkedToANode: %v", err)
+		return err
+	}
+	glog.Info("PASS: ExpectAllMachinesLinkedToANode")
 	return nil
 }
