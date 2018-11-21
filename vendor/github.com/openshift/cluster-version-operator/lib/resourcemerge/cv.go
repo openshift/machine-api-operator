@@ -1,32 +1,39 @@
 package resourcemerge
 
 import (
-	cvv1 "github.com/openshift/cluster-version-operator/pkg/apis/clusterversion.openshift.io/v1"
+	configv1 "github.com/openshift/api/config/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 )
 
-func EnsureCVOConfig(modified *bool, existing *cvv1.CVOConfig, required cvv1.CVOConfig) {
+func EnsureClusterVersion(modified *bool, existing *configv1.ClusterVersion, required configv1.ClusterVersion) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
-	if existing.Upstream != required.Upstream {
+	if !equality.Semantic.DeepEqual(existing.Spec.Upstream, required.Spec.Upstream) {
 		*modified = true
-		existing.Upstream = required.Upstream
+		existing.Spec.Upstream = required.Spec.Upstream
 	}
-	if existing.Channel != required.Channel {
+	if existing.Spec.Channel != required.Spec.Channel {
 		*modified = true
-		existing.Channel = required.Channel
+		existing.Spec.Channel = required.Spec.Channel
 	}
-	if existing.ClusterID.String() != required.ClusterID.String() {
+	if existing.Spec.ClusterID != required.Spec.ClusterID {
 		*modified = true
-		existing.ClusterID = required.ClusterID
+		existing.Spec.ClusterID = required.Spec.ClusterID
 	}
 
-	if required.DesiredUpdate.Payload != "" &&
-		existing.DesiredUpdate.Payload != required.DesiredUpdate.Payload {
+	if !equality.Semantic.DeepEqual(existing.Spec.DesiredUpdate, required.Spec.DesiredUpdate) {
 		*modified = true
-		existing.DesiredUpdate.Payload = required.DesiredUpdate.Payload
+		if required.Spec.DesiredUpdate != nil {
+			copied := *required.Spec.DesiredUpdate
+			existing.Spec.DesiredUpdate = &copied
+		} else {
+			existing.Spec.DesiredUpdate = nil
+		}
 	}
-	if required.DesiredUpdate.Version != "" &&
-		existing.DesiredUpdate.Version != required.DesiredUpdate.Version {
+}
+
+func EnsureClusterVersionStatus(modified *bool, existing *configv1.ClusterVersion, required configv1.ClusterVersion) {
+	if !equality.Semantic.DeepEqual(existing.Status, required.Status) {
 		*modified = true
-		existing.DesiredUpdate.Version = required.DesiredUpdate.Version
+		existing.Status = *required.Status.DeepCopy()
 	}
 }

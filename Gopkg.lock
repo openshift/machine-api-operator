@@ -331,23 +331,34 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:d408905ee7771e8e4b181587a3426caa11b803c34a5dee74032943324e921ac5"
-  name = "github.com/openshift/cluster-version-operator"
+  digest = "1:ae605a1a85a25d49a4745252b683d3d65f9f1b36bf06c7d7720902d76c11a35b"
+  name = "github.com/openshift/api"
   packages = [
-    "lib/resourceapply",
-    "lib/resourcemerge",
-    "pkg/apis",
-    "pkg/apis/clusterversion.openshift.io/v1",
-    "pkg/apis/operatorstatus.openshift.io/v1",
-    "pkg/generated/clientset/versioned",
-    "pkg/generated/clientset/versioned/scheme",
-    "pkg/generated/clientset/versioned/typed/clusterversion.openshift.io/v1",
-    "pkg/generated/clientset/versioned/typed/operatorstatus.openshift.io/v1",
-    "pkg/generated/listers/clusterversion.openshift.io/v1",
-    "pkg/generated/listers/operatorstatus.openshift.io/v1",
+    "config/v1",
+    "security/v1",
   ]
   pruneopts = "NUT"
-  revision = "0be66ae4f68f23119d5c73c34e925573022f7aac"
+  revision = "ffac7eec5e7f87c6a9fcbc766e3b024ed3ef39ea"
+
+[[projects]]
+  branch = "master"
+  digest = "1:fdda79460918fcab1410b47dd23e33eb1f78f80e65cb7bc80352d23d72df8893"
+  name = "github.com/openshift/client-go"
+  packages = [
+    "config/clientset/versioned",
+    "config/clientset/versioned/scheme",
+    "config/clientset/versioned/typed/config/v1",
+  ]
+  pruneopts = "NUT"
+  revision = "960f72aa32a8e9b4dd769b90ff1cb5bd4c898eec"
+
+[[projects]]
+  branch = "master"
+  digest = "1:29636c719363cf55bb859bdc27adfeff0479f2623d5b2512ee962e23b213c158"
+  name = "github.com/openshift/cluster-version-operator"
+  packages = ["lib/resourcemerge"]
+  pruneopts = "NUT"
+  revision = "4d8f469230d92da22529c5de86198e258679cef5"
 
 [[projects]]
   branch = "master"
@@ -975,9 +986,10 @@
     "github.com/ghodss/yaml",
     "github.com/golang/glog",
     "github.com/kubernetes-incubator/apiserver-builder/pkg/controller",
-    "github.com/openshift/cluster-version-operator/lib/resourceapply",
-    "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1",
-    "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned",
+    "github.com/openshift/api/config/v1",
+    "github.com/openshift/client-go/config/clientset/versioned",
+    "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1",
+    "github.com/openshift/cluster-version-operator/lib/resourcemerge",
     "github.com/operator-framework/operator-sdk/version",
     "github.com/sirupsen/logrus",
     "github.com/spf13/cobra",
@@ -1034,6 +1046,7 @@
     "k8s.io/gengo/args",
     "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1",
     "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset",
+    "k8s.io/utils/pointer",
     "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1",
     "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset",
     "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/scheme",

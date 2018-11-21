@@ -27,6 +27,9 @@ func setStringIfSet(modified *bool, existing *string, required string) {
 
 func mergeMap(modified *bool, existing *map[string]string, required map[string]string) {
 	if *existing == nil {
+		if required == nil {
+			return
+		}
 		*existing = map[string]string{}
 	}
 	for k, v := range required {
