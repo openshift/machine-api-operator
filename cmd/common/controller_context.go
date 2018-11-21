@@ -12,7 +12,6 @@ import (
 type ControllerContext struct {
 	ClientBuilder *ClientBuilder
 
-	KubeInformerFactory           informers.SharedInformerFactory
 	KubeNamespacedInformerFactory informers.SharedInformerFactory
 	APIExtInformerFactory         apiextinformers.SharedInformerFactory
 
@@ -22,8 +21,6 @@ type ControllerContext struct {
 
 	InformersStarted chan struct{}
 
-	KubeInformersStarted chan struct{}
-
 	ResyncPeriod func() time.Duration
 }
 
@@ -32,18 +29,15 @@ func CreateControllerContext(cb *ClientBuilder, stop <-chan struct{}, targetName
 	kubeClient := cb.KubeClientOrDie("kube-shared-informer")
 	apiExtClient := cb.APIExtClientOrDie("apiext-shared-informer")
 
-	kubeSharedInformer := informers.NewSharedInformerFactory(kubeClient, resyncPeriod()())
 	kubeNamespacedSharedInformer := informers.NewFilteredSharedInformerFactory(kubeClient, resyncPeriod()(), targetNamespace, nil)
 	apiExtSharedInformer := apiextinformers.NewSharedInformerFactory(apiExtClient, resyncPeriod()())
 
 	return &ControllerContext{
 		ClientBuilder:                 cb,
-		KubeInformerFactory:           kubeSharedInformer,
 		KubeNamespacedInformerFactory: kubeNamespacedSharedInformer,
 		APIExtInformerFactory:         apiExtSharedInformer,
-		Stop:                 stop,
-		InformersStarted:     make(chan struct{}),
-		KubeInformersStarted: make(chan struct{}),
-		ResyncPeriod:         resyncPeriod(),
+		Stop:             stop,
+		InformersStarted: make(chan struct{}),
+		ResyncPeriod:     resyncPeriod(),
 	}
 }

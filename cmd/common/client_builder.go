@@ -7,24 +7,12 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	apiregistrationclientset "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset"
-	clusterapiclientset "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 )
 
 // ClientBuilder can create a variety of kubernetes client interface
 // with its embeded rest.Config.
 type ClientBuilder struct {
 	config *rest.Config
-}
-
-// ClusterAPIClientOrDie returns the kubernetes client interface for machine config.
-func (cb *ClientBuilder) ClusterAPIClientOrDie(name string) clusterapiclientset.Interface {
-	return clusterapiclientset.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
-}
-
-// APIRegistrationClientOrDie returns the kubernetes client interface for machine config.
-func (cb *ClientBuilder) APIRegistrationClientOrDie(name string) apiregistrationclientset.Interface {
-	return apiregistrationclientset.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
 }
 
 // KubeClientOrDie returns the kubernetes client interface for general kubernetes objects.
@@ -38,7 +26,7 @@ func (cb *ClientBuilder) APIExtClientOrDie(name string) apiext.Interface {
 }
 
 // ClusterversionClientOrDie returns the kubernetes client interface for cluster version objects.
-// TODO(yifan): Just return the client for the Operator Status objects.
+// TODO(alberto): Return the client for the Cluster Operator Status objects under config.io.
 func (cb *ClientBuilder) ClusterversionClientOrDie(name string) cvoclientset.Interface {
 	return cvoclientset.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
 }

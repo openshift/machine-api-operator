@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	// maxRetries is the number of times a machineconfig pool will be retried before it is dropped out of the queue.
+	// maxRetries is the number of times a key will be retried before it is dropped out of the queue.
 	// With the current rate-limiter in use (5ms*2^(maxRetries-1)) the following numbers represent the times
 	// a machineconfig pool is going to be requeued:
 	//
@@ -36,7 +36,7 @@ const (
 	ownedManifestsDir = "owned-manifests"
 )
 
-// Operator defines machince config operator.
+// Operator defines machine api operator.
 type Operator struct {
 	namespace, name string
 
@@ -67,7 +67,6 @@ func New(
 
 	config string,
 
-	configMapInformer coreinformersv1.ConfigMapInformer,
 	serviceAccountInfomer coreinformersv1.ServiceAccountInformer,
 	crdInformer apiextinformersv1beta1.CustomResourceDefinitionInformer,
 	deployInformer appsinformersv1.DeploymentInformer,
@@ -93,7 +92,6 @@ func New(
 		queue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
 	}
 
-	configMapInformer.Informer().AddEventHandler(optr.eventHandler())
 	serviceAccountInfomer.Informer().AddEventHandler(optr.eventHandler())
 	crdInformer.Informer().AddEventHandler(optr.eventHandler())
 	deployInformer.Informer().AddEventHandler(optr.eventHandler())
