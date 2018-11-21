@@ -331,10 +331,13 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:ae605a1a85a25d49a4745252b683d3d65f9f1b36bf06c7d7720902d76c11a35b"
+  digest = "1:bada18f8cc9cf347266c81ee2ab8956b7c20ff6bf798b3d848e92f63a5c57330"
   name = "github.com/openshift/api"
   packages = [
     "config/v1",
+    "image/docker10",
+    "image/dockerpre012",
+    "image/v1",
     "security/v1",
   ]
   pruneopts = "NUT"
@@ -342,21 +345,28 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:fdda79460918fcab1410b47dd23e33eb1f78f80e65cb7bc80352d23d72df8893"
+  digest = "1:05e09fcfdca78559275c11dc82782119560ced003dfaed98dc1523d1e32314a3"
   name = "github.com/openshift/client-go"
   packages = [
     "config/clientset/versioned",
     "config/clientset/versioned/scheme",
     "config/clientset/versioned/typed/config/v1",
+    "config/listers/config/v1",
+    "security/clientset/versioned/scheme",
+    "security/clientset/versioned/typed/security/v1",
   ]
   pruneopts = "NUT"
   revision = "960f72aa32a8e9b4dd769b90ff1cb5bd4c898eec"
 
 [[projects]]
   branch = "master"
-  digest = "1:29636c719363cf55bb859bdc27adfeff0479f2623d5b2512ee962e23b213c158"
+  digest = "1:a97e0106f4cb970001cc5c42eb16716101421940fea9c5b9d07995cc77d96bc5"
   name = "github.com/openshift/cluster-version-operator"
-  packages = ["lib/resourcemerge"]
+  packages = [
+    "lib/resourceapply",
+    "lib/resourcemerge",
+    "lib/resourceread",
+  ]
   pruneopts = "NUT"
   revision = "4d8f469230d92da22529c5de86198e258679cef5"
 
@@ -614,7 +624,7 @@
   revision = "2d6f90ab1293a1fb871cf149423ebb72aa7423aa"
 
 [[projects]]
-  digest = "1:82327daaffa8cd2a1f3e4d4c2c98288bbcfa7a46a508c0ee93158eac5f7e3a76"
+  digest = "1:460839c7f354a3a4e304e0fa73ae8ee49c677811aefb8d22bfeb82229a6eb2d1"
   name = "k8s.io/apiextensions-apiserver"
   packages = [
     "pkg/apis/apiextensions",
@@ -622,10 +632,6 @@
     "pkg/client/clientset/clientset",
     "pkg/client/clientset/clientset/scheme",
     "pkg/client/clientset/clientset/typed/apiextensions/v1beta1",
-    "pkg/client/informers/externalversions",
-    "pkg/client/informers/externalversions/apiextensions",
-    "pkg/client/informers/externalversions/apiextensions/v1beta1",
-    "pkg/client/informers/externalversions/internalinterfaces",
     "pkg/client/listers/apiextensions/v1beta1",
   ]
   pruneopts = "NUT"
@@ -989,7 +995,9 @@
     "github.com/openshift/api/config/v1",
     "github.com/openshift/client-go/config/clientset/versioned",
     "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1",
+    "github.com/openshift/cluster-version-operator/lib/resourceapply",
     "github.com/openshift/cluster-version-operator/lib/resourcemerge",
+    "github.com/openshift/cluster-version-operator/lib/resourceread",
     "github.com/operator-framework/operator-sdk/version",
     "github.com/sirupsen/logrus",
     "github.com/spf13/cobra",
@@ -1003,9 +1011,6 @@
     "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset",
     "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme",
     "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1",
-    "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions",
-    "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions/apiextensions/v1beta1",
-    "k8s.io/apiextensions-apiserver/pkg/client/listers/apiextensions/v1beta1",
     "k8s.io/apimachinery/pkg/api/equality",
     "k8s.io/apimachinery/pkg/api/errors",
     "k8s.io/apimachinery/pkg/apis/meta/v1",
