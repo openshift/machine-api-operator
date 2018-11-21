@@ -3,7 +3,6 @@ package common
 import (
 	"github.com/golang/glog"
 	cvoclientset "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
-	apiext "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -18,11 +17,6 @@ type ClientBuilder struct {
 // KubeClientOrDie returns the kubernetes client interface for general kubernetes objects.
 func (cb *ClientBuilder) KubeClientOrDie(name string) kubernetes.Interface {
 	return kubernetes.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
-}
-
-// APIExtClientOrDie returns the kubernetes client interface for extended kubernetes objects.
-func (cb *ClientBuilder) APIExtClientOrDie(name string) apiext.Interface {
-	return apiext.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
 }
 
 // ClusterversionClientOrDie returns the kubernetes client interface for cluster version objects.

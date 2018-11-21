@@ -240,10 +240,70 @@ var rootCmd = &cobra.Command{
 		}
 
 		// create status CRD
-		if statusCRD, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "status-crd.yaml")); err != nil {
+		if CRDBytes, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "status-crd.yaml")); err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
-			CRDObj, _, err := decode([]byte(statusCRD), nil, nil)
+			CRDObj, _, err := decode([]byte(CRDBytes), nil, nil)
+			if err != nil {
+				glog.Fatalf("Error decoding %#v", err)
+			}
+			CRD := CRDObj.(*apiextensionsv1beta1.CustomResourceDefinition)
+
+			if err := createCRD(testConfig, CRD); err != nil {
+				return err
+			}
+		}
+
+		// create machine CRD
+		if CRDBytes, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "0000_50_machine-api-operator_02_machine.crd.yaml")); err != nil {
+			glog.Fatalf("Error reading %#v", err)
+		} else {
+			CRDObj, _, err := decode([]byte(CRDBytes), nil, nil)
+			if err != nil {
+				glog.Fatalf("Error decoding %#v", err)
+			}
+			CRD := CRDObj.(*apiextensionsv1beta1.CustomResourceDefinition)
+
+			if err := createCRD(testConfig, CRD); err != nil {
+				return err
+			}
+		}
+
+		// create machineSet CRD
+		if CRDBytes, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "0000_50_machine-api-operator_03_machineset.crd.yaml")); err != nil {
+			glog.Fatalf("Error reading %#v", err)
+		} else {
+			CRDObj, _, err := decode([]byte(CRDBytes), nil, nil)
+			if err != nil {
+				glog.Fatalf("Error decoding %#v", err)
+			}
+			CRD := CRDObj.(*apiextensionsv1beta1.CustomResourceDefinition)
+
+			if err := createCRD(testConfig, CRD); err != nil {
+				return err
+			}
+		}
+
+		// create machineDeployment CRD
+		if CRDBytes, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "0000_50_machine-api-operator_04_machinedeployment.crd.yaml")); err != nil {
+			glog.Fatalf("Error reading %#v", err)
+		} else {
+			CRDObj, _, err := decode([]byte(CRDBytes), nil, nil)
+			if err != nil {
+				glog.Fatalf("Error decoding %#v", err)
+			}
+			CRD := CRDObj.(*apiextensionsv1beta1.CustomResourceDefinition)
+
+			if err := createCRD(testConfig, CRD); err != nil {
+				return err
+			}
+		}
+
+		// create cluster CRD
+		if CRDBytes, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "0000_50_machine-api-operator_05_cluster.crd.yaml")); err != nil {
+			glog.Fatalf("Error reading %#v", err)
+		} else {
+			CRDObj, _, err := decode([]byte(CRDBytes), nil, nil)
 			if err != nil {
 				glog.Fatalf("Error decoding %#v", err)
 			}

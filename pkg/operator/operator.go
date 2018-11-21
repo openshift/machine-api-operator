@@ -8,9 +8,6 @@ import (
 	cvoclientset "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
 
 	"k8s.io/api/core/v1"
-	apiextclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
-	apiextinformersv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions/apiextensions/v1beta1"
-	apiextlistersv1beta1 "k8s.io/apiextensions-apiserver/pkg/client/listers/apiextensions/v1beta1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	appsinformersv1 "k8s.io/client-go/informers/apps/v1"
@@ -44,16 +41,12 @@ type Operator struct {
 	config     string
 
 	kubeClient    kubernetes.Interface
-	apiExtClient  apiextclientset.Interface
 	cvoClient     cvoclientset.Interface
 	eventRecorder record.EventRecorder
 
 	syncHandler func(ic string) error
 
-	crdLister    apiextlistersv1beta1.CustomResourceDefinitionLister
-	deployLister appslisterv1.DeploymentLister
-
-	crdListerSynced    cache.InformerSynced
+	deployLister       appslisterv1.DeploymentLister
 	deployListerSynced cache.InformerSynced
 
 	// queue only ever has one item, but it has nice error handling backoff/retry semantics
@@ -68,13 +61,11 @@ func New(
 	config string,
 
 	serviceAccountInfomer coreinformersv1.ServiceAccountInformer,
-	crdInformer apiextinformersv1beta1.CustomResourceDefinitionInformer,
 	deployInformer appsinformersv1.DeploymentInformer,
 	clusterRoleInformer rbacinformersv1.ClusterRoleInformer,
 	clusterRoleBindingInformer rbacinformersv1.ClusterRoleBindingInformer,
 
 	kubeClient kubernetes.Interface,
-	apiExtClient apiextclientset.Interface,
 	cvoClient cvoclientset.Interface,
 ) *Operator {
 	eventBroadcaster := record.NewBroadcaster()
@@ -86,14 +77,12 @@ func New(
 		name:          name,
 		imagesFile:    imagesFile,
 		kubeClient:    kubeClient,
-		apiExtClient:  apiExtClient,
 		cvoClient:     cvoClient,
 		eventRecorder: eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "machineapioperator"}),
 		queue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
 	}
 
 	serviceAccountInfomer.Informer().AddEventHandler(optr.eventHandler())
-	crdInformer.Informer().AddEventHandler(optr.eventHandler())
 	deployInformer.Informer().AddEventHandler(optr.eventHandler())
 	clusterRoleInformer.Informer().AddEventHandler(optr.eventHandler())
 	clusterRoleBindingInformer.Informer().AddEventHandler(optr.eventHandler())
@@ -101,8 +90,6 @@ func New(
 	optr.config = config
 	optr.syncHandler = optr.sync
 
-	optr.crdLister = crdInformer.Lister()
-	optr.crdListerSynced = crdInformer.Informer().HasSynced
 	optr.deployLister = deployInformer.Lister()
 	optr.deployListerSynced = deployInformer.Informer().HasSynced
 
@@ -118,8 +105,7 @@ func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 	defer glog.Info("Shutting down MachineAPIOperator")
 
 	if !cache.WaitForCacheSync(stopCh,
-		optr.deployListerSynced,
-		optr.crdListerSynced) {
+		optr.deployListerSynced) {
 		glog.Error("failed to sync caches")
 		return
 	}
@@ -195,11 +181,6 @@ func (optr *Operator) sync(key string) error {
 		return err
 	}
 
-	if err := optr.syncCustomResourceDefinitions(*operatorConfig); err != nil {
-		glog.Errorf("Failed sync-up custom resources definitions: %v", err)
-		return err
-	}
-	glog.Info("Synched up cluster api CRDs")
 	return optr.syncAll(*operatorConfig)
 }
 

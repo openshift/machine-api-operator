@@ -7,7 +7,6 @@ import (
 	"github.com/golang/glog"
 	"github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 	appsv1 "k8s.io/api/apps/v1"
-	apiextv1beta1 "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -15,6 +14,11 @@ import (
 	"github.com/openshift/machine-api-operator/lib/resourceapply"
 	"github.com/openshift/machine-api-operator/lib/resourceread"
 	"path/filepath"
+)
+
+const (
+	deploymentRolloutPollInterval = time.Second
+	deploymentRolloutTimeout      = 5 * time.Minute
 )
 
 func (optr *Operator) syncAll(config OperatorConfig) error {
@@ -39,33 +43,6 @@ func (optr *Operator) syncAll(config OperatorConfig) error {
 		Type:    v1.OperatorStatusConditionTypeDone,
 		Message: "Done running sync functions",
 	})
-}
-
-func (optr *Operator) syncCustomResourceDefinitions(config OperatorConfig) error {
-	crds := []string{
-		"machine.crd.yaml",
-		"machineset.crd.yaml",
-		"machinedeployment.crd.yaml",
-		"cluster.crd.yaml",
-	}
-
-	for _, crd := range crds {
-		crdBytes, err := PopulateTemplate(&config, filepath.Join(ownedManifestsDir, crd))
-		if err != nil {
-			return fmt.Errorf("error getting asset %s: %v", crd, err)
-		}
-		c := resourceread.ReadCustomResourceDefinitionV1Beta1OrDie(crdBytes)
-		_, updated, err := resourceapply.ApplyCustomResourceDefinition(optr.apiExtClient.ApiextensionsV1beta1(), c)
-		if err != nil {
-			return err
-		}
-		if updated {
-			if err := optr.waitForCustomResourceDefinition(c); err != nil {
-				return err
-			}
-		}
-	}
-	return nil
 }
 
 func (optr *Operator) syncClusterAPIController(config OperatorConfig) error {
@@ -100,32 +77,6 @@ func (optr *Operator) syncClusterAPIController(config OperatorConfig) error {
 		return optr.waitForDeploymentRollout(controller)
 	}
 	return nil
-}
-
-const (
-	deploymentRolloutPollInterval = time.Second
-	deploymentRolloutTimeout      = 5 * time.Minute
-
-	customResourceReadyInterval = time.Second
-	customResourceReadyTimeout  = 5 * time.Minute
-)
-
-func (optr *Operator) waitForCustomResourceDefinition(resource *apiextv1beta1.CustomResourceDefinition) error {
-	return wait.Poll(customResourceReadyInterval, customResourceReadyTimeout, func() (bool, error) {
-		crd, err := optr.crdLister.Get(resource.Name)
-		if err != nil {
-			glog.Errorf("error getting CustomResourceDefinition %s: %v", resource.Name, err)
-			return false, nil
-		}
-
-		for _, condition := range crd.Status.Conditions {
-			if condition.Type == apiextv1beta1.Established && condition.Status == apiextv1beta1.ConditionTrue {
-				return true, nil
-			}
-		}
-		glog.V(4).Infof("CustomResourceDefinition %s is not ready. conditions: %v", crd.Name, crd.Status.Conditions)
-		return false, nil
-	})
 }
 
 func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment) error {
