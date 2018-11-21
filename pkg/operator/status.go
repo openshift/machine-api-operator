@@ -1,61 +1,49 @@
 package operator
 
 import (
-	"fmt"
-
-	"github.com/openshift/cluster-version-operator/lib/resourceapply"
-	"github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
+	osconfigv1 "github.com/openshift/api/config/v1"
+	osclientsetv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
+	cvoresourcemerge "github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/openshift/machine-api-operator/pkg/version"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/utils/pointer"
 )
 
-// syncStatus applies the new condition to the mco's OperatorStatus object.
-func (optr *Operator) syncStatus(cond v1.OperatorStatusCondition) error {
-	if cond.Type == v1.OperatorStatusConditionTypeDegraded {
-		return fmt.Errorf("invalid cond %s", cond.Type)
-	}
-
-	// TODO(yifan): Fill in the Extention field for the status
+//syncStatus applies the new condition to the mao ClusterOperator object.
+func (optr *Operator) syncStatus(cond osconfigv1.ClusterOperatorStatusCondition) error {
 	// to report the status of all the managed components.
-	status := &v1.OperatorStatus{
+	clusterOperator := &osconfigv1.ClusterOperator{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: optr.namespace,
 			Name:      optr.name,
 		},
-		Condition:  cond,
-		Version:    version.Raw,
-		LastUpdate: metav1.Now(),
+		Status: osconfigv1.ClusterOperatorStatus{
+			Version: version.Raw,
+		},
 	}
-	_, _, err := resourceapply.ApplyOperatorStatus(optr.cvoClient.Operatorstatus(), status)
+	cvoresourcemerge.SetOperatorStatusCondition(&clusterOperator.Status.Conditions, cond)
+	_, _, err := ApplyClusterOperator(optr.osClient.ConfigV1(), clusterOperator)
 	return err
 }
 
-// syncDegradedStatus updates the OperatorStatus to Degraded.
-// if ierr is nil, return nil
-// if ierr is not nil, update OperatorStatus as Degraded and return ierr
-func (optr *Operator) syncDegradedStatus(ierr error) error {
-	if ierr == nil {
-		return nil
+// ApplyClusterOperator applies the required ClusterOperator
+func ApplyClusterOperator(client osclientsetv1.ClusterOperatorsGetter, required *osconfigv1.ClusterOperator) (*osconfigv1.ClusterOperator, bool, error) {
+	existing, err := client.ClusterOperators().Get(required.Name, metav1.GetOptions{})
+	if errors.IsNotFound(err) {
+		actual, err := client.ClusterOperators().Create(required)
+		return actual, true, err
 	}
-	cond := v1.OperatorStatusCondition{
-		Type:    v1.OperatorStatusConditionTypeDegraded,
-		Message: fmt.Sprintf("error syncing: %v", ierr),
+	if err != nil {
+		return nil, false, err
 	}
 
-	status := &v1.OperatorStatus{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: optr.namespace,
-			Name:      optr.name,
-		},
-		Condition:  cond,
-		Version:    version.Raw,
-		LastUpdate: metav1.Now(),
-		Extension:  runtime.RawExtension{},
+	modified := pointer.BoolPtr(false)
+	cvoresourcemerge.EnsureClusterOperatorStatus(modified, existing, *required)
+	if !*modified {
+		return existing, false, nil
 	}
-	_, _, err := resourceapply.ApplyOperatorStatus(optr.cvoClient.Operatorstatus(), status)
-	if err != nil {
-		return err
-	}
-	return ierr
+
+	actual, err := client.ClusterOperators().UpdateStatus(existing)
+	return actual, true, err
 }

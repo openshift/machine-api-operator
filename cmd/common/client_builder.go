@@ -2,7 +2,7 @@ package common
 
 import (
 	"github.com/golang/glog"
-	cvoclientset "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
+	osclientset "github.com/openshift/client-go/config/clientset/versioned"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -19,10 +19,9 @@ func (cb *ClientBuilder) KubeClientOrDie(name string) kubernetes.Interface {
 	return kubernetes.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
 }
 
-// ClusterversionClientOrDie returns the kubernetes client interface for cluster version objects.
-// TODO(alberto): Return the client for the Cluster Operator Status objects under config.io.
-func (cb *ClientBuilder) ClusterversionClientOrDie(name string) cvoclientset.Interface {
-	return cvoclientset.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
+// OpenshiftClientOrDie returns the kubernetes client interface for Openshift objects.
+func (cb *ClientBuilder) OpenshiftClientOrDie(name string) osclientset.Interface {
+	return osclientset.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
 }
 
 // NewClientBuilder returns a *ClientBuilder with the given kubeconfig.

@@ -7,7 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/golang/glog"
-	osv1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
+	osconfigv1 "github.com/openshift/api/config/v1"
+	cvoresourcemerge "github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	kappsapi "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -56,24 +57,25 @@ func ExpectOneClusterObject() error {
 	return err
 }
 
-// TODO: move to cluster operator status under config.openshift.io/v1
-func ExpectOperatorStatusConditionDone() error {
+func ExpectClusterOperatorStatusAvailable() error {
 	name := "machine-api-operator"
 	key := types.NamespacedName{
 		Namespace: namespace,
 		Name:      name,
 	}
-	operatorStatus := &osv1.OperatorStatus{}
+	clusterOperator := &osconfigv1.ClusterOperator{}
 
 	err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
-		if err := F.Client.Get(context.TODO(), key, operatorStatus); err != nil {
+		if err := F.Client.Get(context.TODO(), key, clusterOperator); err != nil {
 			glog.Errorf("error querying api for OperatorStatus object: %v, retrying...", err)
 			return false, nil
 		}
-		if operatorStatus.Condition.Type != osv1.OperatorStatusConditionTypeDone {
-			return false, nil
+		if available := cvoresourcemerge.FindOperatorStatusCondition(clusterOperator.Status.Conditions, osconfigv1.OperatorAvailable); available != nil {
+			if available.Status == osconfigv1.ConditionTrue {
+				return true, nil
+			}
 		}
-		return true, nil
+		return false, nil
 	})
 	return err
 }

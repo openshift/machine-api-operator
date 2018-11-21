@@ -87,7 +87,7 @@ func startControllers(ctx *common.ControllerContext) error {
 		ctx.KubeNamespacedInformerFactory.Rbac().V1().ClusterRoleBindings(),
 
 		ctx.ClientBuilder.KubeClientOrDie(componentName),
-		ctx.ClientBuilder.ClusterversionClientOrDie(componentName),
+		ctx.ClientBuilder.OpenshiftClientOrDie(componentName),
 	).Run(2, ctx.Stop)
 
 	return nil

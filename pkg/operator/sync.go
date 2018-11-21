@@ -5,12 +5,12 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	"github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
+	osconfigv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/machine-api-operator/lib/resourceapply"
 	"github.com/openshift/machine-api-operator/lib/resourceread"
 	"path/filepath"
@@ -22,14 +22,15 @@ const (
 )
 
 func (optr *Operator) syncAll(config OperatorConfig) error {
-	glog.Infof("Syncing operatorstatus")
+	glog.Infof("Syncing ClusterOperatorStatus")
 
-	if err := optr.syncStatus(v1.OperatorStatusCondition{
-		Type:    v1.OperatorStatusConditionTypeWorking,
+	if err := optr.syncStatus(osconfigv1.ClusterOperatorStatusCondition{
+		Type:    osconfigv1.OperatorProgressing,
+		Status:  osconfigv1.ConditionTrue,
 		Message: "Running sync functions",
 	}); err != nil {
-		glog.Errorf("Error synching operatorstatus: %v", err)
-		return fmt.Errorf("error syncing status: %v", err)
+		glog.Errorf("Error synching ClusterOperatorStatus: %v", err)
+		return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
 	}
 
 	err := optr.syncClusterAPIController(config)
@@ -39,8 +40,18 @@ func (optr *Operator) syncAll(config OperatorConfig) error {
 	}
 	glog.Info("Synched up cluster api controller")
 
-	return optr.syncStatus(v1.OperatorStatusCondition{
-		Type:    v1.OperatorStatusConditionTypeDone,
+	// TODO(alberto): create funcs to for atomic conds changes
+	if err := optr.syncStatus(osconfigv1.ClusterOperatorStatusCondition{
+		Type:    osconfigv1.OperatorProgressing,
+		Status:  osconfigv1.ConditionFalse,
+		Message: "Running sync functions",
+	}); err != nil {
+		glog.Errorf("Error synching ClusterOperatorStatus: %v", err)
+		return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
+	}
+	return optr.syncStatus(osconfigv1.ClusterOperatorStatusCondition{
+		Type:    osconfigv1.OperatorAvailable,
+		Status:  osconfigv1.ConditionTrue,
 		Message: "Done running sync functions",
 	})
 }
