@@ -11,8 +11,8 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
-	"github.com/openshift/machine-api-operator/lib/resourceapply"
-	"github.com/openshift/machine-api-operator/lib/resourceread"
+	"github.com/openshift/cluster-version-operator/lib/resourceapply"
+	"github.com/openshift/cluster-version-operator/lib/resourceread"
 	"path/filepath"
 )
 
