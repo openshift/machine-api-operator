@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	cvoclientset "github.com/openshift/cluster-version-operator/pkg/generated/clientset/versioned"
+	osclientset "github.com/openshift/client-go/config/clientset/versioned"
 
 	"k8s.io/api/core/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -41,7 +41,7 @@ type Operator struct {
 	config     string
 
 	kubeClient    kubernetes.Interface
-	cvoClient     cvoclientset.Interface
+	osClient      osclientset.Interface
 	eventRecorder record.EventRecorder
 
 	syncHandler func(ic string) error
@@ -66,7 +66,7 @@ func New(
 	clusterRoleBindingInformer rbacinformersv1.ClusterRoleBindingInformer,
 
 	kubeClient kubernetes.Interface,
-	cvoClient cvoclientset.Interface,
+	osClient osclientset.Interface,
 ) *Operator {
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(glog.Infof)
@@ -77,7 +77,7 @@ func New(
 		name:          name,
 		imagesFile:    imagesFile,
 		kubeClient:    kubeClient,
-		cvoClient:     cvoClient,
+		osClient:      osClient,
 		eventRecorder: eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "machineapioperator"}),
 		queue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
 	}

@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"github.com/golang/glog"
-	osv1 "github.com/openshift/cluster-version-operator/pkg/apis/operatorstatus.openshift.io/v1"
+	osconfigv1 "github.com/openshift/api/config/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	capiv1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -23,7 +23,7 @@ func init() {
 		glog.Fatal(err)
 	}
 
-	if err := osv1.AddToScheme(scheme.Scheme); err != nil {
+	if err := osconfigv1.AddToScheme(scheme.Scheme); err != nil {
 		glog.Fatal(err)
 	}
 	if err := newClient(); err != nil {
@@ -75,11 +75,11 @@ func runSuite() error {
 	}
 	glog.Info("PASS: ExpectOneClusterObject")
 
-	if err := ExpectOperatorStatusConditionDone(); err != nil {
-		glog.Errorf("FAIL: ExpectOperatorStatusConditionDone: %v", err)
+	if err := ExpectClusterOperatorStatusAvailable(); err != nil {
+		glog.Errorf("FAIL: ExpectClusterOperatorStatusAvailable: %v", err)
 		return err
 	}
-	glog.Info("PASS: ExpectOperatorStatusConditionDone")
+	glog.Info("PASS: ExpectClusterOperatorStatusAvailable")
 
 	if err := ExpectAllMachinesLinkedToANode(); err != nil {
 		glog.Errorf("FAIL: ExpectAllMachinesLinkedToANode: %v", err)
