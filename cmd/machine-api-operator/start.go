@@ -4,7 +4,6 @@ import (
 	"flag"
 
 	"github.com/golang/glog"
-	"github.com/openshift/machine-api-operator/cmd/common"
 	"github.com/openshift/machine-api-operator/pkg/operator"
 	"github.com/openshift/machine-api-operator/pkg/version"
 	"github.com/spf13/cobra"
@@ -42,14 +41,14 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 		glog.Fatalf("--images-json should not be empty")
 	}
 
-	cb, err := common.NewClientBuilder(startOpts.kubeconfig)
+	cb, err := NewClientBuilder(startOpts.kubeconfig)
 	if err != nil {
 		glog.Fatalf("error creating clients: %v", err)
 	}
 	stopCh := make(chan struct{})
 	run := func(stop <-chan struct{}) {
 
-		ctx := common.CreateControllerContext(cb, stopCh, componentNamespace)
+		ctx := CreateControllerContext(cb, stopCh, componentNamespace)
 		if err := startControllers(ctx); err != nil {
 			glog.Fatalf("error starting controllers: %v", err)
 		}
@@ -61,10 +60,10 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 	}
 
 	leaderelection.RunOrDie(leaderelection.LeaderElectionConfig{
-		Lock:          common.CreateResourceLock(cb, componentNamespace, componentName),
-		LeaseDuration: common.LeaseDuration,
-		RenewDeadline: common.RenewDeadline,
-		RetryPeriod:   common.RetryPeriod,
+		Lock:          CreateResourceLock(cb, componentNamespace, componentName),
+		LeaseDuration: LeaseDuration,
+		RenewDeadline: RenewDeadline,
+		RetryPeriod:   RetryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: run,
 			OnStoppedLeading: func() {
@@ -75,7 +74,7 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 	panic("unreachable")
 }
 
-func startControllers(ctx *common.ControllerContext) error {
+func startControllers(ctx *ControllerContext) error {
 	go operator.New(
 		componentNamespace, componentName,
 		startOpts.imagesFile,
