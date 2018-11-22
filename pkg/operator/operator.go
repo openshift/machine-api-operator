@@ -215,6 +215,7 @@ func (optr *Operator) maoConfigFromInstallConfig() (*OperatorConfig, error) {
 		Controllers{
 			providerControllerImage,
 			machineAPIOperatorImage,
+			machineAPIOperatorImage,
 		},
 	}, nil
 }

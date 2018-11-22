@@ -73,3 +73,17 @@ spec:
           limits:
             cpu: 100m
             memory: 30Mi
+      - name: machine-healhtcheck
+        image: {{ .Controllers.MachineHealthCheck }}
+        command:
+          - /machine-healthcheck
+        args:
+          - --logtostderr=true
+          - --v=3
+        resources:
+          requests:
+            cpu: 100m
+            memory: 20Mi
+          limits:
+            cpu: 100m
+            memory: 30Mi

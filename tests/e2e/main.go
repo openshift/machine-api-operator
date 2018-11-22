@@ -314,6 +314,21 @@ var rootCmd = &cobra.Command{
 			}
 		}
 
+		// create machinehealthcheck CRD
+		if CRDBytes, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "0000_50_machine-api-operator_06_machinehealthcheck.crd.yaml")); err != nil {
+			glog.Fatalf("Error reading %#v", err)
+		} else {
+			CRDObj, _, err := decode([]byte(CRDBytes), nil, nil)
+			if err != nil {
+				glog.Fatalf("Error decoding %#v", err)
+			}
+			CRD := CRDObj.(*apiextensionsv1beta1.CustomResourceDefinition)
+
+			if err := createCRD(testConfig, CRD); err != nil {
+				return err
+			}
+		}
+
 		installConfigData, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "install-config.yaml"))
 		if err != nil {
 			glog.Fatalf("Unable to render manifests %q: %v", installConfigData, err)
