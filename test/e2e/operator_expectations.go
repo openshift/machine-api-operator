@@ -17,7 +17,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func ExpectOperatorAvailable() error {
+const (
+	waitShort = 1 * time.Minute
+	waitLong  = 3 * time.Minute
+)
+
+func (tc *testConfig) ExpectOperatorAvailable() error {
 	name := "machine-api-operator"
 	key := types.NamespacedName{
 		Namespace: namespace,
@@ -25,8 +30,8 @@ func ExpectOperatorAvailable() error {
 	}
 	d := &kappsapi.Deployment{}
 
-	err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
-		if err := F.Client.Get(context.TODO(), key, d); err != nil {
+	err := wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
+		if err := tc.client.Get(context.TODO(), key, d); err != nil {
 			glog.Errorf("error querying api for Deployment object: %v, retrying...", err)
 			return false, nil
 		}
@@ -38,14 +43,14 @@ func ExpectOperatorAvailable() error {
 	return err
 }
 
-func ExpectOneClusterObject() error {
+func (tc *testConfig) ExpectOneClusterObject() error {
 	listOptions := client.ListOptions{
 		Namespace: namespace,
 	}
 	clusterList := capiv1alpha1.ClusterList{}
 
-	err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
-		if err := F.Client.List(context.TODO(), &listOptions, &clusterList); err != nil {
+	err := wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
+		if err := tc.client.List(context.TODO(), &listOptions, &clusterList); err != nil {
 			glog.Errorf("error querying api for clusterList object: %v, retrying...", err)
 			return false, nil
 		}
@@ -57,7 +62,7 @@ func ExpectOneClusterObject() error {
 	return err
 }
 
-func ExpectClusterOperatorStatusAvailable() error {
+func (tc *testConfig) ExpectClusterOperatorStatusAvailable() error {
 	name := "machine-api-operator"
 	key := types.NamespacedName{
 		Namespace: namespace,
@@ -65,8 +70,8 @@ func ExpectClusterOperatorStatusAvailable() error {
 	}
 	clusterOperator := &osconfigv1.ClusterOperator{}
 
-	err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
-		if err := F.Client.Get(context.TODO(), key, clusterOperator); err != nil {
+	err := wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
+		if err := tc.client.Get(context.TODO(), key, clusterOperator); err != nil {
 			glog.Errorf("error querying api for OperatorStatus object: %v, retrying...", err)
 			return false, nil
 		}
@@ -80,7 +85,7 @@ func ExpectClusterOperatorStatusAvailable() error {
 	return err
 }
 
-func ExpectAllMachinesLinkedToANode() error {
+func (tc *testConfig) ExpectAllMachinesLinkedToANode() error {
 	machineAnnotationKey := "machine"
 	listOptions := client.ListOptions{
 		Namespace: namespace,
@@ -88,8 +93,8 @@ func ExpectAllMachinesLinkedToANode() error {
 	machineList := capiv1alpha1.MachineList{}
 	nodeList := corev1.NodeList{}
 
-	err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
-		if err := F.Client.List(context.TODO(), &listOptions, &machineList); err != nil {
+	err := wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
+		if err := tc.client.List(context.TODO(), &listOptions, &machineList); err != nil {
 			glog.Errorf("error querying api for machineList object: %v, retrying...", err)
 			return false, nil
 		}
@@ -99,8 +104,8 @@ func ExpectAllMachinesLinkedToANode() error {
 		return err
 	}
 
-	err = wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
-		if err := F.Client.List(context.TODO(), &listOptions, &nodeList); err != nil {
+	err = wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
+		if err := tc.client.List(context.TODO(), &listOptions, &nodeList); err != nil {
 			glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
 			return false, nil
 		}
@@ -122,4 +127,49 @@ func ExpectAllMachinesLinkedToANode() error {
 		}
 	}
 	return nil
+}
+
+func (tc *testConfig) ExpectReconcileControllersDeployment() error {
+	key := types.NamespacedName{
+		Namespace: namespace,
+		Name:      "clusterapi-manager-controllers",
+	}
+	d := &kappsapi.Deployment{}
+
+	glog.Info("Get deployment")
+	err := wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
+		if err := tc.client.Get(context.TODO(), key, d); err != nil {
+			glog.Errorf("error querying api for Deployment object: %v, retrying...", err)
+			return false, nil
+		}
+		return true, nil
+	})
+	if err != nil {
+		return err
+	}
+
+	glog.Info("Delete deployment")
+	err = wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
+		if err := tc.client.Delete(context.TODO(), d); err != nil {
+			glog.Errorf("error querying api for Deployment object: %v, retrying...", err)
+			return false, nil
+		}
+		return true, nil
+	})
+	if err != nil {
+		return err
+	}
+
+	glog.Info("Verify deployment is recreated")
+	err = wait.PollImmediate(1*time.Second, waitLong, func() (bool, error) {
+		if err := tc.client.Get(context.TODO(), key, d); err != nil {
+			glog.Errorf("error querying api for Deployment object: %v, retrying...", err)
+			return false, nil
+		}
+		if d.Status.ReadyReplicas < 1 || !d.DeletionTimestamp.IsZero() {
+			return false, nil
+		}
+		return true, nil
+	})
+	return err
 }

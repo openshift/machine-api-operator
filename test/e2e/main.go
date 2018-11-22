@@ -14,10 +14,6 @@ const (
 	namespace = "openshift-cluster-api"
 )
 
-var (
-	F *Framework
-)
-
 func init() {
 	if err := capiv1alpha1.AddToScheme(scheme.Scheme); err != nil {
 		glog.Fatal(err)
@@ -26,33 +22,21 @@ func init() {
 	if err := osconfigv1.AddToScheme(scheme.Scheme); err != nil {
 		glog.Fatal(err)
 	}
-	if err := newClient(); err != nil {
-		glog.Fatal(err)
-	}
 }
 
-type Framework struct {
-	Client client.Client
+type testConfig struct {
+	client client.Client
 }
 
-func newClient() error {
+func newClient() (client.Client, error) {
 	// Get a config to talk to the apiserver
 	cfg, err := config.GetConfig()
 	if err != nil {
-		return err
-	}
-	if err != nil {
-		return err
+		return nil, err
 	}
 
-	client, err := client.New(cfg, client.Options{})
-	if err != nil {
-		return err
-	}
-	F = &Framework{
-		Client: client,
-	}
-	return nil
+	return client.New(cfg, client.Options{})
+
 }
 
 func main() {
@@ -63,28 +47,42 @@ func main() {
 }
 
 func runSuite() error {
-	if err := ExpectOperatorAvailable(); err != nil {
+
+	client, err := newClient()
+	if err != nil {
+		return err
+	}
+	testConfig := &testConfig{
+		client: client,
+	}
+	if err := testConfig.ExpectOperatorAvailable(); err != nil {
 		glog.Errorf("FAIL: ExpectOperatorAvailable: %v", err)
 		return err
 	}
 	glog.Info("PASS: ExpectOperatorAvailable")
 
-	if err := ExpectOneClusterObject(); err != nil {
+	if err := testConfig.ExpectOneClusterObject(); err != nil {
 		glog.Errorf("FAIL: ExpectOneClusterObject: %v", err)
 		return err
 	}
 	glog.Info("PASS: ExpectOneClusterObject")
 
-	if err := ExpectClusterOperatorStatusAvailable(); err != nil {
+	if err := testConfig.ExpectClusterOperatorStatusAvailable(); err != nil {
 		glog.Errorf("FAIL: ExpectClusterOperatorStatusAvailable: %v", err)
 		return err
 	}
 	glog.Info("PASS: ExpectClusterOperatorStatusAvailable")
 
-	if err := ExpectAllMachinesLinkedToANode(); err != nil {
+	if err := testConfig.ExpectAllMachinesLinkedToANode(); err != nil {
 		glog.Errorf("FAIL: ExpectAllMachinesLinkedToANode: %v", err)
 		return err
 	}
 	glog.Info("PASS: ExpectAllMachinesLinkedToANode")
+
+	if err := testConfig.ExpectReconcileControllersDeployment(); err != nil {
+		glog.Errorf("FAIL: ExpectReconcileControllersDeployment: %v", err)
+		return err
+	}
+	glog.Info("PASS: ExpectReconcileControllersDeployment")
 	return nil
 }
