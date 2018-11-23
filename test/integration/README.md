@@ -1,17 +1,17 @@
 ## Build
 From the project root folder:
 ```
-go build -v -o bin/e2e github.com/openshift/machine-api-operator/tests/e2e
+go build -v -o bin/integration github.com/openshift/machine-api-operator/test/integration
 ```
 or
 ```
-make build-e2e
+make build-integration
 ```
 ## Run
 Requires [aws cli](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-welcome.html) to get local credentials.
 Assuming there's a kubernetes cluster running, e.g `minikube start`
 ```
-/bin/e2e --kubeconfig ~/.kube/config --mao-image machine-api-operator:e2e --assets-path tests/e2e --cluster-id testing
+/bin/integration --kubeconfig ~/.kube/config --mao-image machine-api-operator:integration --assets-path tests/integration --cluster-id testing
 ```
 
 ## CI

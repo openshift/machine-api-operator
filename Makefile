@@ -39,11 +39,11 @@ machine-healthcheck:
 	@echo -e "\033[32mBuilding machine healthcheck binary...\033[0m"
 	$(DOCKER_CMD) go build $(GOGCFLAGS) -o bin/machine-healthcheck github.com/openshift/machine-api-operator/cmd/machine-healthcheck
 
-.PHONY: build-e2e
-build-e2e: ## Build end-to-end test binary
-	@echo -e "\033[32mBuilding e2e test binary...\033[0m"
+.PHONY: build-integration
+build-integration: ## Build integration test binary
+	@echo -e "\033[32mBuilding integration test binary...\033[0m"
 	mkdir -p bin
-	$(DOCKER_CMD) go build $(GOGCFLAGS) -o bin/e2e github.com/openshift/machine-api-operator/tests/e2e
+	$(DOCKER_CMD) go build $(GOGCFLAGS) -o bin/integration github.com/openshift/machine-api-operator/test/integration
 
 test-e2e:
 	go run ./test/e2e/*.go -alsologtostderr
