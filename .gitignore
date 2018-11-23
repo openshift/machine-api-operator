@@ -13,6 +13,6 @@
 *.out
 bin
 
-tests/e2e/.terraform*
-tests/e2e/manifests/aws-credentials.yaml
-tests/e2e/terraform.*
+test/integration/.terraform*
+test/integration/manifests/aws-credentials.yaml
+test/integration/terraform.*

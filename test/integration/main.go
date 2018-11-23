@@ -178,7 +178,7 @@ func cmdRun(assetsDir string, binaryPath string, args ...string) error {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "e2e",
+	Use:   "integration",
 	Short: "Test deployment of cluster-api stack",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		kubeconfig := cmd.Flag("kubeconfig").Value.String()
@@ -542,7 +542,7 @@ func init() {
 	rootCmd.PersistentFlags().StringP("kubeconfig", "m", "", "Kubernetes config")
 	rootCmd.PersistentFlags().StringP("log-level", "l", defaultLogLevel, "Log level (debug,info,warn,error,fatal)")
 	rootCmd.PersistentFlags().StringP("mao-image", "", "machine-api-operator:mvp", "machine-api-operator docker image to run")
-	rootCmd.PersistentFlags().StringP("assets-path", "", "./tests/e2e", "path to terraform and kube assets")
+	rootCmd.PersistentFlags().StringP("assets-path", "", "./test/integration", "path to terraform and kube assets")
 	rootCmd.PersistentFlags().StringP("cluster-id", "", "testCluster", "A unique id for the environment to build")
 }
 
