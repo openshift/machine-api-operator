@@ -63,14 +63,14 @@ You can see it in action by running an [OpenShift Cluster deployed by the Instal
 However you can run it in a vanilla Kubernetes cluster by precreating some assets:
 
 - Create a `openshift-machine-api-operator` namespace
-- Create a [CRD Status definition](tests/e2e/manifests/status-crd.yaml)
-- Create a [CRD Machine definition](tests/e2e/manifests/0000_50_machine-api-operator_02_machine.crd.yaml)
-- Create a [CRD MachineSet definition](tests/e2e/manifests/0000_50_machine-api-operator_03_machineset.crd.yaml)
-- Create a [CRD MachineDeployment definition](tests/e2e/manifests/0000_50_machine-api-operator_04_machinedeployment.crd.yaml)
-- Create a [CRD Cluster definition](tests/e2e/manifests/0000_50_machine-api-operator_05_cluster.crd.yaml)
-- Create a [Installer config](tests/e2e/manifests/install-config.yaml)
-- You can run it as a deployment with [this manifest](tests/e2e/manifests/operator-deployment.yaml)
-
+- Create a [CRD Status definition](test/integration/manifests/status-crd.yaml)
+- Create a [CRD Machine definition](test/integration/manifests/0000_50_machine-api-operator_02_machine.crd.yaml)
+- Create a [CRD MachineSet definition](test/integration/manifests/0000_50_machine-api-operator_03_machineset.crd.yaml)
+- Create a [CRD MachineDeployment definition](test/integration/manifests/0000_50_machine-api-operator_04_machinedeployment.crd.yaml)
+- Create a [CRD Cluster definition](test/integration/manifests/0000_50_machine-api-operator_05_cluster.crd.yaml)
+- Create a [Installer config](test/integration/manifests/install-config.yaml)
+- Then you can run it as a [deployment](install/0000_50_machine-api-operator_08_deployment.yaml)
+- You should then be able to deploy a [cluster](test/integration/manifests/cluster.yaml) and a [machineSet](test/integration/manifests/machineset.yaml) object
 
 ## CI & tests
 
