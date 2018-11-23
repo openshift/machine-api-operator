@@ -20,4 +20,3 @@ spec:
         metadata:
           type: object
   version: v1alpha1
-
