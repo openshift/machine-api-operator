@@ -18,8 +18,9 @@ import (
 )
 
 const (
-	waitShort = 1 * time.Minute
-	waitLong  = 3 * time.Minute
+	waitShort  = 1 * time.Minute
+	waitMedium = 3 * time.Minute
+	waitLong   = 10 * time.Minute
 )
 
 func (tc *testConfig) ExpectOperatorAvailable() error {
@@ -172,4 +173,100 @@ func (tc *testConfig) ExpectReconcileControllersDeployment() error {
 		return true, nil
 	})
 	return err
+}
+
+func (tc *testConfig) ExpectNewNodeWhenDeletingMachine() error {
+	listOptions := client.ListOptions{
+		Namespace: namespace,
+	}
+	machineList := capiv1alpha1.MachineList{}
+	nodeList := corev1.NodeList{}
+
+	glog.Info("Get machineList")
+	err := wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
+		if err := tc.client.List(context.TODO(), &listOptions, &machineList); err != nil {
+			glog.Errorf("error querying api for machineList object: %v, retrying...", err)
+			return false, nil
+		}
+		return true, nil
+	})
+	if err != nil {
+		return err
+	}
+
+	glog.Info("Get nodeList")
+	err = wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
+		if err := tc.client.List(context.TODO(), &listOptions, &nodeList); err != nil {
+			glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
+			return false, nil
+		}
+		return true, nil
+	})
+	if err != nil {
+		return err
+	}
+
+	clusterInitialTotalNodes := len(nodeList.Items)
+	clusterInitialTotalMachines := len(machineList.Items)
+	var triagedWorkerMachine capiv1alpha1.Machine
+	var triagedWorkerNode corev1.Node
+MachineLoop:
+	for _, m := range machineList.Items {
+		if m.Labels["sigs.k8s.io/cluster-api-machine-role"] == "worker" {
+			for _, n := range nodeList.Items {
+				if m.Status.NodeRef == nil {
+					glog.Errorf("no NodeRef found in machine %v", m.Name)
+					return errors.New("no NodeRef found in machine")
+				}
+				if n.Name == m.Status.NodeRef.Name {
+					triagedWorkerMachine = m
+					triagedWorkerNode = n
+					break MachineLoop
+				}
+			}
+		}
+	}
+
+	glog.Info("Delete machine")
+	err = wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
+		if err := tc.client.Delete(context.TODO(), &triagedWorkerMachine); err != nil {
+			glog.Errorf("error querying api for Deployment object: %v, retrying...", err)
+			return false, nil
+		}
+		return true, nil
+	})
+	if err != nil {
+		return err
+	}
+
+	err = wait.PollImmediate(1*time.Second, waitMedium, func() (bool, error) {
+		if err := tc.client.List(context.TODO(), &listOptions, &machineList); err != nil {
+			glog.Errorf("error querying api for machineList object: %v, retrying...", err)
+			return false, nil
+		}
+		glog.Info("Expect new machine to come up")
+		return len(machineList.Items) == clusterInitialTotalMachines, nil
+	})
+	if err != nil {
+		return err
+	}
+
+	err = wait.PollImmediate(1*time.Second, waitLong, func() (bool, error) {
+		if err := tc.client.List(context.TODO(), &listOptions, &nodeList); err != nil {
+			glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
+			return false, nil
+		}
+		glog.Info("Expect deleted machine node to go away")
+		for _, n := range nodeList.Items {
+			if n.Name == triagedWorkerNode.Name {
+				return false, nil
+			}
+		}
+		glog.Info("Expect new node to come up")
+		return len(nodeList.Items) == clusterInitialTotalNodes, nil
+	})
+	if err != nil {
+		return err
+	}
+	return nil
 }
