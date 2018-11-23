@@ -55,34 +55,46 @@ func runSuite() error {
 	testConfig := &testConfig{
 		client: client,
 	}
+	glog.Info("RUN: ExpectOperatorAvailable")
 	if err := testConfig.ExpectOperatorAvailable(); err != nil {
 		glog.Errorf("FAIL: ExpectOperatorAvailable: %v", err)
 		return err
 	}
 	glog.Info("PASS: ExpectOperatorAvailable")
 
+	glog.Info("RUN: ExpectOneClusterObject")
 	if err := testConfig.ExpectOneClusterObject(); err != nil {
 		glog.Errorf("FAIL: ExpectOneClusterObject: %v", err)
 		return err
 	}
 	glog.Info("PASS: ExpectOneClusterObject")
 
+	glog.Info("RUN: ExpectClusterOperatorStatusAvailable")
 	if err := testConfig.ExpectClusterOperatorStatusAvailable(); err != nil {
 		glog.Errorf("FAIL: ExpectClusterOperatorStatusAvailable: %v", err)
 		return err
 	}
 	glog.Info("PASS: ExpectClusterOperatorStatusAvailable")
 
+	glog.Info("RUN: ExpectAllMachinesLinkedToANode")
 	if err := testConfig.ExpectAllMachinesLinkedToANode(); err != nil {
 		glog.Errorf("FAIL: ExpectAllMachinesLinkedToANode: %v", err)
 		return err
 	}
 	glog.Info("PASS: ExpectAllMachinesLinkedToANode")
 
+	glog.Info("RUN: ExpectReconcileControllersDeployment")
 	if err := testConfig.ExpectReconcileControllersDeployment(); err != nil {
 		glog.Errorf("FAIL: ExpectReconcileControllersDeployment: %v", err)
 		return err
 	}
 	glog.Info("PASS: ExpectReconcileControllersDeployment")
+
+	glog.Info("RUN: ExpectNewNodeWhenDeletingMachine")
+	if err := testConfig.ExpectNewNodeWhenDeletingMachine(); err != nil {
+		glog.Errorf("FAIL: ExpectNewNodeWhenDeletingMachine: %v", err)
+		return err
+	}
+	glog.Info("PASS: ExpectNewNodeWhenDeletingMachine")
 	return nil
 }
