@@ -24,7 +24,7 @@ spec:
         - "/machine-api-operator"
         args:
         - "start"
-        - "--images-json=/etc/mao-config/images/images.json"
+        - "--images-json=/etc/machine-api-operator-config/images/images.json"
         resources:
           limits:
             cpu: 20m
@@ -34,7 +34,7 @@ spec:
             memory: 50Mi
         volumeMounts:
         - name: images
-          mountPath: /etc/mao-config/images
+          mountPath: /etc/machine-api-operator-config/images
       nodeSelector:
         node-role.kubernetes.io/master: ""
       restartPolicy: Always
