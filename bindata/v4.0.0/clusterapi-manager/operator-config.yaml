@@ -1,0 +1,11 @@
+apiVersion: openshiftapiserver.operator.openshift.io/v1alpha1
+kind: OpenShiftAPIServerOperatorConfig
+metadata:
+  name: instance
+spec:
+  managementState: Managed
+  imagePullSpec: openshift/origin-hypershift:latest
+  version: 3.11.0
+  logging:
+    level: 4
+  replicas: 2

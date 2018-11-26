@@ -1,32 +1,48 @@
 package main
 
 import (
-	"flag"
+	goflag "flag"
+	"fmt"
+	"math/rand"
+	"os"
+	"time"
 
-	"github.com/golang/glog"
 	"github.com/spf13/cobra"
-)
+	"github.com/spf13/pflag"
 
-const (
-	componentName      = "machine-api-operator"
-	componentNamespace = "openshift-cluster-api"
-)
+	utilflag "k8s.io/apiserver/pkg/util/flag"
+	"k8s.io/apiserver/pkg/util/logs"
 
-var (
-	rootCmd = &cobra.Command{
-		Use:   componentName,
-		Short: "Run Cluster API Controller",
-		Long:  "",
-	}
-	config string
+	"github.com/openshift/machine-api-operator/pkg/cmd/operator"
 )
-
-func init() {
-	rootCmd.PersistentFlags().AddGoFlagSet(flag.CommandLine)
-}
 
 func main() {
-	if err := rootCmd.Execute(); err != nil {
-		glog.Exitf("Error executing mao: %v", err)
+	rand.Seed(time.Now().UTC().UnixNano())
+
+	pflag.CommandLine.SetNormalizeFunc(utilflag.WordSepNormalizeFunc)
+	pflag.CommandLine.AddGoFlagSet(goflag.CommandLine)
+
+	logs.InitLogs()
+	defer logs.FlushLogs()
+
+	command := NewMachineAPIOperatorCommand()
+	if err := command.Execute(); err != nil {
+		fmt.Fprintf(os.Stderr, "%v\n", err)
+		os.Exit(1)
 	}
+}
+
+func NewMachineAPIOperatorCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "machine-api-operator",
+		Short: "OpenShift machine-api operator",
+		Run: func(cmd *cobra.Command, args []string) {
+			cmd.Help()
+			os.Exit(1)
+		},
+	}
+
+	cmd.AddCommand(operator.NewOperator())
+
+	return cmd
 }

@@ -1,0 +1,2 @@
+apiVersion: openshiftcontrolplane.config.openshift.io/v1
+kind: MachineOpenShiftAPIServerConfig

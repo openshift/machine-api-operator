@@ -1,81 +1,35 @@
-DBG         ?= 0
-#REGISTRY    ?= quay.io/openshift/
-VERSION     ?= $(shell git describe --always --abbrev=7)
-MUTABLE_TAG ?= latest
-IMAGE        = $(REGISTRY)machine-api-operator
-
-ifeq ($(DBG),1)
-GOGCFLAGS ?= -gcflags=all="-N -l"
-endif
-
+all: build
 .PHONY: all
-all: check build test
 
-NO_DOCKER ?= 0
-ifeq ($(NO_DOCKER), 1)
-  DOCKER_CMD =
-  IMAGE_BUILD_CMD = imagebuilder
-else
-  DOCKER_CMD := docker run --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z -w /go/src/github.com/openshift/machine-api-operator golang:1.10
-  IMAGE_BUILD_CMD = docker build
-endif
+# Codegen module needs setting these required variables
+CODEGEN_OUTPUT_PACKAGE :=github.com/openshift/machine-api-operator/pkg/generated
+CODEGEN_API_PACKAGE :=github.com/openshift/machine-api-operator/pkg/apis
+CODEGEN_GROUPS_VERSION :=machineapi:v1alpha1
 
-.PHONY: check
-check: lint fmt vet test
+# Include the library makefile
+include $(addprefix ./vendor/github.com/openshift/library-go/alpha-build-machinery/make/, \
+	operator.mk \
+)
 
-.PHONY: build
-build: ## Build binary
-	@echo -e "\033[32mBuilding package...\033[0m"
-	mkdir -p bin
-	$(DOCKER_CMD) go build $(GOGCFLAGS) -o bin/machine-api-operator github.com/openshift/machine-api-operator/cmd/machine-api-operator
+# This will call a macro called "build-image" which will generate image specific targets based on the parameters:
+# $0 - macro name
+# $1 - target suffix
+# $2 - Dockerfile path
+# $3 - context directory for image build
+# It will generate target "image-$(1)" for builing the image an binding it as a prerequisite to target "images".
+$(call build-image,origin-$(GO_PACKAGE),./Dockerfile,.)
 
-.PHONY: nodelink-controller
-nodelink-controller:
-	@echo -e "\033[32mBuilding node link controller binary...\033[0m"
-	$(DOCKER_CMD) go build $(GOGCFLAGS) -o bin/nodelink-controller github.com/openshift/machine-api-operator/cmd/nodelink-controller
+# This will call a macro called "add-bindata" which will generate bindata specific targets based on the parameters:
+# $0 - macro name
+# $1 - target suffix
+# $2 - input dirs
+# $3 - prefix
+# $4 - pkg
+# $5 - output
+# It will generate targets {update,verify}-bindata-$(1) logically grouping them in unsuffixed versions of these targets
+# and also hooked into {update,verify}-generated for broader integration.
+$(call add-bindata,v4.0.0,./bindata/v4.0.0/...,bindata,v400_00_assets,pkg/operator/v400_00_assets/bindata.go)
 
-.PHONY: machine-healthcheck
-machine-healthcheck:
-	@echo -e "\033[32mBuilding machine healthcheck binary...\033[0m"
-	$(DOCKER_CMD) go build $(GOGCFLAGS) -o bin/machine-healthcheck github.com/openshift/machine-api-operator/cmd/machine-healthcheck
-
-.PHONY: build-e2e
-build-e2e: ## Build end-to-end test binary
-	@echo -e "\033[32mBuilding e2e test binary...\033[0m"
-	mkdir -p bin
-	$(DOCKER_CMD) go build $(GOGCFLAGS) -o bin/e2e github.com/openshift/machine-api-operator/tests/e2e
-
-test-e2e:
-	go run ./test/e2e/*.go -alsologtostderr
-
-.PHONY: test
-test: ## Run tests
-	@echo -e "\033[32mTesting...\033[0m"
-	$(DOCKER_CMD) go test ./...
-
-.PHONY: image
-image: ## Build docker image
-	@echo -e "\033[32mBuilding image $(IMAGE):$(VERSION) and tagging also as $(IMAGE):$(MUTABLE_TAG)...\033[0m"
-	$(IMAGE_BUILD_CMD) -t "$(IMAGE):$(VERSION)" -t "$(IMAGE):$(MUTABLE_TAG)" ./
-
-.PHONY: push
-push: ## Push image to docker registry
-	@echo -e "\033[32mPushing images...\033[0m"
-	docker push "$(IMAGE):$(VERSION)"
-	docker push "$(IMAGE):$(MUTABLE_TAG)"
-
-.PHONY: lint
-lint: ## Go lint your code
-	hack/go-lint.sh -min_confidence 0.3 $(go list -f '{{ .ImportPath }}' ./...)
-
-.PHONY: fmt
-fmt: ## Go fmt your code
-	hack/go-fmt.sh .
-
-.PHONY: vet
-vet: ## Apply go vet to all go files
-	hack/go-vet.sh ./...
-
-.PHONY: help
-help:
-	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+clean:
+	$(RM) ./machine-api-operator
+.PHONY: clean

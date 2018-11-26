@@ -10,6 +10,10 @@ required = [
   "k8s.io/gengo/args",
 ]
 
+[[override]]
+  name = "github.com/jteeuwen/go-bindata"
+  revision = "a0ff2567cfb70903282db057e799fd826784d41d"
+
 [[constraint]]
   name = "github.com/ghodss/yaml"
   version = "1.0.0"
@@ -24,6 +28,10 @@ required = [
 
 [[override]]
   name = "github.com/openshift/cluster-version-operator"
+  branch = "master"
+
+[[override]]
+  name = "github.com/openshift/api"
   branch = "master"
 
 [[override]]
@@ -43,7 +51,7 @@ required = [
   name = "k8s.io/api"
   # revision for tag "kubernetes-1.11.2"
   revision = "2d6f90ab1293a1fb871cf149423ebb72aa7423aa"
-
+  
 [[override]]
   name = "k8s.io/apiextensions-apiserver"
   # revision for tag "kubernetes-1.11.2"
@@ -53,6 +61,18 @@ required = [
   name = "k8s.io/apimachinery"
   # revision for tag "kubernetes-1.11.2"
   revision = "103fd098999dc9c0c88536f5c9ad2e5da39373ae"
+
+[[override]]
+  name = "k8s.io/gengo"
+  revision = "01a732e01d00cb9a81bb0ca050d3e6d2b947927b"
+
+[[override]]
+  name = "k8s.io/apiserver"
+  branch = "release-1.11"
+
+[[override]]
+  name = "github.com/openshift/library-go"
+  branch = "master"
 
 [[override]]
   name = "k8s.io/client-go"
@@ -77,3 +97,19 @@ required = [
   [[prune.project]]
     name = "k8s.io/code-generator"
     non-go = false
+    unused-packages = false
+
+  [[prune.project]]
+    name = "k8s.io/gengo"
+    non-go = false
+    unused-packages = false
+
+  [[prune.project]]
+    name= "github.com/openshift/library-go"
+    non-go = false
+    unused-packages = false
+
+  [[prune.project]]
+    name= "github.com/jteeuwen/go-bindata"
+    non-go = false
+    unused-packages = false

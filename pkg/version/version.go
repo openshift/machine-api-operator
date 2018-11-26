@@ -1,20 +1,47 @@
 package version
 
 import (
-	"fmt"
-	"strings"
+	"github.com/prometheus/client_golang/prometheus"
 
-	"github.com/blang/semver"
+	"k8s.io/apimachinery/pkg/version"
 )
 
 var (
-	// Raw is the string representation of the version. This will be replaced
-	// with the calculated version at build time.
-	Raw = "v0.0.0-was-not-built-properly"
-
-	// Version is semver representation of the version.
-	Version = semver.MustParse(strings.TrimLeft(Raw, "v"))
-
-	// String is the human-friendly representation of the version.
-	String = fmt.Sprintf("MachineAPIOperator %s", Raw)
+	// commitFromGit is a constant representing the source version that
+	// generated this build. It should be set during build via -ldflags.
+	commitFromGit string
+	// versionFromGit is a constant representing the version tag that
+	// generated this build. It should be set during build via -ldflags.
+	versionFromGit string
+	// major version
+	majorFromGit string
+	// minor version
+	minorFromGit string
+	// build date in ISO8601 format, output of $(date -u +'%Y-%m-%dT%H:%M:%SZ')
+	buildDate string
 )
+
+// Get returns the overall codebase version. It's for detecting
+// what code a binary was built from.
+func Get() version.Info {
+	return version.Info{
+		Major:      majorFromGit,
+		Minor:      minorFromGit,
+		GitCommit:  commitFromGit,
+		GitVersion: versionFromGit,
+		BuildDate:  buildDate,
+	}
+}
+
+func init() {
+	buildInfo := prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Name: "openshift_machine_api_operator_build_info",
+			Help: "A metric with a constant '1' value labeled by major, minor, git commit & git version from which OpenShift Machine API Operator was built.",
+		},
+		[]string{"major", "minor", "gitCommit", "gitVersion"},
+	)
+	buildInfo.WithLabelValues(majorFromGit, minorFromGit, commitFromGit, versionFromGit).Set(1)
+
+	prometheus.MustRegister(buildInfo)
+}

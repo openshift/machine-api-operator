@@ -1,0 +1,30 @@
+package: github.com/openshift/machine-api-operator
+import:
+- package: k8s.io/apimachinery
+  version: kubernetes-1.11.0
+- package: k8s.io/api
+  version: kubernetes-1.11.0
+- package: k8s.io/apiserver
+  version: kubernetes-1.11.0
+- package: k8s.io/client-go
+  version: kubernetes-1.11.0
+- package: k8s.io/kube-aggregator
+  version: kubernetes-1.11.0
+- package: k8s.io/code-generator
+  version: kubernetes-1.11.0
+- package: k8s.io/apiextensions-apiserver
+  version: kubernetes-1.11.0
+- package: github.com/openshift/api
+  version: master
+- package: github.com/openshift/client-go
+  version: master
+- package: github.com/openshift/library-go
+  version: 6a2ae3844d42a242d2ddb312660478c60e994ecd
+- package: github.com/openshift/cluster-version-operator
+  version: master
+- package: github.com/jteeuwen/go-bindata
+  version: a0ff2567cfb70903282db057e799fd826784d41d
+- package: k8s.io/gengo/args
+  version: 01a732e01d00cb9a81bb0ca050d3e6d2b947927b
+- package: github.com/json-iterator/go
+  version: f2b4162afba35581b6d4a50d3b8f34e33c144682
