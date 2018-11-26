@@ -29,7 +29,6 @@ func NewXMLElement(name xml.Name) *XMLNode {
 
 // AddChild adds child to the XMLNode.
 func (n *XMLNode) AddChild(child *XMLNode) {
-	child.parent = n
 	if _, ok := n.Children[child.Name.Local]; !ok {
 		n.Children[child.Name.Local] = []*XMLNode{}
 	}
@@ -41,16 +40,11 @@ func XMLToStruct(d *xml.Decoder, s *xml.StartElement) (*XMLNode, error) {
 	out := &XMLNode{}
 	for {
 		tok, err := d.Token()
-		if err != nil {
-			if err == io.EOF {
-				break
-			} else {
-				return out, err
-			}
-		}
-
-		if tok == nil {
+		if tok == nil || err == io.EOF {
 			break
+		}
+		if err != nil {
+			return out, err
 		}
 
 		switch typed := tok.(type) {

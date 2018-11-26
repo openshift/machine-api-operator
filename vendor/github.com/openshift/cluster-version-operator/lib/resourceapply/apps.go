@@ -52,3 +52,46 @@ func ApplyDeploymentFromCache(lister appslisterv1.DeploymentLister, client appsc
 	actual, err := client.Deployments(required.Namespace).Update(existing)
 	return actual, true, err
 }
+
+// ApplyDaemonSet applies the required daemonset to the cluster.
+func ApplyDaemonSet(client appsclientv1.DaemonSetsGetter, required *appsv1.DaemonSet) (*appsv1.DaemonSet, bool, error) {
+	existing, err := client.DaemonSets(required.Namespace).Get(required.Name, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		actual, err := client.DaemonSets(required.Namespace).Create(required)
+		return actual, true, err
+	}
+	if err != nil {
+		return nil, false, err
+	}
+
+	modified := pointer.BoolPtr(false)
+	resourcemerge.EnsureDaemonSet(modified, existing, *required)
+	if !*modified {
+		return existing, false, nil
+	}
+
+	actual, err := client.DaemonSets(required.Namespace).Update(existing)
+	return actual, true, err
+}
+
+// ApplyDaemonSetFromCache applies the required deployment to the cluster.
+func ApplyDaemonSetFromCache(lister appslisterv1.DaemonSetLister, client appsclientv1.DaemonSetsGetter, required *appsv1.DaemonSet) (*appsv1.DaemonSet, bool, error) {
+	existing, err := lister.DaemonSets(required.Namespace).Get(required.Name)
+	if apierrors.IsNotFound(err) {
+		actual, err := client.DaemonSets(required.Namespace).Create(required)
+		return actual, true, err
+	}
+	if err != nil {
+		return nil, false, err
+	}
+
+	existing = existing.DeepCopy()
+	modified := pointer.BoolPtr(false)
+	resourcemerge.EnsureDaemonSet(modified, existing, *required)
+	if !*modified {
+		return existing, false, nil
+	}
+
+	actual, err := client.DaemonSets(required.Namespace).Update(existing)
+	return actual, true, err
+}
