@@ -99,35 +99,35 @@ func (tc *testConfig) ExpectAllMachinesLinkedToANode() error {
 			glog.Errorf("error querying api for machineList object: %v, retrying...", err)
 			return false, nil
 		}
-		return true, nil
-	})
-	if err != nil {
-		return err
-	}
-
-	err = wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
 		if err := tc.client.List(context.TODO(), &listOptions, &nodeList); err != nil {
 			glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
 			return false, nil
 		}
-		return true, nil
+		glog.Infof("Waiting for %d machines to become nodes", len(machineList.Items))
+		return len(machineList.Items) == len(nodeList.Items), nil
 	})
 	if err != nil {
 		return err
 	}
 
-	nodeNameToMachineAnnotation := make(map[string]string)
-	for _, node := range nodeList.Items {
-		nodeNameToMachineAnnotation[node.Name] = node.Annotations[machineAnnotationKey]
-	}
-	for _, machine := range machineList.Items {
-		nodeName := machine.Status.NodeRef.Name
-		if nodeNameToMachineAnnotation[nodeName] != fmt.Sprintf("%s/%s", namespace, machine.Name) {
-			glog.Errorf("node name %s does not match expected machine name %s", nodeName, machine.Name)
-			return errors.New("not all nodes are linked to a machine")
+	return wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
+		nodeNameToMachineAnnotation := make(map[string]string)
+		for _, node := range nodeList.Items {
+			nodeNameToMachineAnnotation[node.Name] = node.Annotations[machineAnnotationKey]
 		}
-	}
-	return nil
+		for _, machine := range machineList.Items {
+			if machine.Status.NodeRef == nil {
+				glog.Errorf("machine %s has no NodeRef, retrying...", machine.Name)
+				return false, nil
+			}
+			nodeName := machine.Status.NodeRef.Name
+			if nodeNameToMachineAnnotation[nodeName] != fmt.Sprintf("%s/%s", namespace, machine.Name) {
+				glog.Errorf("node name %s does not match expected machine name %s, retrying...", nodeName, machine.Name)
+				return false, nil
+			}
+		}
+		return true, nil
+	})
 }
 
 func (tc *testConfig) ExpectReconcileControllersDeployment() error {
