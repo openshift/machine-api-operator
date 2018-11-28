@@ -315,7 +315,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		// create machinehealthcheck CRD
-		if CRDBytes, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "0000_50_machine-api-operator_06_machinehealthcheck.crd.yaml")); err != nil {
+		if CRDBytes, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "0000_50_machine-api-operator_07_machinehealthcheck.crd.yaml")); err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
 			CRDObj, _, err := decode([]byte(CRDBytes), nil, nil)
