@@ -73,7 +73,7 @@ spec:
           limits:
             cpu: 100m
             memory: 30Mi
-      - name: machine-healhtcheck
+      - name: machine-healthcheck
         image: {{ .Controllers.MachineHealthCheck }}
         command:
           - /machine-healthcheck
