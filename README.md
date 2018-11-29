@@ -1,17 +1,21 @@
 # Machine API Operator
+
 The Machine API Operator manages the lifecycle of specific purpose CRDs, controllers and RBAC objects that extend the Kubernetes API.
 This allows to convey desired state of machines in a cluster in a declarative fashion.
 
 ## Architecture
+
 ![Machine API Operator overview](machine-api-operator.png)
 
 ## CRDs
+
 - MachineSet
 - Machine
 - Cluster
 - MachineHealthCheck
 
 ## Controllers
+
 ### Cluster API controllers
 - [MachineSet Controller](https://github.com/kubernetes-sigs/cluster-api/tree/master/pkg/controller)
   - Reconciles desired state for [MachineSets](https://github.com/kubernetes-sigs/cluster-api/blob/master/pkg/apis/cluster/v1alpha1/machineset_types.go) by ensuring presence of specified number of replicas and config for a set of machines.
@@ -29,33 +33,86 @@ This allows to convey desired state of machines in a cluster in a declarative fa
   - Reconciles desired state of machines by matching IP addresses of machine objects with IP addresses of node objects. Annotating node with a special label containing machine name that the cluster-api node controller interprets and sets corresponding nodeRef field of each relevant machine.
 
 ### Nodelink controller
+
 - Reconciles desired state of machines by matching IP addresses of machine objects with IP addresses of node objects and annotates nodes with a special [machine annotation](https://github.com/kubernetes-sigs/cluster-api/blob/master/pkg/controller/node/node.go#L35) containing the machine name. The cluster-api node controller interprets the annotation and sets the corresponding nodeRef field of each relevant machine.
 
 - Build:
+
 ```
 $ make nodelink-controller
 ```
+
 ### Machine healthcheck controller
+
 - Reconciles desired state for [MachineHealthChecks](https://github.com/openshift/machine-api-operator/blob/master/pkg/apis/healthchecking/v1alpha1/machinehealthcheck_types.go) by ensuring that machines targeted by machineHealthCheck objects are healthy or remediated otherwise.
 
 - Build:
-```
-$ make machine-healthcheck
-```
+
+  ```
+  $ make machine-healthcheck
+  ```
+
+- How to test it:
+
+  1. Create a machineset and locate its selector. Assuming the selector corresponds
+     to the following list of match labels:
+     ```
+     sigs.k8s.io/cluster-api-cluster: cluster
+     sigs.k8s.io/cluster-api-machine-role: worker
+     sigs.k8s.io/cluster-api-machine-type: worker
+     sigs.k8s.io/cluster-api-machineset: cluster-worker-us-east-1a
+     ```
+
+  1. Define a `MachineHealthCheck` manifest that will be watching all machines
+     of the machinset based on its match labels:
+     ```yaml
+     apiVersion: healthchecking.openshift.io/v1alpha1
+     kind: MachineHealthCheck
+     metadata:
+       name: example
+       namespace: default
+     spec:
+       selector:
+         matchLabels:
+           sigs.k8s.io/cluster-api-cluster: cluster
+           sigs.k8s.io/cluster-api-machine-role: worker
+           sigs.k8s.io/cluster-api-machine-type: worker
+           sigs.k8s.io/cluster-api-machineset: cluster-worker-us-east-1a
+     ```
+
+  1. Pick a node that is managed by one of the machineset's machines
+  1. SSH into the node, disable and stop the kubelet services:
+     ```
+     # systemctl disable kubelet
+     # systemctl stop kubelet
+     ```
+
+  1. After some time the node will transition into `Unready` state
+  1. Watch the machine `healthcheck` controller logs to see how it notices a node
+     in `Unready` state and starts to reconcile the node
+  1. After some time the current node instance is terminated and
+     new instance is created. Followed by new node joining the cluster
+     and turning in `Ready` state.
 
 ## Dev
+
 - Build:
-    ```sh
-    $ make build
-    ```
+
+  ```sh
+  $ make build
+  ```
+
 - Run:
-    ```sh
-    $ ./bin/machine-api-operator --kubeconfig ${HOME}/.kube/config --images-json=pkg/operator/fixtures/images.json
-    ```
+
+  ```sh
+  $ ./bin/machine-api-operator --kubeconfig ${HOME}/.kube/config --images-json=pkg/operator/fixtures/images.json
+  ```
+
 - Image:
-    ```
-    $ make image
-    ```
+
+  ```
+  $ make image
+  ```
 
 The Machine API Operator is designed to work in conjunction with the [Cluster Version Operator](https://github.com/openshift/cluster-version-operator).
 You can see it in action by running an [OpenShift Cluster deployed by the Installer](https://github.com/openshift/installer).
@@ -75,11 +132,13 @@ However you can run it in a vanilla Kubernetes cluster by precreating some asset
 ## CI & tests
 
 Run unit test:
+
 ```
 $ make test
 ```
 
 Run e2e-aws-operator tests. This tests assume that a cluster deployed by the Installer is up and running and a ```KUBECONFIG``` environment variable is set:
+
 ```
 $ make test-e2e
 ```
