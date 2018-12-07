@@ -45,7 +45,7 @@ spec:
               values:
               - {{ .ClusterID }}-worker-*
           tags:
-          - name: tectonicClusterID
+          - name: openshiftClusterID
             value: {{ .ClusterID }}
           userDataSecret:
             name: ignition-worker
