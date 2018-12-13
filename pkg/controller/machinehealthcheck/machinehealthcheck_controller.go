@@ -151,11 +151,11 @@ func getMachineHealthCheckListOptions() *client.ListOptions {
 func remediate(r *ReconcileMachineHealthCheck, machine *capiv1.Machine) (reconcile.Result, error) {
 	glog.Infof("Initialising remediation logic for machine %s", machine.Name)
 	if isMaster(*machine, r.client) {
-		glog.Info("The machine %s is a master node, skipping remediation", machine.Name)
+		glog.Infof("The machine %s is a master node, skipping remediation", machine.Name)
 		return reconcile.Result{}, nil
 	}
 	if !hasMachineSetOwner(*machine) {
-		glog.Info("Machine %s has no machineSet controller owner, skipping remediation", machine.Name)
+		glog.Infof("Machine %s has no machineSet controller owner, skipping remediation", machine.Name)
 		return reconcile.Result{}, nil
 	}
 
