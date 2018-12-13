@@ -66,7 +66,7 @@ type AWSClient struct {
 func (client *AWSClient) getInstances(instanceStateFilter []*string, clusterID string) ([]*ec2.Instance, error) {
 	requestFilters := []*ec2.Filter{
 		{
-			Name:   aws.String("tag:tectonicClusterID"),
+			Name:   aws.String("tag:openshiftClusterID"),
 			Values: []*string{aws.String(clusterID)},
 		},
 	}
