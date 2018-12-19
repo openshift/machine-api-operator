@@ -27,7 +27,7 @@ check: lint fmt vet test
 build: ## Build binary
 	@echo -e "\033[32mBuilding package...\033[0m"
 	mkdir -p bin
-	$(DOCKER_CMD) go build $(GOGCFLAGS) -o bin/machine-api-operator github.com/openshift/machine-api-operator/cmd/machine-api-operator
+	$(DOCKER_CMD) go build $(GOGCFLAGS) -ldflags "-X github.com/openshift/machine-api-operator/pkg/version.Raw=$(VERSION)" -o bin/machine-api-operator github.com/openshift/machine-api-operator/cmd/machine-api-operator
 
 .PHONY: nodelink-controller
 nodelink-controller:
