@@ -12,6 +12,7 @@ import (
 	kappsapi "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
 	capiv1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -171,6 +172,75 @@ func (tc *testConfig) ExpectReconcileControllersDeployment() error {
 			return false, nil
 		}
 		return true, nil
+	})
+	return err
+}
+
+func (tc *testConfig) ExpectAdditiveReconcileMachineTaints() error {
+	glog.Info("Verify machine taints are getting applied to node")
+	listOptions := client.ListOptions{
+		Namespace: namespace,
+	}
+	machineList := capiv1alpha1.MachineList{}
+
+	if err := tc.client.List(context.TODO(), &listOptions, &machineList); err != nil {
+		return fmt.Errorf("error querying api for machineList object: %v", err)
+
+	}
+	glog.Info("Got the machine list")
+	machine := machineList.Items[0]
+	if machine.Status.NodeRef == nil {
+		return fmt.Errorf("machine %s has no NodeRef", machine.Name)
+	}
+	glog.Infof("Got the machine, %s", machine.Name)
+	nodeName := machine.Status.NodeRef.Name
+	nodeKey := types.NamespacedName{
+		Namespace: namespace,
+		Name:      nodeName,
+	}
+	node := &corev1.Node{}
+
+	if err := tc.client.Get(context.TODO(), nodeKey, node); err != nil {
+		return fmt.Errorf("error querying api for node object: %v", err)
+	}
+	glog.Infof("Got the node, %s, from machine, %s", node.Name, machine.Name)
+	nodeTaint := corev1.Taint{
+		Key:    "not-from-machine",
+		Value:  "true",
+		Effect: corev1.TaintEffectNoSchedule,
+	}
+	node.Spec.Taints = []corev1.Taint{nodeTaint}
+	if err := tc.client.Update(context.TODO(), node); err != nil {
+		return fmt.Errorf("error updating node object with non-machine taint: %v", err)
+	}
+	glog.Info("Updated node object with taint")
+	machineTaint := corev1.Taint{
+		Key:    "from-machine",
+		Value:  "true",
+		Effect: corev1.TaintEffectNoSchedule,
+	}
+	machine.Spec.Taints = []corev1.Taint{machineTaint}
+	if err := tc.client.Update(context.TODO(), &machine); err != nil {
+		return fmt.Errorf("error updating machine object with taint: %v", err)
+	}
+	glog.Info("Updated machine object with taint")
+	var expectedTaints = sets.NewString("not-from-machine", "from-machine")
+	err := wait.PollImmediate(1*time.Second, waitLong, func() (bool, error) {
+		if err := tc.client.Get(context.TODO(), nodeKey, node); err != nil {
+			glog.Errorf("error querying api for node object: %v", err)
+			return false, nil
+		}
+		glog.Info("Got the node again for verification of taints")
+		var observedTaints = sets.NewString()
+		for _, taint := range node.Spec.Taints {
+			observedTaints.Insert(taint.Key)
+		}
+		if expectedTaints.Difference(observedTaints).HasAny("not-from-machine", "from-machine") == false {
+			glog.Infof("expected : %v, observed %v , difference %v, ", expectedTaints, observedTaints, expectedTaints.Difference(observedTaints))
+			return true, nil
+		}
+		glog.Infof("All expected taints not found on node. Missing: %v", expectedTaints.Difference(observedTaints))
+		return false, nil
 	})
 	return err
 }
