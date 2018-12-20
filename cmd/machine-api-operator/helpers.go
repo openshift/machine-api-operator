@@ -6,10 +6,11 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/uuid"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
 	"k8s.io/client-go/tools/record"
 )
@@ -36,7 +37,7 @@ func resyncPeriod() func() time.Duration {
 func CreateResourceLock(cb *ClientBuilder, componentNamespace, componentName string) resourcelock.Interface {
 	recorder := record.
 		NewBroadcaster().
-		NewRecorder(runtime.NewScheme(), v1.EventSource{Component: componentName})
+		NewRecorder(scheme.Scheme, v1.EventSource{Component: componentName})
 
 	id, err := os.Hostname()
 	if err != nil {
