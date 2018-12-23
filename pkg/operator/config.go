@@ -28,6 +28,8 @@ const (
 	LibvirtProvider = Provider("libvirt")
 	// OpenStackPlatformType is used to install on OpenStack
 	OpenStackProvider = Provider("openstack")
+	// BareMetalProvider is used to fence bare metal nodes
+	BareMetalProvider = Provider("baremetal")
 )
 
 type Provider string
@@ -50,6 +52,7 @@ type Images struct {
 	ClusterAPIControllerAWS       string `json:"clusterAPIControllerAWS"`
 	ClusterAPIControllerOpenStack string `json:"clusterAPIControllerOpenStack"`
 	ClusterAPIControllerLibvirt   string `json:"clusterAPIControllerLibvirt"`
+	ClusterAPIControllerBareMetal string `json:"clusterAPIControllerBareMetal"`
 }
 
 // InstallConfig contains the mao relevant config coming from the install config, i.e provider
@@ -68,6 +71,9 @@ type InstallPlatform struct {
 
 	// OpenStack is the configuration used when running on OpenStack
 	OpenStack interface{} `json:"openstack,omitempty"`
+
+	// BareMetal is the configuration used when running on bare metal nodes
+	BareMetal interface{} `json:"baremetal,omitempty"`
 }
 
 func getInstallConfig(client kubernetes.Interface) (*InstallConfig, error) {
@@ -114,6 +120,9 @@ func getProviderFromInstallConfig(installConfig *InstallConfig) (Provider, error
 	if installConfig.OpenStack != nil {
 		return OpenStackProvider, nil
 	}
+	if installConfig.BareMetal != nil {
+		return BareMetalProvider, nil
+	}
 	return "", fmt.Errorf("no platform provider found on install config")
 }
 
@@ -138,6 +147,8 @@ func getProviderControllerFromImages(provider Provider, images Images) (string, 
 		return images.ClusterAPIControllerLibvirt, nil
 	case OpenStackProvider:
 		return images.ClusterAPIControllerOpenStack, nil
+	case BareMetalProvider:
+		return images.ClusterAPIControllerBareMetal, nil
 	}
 	return "", fmt.Errorf("not known platform provider given %s", provider)
 }

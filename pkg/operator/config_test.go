@@ -11,6 +11,7 @@ var (
 	expectedAWSImage                = "docker.io/openshift/origin-aws-machine-controllers:v4.0.0"
 	expectedLibvirtImage            = "docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0"
 	expectedOpenstackImage          = "docker.io/openshift/origin-openstack-machine-controllers:v4.0.0"
+	expectedBareMetalImage          = "docker.io/alukiano/origin-baremetal-machine-controllers:v4.0.0"
 	expectedMachineAPIOperatorImage = "docker.io/openshift/origin-machine-api-operator:v4.0.0"
 )
 
@@ -71,6 +72,7 @@ func TestGetProviderFromInstallConfig(t *testing.T) {
 				AWS:       notNil,
 				Libvirt:   nil,
 				OpenStack: nil,
+				BareMetal: nil,
 			},
 		},
 		expected: AWSProvider,
@@ -81,6 +83,7 @@ func TestGetProviderFromInstallConfig(t *testing.T) {
 					AWS:       nil,
 					Libvirt:   notNil,
 					OpenStack: nil,
+					BareMetal: nil,
 				},
 			},
 			expected: LibvirtProvider,
@@ -91,10 +94,23 @@ func TestGetProviderFromInstallConfig(t *testing.T) {
 					AWS:       nil,
 					Libvirt:   nil,
 					OpenStack: notNil,
+					BareMetal: nil,
 				},
 			},
 			expected: OpenStackProvider,
-		}}
+		},
+		{
+			ic: &InstallConfig{
+				InstallPlatform{
+					AWS:       nil,
+					Libvirt:   nil,
+					OpenStack: nil,
+					BareMetal: notNil,
+				},
+			},
+			expected: BareMetalProvider,
+		},
+	}
 
 	for _, test := range tests {
 		res, err := getProviderFromInstallConfig(test.ic)
@@ -134,16 +150,20 @@ func TestGetImagesFromJSONFile(t *testing.T) {
 	if img.ClusterAPIControllerOpenStack != expectedOpenstackImage {
 		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedOpenstackImage, img.ClusterAPIControllerOpenStack)
 	}
+	if img.ClusterAPIControllerBareMetal != expectedBareMetalImage {
+		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedBareMetalImage, img.ClusterAPIControllerBareMetal)
+	}
 }
 
 func TestGetProviderControllerFromImages(t *testing.T) {
 	tests := []struct {
 		provider      Provider
 		expectedImage string
-	}{{
-		provider:      AWSProvider,
-		expectedImage: expectedAWSImage,
-	},
+	}{
+		{
+			provider:      AWSProvider,
+			expectedImage: expectedAWSImage,
+		},
 		{
 			provider:      LibvirtProvider,
 			expectedImage: expectedLibvirtImage,
@@ -151,7 +171,12 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 		{
 			provider:      OpenStackProvider,
 			expectedImage: expectedOpenstackImage,
-		}}
+		},
+		{
+			provider:      BareMetalProvider,
+			expectedImage: expectedBareMetalImage,
+		},
+	}
 
 	imagesJSONFile := "fixtures/images.json"
 	img, err := getImagesFromJSONFile(imagesJSONFile)
