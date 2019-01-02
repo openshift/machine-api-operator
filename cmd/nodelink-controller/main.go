@@ -61,7 +61,9 @@ const (
 	controllerName = "nodelink"
 
 	// machineAnnotationKey is the annotation storing a link between a node and it's machine. Should match upstream cluster-api machine controller. (node.go)
-	machineAnnotationKey = "machine"
+	machineAnnotationKey = "cluster.k8s.io/machine"
+	// oldMachineAnnotationKey for backward compatibility only
+	oldMachineAnnotationKey = "machine"
 )
 
 // NewController returns a new *Controller.
@@ -330,6 +332,14 @@ func (c *Controller) syncNode(key string) error {
 }
 func (c *Controller) processNode(node *corev1.Node) error {
 	machineKey, ok := node.Annotations[machineAnnotationKey]
+	// In case the old annotation is still used instead of the new one
+	// make sure we check it as well.
+	// TODO(jchaloup): Remove the check once all actuator repos updated
+	// the cluster-api deps to the new annotation key.
+	if !ok {
+		machineKey, ok = node.Annotations[oldMachineAnnotationKey]
+	}
+
 	// No machine annotation, this is likely the first time we've seen the node,
 	// need to load all machines and search for one with matching IP.
 	var matchingMachine *capiv1.Machine
@@ -382,7 +392,8 @@ func (c *Controller) processNode(node *corev1.Node) error {
 
 	modNode := node.DeepCopy()
 
-	modNode.Annotations["machine"] = fmt.Sprintf("%s/%s", matchingMachine.Namespace, matchingMachine.Name)
+	modNode.Annotations[machineAnnotationKey] = fmt.Sprintf("%s/%s", matchingMachine.Namespace, matchingMachine.Name)
+	modNode.Annotations[oldMachineAnnotationKey] = fmt.Sprintf("%s/%s", matchingMachine.Namespace, matchingMachine.Name)
 
 	if modNode.Labels == nil {
 		modNode.Labels = map[string]string{}
