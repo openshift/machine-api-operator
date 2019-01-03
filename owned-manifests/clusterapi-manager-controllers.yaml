@@ -40,6 +40,9 @@ spec:
         image: {{ .Controllers.Provider }}
         command:
         - "./manager"
+        args:
+          - --logtostderr=true
+          - --v=3
         resources:
           requests:
             cpu: 100m
