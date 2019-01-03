@@ -6,7 +6,6 @@ metadata:
   labels:
     api: clusterapi
     k8s-app: controller
-    tectonic-operators.coreos.com/managed-by: machine-api-operator
 spec:
   securityContext:
     runAsNonRoot: true

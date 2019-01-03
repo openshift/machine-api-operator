@@ -5,7 +5,6 @@ metadata:
   namespace: openshift-cluster-api
   labels:
     k8s-app: machine-api-operator
-    managed-by-channel-operator: "true"
 spec:
   replicas: 1
   selector:
@@ -15,7 +14,6 @@ spec:
     metadata:
       labels:
         k8s-app: machine-api-operator
-        tectonic-app-version-name: machine-api
     spec:
       containers:
       - name: machine-api-operator
