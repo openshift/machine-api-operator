@@ -90,6 +90,12 @@ func runSuite() error {
 	}
 	glog.Info("PASS: ExpectReconcileControllersDeployment")
 
+	if err := testConfig.ExpectAdditiveReconcileMachineTaints(); err != nil {
+		glog.Errorf("FAIL: ExpectAdditiveReconcileMachineTaints: %v", err)
+		return err
+	}
+	glog.Info("PASS: ExpectAdditiveReconcileMachineTaints")
+
 	glog.Info("RUN: ExpectNewNodeWhenDeletingMachine")
 	if err := testConfig.ExpectNewNodeWhenDeletingMachine(); err != nil {
 		glog.Errorf("FAIL: ExpectNewNodeWhenDeletingMachine: %v", err)

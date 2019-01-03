@@ -404,8 +404,7 @@ func (c *Controller) processNode(node *corev1.Node) error {
 		modNode.Labels[k] = v
 	}
 
-	// Taints are to be an authoritative list on the machine spec per cluster-api comments:
-	modNode.Spec.Taints = matchingMachine.Spec.Taints
+	addTaintsToNode(modNode, matchingMachine)
 
 	if !reflect.DeepEqual(node, modNode) {
 		glog.V(3).Infof("node has changed, updating")
@@ -416,6 +415,26 @@ func (c *Controller) processNode(node *corev1.Node) error {
 		}
 	}
 	return nil
+}
+
+// addTaintsToNode adds taints from machine object to the node object
+// Taints are to be an authoritative list on the machine spec per cluster-api comments.
+// However, we believe many components can directly taint a node and there is no direct source of truth that should enforce a single writer of taints
+func addTaintsToNode(node *corev1.Node, machine *capiv1.Machine) {
+	for _, mTaint := range machine.Spec.Taints {
+		glog.V(3).Infof("machine taint: %v", mTaint)
+		alreadyPresent := false
+		for _, nTaint := range node.Spec.Taints {
+			if nTaint.Key == mTaint.Key && nTaint.Effect == mTaint.Effect {
+				glog.V(3).Infof("Skipping to add machine taint, %v, to the node. Node already has a taint with same key and effect", mTaint)
+				alreadyPresent = true
+				break
+			}
+		}
+		if !alreadyPresent {
+			node.Spec.Taints = append(node.Spec.Taints, mTaint)
+		}
+	}
 }
 
 var (
