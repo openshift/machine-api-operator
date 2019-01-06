@@ -40,40 +40,75 @@ spec:
                 metadata:
                   type: object
                 spec:
-                  properties:
-                    configSource:
-                      type: object
-                    metadata:
-                      type: object
-                    providerConfig:
-                      properties:
-                        value:
-                          type: object
-                        valueFrom:
-                          properties:
-                            machineClass:
-                              properties:
-                                provider:
-                                  type: string
-                              type: object
-                          type: object
-                      type: object
-                    taints:
-                      items:
+                  oneOf:
+                  - properties:
+                      configSource:
                         type: object
-                      type: array
-                    versions:
-                      properties:
-                        controlPlane:
-                          type: string
-                        kubelet:
-                          type: string
-                      required:
-                      - kubelet
-                      type: object
-                  required:
-                  - providerConfig
-                  type: object
+                      metadata:
+                        type: object
+                      providerConfig:
+                        properties:
+                          value:
+                            type: object
+                          valueFrom:
+                            properties:
+                              machineClass:
+                                properties:
+                                  provider:
+                                    type: string
+                                type: object
+                            type: object
+                        type: object
+                      taints:
+                        items:
+                          type: object
+                        type: array
+                      versions:
+                        properties:
+                          controlPlane:
+                            type: string
+                          kubelet:
+                            type: string
+                        required:
+                        - kubelet
+                        type: object
+                    required:
+                    - providerConfig
+                    type: object
+                  - properties:
+                      configSource:
+                        type: object
+                      metadata:
+                        type: object
+                      providerSpec:
+                        properties:
+                          value:
+                            type: object
+                          valueFrom:
+                            properties:
+                              machineClass:
+                                properties:
+                                  provider:
+                                    type: string
+                                type: object
+                            type: object
+                        type: object
+                      taints:
+                        items:
+                          type: object
+                        type: array
+                      versions:
+                        properties:
+                          controlPlane:
+                            type: string
+                          kubelet:
+                            type: string
+                        required:
+                        - kubelet
+                        type: object
+                    required:
+                    - providerSpec
+                    type: object
               type: object
           required:
           - selector
