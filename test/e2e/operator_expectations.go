@@ -88,7 +88,7 @@ func (tc *testConfig) ExpectClusterOperatorStatusAvailable() error {
 }
 
 func (tc *testConfig) ExpectAllMachinesLinkedToANode() error {
-	machineAnnotationKey := "machine"
+	machineAnnotationKey := "cluster.k8s.io/machine"
 	listOptions := client.ListOptions{
 		Namespace: namespace,
 	}
