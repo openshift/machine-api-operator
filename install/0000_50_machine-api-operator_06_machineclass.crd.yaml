@@ -12,17 +12,29 @@ spec:
   scope: Namespaced
   validation:
     openAPIV3Schema:
-      properties:
-        apiVersion:
-          type: string
-        kind:
-          type: string
-        metadata:
-          type: object
-        providerConfig:
-          type: object
-      required:
-      - providerConfig
+      anyOf:
+      - properties:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+          metadata:
+            type: object
+          providerSpec:
+            type: object
+        required:
+        - providerSpec
+      - properties:
+          apiVersion:
+            type: string
+          kind:
+            type: string
+          metadata:
+            type: object
+          providerConfig:
+            type: object
+        required:
+        - providerConfig
   version: v1alpha1
 status:
   acceptedNames:
