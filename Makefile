@@ -21,23 +21,22 @@ else
 endif
 
 .PHONY: check
-check: lint fmt vet test
+check: lint fmt vet test ## Run code validations
 
 .PHONY: build
-build: ## Build binary
-	@echo -e "\033[32mBuilding package...\033[0m"
-	mkdir -p bin
-	$(DOCKER_CMD) go build $(GOGCFLAGS) -ldflags "-X github.com/openshift/machine-api-operator/pkg/version.Raw=$(VERSION)" -o bin/machine-api-operator github.com/openshift/machine-api-operator/cmd/machine-api-operator
+build: machine-api-operator nodelink-controller machine-healthcheck ## Build binaries
+
+.PHONY: machine-api-operator
+machine-api-operator:
+	$(DOCKER_CMD) ./hack/go-build.sh machine-api-operator
 
 .PHONY: nodelink-controller
 nodelink-controller:
-	@echo -e "\033[32mBuilding node link controller binary...\033[0m"
-	$(DOCKER_CMD) go build $(GOGCFLAGS) -o bin/nodelink-controller github.com/openshift/machine-api-operator/cmd/nodelink-controller
+	$(DOCKER_CMD) ./hack/go-build.sh nodelink-controller
 
 .PHONY: machine-healthcheck
 machine-healthcheck:
-	@echo -e "\033[32mBuilding machine healthcheck binary...\033[0m"
-	$(DOCKER_CMD) go build $(GOGCFLAGS) -o bin/machine-healthcheck github.com/openshift/machine-api-operator/cmd/machine-healthcheck
+	$(DOCKER_CMD) ./hack/go-build.sh machine-healthcheck 
 
 .PHONY: build-integration
 build-integration: ## Build integration test binary
