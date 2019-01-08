@@ -424,6 +424,7 @@
   packages = [
     "prometheus",
     "prometheus/internal",
+    "prometheus/promhttp",
   ]
   pruneopts = "NUT"
   revision = "505eaef017263e299324067d40ca2c48f6a2cf50"
@@ -1060,6 +1061,7 @@
     "github.com/openshift/cluster-version-operator/lib/resourceread",
     "github.com/operator-framework/operator-sdk/version",
     "github.com/prometheus/client_golang/prometheus",
+    "github.com/prometheus/client_golang/prometheus/promhttp",
     "github.com/sirupsen/logrus",
     "github.com/spf13/cobra",
     "github.com/spf13/pflag",
