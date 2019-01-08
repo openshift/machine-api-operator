@@ -9,8 +9,8 @@ GLDFLAGS=${GLDFLAGS:-}
 
 eval $(go env | grep -e "GOHOSTOS" -e "GOHOSTARCH")
 
-GOOS=${GOOS:-${GOHOSTOS}}
-GOARCH=${GOACH:-${GOHOSTARCH}}
+: "${GOOS:=${GOHOSTOS}}"
+: "${GOARCH:=${GOHOSTARCH}}"
 
 # Go to the root of the repo
 cd "$(git rev-parse --show-cdup)"
@@ -23,8 +23,6 @@ fi
 GLDFLAGS+="-extldflags '-static' -X ${REPO}/pkg/version.Raw=${VERSION_OVERRIDE}"
 
 eval $(go env)
-
-mkdir -p bin
 
 echo "Building ${REPO}/cmd/${WHAT} (${VERSION_OVERRIDE})"
 CGO_ENABLED=0 GOOS=${GOOS} GOARCH=${GOARCH} go build ${GOFLAGS} -ldflags "${GLDFLAGS}" -o bin/${WHAT} ${REPO}/cmd/${WHAT}
