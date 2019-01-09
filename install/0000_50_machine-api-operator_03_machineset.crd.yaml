@@ -26,7 +26,6 @@ spec:
         metadata:
           type: object
         spec:
-          type: object
           properties:
             minReadySeconds:
               format: int32
@@ -37,82 +36,48 @@ spec:
             selector:
               type: object
             template:
-              type: object
               properties:
                 metadata:
                   type: object
                 spec:
-                  anyOf:
-                  - type: object
-                    properties:
-                      configSource:
-                        type: object
-                      metadata:
-                        type: object
-                      providerSpec:
-                        properties:
-                          value:
-                            type: object
-                          valueFrom:
-                            properties:
-                              machineClass:
-                                properties:
-                                  provider:
-                                    type: string
-                                type: object
-                            type: object
-                        type: object
-                      taints:
-                        items:
+                  properties:
+                    configSource:
+                      type: object
+                    metadata:
+                      type: object
+                    providerConfig:
+                      properties:
+                        value:
                           type: object
-                        type: array
-                      versions:
-                        properties:
-                          controlPlane:
-                            type: string
-                          kubelet:
-                            type: string
-                        required:
-                        - kubelet
-                        type: object
-                    required:
-                    - providerSpec
-                  - type: object
-                    properties:
-                      configSource:
-                        type: object
-                      metadata:
-                        type: object
-                      providerConfig:
-                        properties:
-                          value:
-                            type: object
-                          valueFrom:
-                            properties:
-                              machineClass:
-                                properties:
-                                  provider:
-                                    type: string
-                                type: object
-                            type: object
-                        type: object
-                      taints:
-                        items:
+                        valueFrom:
+                          properties:
+                            machineClass:
+                              properties:
+                                provider:
+                                  type: string
+                              type: object
                           type: object
-                        type: array
-                      versions:
-                        properties:
-                          controlPlane:
-                            type: string
-                          kubelet:
-                            type: string
-                        required:
-                        - kubelet
+                      type: object
+                    taints:
+                      items:
                         type: object
-                    required:
-                    - providerConfig
+                      type: array
+                    versions:
+                      properties:
+                        controlPlane:
+                          type: string
+                        kubelet:
+                          type: string
+                      required:
+                      - kubelet
+                      type: object
+                  required:
+                  - providerConfig
+                  type: object
+              type: object
           required:
           - selector
+          type: object
         status:
           properties:
             availableReplicas:
