@@ -286,14 +286,6 @@
   version = "v1.1.5"
 
 [[projects]]
-  digest = "1:5a4ced6c2dc0b2b1b03fb21bca0529d1edd467d6f5c0e6876089211fba98af6f"
-  name = "github.com/kubernetes-incubator/apiserver-builder"
-  packages = ["pkg/controller"]
-  pruneopts = "NUT"
-  revision = "83b2c178a8f935a738cebbf41aa5b8af1f19162d"
-  version = "v0.2-alpha.0"
-
-[[projects]]
   branch = "master"
   digest = "1:84a5a2b67486d5d67060ac393aa255d05d24ed5ee41daecd5635ec22657b6492"
   name = "github.com/mailru/easyjson"
@@ -888,16 +880,14 @@
 
 [[projects]]
   branch = "release-1.10"
-  digest = "1:75e1496de1243a3dff20bc54a68f3836cae5dcb7e56e88a13bdf16683af03ab9"
+  digest = "1:b56c1de127f5d15fed8024c5a049d2f371463cfeb8a7fcd2a87979f053feb9b4"
   name = "k8s.io/kube-aggregator"
   packages = [
     "pkg/apis/apiregistration",
     "pkg/apis/apiregistration/v1",
     "pkg/apis/apiregistration/v1beta1",
-    "pkg/client/clientset_generated/clientset",
     "pkg/client/clientset_generated/clientset/scheme",
     "pkg/client/clientset_generated/clientset/typed/apiregistration/v1",
-    "pkg/client/clientset_generated/clientset/typed/apiregistration/v1beta1",
   ]
   pruneopts = "NUT"
   revision = "d29de253f8ba40ab4f8ee7eb50b522c0d83caff2"
@@ -926,7 +916,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:f014b8fdec7cafcb7016d64f5fa2d1efc83eb2f91ed6661ce000da736a282df1"
+  digest = "1:62d5e027759309ec337224011e1f057346a4af8cacede6d8a731d8160b8525fd"
   name = "sigs.k8s.io/cluster-api"
   packages = [
     "pkg/apis/cluster/common",
@@ -939,7 +929,6 @@
     "pkg/client/informers_generated/externalversions/cluster/v1alpha1",
     "pkg/client/informers_generated/externalversions/internalinterfaces",
     "pkg/client/listers_generated/cluster/v1alpha1",
-    "pkg/controller/config",
   ]
   pruneopts = "NUT"
   revision = "0a0313c785b36a81ffc74c486128ac8b0c12ab3b"
@@ -991,7 +980,6 @@
     "github.com/blang/semver",
     "github.com/ghodss/yaml",
     "github.com/golang/glog",
-    "github.com/kubernetes-incubator/apiserver-builder/pkg/controller",
     "github.com/openshift/api/config/v1",
     "github.com/openshift/client-go/config/clientset/versioned",
     "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1",
@@ -1005,21 +993,18 @@
     "k8s.io/api/apps/v1",
     "k8s.io/api/apps/v1beta2",
     "k8s.io/api/core/v1",
-    "k8s.io/api/rbac/v1",
     "k8s.io/api/rbac/v1beta1",
     "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1",
     "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset",
     "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme",
-    "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1",
-    "k8s.io/apimachinery/pkg/api/equality",
     "k8s.io/apimachinery/pkg/api/errors",
     "k8s.io/apimachinery/pkg/apis/meta/v1",
     "k8s.io/apimachinery/pkg/labels",
     "k8s.io/apimachinery/pkg/runtime",
     "k8s.io/apimachinery/pkg/runtime/schema",
-    "k8s.io/apimachinery/pkg/runtime/serializer",
     "k8s.io/apimachinery/pkg/types",
     "k8s.io/apimachinery/pkg/util/runtime",
+    "k8s.io/apimachinery/pkg/util/sets",
     "k8s.io/apimachinery/pkg/util/uuid",
     "k8s.io/apimachinery/pkg/util/wait",
     "k8s.io/client-go/informers",
@@ -1028,9 +1013,7 @@
     "k8s.io/client-go/informers/rbac/v1",
     "k8s.io/client-go/kubernetes",
     "k8s.io/client-go/kubernetes/scheme",
-    "k8s.io/client-go/kubernetes/typed/apps/v1",
     "k8s.io/client-go/kubernetes/typed/core/v1",
-    "k8s.io/client-go/kubernetes/typed/rbac/v1",
     "k8s.io/client-go/listers/apps/v1",
     "k8s.io/client-go/listers/core/v1",
     "k8s.io/client-go/plugin/pkg/client/auth/gcp",
@@ -1049,8 +1032,6 @@
     "k8s.io/code-generator/cmd/lister-gen",
     "k8s.io/code-generator/cmd/openapi-gen",
     "k8s.io/gengo/args",
-    "k8s.io/kube-aggregator/pkg/apis/apiregistration/v1beta1",
-    "k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset",
     "k8s.io/utils/pointer",
     "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1",
     "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset",
@@ -1058,7 +1039,6 @@
     "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions",
     "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions/cluster/v1alpha1",
     "sigs.k8s.io/cluster-api/pkg/client/listers_generated/cluster/v1alpha1",
-    "sigs.k8s.io/cluster-api/pkg/controller/config",
     "sigs.k8s.io/controller-runtime/pkg/client",
     "sigs.k8s.io/controller-runtime/pkg/client/config",
     "sigs.k8s.io/controller-runtime/pkg/client/fake",
