@@ -32,7 +32,8 @@ required = [
 
 [[override]]
   name = "sigs.k8s.io/cluster-api"
-  branch = "master"
+  # Pin to the same revision as aws actuator has
+  revision = "cba244b06de7d29777036551e6b32817878d1fcd"
 
 [[override]]
   name = "k8s.io/code-generator"

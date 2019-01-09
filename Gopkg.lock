@@ -915,8 +915,7 @@
   revision = "045dc31ee5c40e8240241ce28dc24d7b56130373"
 
 [[projects]]
-  branch = "master"
-  digest = "1:62d5e027759309ec337224011e1f057346a4af8cacede6d8a731d8160b8525fd"
+  digest = "1:06e72e0584260bfbd3f221c9bff1b9676df283c306cbe97600dabbf6727933e9"
   name = "sigs.k8s.io/cluster-api"
   packages = [
     "pkg/apis/cluster/common",
@@ -931,7 +930,7 @@
     "pkg/client/listers_generated/cluster/v1alpha1",
   ]
   pruneopts = "NUT"
-  revision = "0a0313c785b36a81ffc74c486128ac8b0c12ab3b"
+  revision = "cba244b06de7d29777036551e6b32817878d1fcd"
 
 [[projects]]
   digest = "1:2c27ba82e6c5027fb2412bdb8f91a68a02128864b1b62ebb2fd4749a0bdfe719"
