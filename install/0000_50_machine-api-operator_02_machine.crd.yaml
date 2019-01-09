@@ -27,7 +27,7 @@ spec:
               type: object
             metadata:
               type: object
-            providerConfig:
+            providerSpec:
               properties:
                 value:
                   type: object
@@ -54,7 +54,7 @@ spec:
               - kubelet
               type: object
           required:
-          - providerConfig
+          - providerSpec
           type: object
         status:
           properties:
