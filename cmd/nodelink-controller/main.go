@@ -23,11 +23,15 @@ import (
 	"sync"
 	"time"
 
+	"github.com/golang/glog"
+	"github.com/spf13/pflag"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	coreinformers "k8s.io/client-go/informers/core/v1"
+	"k8s.io/client-go/kubernetes"
 	kubeclientset "k8s.io/client-go/kubernetes"
 	v1core "k8s.io/client-go/kubernetes/typed/core/v1"
 	corelister "k8s.io/client-go/listers/core/v1"
@@ -35,20 +39,16 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 
-	"github.com/golang/glog"
-	"github.com/kubernetes-incubator/apiserver-builder/pkg/controller"
-	"github.com/spf13/pflag"
-	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
+	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
 	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
 	capiclient "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
+	capiinformersfactory "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions"
 	capiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions/cluster/v1alpha1"
 	lister "sigs.k8s.io/cluster-api/pkg/client/listers_generated/cluster/v1alpha1"
-	"sigs.k8s.io/cluster-api/pkg/controller/config"
 
 	kubeinformers "k8s.io/client-go/informers"
-	"k8s.io/client-go/kubernetes"
-	capiinformersfactory "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions"
 )
 
 const (
@@ -429,16 +429,12 @@ var (
 	logLevel string
 )
 
-func init() {
-	config.ControllerConfig.AddFlags(pflag.CommandLine)
-}
-
 func main() {
 
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
 	pflag.Parse()
 
-	config, err := controller.GetConfig(config.ControllerConfig.Kubeconfig)
+	config, err := config.GetConfig()
 	if err != nil {
 		glog.Fatalf("Could not create Config for talking to the apiserver: %v", err)
 	}
