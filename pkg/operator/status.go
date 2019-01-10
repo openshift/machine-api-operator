@@ -10,8 +10,92 @@ import (
 	"k8s.io/utils/pointer"
 )
 
+// StatusReason is a MixedCaps string representing the reason for a
+// status condition change.
+type StatusReason string
+
+// The default set of status change reasons.
+const (
+	ReasonEmpty      StatusReason = ""
+	ReasonSyncing    StatusReason = "SyncingResources"
+	ReasonSyncFailed StatusReason = "SyncingFailed"
+)
+
+// statusProgressing sets the Progressing condition to True, with the given
+// reason and message, and sets both the Available and Failing conditions to
+// False.
+func (optr *Operator) statusProgressing(reason StatusReason, message string) error {
+	conds := []osconfigv1.ClusterOperatorStatusCondition{
+		{
+			Type:    osconfigv1.OperatorProgressing,
+			Status:  osconfigv1.ConditionTrue,
+			Reason:  string(reason),
+			Message: message,
+		},
+		{
+			Type:   osconfigv1.OperatorAvailable,
+			Status: osconfigv1.ConditionFalse,
+		},
+		{
+			Type:   osconfigv1.OperatorFailing,
+			Status: osconfigv1.ConditionFalse,
+		},
+	}
+
+	return optr.syncStatus(conds)
+}
+
+// statusAvailable sets the Available condition to True, with the given reason
+// and message, and sets both the Progressing and Failing conditions to False.
+func (optr *Operator) statusAvailable(reason StatusReason, message string) error {
+	conds := []osconfigv1.ClusterOperatorStatusCondition{
+		{
+			Type:    osconfigv1.OperatorAvailable,
+			Status:  osconfigv1.ConditionTrue,
+			Reason:  string(reason),
+			Message: message,
+		},
+		{
+			Type:   osconfigv1.OperatorProgressing,
+			Status: osconfigv1.ConditionFalse,
+		},
+
+		{
+			Type:   osconfigv1.OperatorFailing,
+			Status: osconfigv1.ConditionFalse,
+		},
+	}
+
+	return optr.syncStatus(conds)
+}
+
+// statusFailing sets the Failing condition to True, with the given reason and
+// message, and sets the Progressing condition to False, and the Available
+// condition to True.  This indicates that the operator is present and may be
+// partially functioning, but is in a degraded or failing state.
+func (optr *Operator) statusFailing(reason StatusReason, message string) error {
+	conds := []osconfigv1.ClusterOperatorStatusCondition{
+		{
+			Type:    osconfigv1.OperatorFailing,
+			Status:  osconfigv1.ConditionTrue,
+			Reason:  string(reason),
+			Message: message,
+		},
+		{
+			Type:   osconfigv1.OperatorProgressing,
+			Status: osconfigv1.ConditionFalse,
+		},
+		{
+			Type:   osconfigv1.OperatorAvailable,
+			Status: osconfigv1.ConditionTrue,
+		},
+	}
+
+	return optr.syncStatus(conds)
+}
+
 //syncStatus applies the new condition to the mao ClusterOperator object.
-func (optr *Operator) syncStatus(cond osconfigv1.ClusterOperatorStatusCondition) error {
+func (optr *Operator) syncStatus(conds []osconfigv1.ClusterOperatorStatusCondition) error {
 	// to report the status of all the managed components.
 	clusterOperator := &osconfigv1.ClusterOperator{
 		ObjectMeta: metav1.ObjectMeta{
@@ -22,7 +106,11 @@ func (optr *Operator) syncStatus(cond osconfigv1.ClusterOperatorStatusCondition)
 			Version: version.Raw,
 		},
 	}
-	cvoresourcemerge.SetOperatorStatusCondition(&clusterOperator.Status.Conditions, cond)
+
+	for _, c := range conds {
+		cvoresourcemerge.SetOperatorStatusCondition(&clusterOperator.Status.Conditions, c)
+	}
+
 	_, _, err := ApplyClusterOperator(optr.osClient.ConfigV1(), clusterOperator)
 	return err
 }
