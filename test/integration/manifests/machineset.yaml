@@ -21,7 +21,7 @@ spec:
         sigs.k8s.io/cluster-api-machine-type: worker
         sigs.k8s.io/cluster-api-machineset: worker
     spec:
-      providerConfig:
+      providerSpec:
         value:
           credentialsSecret:
             name: aws-credentials-secret
