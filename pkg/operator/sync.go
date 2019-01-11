@@ -10,10 +10,10 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	osconfigv1 "github.com/openshift/api/config/v1"
+	"path/filepath"
+
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
-	"path/filepath"
 )
 
 const (
@@ -24,36 +24,30 @@ const (
 func (optr *Operator) syncAll(config OperatorConfig) error {
 	glog.Infof("Syncing ClusterOperatorStatus")
 
-	if err := optr.syncStatus(osconfigv1.ClusterOperatorStatusCondition{
-		Type:    osconfigv1.OperatorProgressing,
-		Status:  osconfigv1.ConditionTrue,
-		Message: "Running sync functions",
-	}); err != nil {
+	if err := optr.statusProgressing(ReasonSyncing, "Running sync functions"); err != nil {
 		glog.Errorf("Error synching ClusterOperatorStatus: %v", err)
 		return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
 	}
 
-	err := optr.syncClusterAPIController(config)
-	if err != nil {
+	if err := optr.syncClusterAPIController(config); err != nil {
+		if err := optr.statusFailing(ReasonSyncFailed, err.Error()); err != nil {
+			// Just log the error here.  We still want to
+			// return the outer error.
+			glog.Errorf("Error synching ClusterOperatorStatus: %v", err)
+		}
+
 		glog.Errorf("Failed sync-up cluster api controller: %v", err)
 		return err
 	}
+
 	glog.Info("Synched up cluster api controller")
 
-	// TODO(alberto): create funcs to for atomic conds changes
-	if err := optr.syncStatus(osconfigv1.ClusterOperatorStatusCondition{
-		Type:    osconfigv1.OperatorProgressing,
-		Status:  osconfigv1.ConditionFalse,
-		Message: "Running sync functions",
-	}); err != nil {
+	if err := optr.statusAvailable(ReasonEmpty, "cluster-api ready"); err != nil {
 		glog.Errorf("Error synching ClusterOperatorStatus: %v", err)
 		return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
 	}
-	return optr.syncStatus(osconfigv1.ClusterOperatorStatusCondition{
-		Type:    osconfigv1.OperatorAvailable,
-		Status:  osconfigv1.ConditionTrue,
-		Message: "Done running sync functions",
-	})
+
+	return nil
 }
 
 func (optr *Operator) syncClusterAPIController(config OperatorConfig) error {
