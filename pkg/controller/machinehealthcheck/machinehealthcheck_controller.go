@@ -4,6 +4,8 @@ import (
 	"context"
 
 	golangerrors "errors"
+	"time"
+
 	"github.com/golang/glog"
 	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
@@ -20,11 +22,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
-	"time"
 )
 
 const (
-	machineAnnotationKey = "machine"
+	machineAnnotationKey = "cluster.k8s.io/machine"
 	// TODO(alberto) ensure we handle the case for when a new machine comes up
 	// so remediation doesn't kill it before it goes healthy
 	remediationWaitTime = 5 * time.Minute
