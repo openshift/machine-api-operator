@@ -5,6 +5,30 @@ metadata:
     controller-tools.k8s.io: "1.0"
   name: machines.cluster.k8s.io
 spec:
+  additionalPrinterColumns:
+  - JSONPath: .status.providerStatus.instanceId
+    name: Instance
+    description: Instance ID of machine created in AWS
+    type: string
+  - JSONPath: .status.providerStatus.instanceState
+    name: State
+    description: State of the AWS instance
+    type: string
+  - JSONPath: .spec.providerSpec.value.instanceType
+    name: Type
+    description: Type of instance
+    type: string
+  - JSONPath: .spec.providerSpec.value.placement.region
+    name: Region
+    description: Region associated with machine
+    type: string
+  - JSONPath: .spec.providerSpec.value.placement.availabilityZone
+    name: Zone
+    description: Zone associated with machine
+    type: string
+  - JSONPath: .metadata.creationTimestamp    
+    name: Age
+    type: date
   group: cluster.k8s.io
   names:
     kind: Machine
