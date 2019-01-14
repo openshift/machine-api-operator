@@ -4,7 +4,7 @@ metadata:
   labels:
     controller-tools.k8s.io: "1.0"
   name: machinesets.cluster.k8s.io
-spec:  
+spec:
   group: cluster.k8s.io
   names:
     kind: MachineSet
@@ -119,7 +119,7 @@ spec:
   - JSONPath: .status.availableReplicas
     name: Available
     description: Observed number of available replicas
-    type: string    
+    type: string
   - JSONPath: .metadata.creationTimestamp
     name: Age
     type: date
