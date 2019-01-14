@@ -116,6 +116,10 @@ spec:
     description: Ready Replicas
     name: Ready
     type: integer
+  - JSONPath: .status.availableReplicas
+    name: Available
+    description: Observed number of available replicas
+    type: string
   - JSONPath: .metadata.creationTimestamp
     name: Age
     type: date
