@@ -2,8 +2,10 @@ package main
 
 import (
 	"flag"
+
 	"github.com/golang/glog"
 	osconfigv1 "github.com/openshift/api/config/v1"
+	caov1alpha1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis"
 	"k8s.io/client-go/kubernetes/scheme"
 	capiv1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -20,6 +22,10 @@ func init() {
 	}
 
 	if err := osconfigv1.AddToScheme(scheme.Scheme); err != nil {
+		glog.Fatal(err)
+	}
+
+	if err := caov1alpha1.AddToScheme(scheme.Scheme); err != nil {
 		glog.Fatal(err)
 	}
 }
@@ -102,5 +108,12 @@ func runSuite() error {
 		return err
 	}
 	glog.Info("PASS: ExpectNewNodeWhenDeletingMachine")
+
+	glog.Info("RUN: ExpectAutoscalerScalesOut")
+	if err := testConfig.ExpectAutoscalerScalesOut(); err != nil {
+		glog.Errorf("FAIL: ExpectAutoscalerScalesOut: %v", err)
+		return err
+	}
+	glog.Info("PASS: ExpectAutoscalerScalesOut")
 	return nil
 }

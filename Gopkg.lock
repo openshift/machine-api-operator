@@ -359,6 +359,17 @@
   revision = "960f72aa32a8e9b4dd769b90ff1cb5bd4c898eec"
 
 [[projects]]
+  digest = "1:88a77d15e6ccd75e18697c7b7c1a4956f601e3481ea26ddc67d78d25518a535e"
+  name = "github.com/openshift/cluster-autoscaler-operator"
+  packages = [
+    "pkg/apis",
+    "pkg/apis/autoscaling/v1alpha1",
+  ]
+  pruneopts = "NUT"
+  revision = "55d8a9017618d3ea22105068095813993b830df8"
+  version = "v0.0.0"
+
+[[projects]]
   branch = "master"
   digest = "1:a97e0106f4cb970001cc5c42eb16716101421940fea9c5b9d07995cc77d96bc5"
   name = "github.com/openshift/cluster-version-operator"
@@ -993,6 +1004,8 @@
     "github.com/openshift/api/config/v1",
     "github.com/openshift/client-go/config/clientset/versioned",
     "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1",
+    "github.com/openshift/cluster-autoscaler-operator/pkg/apis",
+    "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1alpha1",
     "github.com/openshift/cluster-version-operator/lib/resourceapply",
     "github.com/openshift/cluster-version-operator/lib/resourcemerge",
     "github.com/openshift/cluster-version-operator/lib/resourceread",
@@ -1002,12 +1015,14 @@
     "github.com/spf13/pflag",
     "k8s.io/api/apps/v1",
     "k8s.io/api/apps/v1beta2",
+    "k8s.io/api/batch/v1",
     "k8s.io/api/core/v1",
     "k8s.io/api/rbac/v1beta1",
     "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1",
     "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset",
     "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme",
     "k8s.io/apimachinery/pkg/api/errors",
+    "k8s.io/apimachinery/pkg/api/resource",
     "k8s.io/apimachinery/pkg/apis/meta/v1",
     "k8s.io/apimachinery/pkg/labels",
     "k8s.io/apimachinery/pkg/runtime",
