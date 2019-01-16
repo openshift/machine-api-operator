@@ -79,6 +79,11 @@ spec:
                               type: object
                           type: object
                       type: object
+                      oneOf:
+                      - required:
+                        - value
+                      - required:
+                        - valueFrom
                     taints:
                       items:
                         type: object
