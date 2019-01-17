@@ -69,6 +69,11 @@ required = [
   branch = "master" #osdk_branch_annotation
   # version = "=v0.1.1" #osdk_version_annotation
 
+[[constraint]]
+  name = "sigs.k8s.io/cluster-api-provider-aws"
+  source = "https://github.com/openshift/cluster-api-provider-aws.git"
+  branch = "master"
+
 [prune]
   go-tests = true
   unused-packages = true

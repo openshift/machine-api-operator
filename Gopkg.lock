@@ -935,7 +935,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:1c4faebf20e7b8fa0bcd7434c62537a145b12def9e4290d4aff032cf4e6d9135"
+  digest = "1:239d1bacfc04e30cbd3b6137fe42ddc1d813d5bb7d1159662e599c6d29fe2cb3"
   name = "sigs.k8s.io/cluster-api"
   packages = [
     "pkg/apis/cluster/common",
@@ -949,9 +949,19 @@
     "pkg/client/informers_generated/externalversions/internalinterfaces",
     "pkg/client/listers_generated/cluster/v1alpha1",
     "pkg/controller/config",
+    "pkg/controller/noderefutil",
   ]
   pruneopts = "NUT"
   revision = "63aeb2752b5f250636358b795793f2f53ce1c077"
+
+[[projects]]
+  branch = "master"
+  digest = "1:5ade82a27c5ca576a8aa699320fea3ae5a4d47c95e6a2212191ea31e4c49f27c"
+  name = "sigs.k8s.io/cluster-api-provider-aws"
+  packages = ["pkg/apis/awsproviderconfig/v1alpha1"]
+  pruneopts = "NUT"
+  revision = "570aab65681a34cac9aca21ca984529288c5a4dd"
+  source = "https://github.com/openshift/cluster-api-provider-aws.git"
 
 [[projects]]
   digest = "1:2c27ba82e6c5027fb2412bdb8f91a68a02128864b1b62ebb2fd4749a0bdfe719"
@@ -1028,6 +1038,7 @@
     "k8s.io/apimachinery/pkg/runtime",
     "k8s.io/apimachinery/pkg/runtime/schema",
     "k8s.io/apimachinery/pkg/types",
+    "k8s.io/apimachinery/pkg/util/intstr",
     "k8s.io/apimachinery/pkg/util/runtime",
     "k8s.io/apimachinery/pkg/util/sets",
     "k8s.io/apimachinery/pkg/util/uuid",
@@ -1058,6 +1069,7 @@
     "k8s.io/code-generator/cmd/openapi-gen",
     "k8s.io/gengo/args",
     "k8s.io/utils/pointer",
+    "sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsproviderconfig/v1alpha1",
     "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1",
     "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset",
     "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/scheme",
@@ -1065,6 +1077,7 @@
     "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions/cluster/v1alpha1",
     "sigs.k8s.io/cluster-api/pkg/client/listers_generated/cluster/v1alpha1",
     "sigs.k8s.io/cluster-api/pkg/controller/config",
+    "sigs.k8s.io/cluster-api/pkg/controller/noderefutil",
     "sigs.k8s.io/controller-runtime/pkg/client",
     "sigs.k8s.io/controller-runtime/pkg/client/config",
     "sigs.k8s.io/controller-runtime/pkg/client/fake",
