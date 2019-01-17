@@ -115,5 +115,12 @@ func runSuite() error {
 		return err
 	}
 	glog.Info("PASS: ExpectAutoscalerScalesOut")
+
+	glog.Info("RUN: ExpectRollingDeploymentUpdate")
+	if err := testConfig.ExpectRollingDeploymentUpdate(); err != nil {
+		glog.Errorf("FAIL: ExpectRollingDeploymentUpdate: %v", err)
+		return err
+	}
+	glog.Info("PASS: ExpectRollingDeploymentUpdate")
 	return nil
 }

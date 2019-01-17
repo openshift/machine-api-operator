@@ -15,12 +15,16 @@ import (
 	kappsapi "k8s.io/api/apps/v1"
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	resource "k8s.io/apimachinery/pkg/api/resource"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
+	awsprovider "sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsproviderconfig/v1alpha1"
 	capiv1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
+	"sigs.k8s.io/cluster-api/pkg/controller/noderefutil"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -606,5 +610,204 @@ func (tc *testConfig) ExpectAutoscalerScalesOut() error {
 		}
 		glog.Infof("Initial number of nodes: %d. Current number of nodes: %d", clusterInitialTotalNodes, len(nodeList.Items))
 		return len(nodeList.Items) == clusterInitialTotalNodes, nil
+	})
+}
+
+// Scale to 3 replicas
+// Set maxUnavailable = 0 maxSurge = 1
+// Trigger a rolling update by updating the machineType of a deployment
+// Verify machines are rolled our one by one and each associated node goes available
+// Verify expected final number of nodes
+func (tc *testConfig) ExpectRollingDeploymentUpdate() error {
+	listOptions := client.ListOptions{
+		Namespace: namespace,
+	}
+	glog.Info("Get machineDeploymentList")
+	machineDeploymentList := capiv1alpha1.MachineDeploymentList{}
+	if err := wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
+		if err := tc.client.List(context.TODO(), &listOptions, &machineDeploymentList); err != nil {
+			glog.Errorf("error querying api for machineList object: %v, retrying...", err)
+			return false, nil
+		}
+		return len(machineDeploymentList.Items) > 0, nil
+	}); err != nil {
+		return err
+	}
+
+	glog.Info("Get initial nodeList")
+	nodeList := corev1.NodeList{}
+	var clusterInitialTotalNodes int
+	if err := wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
+		if err := tc.client.List(context.TODO(), &listOptions, &nodeList); err != nil {
+			glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
+			return false, nil
+		}
+
+		readyNodes := 0
+		clusterInitialTotalNodes = len(nodeList.Items)
+		for _, node := range nodeList.Items {
+			if noderefutil.IsNodeReady(&node) {
+				readyNodes++
+			}
+		}
+		glog.Infof("Initial number of nodes: %d. Ready nodes: %d", clusterInitialTotalNodes, readyNodes)
+		return readyNodes == clusterInitialTotalNodes, nil
+	}); err != nil {
+		return err
+	}
+
+	replicas := int32(3)
+	dep := machineDeploymentList.Items[0]
+	glog.Infof("Scale deployment %s to %d replicas", dep.Name, replicas)
+	initialNumberOfReplicas := int(*dep.Spec.Replicas)
+	dep.Spec.Replicas = &replicas
+	expectedNumberOfNodes := clusterInitialTotalNodes + int(replicas) - initialNumberOfReplicas
+	expectedNumberOfMachines := expectedNumberOfNodes
+	if err := wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
+		if err := tc.client.Update(context.TODO(), &dep); err != nil {
+			glog.Errorf("error querying api for deployment object: %v, retrying...", err)
+			return false, nil
+		}
+		return true, nil
+	}); err != nil {
+		return err
+	}
+
+	glog.Infof("Wait for nodes to scale out")
+	if err := wait.PollImmediate(1*time.Second, waitLong, func() (bool, error) {
+		if err := tc.client.List(context.TODO(), &listOptions, &nodeList); err != nil {
+			glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
+			return false, nil
+		}
+		readyNodes := 0
+		for _, node := range nodeList.Items {
+			if noderefutil.IsNodeReady(&node) {
+				readyNodes++
+			}
+		}
+		glog.Infof("Expected number of nodes: %d. Ready nodes: %d", expectedNumberOfNodes, readyNodes)
+		return readyNodes == expectedNumberOfNodes, nil
+
+	}); err != nil {
+		return err
+	}
+
+	glog.Info("Set new machine type to trigger rolling update")
+	// Validations here assume deployment values for rolling machines one by one:
+	maxSurge := intstr.FromInt(1)
+	maxUnavailable := intstr.FromInt(0)
+	dep.Spec.Strategy.RollingUpdate.MaxUnavailable = &maxUnavailable
+	dep.Spec.Strategy.RollingUpdate.MaxSurge = &maxSurge
+
+	codec, err := awsprovider.NewCodec()
+	if err != nil {
+		glog.Fatal(err)
+	}
+	var config awsprovider.AWSMachineProviderConfig
+	if err := codec.DecodeProviderSpec(&capiv1alpha1.ProviderSpec{Value: dep.Spec.Template.Spec.ProviderSpec.Value}, &config); err != nil {
+		return err
+	}
+	var newInstanceType string
+	if config.InstanceType == "m4.xlarge" {
+		newInstanceType = "m4.large"
+	} else {
+		newInstanceType = "m4.xlarge"
+	}
+	config.InstanceType = newInstanceType
+	dep.Spec.Template.Spec.ProviderSpec = capiv1alpha1.ProviderSpec{
+		Value: &runtime.RawExtension{Object: &config},
+	}
+	if err := wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
+		if err := tc.client.Update(context.TODO(), &dep); err != nil {
+			glog.Errorf("error querying api for deployment object: %v, retrying...", err)
+			return false, nil
+		}
+		return true, nil
+	}); err != nil {
+		return err
+	}
+	glog.Infof("New InstanceType for deployment %s is %s", dep.Name, config.InstanceType)
+
+	// Verify a new node per replica is rolled out
+	for i := 0; i < int(replicas); i++ {
+		glog.Infof("%d nodes remaining to finish rolling update", int(replicas)-i)
+		glog.Info("Verify a new node is rolled out")
+		glog.Info("Get new machine")
+		var newMachine capiv1alpha1.Machine
+		if err := wait.PollImmediate(1*time.Second, waitLong, func() (bool, error) {
+			glog.Infof("Wait for a new machine to be created")
+			machineList := capiv1alpha1.MachineList{}
+			if err := tc.client.List(context.TODO(), &listOptions, &machineList); err != nil {
+				glog.Errorf("error querying api for machineList object: %v, retrying...", err)
+				return false, nil
+			}
+			glog.Infof("Initial number of machines: %d. current number of machines: %d", expectedNumberOfMachines, len(machineList.Items))
+			if expectedNumberOfMachines+1 != len(machineList.Items) {
+				return false, nil
+			}
+			sortedMachineList := machineList.Items
+			sortByNewestCreationTimestamp(sortedMachineList)
+			newMachine = sortedMachineList[0]
+
+			var config awsprovider.AWSMachineProviderConfig
+			if err := codec.DecodeProviderSpec(&capiv1alpha1.ProviderSpec{Value: newMachine.Spec.ProviderSpec.Value}, &config); err != nil {
+				return false, err
+			}
+			if config.InstanceType != newInstanceType {
+				return false, nil
+			}
+			glog.Infof("New machine comes with the expected new instance type: %s", newInstanceType)
+
+			return true, nil
+		}); err != nil {
+			return err
+		}
+		glog.Info("Get new node")
+		if err := wait.PollImmediate(1*time.Second, waitLong, func() (bool, error) {
+			glog.Infof("Wait for machine %s to have a nodeRef", newMachine.Name)
+			refreshedNewMachine := &capiv1alpha1.Machine{}
+			key := types.NamespacedName{
+				Namespace: namespace,
+				Name:      newMachine.Name,
+			}
+			if err := tc.client.Get(context.TODO(), key, refreshedNewMachine); err != nil {
+				glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
+				return false, nil
+			}
+			if refreshedNewMachine.Status.NodeRef == nil {
+				return false, nil
+			}
+
+			newNodeRef := refreshedNewMachine.Status.NodeRef
+			newNode := &corev1.Node{}
+			key = types.NamespacedName{
+				Namespace: namespace,
+				Name:      newNodeRef.Name,
+			}
+			if err := tc.client.Get(context.TODO(), key, newNode); err != nil {
+				glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
+				return false, nil
+			}
+			glog.Infof("Wait for new node %s to become available", newNode.Name)
+			return noderefutil.IsNodeReady(newNode), nil
+		}); err != nil {
+			return err
+		}
+	}
+
+	glog.Info("Verify the old version of the rolled nodes are deleted. Exactly initial number of nodes are available")
+	return wait.PollImmediate(1*time.Second, waitLong, func() (bool, error) {
+		if err := tc.client.List(context.TODO(), &listOptions, &nodeList); err != nil {
+			glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
+			return false, nil
+		}
+		readyNodes := 0
+		for _, node := range nodeList.Items {
+			if noderefutil.IsNodeReady(&node) {
+				readyNodes++
+			}
+		}
+		glog.Infof("Initial number of nodes: %d. Ready nodes: %d", clusterInitialTotalNodes, readyNodes)
+		return readyNodes == expectedNumberOfNodes, nil
 	})
 }
