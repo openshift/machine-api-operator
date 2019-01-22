@@ -46,9 +46,6 @@ spec:
           requests:
             cpu: 100m
             memory: 20Mi
-          limits:
-            cpu: 100m
-            memory: 30Mi
       - name: machine-controller
         image: {{ .Controllers.Provider }}
         env:
@@ -72,9 +69,6 @@ spec:
           requests:
             cpu: 100m
             memory: 20Mi
-          limits:
-            cpu: 100m
-            memory: 30Mi
       - name: machine-controller-deprecated
         image: {{ .Controllers.ProviderDeprecated }}
         env:
@@ -98,9 +92,6 @@ spec:
           requests:
             cpu: 100m
             memory: 20Mi
-          limits:
-            cpu: 100m
-            memory: 30Mi
       - name: nodelink-controller
         image: {{ .Controllers.NodeLink }}
         command:
@@ -112,9 +103,6 @@ spec:
           requests:
             cpu: 100m
             memory: 20Mi
-          limits:
-            cpu: 100m
-            memory: 30Mi
       - name: machine-healthcheck-deprecated
         image: quay.io/coreos/machine-api-operator:origin-v4.0-2019-01-31-041134
         command:
@@ -126,9 +114,6 @@ spec:
           requests:
             cpu: 100m
             memory: 20Mi
-          limits:
-            cpu: 100m
-            memory: 30Mi
       - name: machine-healthcheck
         image: {{ .Controllers.MachineHealthCheck }}
         command:
@@ -140,6 +125,3 @@ spec:
           requests:
             cpu: 100m
             memory: 20Mi
-          limits:
-            cpu: 100m
-            memory: 30Mi
