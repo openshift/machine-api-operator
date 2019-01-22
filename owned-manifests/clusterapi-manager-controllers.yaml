@@ -46,9 +46,6 @@ spec:
           requests:
             cpu: 100m
             memory: 20Mi
-          limits:
-            cpu: 100m
-            memory: 30Mi
       - name: machine-controller
         image: {{ .Controllers.Provider }}
         env:
@@ -72,9 +69,6 @@ spec:
           requests:
             cpu: 100m
             memory: 20Mi
-          limits:
-            cpu: 100m
-            memory: 30Mi
       - name: machine-healthcheck
         image: {{ .Controllers.MachineHealthCheck }}
         command:
@@ -86,6 +80,3 @@ spec:
           requests:
             cpu: 100m
             memory: 20Mi
-          limits:
-            cpu: 100m
-            memory: 30Mi
