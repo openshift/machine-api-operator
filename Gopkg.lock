@@ -286,14 +286,6 @@
   version = "v1.1.5"
 
 [[projects]]
-  digest = "1:5a4ced6c2dc0b2b1b03fb21bca0529d1edd467d6f5c0e6876089211fba98af6f"
-  name = "github.com/kubernetes-incubator/apiserver-builder"
-  packages = ["pkg/controller"]
-  pruneopts = "NUT"
-  revision = "83b2c178a8f935a738cebbf41aa5b8af1f19162d"
-  version = "v0.2-alpha.0"
-
-[[projects]]
   branch = "master"
   digest = "1:84a5a2b67486d5d67060ac393aa255d05d24ed5ee41daecd5635ec22657b6492"
   name = "github.com/mailru/easyjson"
@@ -935,7 +927,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:1c4faebf20e7b8fa0bcd7434c62537a145b12def9e4290d4aff032cf4e6d9135"
+  digest = "1:06e72e0584260bfbd3f221c9bff1b9676df283c306cbe97600dabbf6727933e9"
   name = "sigs.k8s.io/cluster-api"
   packages = [
     "pkg/apis/cluster/common",
@@ -948,7 +940,6 @@
     "pkg/client/informers_generated/externalversions/cluster/v1alpha1",
     "pkg/client/informers_generated/externalversions/internalinterfaces",
     "pkg/client/listers_generated/cluster/v1alpha1",
-    "pkg/controller/config",
   ]
   pruneopts = "NUT"
   revision = "63aeb2752b5f250636358b795793f2f53ce1c077"
@@ -1000,7 +991,6 @@
     "github.com/blang/semver",
     "github.com/ghodss/yaml",
     "github.com/golang/glog",
-    "github.com/kubernetes-incubator/apiserver-builder/pkg/controller",
     "github.com/openshift/api/config/v1",
     "github.com/openshift/client-go/config/clientset/versioned",
     "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1",
@@ -1064,7 +1054,6 @@
     "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions",
     "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions/cluster/v1alpha1",
     "sigs.k8s.io/cluster-api/pkg/client/listers_generated/cluster/v1alpha1",
-    "sigs.k8s.io/cluster-api/pkg/controller/config",
     "sigs.k8s.io/controller-runtime/pkg/client",
     "sigs.k8s.io/controller-runtime/pkg/client/config",
     "sigs.k8s.io/controller-runtime/pkg/client/fake",
