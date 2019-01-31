@@ -6,6 +6,10 @@ spec:
     from:
       kind: DockerImage
       name: docker.io/openshift/origin-machine-api-operator:v4.0.0
+  - name: machine-api-operator-deprecated
+    from:
+      kind: DockerImage
+      name: quay.io/coreos/machine-api-operator:origin-v4.0-2019-01-31-041134
   - name: aws-machine-controllers
     from:
       kind: DockerImage
