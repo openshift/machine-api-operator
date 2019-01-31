@@ -13,7 +13,7 @@ spec:
   - name: openstack-machine-controllers
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift/origin-v4.0:openstack-machine-controllers
+      name: docker.io/openshift/origin-openstack-machine-controllers:v4.0.0
   - name: libvirt-machine-controllers
     from:
       kind: DockerImage
