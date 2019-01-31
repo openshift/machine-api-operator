@@ -351,6 +351,30 @@
   revision = "960f72aa32a8e9b4dd769b90ff1cb5bd4c898eec"
 
 [[projects]]
+  digest = "1:72fe9aecc0c2e30d051a236236d9e175542b64245ea4e8b025eb1cbc58980ba0"
+  name = "github.com/openshift/cluster-api"
+  packages = [
+    "pkg/apis/cluster/common",
+    "pkg/apis/cluster/v1alpha1",
+    "pkg/apis/machine/common",
+    "pkg/apis/machine/v1beta1",
+    "pkg/client/clientset_generated/clientset",
+    "pkg/client/clientset_generated/clientset/scheme",
+    "pkg/client/clientset_generated/clientset/typed/cluster/v1alpha1",
+    "pkg/client/clientset_generated/clientset/typed/machine/v1beta1",
+    "pkg/client/informers_generated/externalversions",
+    "pkg/client/informers_generated/externalversions/cluster",
+    "pkg/client/informers_generated/externalversions/cluster/v1alpha1",
+    "pkg/client/informers_generated/externalversions/internalinterfaces",
+    "pkg/client/informers_generated/externalversions/machine",
+    "pkg/client/informers_generated/externalversions/machine/v1beta1",
+    "pkg/client/listers_generated/cluster/v1alpha1",
+    "pkg/client/listers_generated/machine/v1beta1",
+  ]
+  pruneopts = "NUT"
+  revision = "91fca585a85b163ddfd119fd09c128c9feadddca"
+
+[[projects]]
   digest = "1:88a77d15e6ccd75e18697c7b7c1a4956f601e3481ea26ddc67d78d25518a535e"
   name = "github.com/openshift/cluster-autoscaler-operator"
   packages = [
@@ -404,6 +428,14 @@
   pruneopts = "NUT"
   revision = "5f041e8faa004a95c88a202771f4cc3e991971e6"
   version = "v2.0.1"
+
+[[projects]]
+  digest = "1:14715f705ff5dfe0ffd6571d7d201dd8e921030f8070321a79380d8ca4ec1a24"
+  name = "github.com/pkg/errors"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "ba968bfe8b2f7e042a574c888954fccecfa385b4"
+  version = "v0.8.1"
 
 [[projects]]
   digest = "1:b2339e83ce9b5c4f79405f949429a7f68a9a904fed903c672aac1e7ceb7f5f02"
@@ -926,25 +958,6 @@
   revision = "045dc31ee5c40e8240241ce28dc24d7b56130373"
 
 [[projects]]
-  branch = "master"
-  digest = "1:06e72e0584260bfbd3f221c9bff1b9676df283c306cbe97600dabbf6727933e9"
-  name = "sigs.k8s.io/cluster-api"
-  packages = [
-    "pkg/apis/cluster/common",
-    "pkg/apis/cluster/v1alpha1",
-    "pkg/client/clientset_generated/clientset",
-    "pkg/client/clientset_generated/clientset/scheme",
-    "pkg/client/clientset_generated/clientset/typed/cluster/v1alpha1",
-    "pkg/client/informers_generated/externalversions",
-    "pkg/client/informers_generated/externalversions/cluster",
-    "pkg/client/informers_generated/externalversions/cluster/v1alpha1",
-    "pkg/client/informers_generated/externalversions/internalinterfaces",
-    "pkg/client/listers_generated/cluster/v1alpha1",
-  ]
-  pruneopts = "NUT"
-  revision = "63aeb2752b5f250636358b795793f2f53ce1c077"
-
-[[projects]]
   digest = "1:2c27ba82e6c5027fb2412bdb8f91a68a02128864b1b62ebb2fd4749a0bdfe719"
   name = "sigs.k8s.io/controller-runtime"
   packages = [
@@ -994,6 +1007,13 @@
     "github.com/openshift/api/config/v1",
     "github.com/openshift/client-go/config/clientset/versioned",
     "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1",
+    "github.com/openshift/cluster-api/pkg/apis/cluster/v1alpha1",
+    "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1",
+    "github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset",
+    "github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset/scheme",
+    "github.com/openshift/cluster-api/pkg/client/informers_generated/externalversions",
+    "github.com/openshift/cluster-api/pkg/client/informers_generated/externalversions/machine/v1beta1",
+    "github.com/openshift/cluster-api/pkg/client/listers_generated/machine/v1beta1",
     "github.com/openshift/cluster-autoscaler-operator/pkg/apis",
     "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1alpha1",
     "github.com/openshift/cluster-version-operator/lib/resourceapply",
@@ -1048,12 +1068,6 @@
     "k8s.io/code-generator/cmd/openapi-gen",
     "k8s.io/gengo/args",
     "k8s.io/utils/pointer",
-    "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1",
-    "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset",
-    "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/scheme",
-    "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions",
-    "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions/cluster/v1alpha1",
-    "sigs.k8s.io/cluster-api/pkg/client/listers_generated/cluster/v1alpha1",
     "sigs.k8s.io/controller-runtime/pkg/client",
     "sigs.k8s.io/controller-runtime/pkg/client/config",
     "sigs.k8s.io/controller-runtime/pkg/client/fake",
