@@ -61,10 +61,38 @@ spec:
         args:
           - --logtostderr=true
           - --v=3
+      - name: nodelink-controller-deprecated
+        image: quay.io/coreos/machine-api-operator:origin-v4.0-2019-01-31-041134
+        command:
+          - /nodelink-controller
+        args:
+          - --logtostderr=true
+          - --v=3
+        resources:
+          requests:
+            cpu: 100m
+            memory: 20Mi
+          limits:
+            cpu: 100m
+            memory: 30Mi
       - name: nodelink-controller
         image: {{ .Controllers.NodeLink }}
         command:
           - /nodelink-controller
+        args:
+          - --logtostderr=true
+          - --v=3
+        resources:
+          requests:
+            cpu: 100m
+            memory: 20Mi
+          limits:
+            cpu: 100m
+            memory: 30Mi
+      - name: machine-healthcheck-deprecated
+        image: quay.io/coreos/machine-api-operator:origin-v4.0-2019-01-31-041134
+        command:
+          - /machine-healthcheck
         args:
           - --logtostderr=true
           - --v=3
