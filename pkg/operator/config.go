@@ -8,11 +8,12 @@ import (
 	"github.com/ghodss/yaml"
 
 	"bytes"
+	"reflect"
+	"text/template"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
-	"reflect"
-	"text/template"
 )
 
 const (
@@ -40,16 +41,19 @@ type OperatorConfig struct {
 
 type Controllers struct {
 	Provider           string
+	ProviderDeprecated string
 	NodeLink           string
 	MachineHealthCheck string
 }
 
 // Images allows build systems to inject images for MAO components
 type Images struct {
-	MachineAPIOperator            string `json:"machineAPIOperator"`
-	ClusterAPIControllerAWS       string `json:"clusterAPIControllerAWS"`
-	ClusterAPIControllerOpenStack string `json:"clusterAPIControllerOpenStack"`
-	ClusterAPIControllerLibvirt   string `json:"clusterAPIControllerLibvirt"`
+	MachineAPIOperator                    string `json:"machineAPIOperator"`
+	ClusterAPIControllerAWS               string `json:"clusterAPIControllerAWS"`
+	ClusterAPIControllerAWSDeprecated     string `json:"clusterAPIControllerAWSDeprecated"`
+	ClusterAPIControllerOpenStack         string `json:"clusterAPIControllerOpenStack"`
+	ClusterAPIControllerLibvirt           string `json:"clusterAPIControllerLibvirt"`
+	ClusterAPIControllerLibvirtDeprecated string `json:"clusterAPIControllerLibvirtDeprecated"`
 }
 
 // InstallConfig contains the mao relevant config coming from the install config, i.e provider

@@ -7,7 +7,7 @@ import (
 	"github.com/golang/glog"
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	appsinformersv1 "k8s.io/client-go/informers/apps/v1"
@@ -210,10 +210,20 @@ func (optr *Operator) maoConfigFromInstallConfig() (*OperatorConfig, error) {
 		return nil, err
 	}
 
+	// TODO: Remove once we transition over machine.openshift.io group
+	var providerDreprecatedControllerImage string
+	switch provider {
+	case AWSProvider:
+		providerDreprecatedControllerImage = images.ClusterAPIControllerAWSDeprecated
+	case LibvirtProvider:
+		providerDreprecatedControllerImage = images.ClusterAPIControllerLibvirtDeprecated
+	}
+
 	return &OperatorConfig{
 		optr.namespace,
 		Controllers{
 			providerControllerImage,
+			providerDreprecatedControllerImage,
 			machineAPIOperatorImage,
 			machineAPIOperatorImage,
 		},

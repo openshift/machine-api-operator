@@ -3,7 +3,7 @@ package operator
 import (
 	"testing"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 )
 
 var (
@@ -12,6 +12,8 @@ var (
 	expectedLibvirtImage            = "docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0"
 	expectedOpenstackImage          = "docker.io/openshift/origin-openstack-machine-controllers:v4.0.0"
 	expectedMachineAPIOperatorImage = "docker.io/openshift/origin-machine-api-operator:v4.0.0"
+	expectedAWSImageDeprecated      = "quay.io/coreos/cluster-api-provider-aws:origin-v4.0-2019-01-31-041134"
+	expectedLibvirtImageDeprecated  = "quay.io/coreos/cluster-api-provider-libvirt:origin-v4.0-2019-01-31-041134"
 )
 
 func TestInstallConfigFromClusterConfig(t *testing.T) {
@@ -133,6 +135,12 @@ func TestGetImagesFromJSONFile(t *testing.T) {
 	}
 	if img.ClusterAPIControllerOpenStack != expectedOpenstackImage {
 		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedOpenstackImage, img.ClusterAPIControllerOpenStack)
+	}
+	if img.ClusterAPIControllerAWSDeprecated != expectedAWSImageDeprecated {
+		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedAWSImageDeprecated, img.ClusterAPIControllerAWSDeprecated)
+	}
+	if img.ClusterAPIControllerLibvirtDeprecated != expectedLibvirtImageDeprecated {
+		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedLibvirtImageDeprecated, img.ClusterAPIControllerLibvirtDeprecated)
 	}
 }
 
