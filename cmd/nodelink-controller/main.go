@@ -41,12 +41,12 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 
-	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
-	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
-	capiclient "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
-	capiinformersfactory "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions"
-	capiinformers "sigs.k8s.io/cluster-api/pkg/client/informers_generated/externalversions/cluster/v1alpha1"
-	lister "sigs.k8s.io/cluster-api/pkg/client/listers_generated/cluster/v1alpha1"
+	mapiv1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
+	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
+	mapiclient "github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
+	mapiinformersfactory "github.com/openshift/cluster-api/pkg/client/informers_generated/externalversions"
+	mapiinformers "github.com/openshift/cluster-api/pkg/client/informers_generated/externalversions/machine/v1beta1"
+	lister "github.com/openshift/cluster-api/pkg/client/listers_generated/machine/v1beta1"
 
 	kubeinformers "k8s.io/client-go/informers"
 )
@@ -61,15 +61,15 @@ const (
 	controllerName = "nodelink"
 
 	// machineAnnotationKey is the annotation storing a link between a node and it's machine. Should match upstream cluster-api machine controller. (node.go)
-	machineAnnotationKey = "cluster.k8s.io/machine"
+	machineAnnotationKey = "machine.openshift.io/machine"
 )
 
 // NewController returns a new *Controller.
 func NewController(
 	nodeInformer coreinformers.NodeInformer,
-	machineInformer capiinformers.MachineInformer,
+	machineInformer mapiinformers.MachineInformer,
 	kubeClient kubeclientset.Interface,
-	capiClient capiclient.Interface,
+	capiClient mapiclient.Interface,
 ) *Controller {
 
 	eventBroadcaster := record.NewBroadcaster()
@@ -104,14 +104,14 @@ func NewController(
 	c.syncHandler = c.syncNode
 	c.enqueueNode = c.enqueue
 
-	c.machineAddress = make(map[string]*capiv1.Machine)
+	c.machineAddress = make(map[string]*mapiv1.Machine)
 
 	return c
 }
 
 // Controller monitors nodes and links them to their machines when possible, as well as applies desired labels and taints.
 type Controller struct {
-	capiClient capiclient.Interface
+	capiClient mapiclient.Interface
 	kubeClient kubeclientset.Interface
 
 	// To allow injection for testing.
@@ -130,7 +130,7 @@ type Controller struct {
 	queue workqueue.RateLimitingInterface
 
 	// machines cache map[internalIP]machine
-	machineAddress    map[string]*capiv1.Machine
+	machineAddress    map[string]*mapiv1.Machine
 	machineAddressMux sync.Mutex
 }
 
@@ -169,7 +169,7 @@ func (c *Controller) deleteNode(obj interface{}) {
 }
 
 func (c *Controller) addMachine(obj interface{}) {
-	machine := obj.(*capiv1.Machine)
+	machine := obj.(*mapiv1.Machine)
 
 	c.machineAddressMux.Lock()
 	defer c.machineAddressMux.Unlock()
@@ -185,7 +185,7 @@ func (c *Controller) addMachine(obj interface{}) {
 }
 
 func (c *Controller) updateMachine(old, cur interface{}) {
-	machine := cur.(*capiv1.Machine)
+	machine := cur.(*mapiv1.Machine)
 
 	c.machineAddressMux.Lock()
 	defer c.machineAddressMux.Unlock()
@@ -201,7 +201,7 @@ func (c *Controller) updateMachine(old, cur interface{}) {
 }
 
 func (c *Controller) deleteMachine(obj interface{}) {
-	machine := obj.(*capiv1.Machine)
+	machine := obj.(*mapiv1.Machine)
 
 	c.machineAddressMux.Lock()
 	defer c.machineAddressMux.Unlock()
@@ -332,7 +332,7 @@ func (c *Controller) processNode(node *corev1.Node) error {
 	machineKey, ok := node.Annotations[machineAnnotationKey]
 	// No machine annotation, this is likely the first time we've seen the node,
 	// need to load all machines and search for one with matching IP.
-	var matchingMachine *capiv1.Machine
+	var matchingMachine *mapiv1.Machine
 	if ok {
 		var err error
 		namespace, machineName, err := cache.SplitMetaNamespaceKey(machineKey)
@@ -408,7 +408,7 @@ func (c *Controller) processNode(node *corev1.Node) error {
 // addTaintsToNode adds taints from machine object to the node object
 // Taints are to be an authoritative list on the machine spec per cluster-api comments.
 // However, we believe many components can directly taint a node and there is no direct source of truth that should enforce a single writer of taints
-func addTaintsToNode(node *corev1.Node, machine *capiv1.Machine) {
+func addTaintsToNode(node *corev1.Node, machine *mapiv1.Machine) {
 	for _, mTaint := range machine.Spec.Taints {
 		glog.V(3).Infof("machine taint: %v", mTaint)
 		alreadyPresent := false
@@ -451,18 +451,18 @@ func main() {
 
 	// TODO(jchaloup): set the resync period reasonably
 	kubeSharedInformers := kubeinformers.NewSharedInformerFactory(kubeClient, 5*time.Second)
-	capiInformers := capiinformersfactory.NewSharedInformerFactory(client, 5*time.Second)
+	mapiInformers := mapiinformersfactory.NewSharedInformerFactory(client, 5*time.Second)
 
 	ctrl := NewController(
 		kubeSharedInformers.Core().V1().Nodes(),
-		capiInformers.Cluster().V1alpha1().Machines(),
+		mapiInformers.Machine().V1beta1().Machines(),
 		kubeClient,
 		client,
 	)
 
 	go ctrl.Run(1, wait.NeverStop)
 
-	capiInformers.Start(wait.NeverStop)
+	mapiInformers.Start(wait.NeverStop)
 	kubeSharedInformers.Start(wait.NeverStop)
 
 	select {}

@@ -5,9 +5,9 @@ import (
 
 	"github.com/golang/glog"
 	osconfigv1 "github.com/openshift/api/config/v1"
+	capiv1alpha1 "github.com/openshift/cluster-api/pkg/apis/cluster/v1alpha1"
 	caov1alpha1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis"
 	"k8s.io/client-go/kubernetes/scheme"
-	capiv1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 )

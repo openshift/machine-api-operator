@@ -20,7 +20,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 
-	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/scheme"
+	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset/scheme"
 )
 
 const (

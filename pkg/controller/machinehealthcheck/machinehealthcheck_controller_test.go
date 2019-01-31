@@ -2,20 +2,21 @@ package machinehealthcheck
 
 import (
 	"fmt"
+	"reflect"
+	"testing"
+	"time"
+
+	mapiv1alpha1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	healthcheckingapis "github.com/openshift/machine-api-operator/pkg/apis"
 	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
-	"k8s.io/api/core/v1"
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
-	"reflect"
-	capiv1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
-	"testing"
-	"time"
 )
 
 const (
@@ -28,7 +29,7 @@ var (
 
 func init() {
 	// Add types to scheme
-	capiv1alpha1.AddToScheme(scheme.Scheme)
+	mapiv1alpha1.AddToScheme(scheme.Scheme)
 	healthcheckingapis.AddToScheme(scheme.Scheme)
 }
 
@@ -62,8 +63,8 @@ func node(name string, ready bool) *v1.Node {
 	}
 }
 
-func machine(name string) *capiv1alpha1.Machine {
-	return &capiv1alpha1.Machine{
+func machine(name string) *mapiv1alpha1.Machine {
+	return &mapiv1alpha1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
@@ -80,7 +81,7 @@ func machine(name string) *capiv1alpha1.Machine {
 		TypeMeta: metav1.TypeMeta{
 			Kind: "Machine",
 		},
-		Spec: capiv1alpha1.MachineSpec{},
+		Spec: mapiv1alpha1.MachineSpec{},
 	}
 }
 
@@ -108,7 +109,7 @@ func machineHealthCheck(name string) *healthcheckingv1alpha1.MachineHealthCheck 
 func TestHasMatchingLabels(t *testing.T) {
 	machine := machine("machine")
 	testsCases := []struct {
-		machine            *capiv1alpha1.Machine
+		machine            *mapiv1alpha1.Machine
 		machineHealthCheck *healthcheckingv1alpha1.MachineHealthCheck
 		expected           bool
 	}{
@@ -227,7 +228,7 @@ func TestReconcile(t *testing.T) {
 	nodeAnnotatedWithNoExistentMachine := node("noExistentMachine", true)
 	nodeAnnotatedWithNoExistentMachine.Annotations[machineAnnotationKey] = "noExistentMachine"
 	fakeMachine := machine("fakeMachine")
-	fakeMachine.Status = capiv1alpha1.MachineStatus{
+	fakeMachine.Status = mapiv1alpha1.MachineStatus{
 		NodeRef: &corev1.ObjectReference{
 			Namespace: "",
 			Name:      "healthy",
@@ -312,7 +313,7 @@ func TestHasMachineSetOwner(t *testing.T) {
 	machineWithNoMachineSet.OwnerReferences = nil
 
 	testsCases := []struct {
-		machine  *capiv1alpha1.Machine
+		machine  *mapiv1alpha1.Machine
 		expected bool
 	}{
 		{
@@ -397,7 +398,7 @@ func TestRemediate(t *testing.T) {
 	}
 
 	machineWithNodeRecentlyUnhealthy := machine("machineWithNodeRecentlyUnhealthy")
-	machineWithNodeRecentlyUnhealthy.Status = capiv1alpha1.MachineStatus{
+	machineWithNodeRecentlyUnhealthy.Status = mapiv1alpha1.MachineStatus{
 		NodeRef: &corev1.ObjectReference{
 			Namespace: "",
 			Name:      "nodeRecentlyUnhealthy",
@@ -405,7 +406,7 @@ func TestRemediate(t *testing.T) {
 	}
 
 	machineWithNodeHealthy := machine("machineWithNodehealthy")
-	machineWithNodeHealthy.Status = capiv1alpha1.MachineStatus{
+	machineWithNodeHealthy.Status = mapiv1alpha1.MachineStatus{
 		NodeRef: &corev1.ObjectReference{
 			Namespace: "",
 			Name:      "nodeHealthy",
@@ -418,7 +419,7 @@ func TestRemediate(t *testing.T) {
 	machineWithNoNodeRef := machine("machineWithNoNodeRef")
 
 	testsCases := []struct {
-		machine  *capiv1alpha1.Machine
+		machine  *mapiv1alpha1.Machine
 		expected expectedReconcile
 	}{
 		{
@@ -480,7 +481,7 @@ func TestIsMaster(t *testing.T) {
 	masterMachine := machine("master")
 	masterMachine.Labels["sigs.k8s.io/cluster-api-machine-role"] = "master"
 	masterMachine.Labels["sigs.k8s.io/cluster-api-machine-type"] = "master"
-	masterMachine.Status = capiv1alpha1.MachineStatus{
+	masterMachine.Status = mapiv1alpha1.MachineStatus{
 		NodeRef: &corev1.ObjectReference{
 			Namespace: "",
 			Name:      "master",
@@ -496,7 +497,7 @@ func TestIsMaster(t *testing.T) {
 	workerMachine.Labels["sigs.k8s.io/cluster-api-machine-role"] = "worker"
 	workerMachine.Labels["sigs.k8s.io/cluster-api-machine-type"] = "worker"
 
-	workerMachine.Status = capiv1alpha1.MachineStatus{
+	workerMachine.Status = mapiv1alpha1.MachineStatus{
 		NodeRef: &corev1.ObjectReference{
 			Namespace: "",
 			Name:      "worker",
@@ -509,7 +510,7 @@ func TestIsMaster(t *testing.T) {
 	workerNode.Labels["node-role.kubernetes.io/worker"] = ""
 
 	testCases := []struct {
-		machine  *capiv1alpha1.Machine
+		machine  *mapiv1alpha1.Machine
 		expected bool
 	}{
 		{

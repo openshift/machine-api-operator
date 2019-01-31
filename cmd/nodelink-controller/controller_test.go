@@ -20,8 +20,8 @@ import (
 	"reflect"
 	"testing"
 
+	mapiv1alpha1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
-	capiv1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 )
 
 func node(taints *[]corev1.Taint) *corev1.Node {
@@ -32,9 +32,9 @@ func node(taints *[]corev1.Taint) *corev1.Node {
 	}
 }
 
-func machine(taints *[]corev1.Taint) *capiv1alpha1.Machine {
-	return &capiv1alpha1.Machine{
-		Spec: capiv1alpha1.MachineSpec{
+func machine(taints *[]corev1.Taint) *mapiv1alpha1.Machine {
+	return &mapiv1alpha1.Machine{
+		Spec: mapiv1alpha1.MachineSpec{
 			Taints: *taints,
 		},
 	}
