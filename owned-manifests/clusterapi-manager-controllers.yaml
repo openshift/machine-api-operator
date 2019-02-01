@@ -35,6 +35,32 @@ spec:
         key: node.alpha.kubernetes.io/unreachable
         operator: Exists
       containers:
+      - name: controller-manager
+        image: {{ .Controllers.Provider }}
+        command:
+          - "./manager"
+        args:
+          - --logtostderr=true
+          - --v=3
+        resources:
+          requests:
+            cpu: 100m
+            memory: 20Mi
+          limits:
+            cpu: 100m
+            memory: 30Mi
+      - name: machine-controller
+        image: {{ .Controllers.Provider }}
+        env:
+          - name: NODE_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: spec.nodeName
+        command:
+          - /machine-controller-manager
+        args:
+          - --logtostderr=true
+          - --v=3
       - name: controller-manager-deprecated
         image: {{ .Controllers.ProviderDeprecated }}
         command:
