@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	mapiv1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -15,7 +16,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
-	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	machineAnnotationKey = "cluster.k8s.io/machine"
+	machineAnnotationKey = "machine.openshift.io/machine"
 	// TODO(alberto) ensure we handle the case for when a new machine comes up
 	// so remediation doesn't kill it before it goes healthy
 	remediationWaitTime = 5 * time.Minute
@@ -94,7 +94,7 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 	}
 
 	glog.Infof("Node %s is annotated with machine %s", node.Name, machineKey)
-	machine := &capiv1.Machine{}
+	machine := &mapiv1.Machine{}
 	namespace, machineName, err := cache.SplitMetaNamespaceKey(machineKey)
 	if err != nil {
 		return reconcile.Result{}, err
@@ -149,7 +149,7 @@ func getMachineHealthCheckListOptions() *client.ListOptions {
 	}
 }
 
-func remediate(r *ReconcileMachineHealthCheck, machine *capiv1.Machine) (reconcile.Result, error) {
+func remediate(r *ReconcileMachineHealthCheck, machine *mapiv1.Machine) (reconcile.Result, error) {
 	glog.Infof("Initialising remediation logic for machine %s", machine.Name)
 	if isMaster(*machine, r.client) {
 		glog.Infof("The machine %s is a master node, skipping remediation", machine.Name)
@@ -191,7 +191,7 @@ func remediate(r *ReconcileMachineHealthCheck, machine *capiv1.Machine) (reconci
 	return reconcile.Result{}, nil
 }
 
-func getNodeFromMachine(machine capiv1.Machine, client client.Client) (*corev1.Node, error) {
+func getNodeFromMachine(machine mapiv1.Machine, client client.Client) (*corev1.Node, error) {
 	if machine.Status.NodeRef == nil {
 		glog.Errorf("node NodeRef not found in machine %s", machine.Name)
 		return nil, golangerrors.New("node NodeRef not found in machine")
@@ -214,7 +214,7 @@ func unhealthyForTooLong(node *corev1.Node) bool {
 	return false
 }
 
-func hasMachineSetOwner(machine capiv1.Machine) bool {
+func hasMachineSetOwner(machine mapiv1.Machine) bool {
 	ownerRefs := machine.ObjectMeta.GetOwnerReferences()
 	for _, or := range ownerRefs {
 		if or.Kind == ownerControllerKind {
@@ -249,7 +249,7 @@ func getNodeCondition(node *corev1.Node, conditionType corev1.NodeConditionType)
 	return nil
 }
 
-func hasMatchingLabels(machineHealthCheck *healthcheckingv1alpha1.MachineHealthCheck, machine *capiv1.Machine) bool {
+func hasMatchingLabels(machineHealthCheck *healthcheckingv1alpha1.MachineHealthCheck, machine *mapiv1.Machine) bool {
 	selector, err := metav1.LabelSelectorAsSelector(&machineHealthCheck.Spec.Selector)
 	if err != nil {
 		glog.Warningf("unable to convert selector: %v", err)
@@ -267,7 +267,7 @@ func hasMatchingLabels(machineHealthCheck *healthcheckingv1alpha1.MachineHealthC
 	return true
 }
 
-func isMaster(machine capiv1.Machine, client client.Client) bool {
+func isMaster(machine mapiv1.Machine, client client.Client) bool {
 	machineMasterLabels := []string{
 		"sigs.k8s.io/cluster-api-machine-role",
 		"sigs.k8s.io/cluster-api-machine-type",

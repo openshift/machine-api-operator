@@ -35,8 +35,8 @@ spec:
         key: node.alpha.kubernetes.io/unreachable
         operator: Exists
       containers:
-      - name: controller-manager
-        image: {{ .Controllers.Provider }}
+      - name: controller-manager-deprecated
+        image: {{ .Controllers.ProviderDeprecated }}
         command:
         - "./manager"
         args:
@@ -49,8 +49,8 @@ spec:
           limits:
             cpu: 100m
             memory: 30Mi
-      - name: machine-controller
-        image: {{ .Controllers.Provider }}
+      - name: machine-controller-deprecated
+        image: {{ .Controllers.ProviderDeprecated }}
         env:
           - name: NODE_NAME
             valueFrom:
@@ -61,10 +61,38 @@ spec:
         args:
           - --logtostderr=true
           - --v=3
+      - name: nodelink-controller-deprecated
+        image: quay.io/coreos/machine-api-operator:origin-v4.0-2019-01-31-041134
+        command:
+          - /nodelink-controller
+        args:
+          - --logtostderr=true
+          - --v=3
+        resources:
+          requests:
+            cpu: 100m
+            memory: 20Mi
+          limits:
+            cpu: 100m
+            memory: 30Mi
       - name: nodelink-controller
         image: {{ .Controllers.NodeLink }}
         command:
           - /nodelink-controller
+        args:
+          - --logtostderr=true
+          - --v=3
+        resources:
+          requests:
+            cpu: 100m
+            memory: 20Mi
+          limits:
+            cpu: 100m
+            memory: 30Mi
+      - name: machine-healthcheck-deprecated
+        image: quay.io/coreos/machine-api-operator:origin-v4.0-2019-01-31-041134
+        command:
+          - /machine-healthcheck
         args:
           - --logtostderr=true
           - --v=3

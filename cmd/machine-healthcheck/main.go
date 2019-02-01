@@ -5,11 +5,11 @@ import (
 	"runtime"
 
 	"github.com/golang/glog"
+	mapiv1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/apis"
 	"github.com/openshift/machine-api-operator/pkg/controller"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
-	capiv1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/signals"
@@ -43,7 +43,7 @@ func main() {
 	if err := apis.AddToScheme(mgr.GetScheme()); err != nil {
 		glog.Fatal(err)
 	}
-	if err := capiv1.AddToScheme(mgr.GetScheme()); err != nil {
+	if err := mapiv1.AddToScheme(mgr.GetScheme()); err != nil {
 		glog.Fatal(err)
 	}
 

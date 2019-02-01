@@ -10,6 +10,7 @@ import (
 
 	"github.com/golang/glog"
 	osconfigv1 "github.com/openshift/api/config/v1"
+	capiv1alpha1 "github.com/openshift/cluster-api/pkg/apis/cluster/v1alpha1"
 	caov1alpha1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1alpha1"
 	cvoresourcemerge "github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	kappsapi "k8s.io/api/apps/v1"
@@ -20,7 +21,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/wait"
-	capiv1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 

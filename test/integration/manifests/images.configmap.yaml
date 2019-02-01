@@ -7,5 +7,7 @@ data:
   images.json: '{
 	"clusterAPIControllerAWS": "docker.io/openshift/origin-aws-machine-controllers:v4.0.0",
 	"clusterAPIControllerLibvirt": "docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0",
-	"machineAPIOperator": "{{ .Image }}"
+	"machineAPIOperator": "{{ .Image }}",
+    "clusterAPIControllerLibvirtDeprecated": "quay.io/coreos/cluster-api-provider-libvirt:origin-v4.0-2019-01-31-041134",
+    "clusterAPIControllerAWSDeprecated": "quay.io/coreos/cluster-api-provider-aws:origin-v4.0-2019-01-31-041134"
 }'

@@ -25,9 +25,9 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/clientcmd"
 
-	capiv1alpha1 "sigs.k8s.io/cluster-api/pkg/apis/cluster/v1alpha1"
-	"sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset"
-	capiv1alpha1scheme "sigs.k8s.io/cluster-api/pkg/client/clientset_generated/clientset/scheme"
+	capiv1alpha1 "github.com/openshift/cluster-api/pkg/apis/cluster/v1alpha1"
+	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
+	capiv1alpha1scheme "github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset/scheme"
 )
 
 const (
