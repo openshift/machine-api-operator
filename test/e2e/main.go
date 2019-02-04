@@ -5,7 +5,7 @@ import (
 
 	"github.com/golang/glog"
 	osconfigv1 "github.com/openshift/api/config/v1"
-	capiv1alpha1 "github.com/openshift/cluster-api/pkg/apis/cluster/v1alpha1"
+	mapiv1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	caov1alpha1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -17,7 +17,7 @@ const (
 )
 
 func init() {
-	if err := capiv1alpha1.AddToScheme(scheme.Scheme); err != nil {
+	if err := mapiv1beta1.AddToScheme(scheme.Scheme); err != nil {
 		glog.Fatal(err)
 	}
 
