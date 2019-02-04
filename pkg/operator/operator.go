@@ -215,6 +215,11 @@ func (optr *Operator) maoConfigFromInstallConfig() (*OperatorConfig, error) {
 	switch provider {
 	case AWSProvider:
 		providerDreprecatedControllerImage = images.ClusterAPIControllerAWSDeprecated
+	case OpenStackProvider:
+		// NOTE: OpenStack does not have a deprecated image, but the
+		// `clusterapi-manager-controllers` template requires this
+		// field to be set
+		providerDreprecatedControllerImage = images.ClusterAPIControllerOpenStack
 	case LibvirtProvider:
 		providerDreprecatedControllerImage = images.ClusterAPIControllerLibvirtDeprecated
 	}
