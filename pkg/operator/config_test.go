@@ -7,13 +7,14 @@ import (
 )
 
 var (
-	imagesJSONFile                  = "fixtures/images.json"
-	expectedAWSImage                = "docker.io/openshift/origin-aws-machine-controllers:v4.0.0"
-	expectedLibvirtImage            = "docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0"
-	expectedOpenstackImage          = "docker.io/openshift/origin-openstack-machine-controllers:v4.0.0"
-	expectedMachineAPIOperatorImage = "docker.io/openshift/origin-machine-api-operator:v4.0.0"
-	expectedAWSImageDeprecated      = "quay.io/coreos/cluster-api-provider-aws:origin-v4.0-2019-01-31-041134"
-	expectedLibvirtImageDeprecated  = "quay.io/coreos/cluster-api-provider-libvirt:origin-v4.0-2019-01-31-041134"
+	imagesJSONFile                   = "fixtures/images.json"
+	expectedAWSImage                 = "docker.io/openshift/origin-aws-machine-controllers:v4.0.0"
+	expectedLibvirtImage             = "docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0"
+	expectedOpenstackImage           = "docker.io/openshift/origin-openstack-machine-controllers:v4.0.0"
+	expectedMachineAPIOperatorImage  = "docker.io/openshift/origin-machine-api-operator:v4.0.0"
+	expectedAWSImageDeprecated       = "quay.io/coreos/cluster-api-provider-aws:origin-v4.0-2019-01-31-041134"
+	expectedLibvirtImageDeprecated   = "quay.io/coreos/cluster-api-provider-libvirt:origin-v4.0-2019-01-31-041134"
+	expectedOpenstackImageDeprecated = "quay.io/coreos/cluster-api-provider-openstack:origin-v4.0-2019-01-31-041134"
 )
 
 func TestInstallConfigFromClusterConfig(t *testing.T) {
@@ -141,6 +142,9 @@ func TestGetImagesFromJSONFile(t *testing.T) {
 	}
 	if img.ClusterAPIControllerLibvirtDeprecated != expectedLibvirtImageDeprecated {
 		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedLibvirtImageDeprecated, img.ClusterAPIControllerLibvirtDeprecated)
+	}
+	if img.ClusterAPIControllerOpenStackDeprecated != expectedOpenstackImageDeprecated {
+		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedOpenstackImageDeprecated, img.ClusterAPIControllerOpenStackDeprecated)
 	}
 }
 

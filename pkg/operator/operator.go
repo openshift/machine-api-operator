@@ -217,6 +217,8 @@ func (optr *Operator) maoConfigFromInstallConfig() (*OperatorConfig, error) {
 		providerDreprecatedControllerImage = images.ClusterAPIControllerAWSDeprecated
 	case LibvirtProvider:
 		providerDreprecatedControllerImage = images.ClusterAPIControllerLibvirtDeprecated
+	case OpenStackProvider:
+		providerDreprecatedControllerImage = images.ClusterAPIControllerOpenStackDeprecated
 	}
 
 	return &OperatorConfig{
