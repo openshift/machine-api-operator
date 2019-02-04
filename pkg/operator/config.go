@@ -48,12 +48,13 @@ type Controllers struct {
 
 // Images allows build systems to inject images for MAO components
 type Images struct {
-	MachineAPIOperator                    string `json:"machineAPIOperator"`
-	ClusterAPIControllerAWS               string `json:"clusterAPIControllerAWS"`
-	ClusterAPIControllerAWSDeprecated     string `json:"clusterAPIControllerAWSDeprecated"`
-	ClusterAPIControllerOpenStack         string `json:"clusterAPIControllerOpenStack"`
-	ClusterAPIControllerLibvirt           string `json:"clusterAPIControllerLibvirt"`
-	ClusterAPIControllerLibvirtDeprecated string `json:"clusterAPIControllerLibvirtDeprecated"`
+	MachineAPIOperator                      string `json:"machineAPIOperator"`
+	ClusterAPIControllerAWS                 string `json:"clusterAPIControllerAWS"`
+	ClusterAPIControllerAWSDeprecated       string `json:"clusterAPIControllerAWSDeprecated"`
+	ClusterAPIControllerOpenStack           string `json:"clusterAPIControllerOpenStack"`
+	ClusterAPIControllerLibvirt             string `json:"clusterAPIControllerLibvirt"`
+	ClusterAPIControllerLibvirtDeprecated   string `json:"clusterAPIControllerLibvirtDeprecated"`
+	ClusterAPIControllerOpenStackDeprecated string `json:"clusterAPIControllerOpenStackDeprecated"`
 }
 
 // InstallConfig contains the mao relevant config coming from the install config, i.e provider
