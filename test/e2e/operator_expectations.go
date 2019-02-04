@@ -449,11 +449,11 @@ func (tc *testConfig) ExpectAutoscalerScalesOut() error {
 	glog.Info("Create workload")
 	mem, err := resource.ParseQuantity("500Mi")
 	if err != nil {
-		glog.Fatal("failed to ParseQuantity %v", err)
+		glog.Fatalf("failed to ParseQuantity %v", err)
 	}
 	cpu, err := resource.ParseQuantity("500m")
 	if err != nil {
-		glog.Fatal("failed to ParseQuantity %v", err)
+		glog.Fatalf("failed to ParseQuantity %v", err)
 	}
 	backoffLimit := int32(4)
 	completions := int32(50)
