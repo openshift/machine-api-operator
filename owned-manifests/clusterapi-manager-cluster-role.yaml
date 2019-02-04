@@ -5,26 +5,6 @@ metadata:
   name: cluster-api-manager-role
 rules:
 - apiGroups:
-  - cluster.k8s.io
-  resources:
-  - clusters
-  - clusters/status
-  - machines
-  - machines/status
-  - machinesets
-  - machinesets/status
-  - machinedeployments
-  - machinedeployments/status
-  verbs:
-  - get
-  - list
-  - watch
-  - create
-  - update
-  - patch
-  - delete
-
-- apiGroups:
     - machine.openshift.io
   resources:
     - clusters

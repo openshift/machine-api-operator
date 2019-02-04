@@ -210,22 +210,10 @@ func (optr *Operator) maoConfigFromInstallConfig() (*OperatorConfig, error) {
 		return nil, err
 	}
 
-	// TODO: Remove once we transition over machine.openshift.io group
-	var providerDreprecatedControllerImage string
-	switch provider {
-	case AWSProvider:
-		providerDreprecatedControllerImage = images.ClusterAPIControllerAWSDeprecated
-	case LibvirtProvider:
-		providerDreprecatedControllerImage = images.ClusterAPIControllerLibvirtDeprecated
-	case OpenStackProvider:
-		providerDreprecatedControllerImage = images.ClusterAPIControllerOpenStackDeprecated
-	}
-
 	return &OperatorConfig{
 		optr.namespace,
 		Controllers{
 			providerControllerImage,
-			providerDreprecatedControllerImage,
 			machineAPIOperatorImage,
 			machineAPIOperatorImage,
 		},

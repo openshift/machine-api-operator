@@ -4,9 +4,9 @@ metadata:
   creationTimestamp: null
   labels:
     controller-tools.k8s.io: "1.0"
-  name: machineclasses.cluster.k8s.io
+  name: machineclasses.machine.openshift.io
 spec:
-  group: cluster.k8s.io
+  group: machine.openshift.io
   names:
     kind: MachineClass
     plural: machineclasses
@@ -31,7 +31,7 @@ spec:
           type: object
       required:
       - providerSpec
-  version: v1alpha1
+  version: v1beta1
 status:
   acceptedNames:
     kind: ""
