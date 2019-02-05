@@ -256,7 +256,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		// create machine CRD
-		if CRDBytes, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "0000_50_machine-api-operator_02_machine.crd.yaml")); err != nil {
+		if CRDBytes, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "0000_30_machine-api-operator_02_machine.crd.yaml")); err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
 			CRDObj, _, err := decode([]byte(CRDBytes), nil, nil)
@@ -271,7 +271,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		// create machineSet CRD
-		if CRDBytes, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "0000_50_machine-api-operator_03_machineset.crd.yaml")); err != nil {
+		if CRDBytes, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "0000_30_machine-api-operator_03_machineset.crd.yaml")); err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
 			CRDObj, _, err := decode([]byte(CRDBytes), nil, nil)
@@ -286,7 +286,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		// create machineDeployment CRD
-		if CRDBytes, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "0000_50_machine-api-operator_04_machinedeployment.crd.yaml")); err != nil {
+		if CRDBytes, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "0000_30_machine-api-operator_04_machinedeployment.crd.yaml")); err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
 			CRDObj, _, err := decode([]byte(CRDBytes), nil, nil)
@@ -301,7 +301,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		// create cluster CRD
-		if CRDBytes, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "0000_50_machine-api-operator_05_cluster.crd.yaml")); err != nil {
+		if CRDBytes, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "0000_30_machine-api-operator_05_cluster.crd.yaml")); err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
 			CRDObj, _, err := decode([]byte(CRDBytes), nil, nil)
@@ -316,7 +316,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		// create machinehealthcheck CRD
-		if CRDBytes, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "0000_50_machine-api-operator_07_machinehealthcheck.crd.yaml")); err != nil {
+		if CRDBytes, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "0000_30_machine-api-operator_07_machinehealthcheck.crd.yaml")); err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
 			CRDObj, _, err := decode([]byte(CRDBytes), nil, nil)
