@@ -29,6 +29,8 @@ This allows to convey desired state of machines in a cluster in a declarative fa
 
   - [cluster-api-provider-openstack](https://github.com/kubernetes-sigs/cluster-api-provider-openstack). Coming soon.
 
+  - [cluster-api-provider-baremetal](https://github.com/metalkube/cluster-api-provider-baremetal). Under development in [MetalKube](http://metalkube.org).
+
 - [Node Controller](https://github.com/kubernetes-sigs/cluster-api/tree/master/pkg/controller)
   - Reconciles desired state of machines by matching IP addresses of machine objects with IP addresses of node objects. Annotating node with a special label containing machine name that the cluster-api node controller interprets and sets corresponding nodeRef field of each relevant machine.
 
