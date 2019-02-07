@@ -2,6 +2,8 @@
 
 package v1
 
+type APIServerExpansion interface{}
+
 type AuthenticationExpansion interface{}
 
 type BuildExpansion interface{}
@@ -14,7 +16,7 @@ type ConsoleExpansion interface{}
 
 type DNSExpansion interface{}
 
-type IdentityProviderExpansion interface{}
+type FeaturesExpansion interface{}
 
 type ImageExpansion interface{}
 
@@ -27,5 +29,7 @@ type NetworkExpansion interface{}
 type OAuthExpansion interface{}
 
 type ProjectExpansion interface{}
+
+type ProxyExpansion interface{}
 
 type SchedulingExpansion interface{}

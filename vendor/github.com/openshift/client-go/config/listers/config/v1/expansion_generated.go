@@ -2,6 +2,10 @@
 
 package v1
 
+// APIServerListerExpansion allows custom methods to be added to
+// APIServerLister.
+type APIServerListerExpansion interface{}
+
 // AuthenticationListerExpansion allows custom methods to be added to
 // AuthenticationLister.
 type AuthenticationListerExpansion interface{}
@@ -26,9 +30,9 @@ type ConsoleListerExpansion interface{}
 // DNSLister.
 type DNSListerExpansion interface{}
 
-// IdentityProviderListerExpansion allows custom methods to be added to
-// IdentityProviderLister.
-type IdentityProviderListerExpansion interface{}
+// FeaturesListerExpansion allows custom methods to be added to
+// FeaturesLister.
+type FeaturesListerExpansion interface{}
 
 // ImageListerExpansion allows custom methods to be added to
 // ImageLister.
@@ -53,6 +57,10 @@ type OAuthListerExpansion interface{}
 // ProjectListerExpansion allows custom methods to be added to
 // ProjectLister.
 type ProjectListerExpansion interface{}
+
+// ProxyListerExpansion allows custom methods to be added to
+// ProxyLister.
+type ProxyListerExpansion interface{}
 
 // SchedulingListerExpansion allows custom methods to be added to
 // SchedulingLister.

@@ -19,9 +19,10 @@ func ensureClusterOperatorStatus(modified *bool, existing *configv1.ClusterOpera
 		*modified = true
 		existing.Conditions = required.Conditions
 	}
-	if existing.Version != required.Version {
+
+	if !equality.Semantic.DeepEqual(existing.Versions, required.Versions) {
 		*modified = true
-		existing.Version = required.Version
+		existing.Versions = required.Versions
 	}
 	if !equality.Semantic.DeepEqual(existing.Extension.Raw, required.Extension.Raw) {
 		*modified = true
@@ -30,6 +31,10 @@ func ensureClusterOperatorStatus(modified *bool, existing *configv1.ClusterOpera
 	if !equality.Semantic.DeepEqual(existing.Extension.Object, required.Extension.Object) {
 		*modified = true
 		existing.Extension.Object = required.Extension.Object
+	}
+	if !equality.Semantic.DeepEqual(existing.RelatedObjects, required.RelatedObjects) {
+		*modified = true
+		existing.RelatedObjects = required.RelatedObjects
 	}
 }
 

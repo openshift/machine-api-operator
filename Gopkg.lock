@@ -323,7 +323,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:bada18f8cc9cf347266c81ee2ab8956b7c20ff6bf798b3d848e92f63a5c57330"
+  digest = "1:cc3fa3c52c919e8c8257de59cf1d9d1526521938c8804727b0294ce9bfaa5bc0"
   name = "github.com/openshift/api"
   packages = [
     "config/v1",
@@ -333,11 +333,11 @@
     "security/v1",
   ]
   pruneopts = "NUT"
-  revision = "ffac7eec5e7f87c6a9fcbc766e3b024ed3ef39ea"
+  revision = "d67473e7f1907b74d1f27706260eecf0bc9f2a52"
 
 [[projects]]
   branch = "master"
-  digest = "1:05e09fcfdca78559275c11dc82782119560ced003dfaed98dc1523d1e32314a3"
+  digest = "1:322c31cff0c43a987bba7c10ba588f63d5a050a0d9b4a4bd4ede559bb1233e23"
   name = "github.com/openshift/client-go"
   packages = [
     "config/clientset/versioned",
@@ -348,7 +348,7 @@
     "security/clientset/versioned/typed/security/v1",
   ]
   pruneopts = "NUT"
-  revision = "960f72aa32a8e9b4dd769b90ff1cb5bd4c898eec"
+  revision = "5af2e329a3e8b7d536a508266e3ffb485cd849b0"
 
 [[projects]]
   digest = "1:72fe9aecc0c2e30d051a236236d9e175542b64245ea4e8b025eb1cbc58980ba0"
@@ -387,7 +387,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:a97e0106f4cb970001cc5c42eb16716101421940fea9c5b9d07995cc77d96bc5"
+  digest = "1:40e9666d2102490edc5c3cfcecbd91677895a7d4560be5a79219df11511155dc"
   name = "github.com/openshift/cluster-version-operator"
   packages = [
     "lib/resourceapply",
@@ -395,7 +395,7 @@
     "lib/resourceread",
   ]
   pruneopts = "NUT"
-  revision = "4d8f469230d92da22529c5de86198e258679cef5"
+  revision = "701ca7e4606eb364a23b0e7bd0bd2adaaec96b8e"
 
 [[projects]]
   branch = "master"
