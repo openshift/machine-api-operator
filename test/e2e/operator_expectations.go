@@ -10,7 +10,7 @@ import (
 
 	"github.com/golang/glog"
 	osconfigv1 "github.com/openshift/api/config/v1"
-	capiv1alpha1 "github.com/openshift/cluster-api/pkg/apis/cluster/v1alpha1"
+	mapiv1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	caov1alpha1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1alpha1"
 	cvoresourcemerge "github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	kappsapi "k8s.io/api/apps/v1"
@@ -51,19 +51,19 @@ func (tc *testConfig) ExpectOperatorAvailable() error {
 	return err
 }
 
-func (tc *testConfig) ExpectOneClusterObject() error {
+func (tc *testConfig) ExpectNoClusterObject() error {
 	listOptions := client.ListOptions{
 		Namespace: namespace,
 	}
-	clusterList := capiv1alpha1.ClusterList{}
+	clusterList := mapiv1beta1.ClusterList{}
 
 	err := wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
 		if err := tc.client.List(context.TODO(), &listOptions, &clusterList); err != nil {
 			glog.Errorf("error querying api for clusterList object: %v, retrying...", err)
 			return false, nil
 		}
-		if len(clusterList.Items) != 1 {
-			return false, errors.New("more than one cluster object found")
+		if len(clusterList.Items) > 0 {
+			return false, errors.New("a cluster object was found")
 		}
 		return true, nil
 	})
@@ -94,11 +94,11 @@ func (tc *testConfig) ExpectClusterOperatorStatusAvailable() error {
 }
 
 func (tc *testConfig) ExpectAllMachinesLinkedToANode() error {
-	machineAnnotationKey := "cluster.k8s.io/machine"
+	machineAnnotationKey := "machine.openshift.io/machine"
 	listOptions := client.ListOptions{
 		Namespace: namespace,
 	}
-	machineList := capiv1alpha1.MachineList{}
+	machineList := mapiv1beta1.MachineList{}
 	nodeList := corev1.NodeList{}
 
 	err := wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
@@ -187,7 +187,7 @@ func (tc *testConfig) ExpectAdditiveReconcileMachineTaints() error {
 	listOptions := client.ListOptions{
 		Namespace: namespace,
 	}
-	machineList := capiv1alpha1.MachineList{}
+	machineList := mapiv1beta1.MachineList{}
 
 	if err := tc.client.List(context.TODO(), &listOptions, &machineList); err != nil {
 		return fmt.Errorf("error querying api for machineList object: %v", err)
@@ -255,7 +255,7 @@ func (tc *testConfig) ExpectNewNodeWhenDeletingMachine() error {
 	listOptions := client.ListOptions{
 		Namespace: namespace,
 	}
-	machineList := capiv1alpha1.MachineList{}
+	machineList := mapiv1beta1.MachineList{}
 	nodeList := corev1.NodeList{}
 
 	glog.Info("Get machineList")
@@ -284,7 +284,7 @@ func (tc *testConfig) ExpectNewNodeWhenDeletingMachine() error {
 
 	clusterInitialTotalNodes := len(nodeList.Items)
 	clusterInitialTotalMachines := len(machineList.Items)
-	var triagedWorkerMachine capiv1alpha1.Machine
+	var triagedWorkerMachine mapiv1beta1.Machine
 	var triagedWorkerNode corev1.Node
 MachineLoop:
 	for _, m := range machineList.Items {
@@ -361,7 +361,7 @@ func (tc *testConfig) ExpectAutoscalerScalesOut() error {
 		Namespace: namespace,
 	}
 	glog.Info("Get one machineSet")
-	machineSetList := capiv1alpha1.MachineSetList{}
+	machineSetList := mapiv1beta1.MachineSetList{}
 	err := wait.PollImmediate(1*time.Second, waitMedium, func() (bool, error) {
 		if err := tc.client.List(context.TODO(), &listOptions, &machineSetList); err != nil {
 			glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
@@ -408,7 +408,7 @@ func (tc *testConfig) ExpectAutoscalerScalesOut() error {
 			ScaleTargetRef: caov1alpha1.CrossVersionObjectReference{
 				Name:       targetMachineSet.Name,
 				Kind:       "MachineSet",
-				APIVersion: "cluster.k8s.io/v1alpha1",
+				APIVersion: "machine.openshift.io/v1beta1",
 			},
 		},
 	}
@@ -513,7 +513,7 @@ func (tc *testConfig) ExpectAutoscalerScalesOut() error {
 			Namespace: namespace,
 			Name:      targetMachineSet.Name,
 		}
-		ms := &capiv1alpha1.MachineSet{}
+		ms := &mapiv1beta1.MachineSet{}
 		if err := tc.client.Get(context.TODO(), msKey, ms); err != nil {
 			glog.Errorf("error querying api for clusterAutoscaler object: %v, retrying...", err)
 			return false, nil
@@ -581,7 +581,7 @@ func (tc *testConfig) ExpectAutoscalerScalesOut() error {
 			Namespace: namespace,
 			Name:      targetMachineSet.Name,
 		}
-		ms := &capiv1alpha1.MachineSet{}
+		ms := &mapiv1beta1.MachineSet{}
 		if err := tc.client.Get(context.TODO(), msKey, ms); err != nil {
 			glog.Errorf("error querying api for machineSet object: %v, retrying...", err)
 			return false, nil

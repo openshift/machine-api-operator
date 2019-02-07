@@ -25,9 +25,9 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/clientcmd"
 
-	capiv1alpha1 "github.com/openshift/cluster-api/pkg/apis/cluster/v1alpha1"
+	mapiv1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
-	capiv1alpha1scheme "github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset/scheme"
+	mapiv1beta1scheme "github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset/scheme"
 )
 
 const (
@@ -51,7 +51,7 @@ func usage() {
 
 // TestConfig stores clients for managing various resources
 type TestConfig struct {
-	CAPIClient          *clientset.Clientset
+	MAPIClient          *clientset.Clientset
 	APIExtensionsClient *apiextensionsclientset.Clientset
 	KubeClient          *kubernetes.Clientset
 	AWSClient           *AWSClient
@@ -64,7 +64,7 @@ func NewTestConfig(kubeconfig string) *TestConfig {
 		glog.Fatalf("Could not create Config for talking to the apiserver: %v", err)
 	}
 
-	capiclient, err := clientset.NewForConfig(config)
+	mapiclient, err := clientset.NewForConfig(config)
 	if err != nil {
 		glog.Fatalf("Could not create client for talking to the apiserver: %v", err)
 	}
@@ -80,7 +80,7 @@ func NewTestConfig(kubeconfig string) *TestConfig {
 	}
 
 	return &TestConfig{
-		CAPIClient:          capiclient,
+		MAPIClient:          mapiclient,
 		APIExtensionsClient: apiextensionsclient,
 		KubeClient:          kubeClient,
 	}
@@ -222,7 +222,7 @@ var rootCmd = &cobra.Command{
 			return err
 		}
 
-		capiv1alpha1scheme.AddToScheme(scheme.Scheme)
+		mapiv1beta1scheme.AddToScheme(scheme.Scheme)
 		apiextensionsscheme.AddToScheme(scheme.Scheme)
 		decode := scheme.Codecs.UniversalDeserializer().Decode
 		// create rbac
@@ -256,7 +256,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		// create machine CRD
-		if CRDBytes, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "0000_30_machine-api-operator_02_machine.crd.yaml")); err != nil {
+		if CRDBytes, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "0000_30_machine-api-operator_08_machine.crd.yaml")); err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
 			CRDObj, _, err := decode([]byte(CRDBytes), nil, nil)
@@ -271,7 +271,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		// create machineSet CRD
-		if CRDBytes, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "0000_30_machine-api-operator_03_machineset.crd.yaml")); err != nil {
+		if CRDBytes, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "0000_30_machine-api-operator_09_machineset.crd.yaml")); err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
 			CRDObj, _, err := decode([]byte(CRDBytes), nil, nil)
@@ -286,7 +286,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		// create machineDeployment CRD
-		if CRDBytes, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "0000_30_machine-api-operator_04_machinedeployment.crd.yaml")); err != nil {
+		if CRDBytes, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "0000_30_machine-api-operator_10_machinedeployment.crd.yaml")); err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
 			CRDObj, _, err := decode([]byte(CRDBytes), nil, nil)
@@ -301,7 +301,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		// create cluster CRD
-		if CRDBytes, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "0000_30_machine-api-operator_05_cluster.crd.yaml")); err != nil {
+		if CRDBytes, err := ioutil.ReadFile(filepath.Join(assetsPath, manifestsFolder, "0000_30_machine-api-operator_11_cluster.crd.yaml")); err != nil {
 			glog.Fatalf("Error reading %#v", err)
 		} else {
 			CRDObj, _, err := decode([]byte(CRDBytes), nil, nil)
@@ -448,8 +448,8 @@ var rootCmd = &cobra.Command{
 			if err != nil {
 				glog.Fatalf("Error decoding %#v", err)
 			}
-			cluster := clusterObj.(*capiv1alpha1.Cluster)
-			if _, err := testConfig.CAPIClient.ClusterV1alpha1().Clusters(targetNamespace).Create(cluster); err != nil {
+			cluster := clusterObj.(*mapiv1beta1.Cluster)
+			if _, err := testConfig.MAPIClient.MachineV1beta1().Clusters(targetNamespace).Create(cluster); err != nil {
 				return err
 			}
 		}
@@ -461,8 +461,8 @@ var rootCmd = &cobra.Command{
 			if err != nil {
 				glog.Fatalf("Error decoding %#v", err)
 			}
-			machineSet := machineSetObj.(*capiv1alpha1.MachineSet)
-			if _, err := testConfig.CAPIClient.ClusterV1alpha1().MachineSets(targetNamespace).Create(machineSet); err != nil {
+			machineSet := machineSetObj.(*mapiv1beta1.MachineSet)
+			if _, err := testConfig.MAPIClient.MachineV1beta1().MachineSets(targetNamespace).Create(machineSet); err != nil {
 				return err
 			}
 		}
@@ -470,17 +470,17 @@ var rootCmd = &cobra.Command{
 		// Verify cluster, machineSet and machines have been deployed
 		var cluster, machineSet, workers bool
 		err = wait.Poll(pollInterval, timeoutPoolMachineSetRunningInterval, func() (bool, error) {
-			if _, err := testConfig.CAPIClient.ClusterV1alpha1().Clusters(targetNamespace).Get(clusterID, metav1.GetOptions{}); err == nil {
+			if _, err := testConfig.MAPIClient.MachineV1beta1().Clusters(targetNamespace).Get(clusterID, metav1.GetOptions{}); err == nil {
 				cluster = true
 				log.Info("Cluster object has been created")
 			}
 
-			if _, err := testConfig.CAPIClient.ClusterV1alpha1().MachineSets(targetNamespace).Get("worker", metav1.GetOptions{}); err == nil {
+			if _, err := testConfig.MAPIClient.MachineV1beta1().MachineSets(targetNamespace).Get("worker", metav1.GetOptions{}); err == nil {
 				machineSet = true
 				log.Info("MachineSet object has been created")
 			}
 
-			if workersList, err := testConfig.CAPIClient.ClusterV1alpha1().Machines(targetNamespace).List(metav1.ListOptions{}); err == nil {
+			if workersList, err := testConfig.MAPIClient.MachineV1beta1().Machines(targetNamespace).List(metav1.ListOptions{}); err == nil {
 				if len(workersList.Items) == machineSetReplicas {
 					workers = true
 					log.Info("Machine objects has been created")
@@ -527,7 +527,7 @@ var rootCmd = &cobra.Command{
 func tearDown(testConfig *TestConfig, assetsPath string) error {
 	// delete machine set
 	// not erroring here so we try to terraform destroy
-	if err := testConfig.CAPIClient.ClusterV1alpha1().MachineSets(targetNamespace).Delete("worker", &metav1.DeleteOptions{}); err != nil {
+	if err := testConfig.MAPIClient.MachineV1beta1().MachineSets(targetNamespace).Delete("worker", &metav1.DeleteOptions{}); err != nil {
 		log.Warningf("unable to delete machineSet, %v", err)
 	}
 
