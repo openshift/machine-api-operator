@@ -21,6 +21,10 @@ const (
 	ReasonSyncFailed StatusReason = "SyncingFailed"
 )
 
+const (
+	clusterOperatorName = "machine-api"
+)
+
 // statusProgressing sets the Progressing condition to True, with the given
 // reason and message, and sets both the Available and Failing conditions to
 // False.
@@ -97,13 +101,26 @@ func (optr *Operator) statusFailing(reason StatusReason, message string) error {
 //syncStatus applies the new condition to the mao ClusterOperator object.
 func (optr *Operator) syncStatus(conds []osconfigv1.ClusterOperatorStatusCondition) error {
 	// to report the status of all the managed components.
+	// TODO we will report the version of the operands (so our machine api implementation version)
+	// NOTE: related objects lets openshift/must-gather collect diagnostic content
 	clusterOperator := &osconfigv1.ClusterOperator{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: optr.namespace,
-			Name:      optr.name,
+			Name: clusterOperatorName,
 		},
 		Status: osconfigv1.ClusterOperatorStatus{
-			Version: version.Raw,
+			Versions: []osconfigv1.OperandVersion{
+				{
+					Name:    "machine-api",
+					Version: version.Raw,
+				},
+			},
+			RelatedObjects: []osconfigv1.ObjectReference{
+				{
+					Group:    "",
+					Resource: "namespaces",
+					Name:     optr.namespace,
+				},
+			},
 		},
 	}
 

@@ -71,7 +71,7 @@ func (tc *testConfig) ExpectOneClusterObject() error {
 }
 
 func (tc *testConfig) ExpectClusterOperatorStatusAvailable() error {
-	name := "machine-api-operator"
+	name := "machine-api"
 	key := types.NamespacedName{
 		Namespace: namespace,
 		Name:      name,
