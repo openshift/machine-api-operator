@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	namespace = "openshift-cluster-api"
+	namespace = "openshift-machine-api"
 )
 
 var (
