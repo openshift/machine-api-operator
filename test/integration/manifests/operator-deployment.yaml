@@ -2,7 +2,7 @@ apiVersion: apps/v1beta2
 kind: Deployment
 metadata:
   name: machine-api-operator
-  namespace: openshift-cluster-api
+  namespace: openshift-machine-api
   labels:
     k8s-app: machine-api-operator
 spec:

@@ -53,7 +53,7 @@ func (tc *testConfig) ExpectOperatorAvailable() error {
 
 func (tc *testConfig) ExpectNoClusterObject() error {
 	listOptions := client.ListOptions{
-		Namespace: namespace,
+		Namespace: deprecatedNamespace,
 	}
 	clusterList := mapiv1beta1.ClusterList{}
 
@@ -96,7 +96,7 @@ func (tc *testConfig) ExpectClusterOperatorStatusAvailable() error {
 func (tc *testConfig) ExpectAllMachinesLinkedToANode() error {
 	machineAnnotationKey := "machine.openshift.io/machine"
 	listOptions := client.ListOptions{
-		Namespace: namespace,
+		Namespace: deprecatedNamespace,
 	}
 	machineList := mapiv1beta1.MachineList{}
 	nodeList := corev1.NodeList{}
@@ -128,7 +128,7 @@ func (tc *testConfig) ExpectAllMachinesLinkedToANode() error {
 				return false, nil
 			}
 			nodeName := machine.Status.NodeRef.Name
-			if nodeNameToMachineAnnotation[nodeName] != fmt.Sprintf("%s/%s", namespace, machine.Name) {
+			if nodeNameToMachineAnnotation[nodeName] != fmt.Sprintf("%s/%s", deprecatedNamespace, machine.Name) {
 				glog.Errorf("node name %s does not match expected machine name %s, retrying...", nodeName, machine.Name)
 				return false, nil
 			}
@@ -185,7 +185,7 @@ func (tc *testConfig) ExpectReconcileControllersDeployment() error {
 func (tc *testConfig) ExpectAdditiveReconcileMachineTaints() error {
 	glog.Info("Verify machine taints are getting applied to node")
 	listOptions := client.ListOptions{
-		Namespace: namespace,
+		Namespace: deprecatedNamespace,
 	}
 	machineList := mapiv1beta1.MachineList{}
 
@@ -201,7 +201,7 @@ func (tc *testConfig) ExpectAdditiveReconcileMachineTaints() error {
 	glog.Infof("Got the machine, %s", machine.Name)
 	nodeName := machine.Status.NodeRef.Name
 	nodeKey := types.NamespacedName{
-		Namespace: namespace,
+		Namespace: deprecatedNamespace,
 		Name:      nodeName,
 	}
 	node := &corev1.Node{}
@@ -253,7 +253,7 @@ func (tc *testConfig) ExpectAdditiveReconcileMachineTaints() error {
 
 func (tc *testConfig) ExpectNewNodeWhenDeletingMachine() error {
 	listOptions := client.ListOptions{
-		Namespace: namespace,
+		Namespace: deprecatedNamespace,
 	}
 	machineList := mapiv1beta1.MachineList{}
 	nodeList := corev1.NodeList{}
@@ -358,7 +358,7 @@ MachineLoop:
 // Ensure initial number of replicas and nodes
 func (tc *testConfig) ExpectAutoscalerScalesOut() error {
 	listOptions := client.ListOptions{
-		Namespace: namespace,
+		Namespace: deprecatedNamespace,
 	}
 	glog.Info("Get one machineSet")
 	machineSetList := mapiv1beta1.MachineSetList{}
@@ -386,7 +386,7 @@ func (tc *testConfig) ExpectAutoscalerScalesOut() error {
 	clusterAutoscaler := caov1alpha1.ClusterAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "default",
-			Namespace: namespace,
+			Namespace: deprecatedNamespace,
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "ClusterAutoscaler",
@@ -396,7 +396,7 @@ func (tc *testConfig) ExpectAutoscalerScalesOut() error {
 	machineAutoscaler := caov1alpha1.MachineAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
 			GenerateName: fmt.Sprintf("autoscale-%s", targetMachineSet.Name),
-			Namespace:    namespace,
+			Namespace:    deprecatedNamespace,
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "MachineAutoscaler",
@@ -462,7 +462,7 @@ func (tc *testConfig) ExpectAutoscalerScalesOut() error {
 	workLoad := batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "workload",
-			Namespace: namespace,
+			Namespace: deprecatedNamespace,
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind:       "Job",
@@ -510,7 +510,7 @@ func (tc *testConfig) ExpectAutoscalerScalesOut() error {
 	glog.Info("Wait for cluster to scale out number of replicas")
 	err = wait.PollImmediate(1*time.Second, waitLong, func() (bool, error) {
 		msKey := types.NamespacedName{
-			Namespace: namespace,
+			Namespace: deprecatedNamespace,
 			Name:      targetMachineSet.Name,
 		}
 		ms := &mapiv1beta1.MachineSet{}
@@ -578,7 +578,7 @@ func (tc *testConfig) ExpectAutoscalerScalesOut() error {
 	glog.Infof("Ensure initial number of replicas: %d", initialNumberOfReplicas)
 	err = wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
 		msKey := types.NamespacedName{
-			Namespace: namespace,
+			Namespace: deprecatedNamespace,
 			Name:      targetMachineSet.Name,
 		}
 		ms := &mapiv1beta1.MachineSet{}

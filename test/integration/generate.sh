@@ -7,7 +7,7 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: aws-credentials-secret
-  namespace: openshift-cluster-api
+  namespace: openshift-machine-api
 type: Opaque
 data:
   awsAccessKeyId: $(echo -n $(aws configure get aws_access_key_id) | base64)
