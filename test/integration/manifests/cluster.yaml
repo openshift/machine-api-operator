@@ -2,7 +2,7 @@ apiVersion: machine.openshift.io/v1beta1
 kind: Cluster
 metadata:
   name: {{ .ClusterID }}
-  namespace: openshift-cluster-api
+  namespace: openshift-machine-api
 spec:
   clusterNetwork:
     pods:

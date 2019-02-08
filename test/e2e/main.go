@@ -13,7 +13,8 @@ import (
 )
 
 const (
-	namespace = "openshift-cluster-api"
+	deprecatedNamespace = "openshift-cluster-api"
+	namespace           = "openshift-machine-api"
 )
 
 func init() {
