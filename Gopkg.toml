@@ -35,6 +35,14 @@ required = [
   revision = "91fca585a85b163ddfd119fd09c128c9feadddca"
 
 [[override]]
+  name = "github.com/openshift/api"
+  branch = "master"
+
+[[override]]
+  name = "github.com/openshift/client-go"
+  branch = "master"
+
+[[override]]
   name = "k8s.io/code-generator"
   # revision for tag "kubernetes-1.11.2"
   revision = "6702109cc68eb6fe6350b83e14407c8d7309fd1a"
@@ -58,7 +66,7 @@ required = [
   name = "k8s.io/client-go"
   # revision for tag "kubernetes-1.11.2"
   revision = "1f13a808da65775f22cbf47862c4e5898d8f4ca1"
-
+  
 [[override]]
   name = "sigs.k8s.io/controller-runtime"
   version = "v0.1.4"
