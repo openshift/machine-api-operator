@@ -9,6 +9,9 @@ import (
 	"github.com/golang/glog"
 	mapiv1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
+	"github.com/openshift/machine-api-operator/pkg/util"
+	"github.com/openshift/machine-api-operator/pkg/util/conditions"
+
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/cache"
+
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -26,22 +30,33 @@ import (
 
 const (
 	machineAnnotationKey = "machine.openshift.io/machine"
-	// TODO(alberto) ensure we handle the case for when a new machine comes up
-	// so remediation doesn't kill it before it goes healthy
-	remediationWaitTime = 5 * time.Minute
-	healthCriteria      = corev1.NodeReady
-	ownerControllerKind = "MachineSet"
+	ownerControllerKind  = "MachineSet"
 )
 
 // Add creates a new MachineHealthCheck Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and start it when the Manager is started.
 func Add(mgr manager.Manager) error {
-	return add(mgr, newReconciler(mgr))
+	r, err := newReconciler(mgr)
+	if err != nil {
+		return err
+	}
+	return add(mgr, r)
 }
 
 // newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager) reconcile.Reconciler {
-	return &ReconcileMachineHealthCheck{client: mgr.GetClient(), scheme: mgr.GetScheme()}
+func newReconciler(mgr manager.Manager) (reconcile.Reconciler, error) {
+	r := &ReconcileMachineHealthCheck{
+		client: mgr.GetClient(),
+		scheme: mgr.GetScheme(),
+	}
+
+	ns, err := util.GetNamespace(util.ServiceAccountNamespaceFile)
+	if err != nil {
+		return r, err
+	}
+
+	r.namespace = ns
+	return r, nil
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
@@ -60,8 +75,9 @@ var _ reconcile.Reconciler = &ReconcileMachineHealthCheck{}
 type ReconcileMachineHealthCheck struct {
 	// This client, initialized using mgr.Client() above, is a split client
 	// that reads objects from the cache and writes to the apiserver
-	client client.Client
-	scheme *runtime.Scheme
+	client    client.Client
+	scheme    *runtime.Scheme
+	namespace string
 }
 
 // Reconcile reads that state of the cluster for MachineHealthCheck, machine and nodes objects and makes changes based on the state read
@@ -170,25 +186,98 @@ func remediate(r *ReconcileMachineHealthCheck, machine *mapiv1.Machine) (reconci
 		return reconcile.Result{}, err
 	}
 
-	if !isHealthy(node) {
-		if unhealthyForTooLong(node) {
-			// delete
+	cmUnhealtyConditions, err := getUnhealthyConditionsConfigMap(r)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	nodeUnhealthyConditions, err := conditions.GetNodeUnhealthyConditions(node, cmUnhealtyConditions)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
+	var result *reconcile.Result
+	var minimalConditionTimeout time.Duration
+	minimalConditionTimeout = 0
+	for _, c := range nodeUnhealthyConditions {
+		nodeCondition := conditions.GetNodeCondition(node, c.Name)
+		// skip when current node condition is different from the one reported in the config map
+		if nodeCondition == nil || !isConditionsStatusesEqual(nodeCondition, &c) {
+			continue
+		}
+
+		conditionTimeout, err := time.ParseDuration(c.Timeout)
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+
+		// apply remediation logic, if at least one condition last more than specified timeout
+		if unhealthyForTooLong(nodeCondition, conditionTimeout) {
 			glog.Infof("machine %s has been unhealthy for too long, deleting", machine.Name)
 			if err := r.client.Delete(context.TODO(), machine); err != nil {
 				glog.Errorf("failed to delete machine %s, requeuing referenced node", machine.Name)
 				return reconcile.Result{}, err
 			}
 			return reconcile.Result{}, nil
-		} else {
-			currentTime := time.Now()
-			lastTimeHealthy := lastTransitionTime(node, healthCriteria)
-			durationUnhealthy := currentTime.Sub(lastTimeHealthy.Time)
-			glog.Warningf("machine %s have had node %s unhealthy for %s. Requeuing...", machine.Name, node.Name, durationUnhealthy.String())
-			return reconcile.Result{Requeue: true, RequeueAfter: remediationWaitTime}, nil
 		}
+
+		now := time.Now()
+		durationUnhealthy := now.Sub(nodeCondition.LastTransitionTime.Time)
+		glog.Warningf(
+			"Machine %s has unhealthy node %s with the condition %s and the timeout %s for %s. Requeuing...",
+			machine.Name,
+			node.Name,
+			nodeCondition.Type,
+			c.Timeout,
+			durationUnhealthy.String(),
+		)
+
+		// be sure that we will use timeout with the minimal value for the reconcile.Result
+		if minimalConditionTimeout == 0 || minimalConditionTimeout > conditionTimeout {
+			minimalConditionTimeout = conditionTimeout
+		}
+		result = &reconcile.Result{Requeue: true, RequeueAfter: minimalConditionTimeout}
 	}
+
+	// requeue
+	if result != nil {
+		return *result, nil
+	}
+
 	glog.Infof("No remediaton action was taken. Machine %s with node %v is healthy", machine.Name, node.Name)
 	return reconcile.Result{}, nil
+}
+
+func getUnhealthyConditionsConfigMap(r *ReconcileMachineHealthCheck) (*corev1.ConfigMap, error) {
+	cmUnhealtyConditions := &corev1.ConfigMap{}
+	cmKey := types.NamespacedName{
+		Name:      healthcheckingv1alpha1.ConfigMapNodeUnhealthyConditions,
+		Namespace: r.namespace,
+	}
+	err := r.client.Get(context.TODO(), cmKey, cmUnhealtyConditions)
+	if err != nil {
+		// Error reading the object - requeue the request
+		if !errors.IsNotFound(err) {
+			return nil, err
+		}
+
+		// creates dummy config map with default values if it does not exist
+		cmUnhealtyConditions, err = conditions.CreateDummyUnhealthyConditionsConfigMap()
+		if err != nil {
+			return nil, err
+		}
+		glog.Infof(
+			"ConfigMap %s not found under the namespace %s, fallback to default values: %s",
+			healthcheckingv1alpha1.ConfigMapNodeUnhealthyConditions,
+			r.namespace,
+			cmUnhealtyConditions.Data["conditions"],
+		)
+	}
+	return cmUnhealtyConditions, nil
+}
+
+func isConditionsStatusesEqual(cond *corev1.NodeCondition, unhealthyCond *conditions.UnhealthyCondition) bool {
+	return cond.Status == unhealthyCond.Status
 }
 
 func getNodeFromMachine(machine mapiv1.Machine, client client.Client) (*corev1.Node, error) {
@@ -205,10 +294,9 @@ func getNodeFromMachine(machine mapiv1.Machine, client client.Client) (*corev1.N
 	return node, err
 }
 
-func unhealthyForTooLong(node *corev1.Node) bool {
-	currentTime := time.Now()
-	lastTimeHealthy := lastTransitionTime(node, healthCriteria)
-	if lastTimeHealthy.Add(remediationWaitTime).Before(currentTime) {
+func unhealthyForTooLong(nodeCondition *corev1.NodeCondition, timeout time.Duration) bool {
+	now := time.Now()
+	if nodeCondition.LastTransitionTime.Add(timeout).Before(now) {
 		return true
 	}
 	return false
@@ -222,31 +310,6 @@ func hasMachineSetOwner(machine mapiv1.Machine) bool {
 		}
 	}
 	return false
-}
-
-func isHealthy(node *corev1.Node) bool {
-	nodeReady := getNodeCondition(node, healthCriteria)
-	glog.V(4).Infof("condition %v", nodeReady)
-	return nodeReady.Status == corev1.ConditionTrue
-}
-
-func lastTransitionTime(node *corev1.Node, conditionType corev1.NodeConditionType) metav1.Time {
-	condition := getNodeCondition(node, conditionType)
-	currentTime := metav1.Now()
-	if condition == nil {
-		return metav1.Time{Time: currentTime.Add(-2 * remediationWaitTime)}
-	}
-	return condition.LastTransitionTime
-
-}
-
-func getNodeCondition(node *corev1.Node, conditionType corev1.NodeConditionType) *corev1.NodeCondition {
-	for _, c := range node.Status.Conditions {
-		if c.Type == conditionType {
-			return &c
-		}
-	}
-	return nil
 }
 
 func hasMatchingLabels(machineHealthCheck *healthcheckingv1alpha1.MachineHealthCheck, machine *mapiv1.Machine) bool {
