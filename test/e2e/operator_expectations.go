@@ -110,7 +110,7 @@ func (tc *testConfig) ExpectAllMachinesLinkedToANode() error {
 			glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
 			return false, nil
 		}
-		glog.Infof("Waiting for %d machines to become nodes", len(machineList.Items))
+		glog.Infof("Expecting the same number of nodes and machines, have %v nodes and %v machines", len(nodeList.Items), len(machineList.Items))
 		return len(machineList.Items) == len(nodeList.Items), nil
 	})
 	if err != nil {
