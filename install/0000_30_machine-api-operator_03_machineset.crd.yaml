@@ -4,9 +4,9 @@ metadata:
   creationTimestamp: null
   labels:
     controller-tools.k8s.io: "1.0"
-  name: machinesets.cluster.k8s.io
+  name: machinesets.machine.openshift.io
 spec:
-  group: cluster.k8s.io
+  group: machine.openshift.io
   names:
     kind: MachineSet
     plural: machinesets
@@ -183,7 +183,7 @@ spec:
           required:
           - replicas
           type: object
-  version: v1alpha1
+  version: v1beta1
   additionalPrinterColumns:
   - JSONPath: .spec.replicas
     description: Desired Replicas

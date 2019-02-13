@@ -4,7 +4,7 @@ metadata:
   creationTimestamp: null
   labels:
     controller-tools.k8s.io: "1.0"
-  name: machines.cluster.k8s.io
+  name: machines.machine.openshift.io
 spec:
   additionalPrinterColumns:
   - JSONPath: .status.providerStatus.instanceId
@@ -30,7 +30,7 @@ spec:
   - JSONPath: .metadata.creationTimestamp
     name: Age
     type: date
-  group: cluster.k8s.io
+  group: machine.openshift.io
   names:
     kind: Machine
     plural: machines
@@ -220,7 +220,7 @@ spec:
               - kubelet
               type: object
           type: object
-  version: v1alpha1
+  version: v1beta1
 status:
   acceptedNames:
     kind: ""
