@@ -51,24 +51,6 @@ func (optr *Operator) syncAll(config OperatorConfig) error {
 }
 
 func (optr *Operator) syncClusterAPIController(config OperatorConfig) error {
-	crBytes, err := PopulateTemplate(&config, filepath.Join(ownedManifestsDir, "clusterapi-manager-cluster-role.yaml"))
-	if err != nil {
-		return err
-	}
-	cr := resourceread.ReadClusterRoleV1OrDie(crBytes)
-	_, _, err = resourceapply.ApplyClusterRole(optr.kubeClient.RbacV1(), cr)
-	if err != nil {
-		return err
-	}
-	crbBytes, err := PopulateTemplate(&config, filepath.Join(ownedManifestsDir, "clusterapi-manager-cluster-role-binding.yaml"))
-	if err != nil {
-		return err
-	}
-	crb := resourceread.ReadClusterRoleBindingV1OrDie(crbBytes)
-	_, _, err = resourceapply.ApplyClusterRoleBinding(optr.kubeClient.RbacV1(), crb)
-	if err != nil {
-		return err
-	}
 	controllerBytes, err := PopulateTemplate(&config, filepath.Join(ownedManifestsDir, "clusterapi-manager-controllers.yaml"))
 	if err != nil {
 		return err
