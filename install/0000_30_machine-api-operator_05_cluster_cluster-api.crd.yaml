@@ -3,9 +3,9 @@ kind: CustomResourceDefinition
 metadata:
   labels:
     controller-tools.k8s.io: "1.0"
-  name: clusters.machine.openshift.io
+  name: clusters.cluster.k8s.io
 spec:
-  group: machine.openshift.io
+  group: cluster.k8s.io
   names:
     kind: Cluster
     plural: clusters
@@ -32,7 +32,7 @@ spec:
                         type: string
                       type: array
                   required:
-                  - cidrBlocks
+                    - cidrBlocks
                   type: object
                 serviceDomain:
                   type: string
@@ -43,12 +43,12 @@ spec:
                         type: string
                       type: array
                   required:
-                  - cidrBlocks
+                    - cidrBlocks
                   type: object
               required:
-              - services
-              - pods
-              - serviceDomain
+                - services
+                - pods
+                - serviceDomain
               type: object
             providerSpec:
               properties:
@@ -64,7 +64,7 @@ spec:
                   type: object
               type: object
           required:
-          - clusterNetwork
+            - clusterNetwork
           type: object
         status:
           properties:
@@ -77,8 +77,8 @@ spec:
                     format: int64
                     type: integer
                 required:
-                - host
-                - port
+                  - host
+                  - port
                 type: object
               type: array
             errorMessage:
@@ -88,7 +88,7 @@ spec:
             providerStatus:
               type: object
           type: object
-  version: v1beta1
+  version: v1alpha1
 status:
   acceptedNames:
     kind: ""
