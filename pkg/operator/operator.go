@@ -4,9 +4,12 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/openshift/machine-api-operator/pkg/version"
+
 	"github.com/golang/glog"
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
 
+	osconfigv1 "github.com/openshift/api/config/v1"
 	v1 "k8s.io/api/core/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -50,7 +53,8 @@ type Operator struct {
 	deployListerSynced cache.InformerSynced
 
 	// queue only ever has one item, but it has nice error handling backoff/retry semantics
-	queue workqueue.RateLimitingInterface
+	queue           workqueue.RateLimitingInterface
+	operandVersions []osconfigv1.OperandVersion
 }
 
 // New returns a new machine config operator.
@@ -80,6 +84,12 @@ func New(
 		osClient:      osClient,
 		eventRecorder: eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "machineapioperator"}),
 		queue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
+		operandVersions: []osconfigv1.OperandVersion{
+			{
+				Name:    "operator",
+				Version: version.Raw,
+			},
+		},
 	}
 
 	serviceAccountInfomer.Informer().AddEventHandler(optr.eventHandler())

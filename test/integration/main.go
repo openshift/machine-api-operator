@@ -423,7 +423,8 @@ var rootCmd = &cobra.Command{
 		// TESTS
 		// verify the cluster-api is running
 		err = wait.Poll(pollInterval, timeoutPoolClusterAPIDeploymentInterval, func() (bool, error) {
-			if clusterAPIDeployment, err := testConfig.KubeClient.AppsV1beta2().Deployments(targetNamespace).Get("clusterapi-manager-controllers", metav1.GetOptions{}); err == nil {
+			clusterAPIDeployment, err := testConfig.KubeClient.AppsV1beta2().Deployments(targetNamespace).Get("clusterapi-manager-controllers", metav1.GetOptions{})
+			if err == nil {
 				// Check all the pods are running
 				log.Infof("Waiting for all clusterapi-manager-controllers deployment pods to be ready, have %v, expecting 1", clusterAPIDeployment.Status.ReadyReplicas)
 				if clusterAPIDeployment.Status.ReadyReplicas < 1 {
@@ -432,7 +433,7 @@ var rootCmd = &cobra.Command{
 				return true, nil
 			}
 
-			log.Info("Waiting for clusterapi-manager-controllers deployment to be created")
+			log.Infof("Waiting for clusterapi-manager-controllers deployment to be created: %v", err)
 			return false, nil
 		})
 

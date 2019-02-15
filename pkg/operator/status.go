@@ -1,13 +1,16 @@
 package operator
 
 import (
+	"fmt"
+	"reflect"
+	"strings"
+
+	"github.com/golang/glog"
+
 	osconfigv1 "github.com/openshift/api/config/v1"
-	osclientsetv1 "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	cvoresourcemerge "github.com/openshift/cluster-version-operator/lib/resourcemerge"
-	"github.com/openshift/machine-api-operator/pkg/version"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/utils/pointer"
 )
 
 // StatusReason is a MixedCaps string representing the reason for a
@@ -28,17 +31,31 @@ const (
 // statusProgressing sets the Progressing condition to True, with the given
 // reason and message, and sets both the Available and Failing conditions to
 // False.
-func (optr *Operator) statusProgressing(reason StatusReason, message string) error {
+func (optr *Operator) statusProgressing() error {
+	desiredVersions := optr.operandVersions
+	currentVersions, err := optr.getCurrentVersions()
+	if err != nil {
+		glog.Errorf("error getting current versions: %v", err)
+		return err
+	}
+
+	var message string
+	if !reflect.DeepEqual(desiredVersions, currentVersions) {
+		message = fmt.Sprintf("Progressing towards %s", optr.printOperandVersions())
+	} else {
+		message = fmt.Sprintf("Running resync for %s", optr.printOperandVersions())
+	}
+
 	conds := []osconfigv1.ClusterOperatorStatusCondition{
 		{
 			Type:    osconfigv1.OperatorProgressing,
 			Status:  osconfigv1.ConditionTrue,
-			Reason:  string(reason),
+			Reason:  string(ReasonSyncing),
 			Message: message,
 		},
 		{
 			Type:   osconfigv1.OperatorAvailable,
-			Status: osconfigv1.ConditionFalse,
+			Status: osconfigv1.ConditionTrue,
 		},
 		{
 			Type:   osconfigv1.OperatorFailing,
@@ -46,18 +63,23 @@ func (optr *Operator) statusProgressing(reason StatusReason, message string) err
 		},
 	}
 
-	return optr.syncStatus(conds)
+	co, err := optr.getOrCreateClusterOperator()
+	if err != nil {
+		glog.Errorf("failed to get or create Cluster Operator: %v", err)
+		return err
+	}
+	return optr.syncStatus(co, conds)
 }
 
 // statusAvailable sets the Available condition to True, with the given reason
 // and message, and sets both the Progressing and Failing conditions to False.
-func (optr *Operator) statusAvailable(reason StatusReason, message string) error {
+func (optr *Operator) statusAvailable() error {
 	conds := []osconfigv1.ClusterOperatorStatusCondition{
 		{
 			Type:    osconfigv1.OperatorAvailable,
 			Status:  osconfigv1.ConditionTrue,
-			Reason:  string(reason),
-			Message: message,
+			Reason:  string(ReasonEmpty),
+			Message: fmt.Sprintf("Cluster Machine API Operator is available at %s", optr.printOperandVersions()),
 		},
 		{
 			Type:   osconfigv1.OperatorProgressing,
@@ -70,19 +92,38 @@ func (optr *Operator) statusAvailable(reason StatusReason, message string) error
 		},
 	}
 
-	return optr.syncStatus(conds)
+	co, err := optr.getOrCreateClusterOperator()
+	if err != nil {
+		return err
+	}
+	co.Status.Versions = optr.operandVersions
+	return optr.syncStatus(co, conds)
 }
 
 // statusFailing sets the Failing condition to True, with the given reason and
 // message, and sets the Progressing condition to False, and the Available
 // condition to True.  This indicates that the operator is present and may be
 // partially functioning, but is in a degraded or failing state.
-func (optr *Operator) statusFailing(reason StatusReason, message string) error {
+func (optr *Operator) statusFailing(error string) error {
+	desiredVersions := optr.operandVersions
+	currentVersions, err := optr.getCurrentVersions()
+	if err != nil {
+		glog.Errorf("error getting current versions: %v", err)
+		return err
+	}
+
+	var message string
+	if !reflect.DeepEqual(desiredVersions, currentVersions) {
+		message = fmt.Sprintf("Failed when progressing towards %s because %s", optr.printOperandVersions(), error)
+	} else {
+		message = fmt.Sprintf("Failed to resync for %s because %s", optr.printOperandVersions(), error)
+	}
+
 	conds := []osconfigv1.ClusterOperatorStatusCondition{
 		{
 			Type:    osconfigv1.OperatorFailing,
 			Status:  osconfigv1.ConditionTrue,
-			Reason:  string(reason),
+			Reason:  string(ReasonSyncFailed),
 			Message: message,
 		},
 		{
@@ -95,60 +136,70 @@ func (optr *Operator) statusFailing(reason StatusReason, message string) error {
 		},
 	}
 
-	return optr.syncStatus(conds)
+	co, err := optr.getOrCreateClusterOperator()
+	if err != nil {
+		return err
+	}
+	return optr.syncStatus(co, conds)
 }
 
 //syncStatus applies the new condition to the mao ClusterOperator object.
-func (optr *Operator) syncStatus(conds []osconfigv1.ClusterOperatorStatusCondition) error {
-	// to report the status of all the managed components.
-	// TODO we will report the version of the operands (so our machine api implementation version)
-	// NOTE: related objects lets openshift/must-gather collect diagnostic content
-	clusterOperator := &osconfigv1.ClusterOperator{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: clusterOperatorName,
-		},
-		Status: osconfigv1.ClusterOperatorStatus{
-			Versions: []osconfigv1.OperandVersion{
-				{
-					Name:    "machine-api",
-					Version: version.Raw,
-				},
-			},
-			RelatedObjects: []osconfigv1.ObjectReference{
-				{
-					Group:    "",
-					Resource: "namespaces",
-					Name:     optr.namespace,
-				},
-			},
-		},
-	}
-
+func (optr *Operator) syncStatus(co *osconfigv1.ClusterOperator, conds []osconfigv1.ClusterOperatorStatusCondition) error {
 	for _, c := range conds {
-		cvoresourcemerge.SetOperatorStatusCondition(&clusterOperator.Status.Conditions, c)
+		cvoresourcemerge.SetOperatorStatusCondition(&co.Status.Conditions, c)
 	}
 
-	_, _, err := ApplyClusterOperator(optr.osClient.ConfigV1(), clusterOperator)
+	_, err := optr.osClient.ConfigV1().ClusterOperators().UpdateStatus(co)
 	return err
 }
 
-// ApplyClusterOperator applies the required ClusterOperator
-func ApplyClusterOperator(client osclientsetv1.ClusterOperatorsGetter, required *osconfigv1.ClusterOperator) (*osconfigv1.ClusterOperator, bool, error) {
-	existing, err := client.ClusterOperators().Get(required.Name, metav1.GetOptions{})
+func (optr *Operator) getOrCreateClusterOperator() (*osconfigv1.ClusterOperator, error) {
+	co, err := optr.osClient.ConfigV1().ClusterOperators().Get(clusterOperatorName, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
-		actual, err := client.ClusterOperators().Create(required)
-		return actual, true, err
+		// to report the status of all the managed components.
+		// TODO we will report the version of the operands (so our machine api implementation version)
+		// NOTE: related objects lets openshift/must-gather collect diagnostic content
+		co = &osconfigv1.ClusterOperator{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: clusterOperatorName,
+			},
+			Status: osconfigv1.ClusterOperatorStatus{
+				Versions: optr.operandVersions,
+				RelatedObjects: []osconfigv1.ObjectReference{
+					{
+						Group:    "",
+						Resource: "namespaces",
+						Name:     optr.namespace,
+					},
+				},
+			},
+		}
+
+		glog.Infof("%s clusterOperator status does not exist, creating %v", clusterOperatorName, co)
+		co, err := optr.osClient.ConfigV1().ClusterOperators().Create(co)
+		if err != nil {
+			return nil, err
+		}
+		return co, nil
 	}
 	if err != nil {
-		return nil, false, err
+		return nil, err
 	}
+	return co, nil
+}
 
-	modified := pointer.BoolPtr(false)
-	cvoresourcemerge.EnsureClusterOperatorStatus(modified, existing, *required)
-	if !*modified {
-		return existing, false, nil
+func (optr *Operator) getCurrentVersions() ([]osconfigv1.OperandVersion, error) {
+	co, err := optr.getOrCreateClusterOperator()
+	if err != nil {
+		return nil, err
 	}
+	return co.Status.Versions, nil
+}
 
-	actual, err := client.ClusterOperators().UpdateStatus(existing)
-	return actual, true, err
+func (optr *Operator) printOperandVersions() string {
+	versionsOutput := []string{}
+	for _, operand := range optr.operandVersions {
+		versionsOutput = append(versionsOutput, fmt.Sprintf("%s: %s", operand.Name, operand.Version))
+	}
+	return strings.Join(versionsOutput, ", ")
 }

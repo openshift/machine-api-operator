@@ -24,13 +24,13 @@ const (
 func (optr *Operator) syncAll(config OperatorConfig) error {
 	glog.Infof("Syncing ClusterOperatorStatus")
 
-	if err := optr.statusProgressing(ReasonSyncing, "Running sync functions"); err != nil {
+	if err := optr.statusProgressing(); err != nil {
 		glog.Errorf("Error synching ClusterOperatorStatus: %v", err)
 		return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
 	}
 
 	if err := optr.syncClusterAPIController(config); err != nil {
-		if err := optr.statusFailing(ReasonSyncFailed, err.Error()); err != nil {
+		if err := optr.statusFailing(err.Error()); err != nil {
 			// Just log the error here.  We still want to
 			// return the outer error.
 			glog.Errorf("Error synching ClusterOperatorStatus: %v", err)
@@ -42,7 +42,7 @@ func (optr *Operator) syncAll(config OperatorConfig) error {
 
 	glog.Info("Synched up cluster api controller")
 
-	if err := optr.statusAvailable(ReasonEmpty, "cluster-api ready"); err != nil {
+	if err := optr.statusAvailable(); err != nil {
 		glog.Errorf("Error synching ClusterOperatorStatus: %v", err)
 		return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
 	}
