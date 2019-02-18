@@ -269,8 +269,8 @@ func hasMatchingLabels(machineHealthCheck *healthcheckingv1alpha1.MachineHealthC
 
 func isMaster(machine mapiv1.Machine, client client.Client) bool {
 	machineMasterLabels := []string{
-		"sigs.k8s.io/cluster-api-machine-role",
-		"sigs.k8s.io/cluster-api-machine-type",
+		"machine.openshift.io/cluster-api-machine-role",
+		"machine.openshift.io/cluster-api-machine-type",
 	}
 	nodeMasterLabels := []string{
 		"node-role.kubernetes.io/master",
