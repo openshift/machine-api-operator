@@ -68,13 +68,6 @@ func runSuite() error {
 	}
 	glog.Info("PASS: ExpectOperatorAvailable")
 
-	glog.Info("RUN: ExpectNoClusterObject")
-	if err := testConfig.ExpectNoClusterObject(); err != nil {
-		glog.Errorf("FAIL: ExpectNoClusterObject: %v", err)
-		return err
-	}
-	glog.Info("PASS: ExpectOneClusterObject")
-
 	glog.Info("RUN: ExpectClusterOperatorStatusAvailable")
 	if err := testConfig.ExpectClusterOperatorStatusAvailable(); err != nil {
 		glog.Errorf("FAIL: ExpectClusterOperatorStatusAvailable: %v", err)
