@@ -129,6 +129,38 @@ However you can run it in a vanilla Kubernetes cluster by precreating some asset
 - Then you can run it as a [deployment](install/0000_50_machine-api-operator_08_deployment.yaml)
 - You should then be able to deploy a [cluster](test/integration/manifests/cluster.yaml) and a [machineSet](test/integration/manifests/machineset.yaml) object
 
+## Machine API operator with Kubemark over Kubernetes
+
+INFO: For development and testing purposes only
+
+1. Deploy MAO over Kubernetes:
+  ```sh
+   $ kustomize build | kubectl apply -f -
+   ```
+
+2. Deploy [Kubemark actuator](https://github.com/openshift/cluster-api-provider-kubemark) prerequisities:
+   ```sh
+   $ kustomize build config | kubectl apply -f -
+   ```
+
+3. Create `cluster-config-v1` configmap to tell the MAO to deploy `kubemark` provider:
+   ```yaml
+   apiVersion: v1
+   kind: ConfigMap
+   metadata:
+     name: cluster-config-v1
+     namespace: kube-system
+   data:
+     install-config: |-
+       platform:
+         kubemark: {}
+   ```
+
+   The file is already present under `config/kubemark-install-config.yaml` so it's sufficient to run:
+   ```sh
+   $ kubectl apply -f config/kubemark-install-config.yaml
+   ```
+
 ## CI & tests
 
 Run unit test:
