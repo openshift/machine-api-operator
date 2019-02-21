@@ -45,7 +45,7 @@ build-integration: ## Build integration test binary
 	$(DOCKER_CMD) go build $(GOGCFLAGS) -o bin/integration github.com/openshift/machine-api-operator/test/integration
 
 test-e2e:
-	go run ./test/e2e/*.go -alsologtostderr
+	go run ./vendor/github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/openshift/*.go -alsologtostderr
 
 .PHONY: test
 test: ## Run tests
