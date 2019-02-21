@@ -17,7 +17,7 @@ type MachineAutoscalerSpec struct {
 
 // MachineAutoscalerStatus defines the observed state of MachineAutoscaler
 type MachineAutoscalerStatus struct {
-	// TODO: Add status fields.
+	LastTargetRef *CrossVersionObjectReference `json:"lastTargetRef,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
