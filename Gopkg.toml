@@ -8,6 +8,7 @@ required = [
   "k8s.io/code-generator/cmd/informer-gen",
   "k8s.io/code-generator/cmd/openapi-gen",
   "k8s.io/gengo/args",
+  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/openshift"
 ]
 
 [[constraint]]
@@ -85,3 +86,8 @@ required = [
   [[prune.project]]
     name = "k8s.io/code-generator"
     non-go = false
+
+[[constraint]]
+  name = "github.com/openshift/cluster-api-actuator-pkg"
+  revision = "bba66d77e2340efb86a2a69cb3e3a2d3170cd847"
+  source = "github.com/enxebre/cluster-api-actuator-pkg/pkg/e2e/openshift"
