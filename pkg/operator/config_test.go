@@ -11,6 +11,7 @@ var (
 	expectedAWSImage                = "docker.io/openshift/origin-aws-machine-controllers:v4.0.0"
 	expectedLibvirtImage            = "docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0"
 	expectedOpenstackImage          = "docker.io/openshift/origin-openstack-machine-controllers:v4.0.0"
+	expectedBaremetalImage          = "docker.io/openshift/origin-baremetal-machine-controllers:v4.0.0"
 	expectedMachineAPIOperatorImage = "docker.io/openshift/origin-machine-api-operator:v4.0.0"
 )
 
@@ -53,7 +54,7 @@ pullSecret: “"
 	if err != nil {
 		t.Errorf("failed to get install config: %v", err)
 	}
-	if res.InstallPlatform.AWS != nil && res.InstallPlatform.Libvirt == nil && res.InstallPlatform.OpenStack == nil {
+	if res.InstallPlatform.AWS != nil && res.InstallPlatform.Libvirt == nil && res.InstallPlatform.OpenStack == nil && res.InstallPlatform.Baremetal == nil {
 		t.Logf("got install config successfully: %+v", res)
 	} else {
 		t.Errorf("failed to getInstallConfigFromClusterConfig. Expected aws to be not nil, got: %+v", res)
@@ -71,6 +72,7 @@ func TestGetProviderFromInstallConfig(t *testing.T) {
 				AWS:       notNil,
 				Libvirt:   nil,
 				OpenStack: nil,
+				Baremetal: nil,
 			},
 		},
 		expected: AWSProvider,
@@ -81,6 +83,7 @@ func TestGetProviderFromInstallConfig(t *testing.T) {
 					AWS:       nil,
 					Libvirt:   notNil,
 					OpenStack: nil,
+					Baremetal: nil,
 				},
 			},
 			expected: LibvirtProvider,
@@ -91,9 +94,21 @@ func TestGetProviderFromInstallConfig(t *testing.T) {
 					AWS:       nil,
 					Libvirt:   nil,
 					OpenStack: notNil,
+					Baremetal: nil,
 				},
 			},
 			expected: OpenStackProvider,
+		},
+		{
+			ic: &InstallConfig{
+				InstallPlatform{
+					AWS:       nil,
+					Libvirt:   nil,
+					OpenStack: nil,
+					Baremetal: notNil,
+				},
+			},
+			expected: BaremetalProvider,
 		}}
 
 	for _, test := range tests {
@@ -112,6 +127,7 @@ func TestGetProviderFromInstallConfig(t *testing.T) {
 			AWS:       nil,
 			Libvirt:   notNil,
 			OpenStack: notNil,
+			Baremetal: nil,
 		},
 	}
 	res, err := getProviderFromInstallConfig(ic)
@@ -134,6 +150,9 @@ func TestGetImagesFromJSONFile(t *testing.T) {
 	if img.ClusterAPIControllerOpenStack != expectedOpenstackImage {
 		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedOpenstackImage, img.ClusterAPIControllerOpenStack)
 	}
+	if img.ClusterAPIControllerBaremetal != expectedBaremetal {
+		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedBaremetalImage, img.ClusterAPIControllerBaremetal)
+	}
 }
 
 func TestGetProviderControllerFromImages(t *testing.T) {
@@ -151,6 +170,10 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 		{
 			provider:      OpenStackProvider,
 			expectedImage: expectedOpenstackImage,
+		},
+		{
+			provider:      BaremetalProvider,
+			expectedImage: expectedBaremetalImage,
 		}}
 
 	imagesJSONFile := "fixtures/images.json"

@@ -29,6 +29,8 @@ const (
 	LibvirtProvider = Provider("libvirt")
 	// OpenStackPlatformType is used to install on OpenStack
 	OpenStackProvider = Provider("openstack")
+	// BaremetalPlatformType is used to install on Baremetal servers
+	BaremetalProvider = Provider("baremetal")
 )
 
 type Provider string
@@ -69,6 +71,9 @@ type InstallPlatform struct {
 
 	// OpenStack is the configuration used when running on OpenStack
 	OpenStack interface{} `json:"openstack,omitempty"`
+
+	// Baremetal is the configuration used when running on Baremetal
+	Baremetal interface{} `json:"baremetal,omitempty"`
 }
 
 func getInstallConfig(client kubernetes.Interface) (*InstallConfig, error) {
