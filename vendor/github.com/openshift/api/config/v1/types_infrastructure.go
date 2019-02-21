@@ -66,6 +66,9 @@ const (
 	// OpenStackPlatform represents OpenStack infrastructure.
 	OpenStackPlatform PlatformType = "OpenStack"
 
+	// BaremetalPlatform represents Baremetal infrastructure.
+	BaremetalPlatform PlatformType = "Baremetal"
+
 	// NonePlatform means there is no infrastructure provider.
 	NonePlatform PlatformType = "None"
 

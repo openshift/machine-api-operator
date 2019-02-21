@@ -7,5 +7,6 @@ data:
   images.json: '{
 	"clusterAPIControllerAWS": "docker.io/openshift/origin-aws-machine-controllers:v4.0.0",
 	"clusterAPIControllerLibvirt": "docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0",
+	"clusterAPIControllerBaremetal": "docker.io/openshift/origin-baremetal-machine-controllers:v4.0.0",
 	"machineAPIOperator": "{{ .Image }}"
 }'
