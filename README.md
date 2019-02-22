@@ -105,7 +105,7 @@ $ make nodelink-controller
 - Run:
 
   ```sh
-  $ ./bin/machine-api-operator --kubeconfig ${HOME}/.kube/config --images-json=pkg/operator/fixtures/images.json
+  $ ./bin/machine-api-operator start --kubeconfig ${HOME}/.kube/config --images-json=pkg/operator/fixtures/images.json
   ```
 
 - Image:
