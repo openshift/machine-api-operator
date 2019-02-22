@@ -108,5 +108,13 @@ func runSuite() error {
 		return err
 	}
 	glog.Info("PASS: ExpectAutoscalerScalesOut")
+
+	glog.Info("RUN: ExpectNodeToBeDrainedBeforeMachineIsDeleted")
+	if err := testConfig.ExpectNodeToBeDrainedBeforeMachineIsDeleted(); err != nil {
+		glog.Errorf("FAIL: ExpectNodeToBeDrainedBeforeMachineIsDeleted: %v", err)
+		return err
+	}
+	glog.Info("PASS: ExpectNodeToBeDrainedBeforeMachineIsDeleted")
+
 	return nil
 }

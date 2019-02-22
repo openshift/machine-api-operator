@@ -14,8 +14,6 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	appsinformersv1 "k8s.io/client-go/informers/apps/v1"
-	coreinformersv1 "k8s.io/client-go/informers/core/v1"
-	rbacinformersv1 "k8s.io/client-go/informers/rbac/v1"
 	"k8s.io/client-go/kubernetes"
 	coreclientsetv1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	appslisterv1 "k8s.io/client-go/listers/apps/v1"
@@ -64,10 +62,7 @@ func New(
 
 	config string,
 
-	serviceAccountInfomer coreinformersv1.ServiceAccountInformer,
 	deployInformer appsinformersv1.DeploymentInformer,
-	clusterRoleInformer rbacinformersv1.ClusterRoleInformer,
-	clusterRoleBindingInformer rbacinformersv1.ClusterRoleBindingInformer,
 
 	kubeClient kubernetes.Interface,
 	osClient osclientset.Interface,
@@ -92,10 +87,7 @@ func New(
 		},
 	}
 
-	serviceAccountInfomer.Informer().AddEventHandler(optr.eventHandler())
 	deployInformer.Informer().AddEventHandler(optr.eventHandler())
-	clusterRoleInformer.Informer().AddEventHandler(optr.eventHandler())
-	clusterRoleBindingInformer.Informer().AddEventHandler(optr.eventHandler())
 
 	optr.config = config
 	optr.syncHandler = optr.sync

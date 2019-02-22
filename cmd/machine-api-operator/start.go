@@ -80,10 +80,7 @@ func startControllers(ctx *ControllerContext) error {
 		startOpts.imagesFile,
 
 		config,
-		ctx.KubeNamespacedInformerFactory.Core().V1().ServiceAccounts(),
 		ctx.KubeNamespacedInformerFactory.Apps().V1().Deployments(),
-		ctx.KubeNamespacedInformerFactory.Rbac().V1().ClusterRoles(),
-		ctx.KubeNamespacedInformerFactory.Rbac().V1().ClusterRoleBindings(),
 
 		ctx.ClientBuilder.KubeClientOrDie(componentName),
 		ctx.ClientBuilder.OpenshiftClientOrDie(componentName),
