@@ -1,12 +1,14 @@
-package main
+package suites
 
 import (
+	"errors"
+	"fmt"
 	"strings"
 	"time"
 
+	"sigs.k8s.io/controller-runtime/pkg/client"
+
 	"context"
-	"errors"
-	"fmt"
 
 	"github.com/golang/glog"
 	osconfigv1 "github.com/openshift/api/config/v1"
@@ -14,28 +16,74 @@ import (
 	caov1alpha1 "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1alpha1"
 	cvoresourcemerge "github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	kappsapi "k8s.io/api/apps/v1"
-	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
-	kpolicyapi "k8s.io/api/policy/v1beta1"
-	resource "k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/sets"
-	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
-	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
 	waitShort       = 1 * time.Minute
 	waitMedium      = 3 * time.Minute
-	waitLong        = 15 * time.Minute
+	waitLong        = 10 * time.Minute
+	namespace       = "openshift-machine-api"
 	workerRoleLabel = "node-role.kubernetes.io/worker"
 )
 
-func (tc *testConfig) ExpectOperatorAvailable() error {
+func smokeTestingSuite(tc *testConfig) []struct {
+	expect func(ctx context.Context) error
+	desc   string
+} {
+	return []struct {
+		expect func(ctx context.Context) error
+		desc   string
+	}{
+		{
+			expect: tc.ExpectMachineAPIOperatorAvailable,
+			desc:   "[openshift] Expect Machine API operator to be available",
+		},
+		{
+			expect: tc.ExpectMachineAPIClusterOperatorStatusAvailable,
+			desc:   "[openshift] Expect Machine API ClusterOperator status to be available",
+		},
+		{
+			expect: tc.ExpectMachineAPIOperatorReconcileControllersDeployment,
+			desc:   "[openshift] Expect Machine API Operator to reconcile controllers",
+		},
+		{
+			expect: tc.ExpectClusterAutoscalerOperatorAvailable,
+			desc:   "[openshift] Expect Cluster Autoscaler operator to be available",
+		},
+		{
+			expect: tc.ExpectClusterAutoscalerClusterOperatorStatusAvailable,
+			desc:   "[openshift] Expect Cluster Autoscaler ClusterOperator status to be available",
+		},
+		{
+			expect: tc.ExpectAllMachinesLinkedToANode,
+			desc:   "[openshift] Expect each machines linked to a node",
+		},
+		{
+			expect: tc.ExpectAdditiveReconcileMachineTaints,
+			desc:   "[openshift] Expect machines to propagate taints to node in an additive manner",
+		},
+		{
+			expect: tc.ExpectNewNodeWhenDeletingMachine,
+			desc:   "[openshift] Expect a new node to come up after deleting a machine from a MachineSet",
+		},
+		{
+			expect: tc.ExpectAutoscalerScalesOut,
+			desc:   "[openshift] Expect cluster to scale out when workload increases",
+		},
+		{
+			expect: tc.ExpectNodeToBeDrainedBeforeMachineIsDeleted,
+			desc:   "[openshift] Expect node to be drained before its machine is deleted",
+		},
+	}
+}
+
+func (tc *testConfig) ExpectMachineAPIOperatorAvailable(ctx context.Context) error {
 	name := "machine-api-operator"
 	key := types.NamespacedName{
 		Namespace: namespace,
@@ -56,7 +104,7 @@ func (tc *testConfig) ExpectOperatorAvailable() error {
 	return err
 }
 
-func (tc *testConfig) ExpectClusterOperatorStatusAvailable() error {
+func (tc *testConfig) ExpectMachineAPIClusterOperatorStatusAvailable(ctx context.Context) error {
 	name := "machine-api"
 	key := types.NamespacedName{
 		Namespace: namespace,
@@ -79,51 +127,7 @@ func (tc *testConfig) ExpectClusterOperatorStatusAvailable() error {
 	return err
 }
 
-func (tc *testConfig) ExpectAllMachinesLinkedToANode() error {
-	machineAnnotationKey := "machine.openshift.io/machine"
-	listOptions := client.ListOptions{
-		Namespace: namespace,
-	}
-	machineList := mapiv1beta1.MachineList{}
-	nodeList := corev1.NodeList{}
-
-	err := wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
-		if err := tc.client.List(context.TODO(), &listOptions, &machineList); err != nil {
-			glog.Errorf("error querying api for machineList object: %v, retrying...", err)
-			return false, nil
-		}
-		if err := tc.client.List(context.TODO(), &listOptions, &nodeList); err != nil {
-			glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
-			return false, nil
-		}
-		glog.Infof("Expecting the same number of nodes and machines, have %v nodes and %v machines", len(nodeList.Items), len(machineList.Items))
-		return len(machineList.Items) == len(nodeList.Items), nil
-	})
-	if err != nil {
-		return err
-	}
-
-	return wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
-		nodeNameToMachineAnnotation := make(map[string]string)
-		for _, node := range nodeList.Items {
-			nodeNameToMachineAnnotation[node.Name] = node.Annotations[machineAnnotationKey]
-		}
-		for _, machine := range machineList.Items {
-			if machine.Status.NodeRef == nil {
-				glog.Errorf("machine %s has no NodeRef, retrying...", machine.Name)
-				return false, nil
-			}
-			nodeName := machine.Status.NodeRef.Name
-			if nodeNameToMachineAnnotation[nodeName] != fmt.Sprintf("%s/%s", namespace, machine.Name) {
-				glog.Errorf("node name %s does not match expected machine name %s, retrying...", nodeName, machine.Name)
-				return false, nil
-			}
-		}
-		return true, nil
-	})
-}
-
-func (tc *testConfig) ExpectReconcileControllersDeployment() error {
+func (tc *testConfig) ExpectMachineAPIOperatorReconcileControllersDeployment(ctx context.Context) error {
 	key := types.NamespacedName{
 		Namespace: namespace,
 		Name:      "clusterapi-manager-controllers",
@@ -168,7 +172,93 @@ func (tc *testConfig) ExpectReconcileControllersDeployment() error {
 	return err
 }
 
-func (tc *testConfig) ExpectAdditiveReconcileMachineTaints() error {
+func (tc *testConfig) ExpectClusterAutoscalerOperatorAvailable(ctx context.Context) error {
+	name := "cluster-autoscaler-operator"
+	key := types.NamespacedName{
+		Namespace: namespace,
+		Name:      name,
+	}
+	d := &kappsapi.Deployment{}
+
+	err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
+		if err := tc.client.Get(context.TODO(), key, d); err != nil {
+			glog.Errorf("error querying api for Deployment object: %v, retrying...", err)
+			return false, nil
+		}
+		if d.Status.ReadyReplicas < 1 {
+			return false, nil
+		}
+		return true, nil
+	})
+	return err
+}
+
+func (tc *testConfig) ExpectClusterAutoscalerClusterOperatorStatusAvailable(ctx context.Context) error {
+	name := "cluster-autoscaler"
+	key := types.NamespacedName{
+		Namespace: namespace,
+		Name:      name,
+	}
+	clusterOperator := &osconfigv1.ClusterOperator{}
+
+	err := wait.PollImmediate(1*time.Second, 1*time.Minute, func() (bool, error) {
+		if err := tc.client.Get(context.TODO(), key, clusterOperator); err != nil {
+			glog.Errorf("error querying api for OperatorStatus object: %v, retrying...", err)
+			return false, nil
+		}
+		if cvoresourcemerge.IsOperatorStatusConditionTrue(clusterOperator.Status.Conditions, osconfigv1.OperatorAvailable) {
+			return true, nil
+		}
+		return false, nil
+	})
+	return err
+}
+
+func (tc *testConfig) ExpectAllMachinesLinkedToANode(ctx context.Context) error {
+	machineAnnotationKey := "machine.openshift.io/machine"
+	listOptions := client.ListOptions{
+		Namespace: namespace,
+	}
+	machineList := mapiv1beta1.MachineList{}
+	nodeList := corev1.NodeList{}
+
+	err := wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
+		if err := tc.client.List(context.TODO(), &listOptions, &machineList); err != nil {
+			glog.Errorf("error querying api for machineList object: %v, retrying...", err)
+			return false, nil
+		}
+		if err := tc.client.List(context.TODO(), &listOptions, &nodeList); err != nil {
+			glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
+			return false, nil
+		}
+		glog.Infof("Waiting for %d machines to become nodes", len(machineList.Items))
+		return len(machineList.Items) == len(nodeList.Items), nil
+	})
+	if err != nil {
+		return err
+	}
+
+	return wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
+		nodeNameToMachineAnnotation := make(map[string]string)
+		for _, node := range nodeList.Items {
+			nodeNameToMachineAnnotation[node.Name] = node.Annotations[machineAnnotationKey]
+		}
+		for _, machine := range machineList.Items {
+			if machine.Status.NodeRef == nil {
+				glog.Errorf("machine %s has no NodeRef, retrying...", machine.Name)
+				return false, nil
+			}
+			nodeName := machine.Status.NodeRef.Name
+			if nodeNameToMachineAnnotation[nodeName] != fmt.Sprintf("%s/%s", namespace, machine.Name) {
+				glog.Errorf("node name %s does not match expected machine name %s, retrying...", nodeName, machine.Name)
+				return false, nil
+			}
+		}
+		return true, nil
+	})
+}
+
+func (tc *testConfig) ExpectAdditiveReconcileMachineTaints(ctx context.Context) error {
 	glog.Info("Verify machine taints are getting applied to node")
 	listOptions := client.ListOptions{
 		Namespace: namespace,
@@ -237,7 +327,7 @@ func (tc *testConfig) ExpectAdditiveReconcileMachineTaints() error {
 	return err
 }
 
-func (tc *testConfig) ExpectNewNodeWhenDeletingMachine() error {
+func (tc *testConfig) ExpectNewNodeWhenDeletingMachine(ctx context.Context) error {
 	listOptions := client.ListOptions{
 		Namespace: namespace,
 	}
@@ -339,23 +429,35 @@ MachineLoop:
 // Create a workLoad to force autoscaling
 // Validate the targeted machineSet scales out the field for the expected number of replicas
 // Validate the number of nodes in the cluster is growing
-// Delete the workLoad
-// Delete the autoscaler object
-// Ensure initial number of replicas and nodes
-func (tc *testConfig) ExpectAutoscalerScalesOut() error {
+// Delete the workLoad and so provoke scale down
+// Validate the targeted machineSet scales down its replica count
+// Validate the number of nodes scales down to the initial number before scale out
+// Delete the machineAutoscaler object
+// Delete the clusterAutoscaler object
+// ExpectAutoscalerScalesOut is an smoke test for the autoscaling feature
+// Create a clusterAutoscaler object
+// Create a machineAutoscaler object
+// Create a workLoad to force autoscaling
+// Validate the targeted machineSet scales out the field for the expected number of replicas
+// Validate the number of nodes in the cluster is growing
+// Delete the workLoad and so provoke scale down
+// Validate the targeted machineSet scales down its replica count
+// Validate the number of nodes scales down to the initial number before scale out
+// Delete the machineAutoscaler object
+// Delete the clusterAutoscaler object
+func (tc *testConfig) ExpectAutoscalerScalesOut(ctx context.Context) error {
 	listOptions := client.ListOptions{
 		Namespace: namespace,
 	}
 	glog.Info("Get one machineSet")
 	machineSetList := mapiv1beta1.MachineSetList{}
-	err := wait.PollImmediate(1*time.Second, waitMedium, func() (bool, error) {
-		if err := tc.client.List(context.TODO(), &listOptions, &machineSetList); err != nil {
+	if err := wait.PollImmediate(1*time.Second, waitMedium, func() (bool, error) {
+		if err := tc.client.List(ctx, &listOptions, &machineSetList); err != nil {
 			glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
-			return false, nil
+			return false, ctx.Err()
 		}
 		return len(machineSetList.Items) > 0, nil
-	})
-	if err != nil {
+	}); err != nil {
 		return err
 	}
 
@@ -363,7 +465,7 @@ func (tc *testConfig) ExpectAutoscalerScalesOut() error {
 	// we need to test against deployments instead so we skip this test.
 	targetMachineSet := machineSetList.Items[0]
 	if ownerReferences := targetMachineSet.GetOwnerReferences(); len(ownerReferences) > 0 {
-		glog.Infof("MachineSet %s is owned by a machineDeployment. Please run tests agains machineDeployment instead", targetMachineSet.Name)
+		glog.Infof("MachineSet %s is owned by a machineDeployment. Please run tests against machineDeployment instead", targetMachineSet.Name)
 		return nil
 	}
 
@@ -378,6 +480,15 @@ func (tc *testConfig) ExpectAutoscalerScalesOut() error {
 			Kind:       "ClusterAutoscaler",
 			APIVersion: "autoscaling.openshift.io/v1alpha1",
 		},
+		Spec: caov1alpha1.ClusterAutoscalerSpec{
+			ScaleDown: &caov1alpha1.ScaleDownConfig{
+				Enabled:           true,
+				DelayAfterAdd:     "10s",
+				DelayAfterDelete:  "10s",
+				DelayAfterFailure: "10s",
+				UnneededTime:      "10s",
+			},
+		},
 	}
 	machineAutoscaler := caov1alpha1.MachineAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
@@ -389,7 +500,7 @@ func (tc *testConfig) ExpectAutoscalerScalesOut() error {
 			APIVersion: "autoscaling.openshift.io/v1alpha1",
 		},
 		Spec: caov1alpha1.MachineAutoscalerSpec{
-			MaxReplicas: 12,
+			MaxReplicas: 2,
 			MinReplicas: 1,
 			ScaleTargetRef: caov1alpha1.CrossVersionObjectReference{
 				Name:       targetMachineSet.Name,
@@ -398,414 +509,170 @@ func (tc *testConfig) ExpectAutoscalerScalesOut() error {
 			},
 		},
 	}
-	err = wait.PollImmediate(1*time.Second, waitMedium, func() (bool, error) {
-		if err := tc.client.Create(context.TODO(), &clusterAutoscaler); err != nil {
+	if err := wait.PollImmediate(1*time.Second, waitMedium, func() (bool, error) {
+		if err := tc.client.Create(ctx, &clusterAutoscaler); err != nil {
 			if !strings.Contains(err.Error(), "already exists") {
 				glog.Errorf("error querying api for clusterAutoscaler object: %v, retrying...", err)
-				return false, nil
+				return false, ctx.Err()
 			}
 		}
-		if err := tc.client.Create(context.TODO(), &machineAutoscaler); err != nil {
+		if err := tc.client.Create(ctx, &machineAutoscaler); err != nil {
 			if !strings.Contains(err.Error(), "already exists") {
 				glog.Errorf("error querying api for machineAutoscaler object: %v, retrying...", err)
-				return false, nil
+				return false, ctx.Err()
 			}
 		}
 		return true, nil
-	})
-	if err != nil {
+	}); err != nil {
 		return err
 	}
 
+	workLoad := newWorkLoad()
+
+	// We want to clean up these objects on any subsequent error.
+
+	defer func() {
+		if workLoad != nil {
+			cascadeDelete := metav1.DeletePropagationForeground
+			wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
+				if err := tc.client.Delete(context.TODO(), workLoad, func(opt *client.DeleteOptions) {
+					opt.PropagationPolicy = &cascadeDelete
+				}); err != nil {
+					glog.Errorf("error querying api for workLoad object: %v, retrying...", err)
+					return false, nil
+				}
+				return true, nil
+			})
+			glog.Info("Deleted workload object")
+		}
+
+		wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
+			if err := tc.client.Delete(context.TODO(), &machineAutoscaler); err != nil {
+				glog.Errorf("error querying api for machineAutoscaler object: %v, retrying...", err)
+				return false, nil
+			}
+			return true, nil
+		})
+		glog.Info("Deleted machineAutoscaler object")
+
+		wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
+			if err := tc.client.Delete(context.TODO(), &clusterAutoscaler); err != nil {
+				glog.Errorf("error querying api for clusterAutoscaler object: %v, retrying...", err)
+				return false, nil
+			}
+			return true, nil
+		})
+		glog.Info("Deleted clusterAutoscaler object")
+	}()
+
 	glog.Info("Get nodeList")
 	nodeList := corev1.NodeList{}
-	err = wait.PollImmediate(1*time.Second, waitMedium, func() (bool, error) {
-		if err := tc.client.List(context.TODO(), &listOptions, &nodeList); err != nil {
+	if err := wait.PollImmediate(1*time.Second, waitMedium, func() (bool, error) {
+		if err := tc.client.List(ctx, &listOptions, &nodeList); err != nil {
 			glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
-			return false, nil
+			return false, ctx.Err()
 		}
 		return true, nil
-	})
-	if err != nil {
+	}); err != nil {
 		return err
 	}
+
 	clusterInitialTotalNodes := len(nodeList.Items)
 	glog.Infof("Cluster initial number of nodes is %d", clusterInitialTotalNodes)
 
 	glog.Info("Create workload")
-	mem, err := resource.ParseQuantity("500Mi")
-	if err != nil {
-		glog.Fatalf("failed to ParseQuantity %v", err)
-	}
-	cpu, err := resource.ParseQuantity("500m")
-	if err != nil {
-		glog.Fatalf("failed to ParseQuantity %v", err)
-	}
-	backoffLimit := int32(4)
-	completions := int32(50)
-	parallelism := int32(50)
-	activeDeadlineSeconds := int64(100)
-	workLoad := batchv1.Job{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "workload",
-			Namespace: namespace,
-		},
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Job",
-			APIVersion: "batch/v1",
-		},
-		Spec: batchv1.JobSpec{
-			Template: corev1.PodTemplateSpec{
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:  "workload",
-							Image: "busybox",
-							Command: []string{
-								"sleep",
-								"300",
-							},
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									"memory": mem,
-									"cpu":    cpu,
-								},
-							},
-						},
-					},
-					RestartPolicy: corev1.RestartPolicy("Never"),
-				},
-			},
-			ActiveDeadlineSeconds: &activeDeadlineSeconds,
-			BackoffLimit:          &backoffLimit,
-			Completions:           &completions,
-			Parallelism:           &parallelism,
-		},
-	}
-	err = wait.PollImmediate(1*time.Second, waitMedium, func() (bool, error) {
-		if err := tc.client.Create(context.TODO(), &workLoad); err != nil {
+
+	if err := wait.PollImmediate(1*time.Second, waitMedium, func() (bool, error) {
+		if err := tc.client.Create(ctx, workLoad); err != nil {
 			glog.Errorf("error querying api for workLoad object: %v, retrying...", err)
-			return false, nil
+			return false, ctx.Err()
 		}
 		return true, nil
-	})
-	if err != nil {
+	}); err != nil {
 		return err
 	}
 
 	glog.Info("Wait for cluster to scale out number of replicas")
-	err = wait.PollImmediate(1*time.Second, waitLong, func() (bool, error) {
+	if err := wait.PollImmediate(1*time.Second, waitLong, func() (bool, error) {
 		msKey := types.NamespacedName{
 			Namespace: namespace,
 			Name:      targetMachineSet.Name,
 		}
 		ms := &mapiv1beta1.MachineSet{}
-		if err := tc.client.Get(context.TODO(), msKey, ms); err != nil {
+		if err := tc.client.Get(ctx, msKey, ms); err != nil {
 			glog.Errorf("error querying api for clusterAutoscaler object: %v, retrying...", err)
-			return false, nil
+			return false, ctx.Err()
 		}
 		glog.Infof("MachineSet %s. Initial number of replicas: %d. New number of replicas: %d", targetMachineSet.Name, *initialNumberOfReplicas, *ms.Spec.Replicas)
 		return *ms.Spec.Replicas > *initialNumberOfReplicas, nil
-	})
-	if err != nil {
+	}); err != nil {
 		return err
 	}
 
 	glog.Info("Wait for cluster to scale out nodes")
-	err = wait.PollImmediate(1*time.Second, waitLong, func() (bool, error) {
+	if err := wait.PollImmediate(1*time.Second, waitLong, func() (bool, error) {
 		nodeList := corev1.NodeList{}
-		if err := tc.client.List(context.TODO(), &listOptions, &nodeList); err != nil {
+		if err := tc.client.List(ctx, &listOptions, &nodeList); err != nil {
 			glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
-			return false, nil
+			return false, ctx.Err()
 		}
 		glog.Info("Expect at least a new node to come up")
 		glog.Infof("Initial number of nodes: %d. New number of nodes: %d", clusterInitialTotalNodes, len(nodeList.Items))
 		return len(nodeList.Items) > clusterInitialTotalNodes, nil
-	})
+	}); err != nil {
+		return err
+	}
 
 	glog.Info("Delete workload")
-	err = wait.PollImmediate(1*time.Second, waitMedium, func() (bool, error) {
-		if err := tc.client.Delete(context.TODO(), &workLoad); err != nil {
+	if err := wait.PollImmediate(1*time.Second, waitMedium, func() (bool, error) {
+		cascadeDelete := metav1.DeletePropagationForeground
+		if err := tc.client.Delete(ctx, workLoad, func(opt *client.DeleteOptions) {
+			opt.PropagationPolicy = &cascadeDelete
+		}); err != nil {
 			glog.Errorf("error querying api for workLoad object: %v, retrying...", err)
-			return false, nil
+			return false, ctx.Err()
 		}
+		workLoad = nil
 		return true, nil
-	})
-	if err != nil {
+	}); err != nil {
 		return err
 	}
 
-	// We delete the clusterAutoscaler and ensure the initial number of replicas to get the cluster to the initial number of nodes
-	// TODO: validate the autoscaler to scale down
-	glog.Info("Delete clusterAutoscaler object")
-	err = wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
-		if err := tc.client.Delete(context.TODO(), &clusterAutoscaler); err != nil {
-			glog.Errorf("error querying api for clusterAutoscaler object: %v, retrying...", err)
-			return false, nil
-		}
-		return true, nil
-	})
-	if err != nil {
-		return err
-	}
+	// As we have just deleted the workload the autoscaler will
+	// start to scale down the unneeded nodes. We wait for that
+	// condition; if successful we assert that (a smoke test of)
+	// scale down is functional.
 
-	glog.Info("Delete machineAutoscaler object")
-	err = wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
-		if err := tc.client.Delete(context.TODO(), &machineAutoscaler); err != nil {
-			glog.Errorf("error querying api for machineAutoscaler object: %v, retrying...", err)
-			return false, nil
-		}
-		return true, nil
-	})
-	if err != nil {
-		return err
-	}
-
-	glog.Infof("Ensure initial number of replicas: %d", initialNumberOfReplicas)
-	err = wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
+	glog.Info("Wait for cluster to match initial number of replicas")
+	if err := wait.PollImmediate(1*time.Second, waitLong, func() (bool, error) {
 		msKey := types.NamespacedName{
 			Namespace: namespace,
 			Name:      targetMachineSet.Name,
 		}
 		ms := &mapiv1beta1.MachineSet{}
-		if err := tc.client.Get(context.TODO(), msKey, ms); err != nil {
+		if err := tc.client.Get(ctx, msKey, ms); err != nil {
 			glog.Errorf("error querying api for machineSet object: %v, retrying...", err)
 			return false, nil
 		}
-		ms.Spec.Replicas = initialNumberOfReplicas
-		if err := tc.client.Update(context.TODO(), ms); err != nil {
-			glog.Errorf("error querying api for machineSet object: %v, retrying...", err)
-			return false, nil
-		}
-		return true, nil
-	})
-	if err != nil {
+		glog.Infof("Initial number of replicas: %d. Current number of replicas: %d", *initialNumberOfReplicas, *ms.Spec.Replicas)
+		return *ms.Spec.Replicas == *initialNumberOfReplicas, nil
+	}); err != nil {
 		return err
 	}
 
 	glog.Info("Wait for cluster to match initial number of nodes")
 	return wait.PollImmediate(1*time.Second, waitLong, func() (bool, error) {
 		nodeList := corev1.NodeList{}
-		if err := tc.client.List(context.TODO(), &listOptions, &nodeList); err != nil {
+		if err := tc.client.List(ctx, &listOptions, &nodeList); err != nil {
 			glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
-			return false, nil
+			return false, ctx.Err()
 		}
 		glog.Infof("Initial number of nodes: %d. Current number of nodes: %d", clusterInitialTotalNodes, len(nodeList.Items))
 		return len(nodeList.Items) == clusterInitialTotalNodes, nil
 	})
 }
 
-func (tc *testConfig) ExpectNodeToBeDrainedBeforeDeletingMachine() error {
-	listOptions := client.ListOptions{
-		Namespace: namespace,
-	}
-
-	var machine mapiv1beta1.Machine
-	var nodeName string
-	var node *corev1.Node
-
-	glog.Info("Get machineList with at least one machine with NodeRef set")
-	if err := wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
-		machineList := mapiv1beta1.MachineList{}
-		if err := tc.client.List(context.TODO(), &listOptions, &machineList); err != nil {
-			glog.Errorf("error querying api for machineList object: %v, retrying...", err)
-			return false, nil
-		}
-		for _, machineItem := range machineList.Items {
-			// empty or non-worker role skipped
-			if machineItem.Labels["sigs.k8s.io/cluster-api-machine-role"] == "worker" {
-				if machineItem.Status.NodeRef != nil && machineItem.Status.NodeRef.Name != "" {
-					machine = machineItem
-					nodeName = machineItem.Status.NodeRef.Name
-					return true, nil
-				}
-			}
-		}
-		return false, fmt.Errorf("no machine found with NodeRef not set")
-	}); err != nil {
-		return err
-	}
-
-	glog.Info("Get nodeList")
-	if err := wait.PollImmediate(1*time.Second, waitShort, func() (bool, error) {
-		nodeList := corev1.NodeList{}
-		if err := tc.client.List(context.TODO(), &listOptions, &nodeList); err != nil {
-			glog.Errorf("error querying api for nodeList object: %v, retrying...", err)
-			return false, nil
-		}
-		for _, nodeItem := range nodeList.Items {
-			if nodeItem.Name == nodeName {
-				node = &nodeItem
-				break
-			}
-		}
-		if node == nil {
-			return false, fmt.Errorf("node %q not found", nodeName)
-		}
-		return true, nil
-	}); err != nil {
-		return err
-	}
-
-	glog.Info("Delete machine and observe node draining")
-	if err := tc.client.Delete(context.TODO(), &machine); err != nil {
-		return fmt.Errorf("unable to delete machine %q", machine.Name)
-	}
-
-	return wait.PollImmediate(time.Second, waitShort, func() (bool, error) {
-		eventList := corev1.EventList{}
-		if err := tc.client.List(context.TODO(), &listOptions, &eventList); err != nil {
-			glog.Errorf("error querying api for eventList object: %v, retrying...", err)
-			return false, nil
-		}
-
-		glog.Infof("Fetching delete machine and node drained events")
-		var nodeDrainedEvent *corev1.Event
-		var machineDeletedEvent *corev1.Event
-		for _, eventItem := range eventList.Items {
-			if eventItem.Reason == "Deleted" && eventItem.Message == fmt.Sprintf("Node %q drained", nodeName) {
-				nodeDrainedEvent = &eventItem
-				continue
-			}
-			// always take the newest 'machine deleted' event
-			if eventItem.Reason == "Deleted" && eventItem.Message == fmt.Sprintf("Deleted machine %v", machine.Name) {
-				machineDeletedEvent = &eventItem
-			}
-		}
-
-		if nodeDrainedEvent == nil {
-			glog.Infof("Unable to find %q node drained event", nodeName)
-			return false, nil
-		}
-
-		if machineDeletedEvent == nil {
-			glog.Infof("Unable to find %q machine deleted event", machine.Name)
-			return false, nil
-		}
-
-		glog.Infof("Node %q drained event recorded: %#v", nodeName, *nodeDrainedEvent)
-
-		if machineDeletedEvent.FirstTimestamp.Before(&nodeDrainedEvent.FirstTimestamp) {
-			err := fmt.Errorf("machine %q deleted before node %q got drained", machine.Name, nodeName)
-			glog.Error(err)
-			return true, err
-		}
-
-		return true, nil
-	})
-}
-
-var nodeDrainLabels = map[string]string{
-	workerRoleLabel:      "",
-	"node-draining-test": "",
-}
-
-func machineFromMachineset(machineset *mapiv1beta1.MachineSet) *mapiv1beta1.Machine {
-	randomUUID := string(uuid.NewUUID())
-
-	machine := &mapiv1beta1.Machine{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: machineset.Namespace,
-			Name:      "machine-" + randomUUID[:6],
-			Labels:    machineset.Labels,
-		},
-		Spec: machineset.Spec.Template.Spec,
-	}
-	if machine.Spec.ObjectMeta.Labels == nil {
-		machine.Spec.ObjectMeta.Labels = map[string]string{}
-	}
-	for key := range nodeDrainLabels {
-		if _, exists := machine.Spec.ObjectMeta.Labels[key]; exists {
-			continue
-		}
-		machine.Spec.ObjectMeta.Labels[key] = nodeDrainLabels[key]
-	}
-	return machine
-}
-
-func replicationControllerWorkload(namespace string) *corev1.ReplicationController {
-	var replicas int32 = 20
-	return &corev1.ReplicationController{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "pdb-workload",
-			Namespace: namespace,
-		},
-		Spec: corev1.ReplicationControllerSpec{
-			Replicas: &replicas,
-			Selector: map[string]string{
-				"app": "nginx",
-			},
-			Template: &corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "nginx",
-					Labels: map[string]string{
-						"app": "nginx",
-					},
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:    "work",
-							Image:   "busybox",
-							Command: []string{"sleep", "10h"},
-							Resources: corev1.ResourceRequirements{
-								Requests: corev1.ResourceList{
-									"cpu":    resource.MustParse("50m"),
-									"memory": resource.MustParse("50Mi"),
-								},
-							},
-						},
-					},
-					NodeSelector: nodeDrainLabels,
-					Tolerations: []corev1.Toleration{
-						{
-							Key:      "kubemark",
-							Operator: corev1.TolerationOpExists,
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-func podDisruptionBudget(namespace string) *kpolicyapi.PodDisruptionBudget {
-	maxUnavailable := intstr.FromInt(1)
-	return &kpolicyapi.PodDisruptionBudget{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "nginx-pdb",
-			Namespace: namespace,
-		},
-		Spec: kpolicyapi.PodDisruptionBudgetSpec{
-			Selector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"app": "nginx",
-				},
-			},
-			MaxUnavailable: &maxUnavailable,
-		},
-	}
-}
-
-// 1. create two machines (without machineset) and wait until nodes are registered and ready
-// 1. create rc
-// 1. create pdb
-// 1. pick a node that has at least half of the rc pods
-// 1. drain node
-// 1. observe the machine object is not deleted before a node is drained,
-//    i.e. as long as there is at least one pod running on the drained node,
-//    the machine object can not be deleted
-
-func isNodeReady(node *corev1.Node) bool {
-	for _, c := range node.Status.Conditions {
-		if c.Type == corev1.NodeReady {
-			return c.Status == corev1.ConditionTrue
-		}
-	}
-	return false
-}
-
-func (tc *testConfig) ExpectNodeToBeDrainedBeforeMachineIsDeleted() error {
+func (tc *testConfig) ExpectNodeToBeDrainedBeforeMachineIsDeleted(ctx context.Context) error {
 	delObjects := make(map[string]runtime.Object)
 
 	defer func() {
