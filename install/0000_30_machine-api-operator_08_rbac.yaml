@@ -89,6 +89,7 @@ rules:
       - get
       - list
       - watch
+      - create
 
   - apiGroups:
       - ""
