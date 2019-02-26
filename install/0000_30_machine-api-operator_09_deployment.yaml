@@ -24,11 +24,8 @@ spec:
         - "start"
         - "--images-json=/etc/machine-api-operator-config/images/images.json"
         resources:
-          limits:
-            cpu: 20m
-            memory: 50Mi
           requests:
-            cpu: 20m
+            cpu: 10m
             memory: 50Mi
         volumeMounts:
         - name: images
