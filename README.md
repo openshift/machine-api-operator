@@ -57,10 +57,10 @@ $ make nodelink-controller
   1. Create a machineset and locate its selector. Assuming the selector corresponds
      to the following list of match labels:
      ```
-     sigs.k8s.io/cluster-api-cluster: cluster
-     sigs.k8s.io/cluster-api-machine-role: worker
-     sigs.k8s.io/cluster-api-machine-type: worker
-     sigs.k8s.io/cluster-api-machineset: cluster-worker-us-east-1a
+     machine.openshift.io/cluster-api-cluster: cluster
+     machine.openshift.io/cluster-api-machine-role: worker
+     machine.openshift.io/cluster-api-machine-type: worker
+     machine.openshift.io/cluster-api-machineset: cluster-worker-us-east-1a
      ```
 
   1. Define a `MachineHealthCheck` manifest that will be watching all machines
@@ -74,10 +74,10 @@ $ make nodelink-controller
      spec:
        selector:
          matchLabels:
-           sigs.k8s.io/cluster-api-cluster: cluster
-           sigs.k8s.io/cluster-api-machine-role: worker
-           sigs.k8s.io/cluster-api-machine-type: worker
-           sigs.k8s.io/cluster-api-machineset: cluster-worker-us-east-1a
+           machine.openshift.io/cluster-api-cluster: cluster
+           machine.openshift.io/cluster-api-machine-role: worker
+           machine.openshift.io/cluster-api-machine-type: worker
+           machine.openshift.io/cluster-api-machineset: cluster-worker-us-east-1a
      ```
 
   1. Pick a node that is managed by one of the machineset's machines

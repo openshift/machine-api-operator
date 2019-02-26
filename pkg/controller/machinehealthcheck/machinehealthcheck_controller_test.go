@@ -479,8 +479,8 @@ func TestRemediate(t *testing.T) {
 
 func TestIsMaster(t *testing.T) {
 	masterMachine := machine("master")
-	masterMachine.Labels["sigs.k8s.io/cluster-api-machine-role"] = "master"
-	masterMachine.Labels["sigs.k8s.io/cluster-api-machine-type"] = "master"
+	masterMachine.Labels["machine.openshift.io/cluster-api-machine-role"] = "master"
+	masterMachine.Labels["machine.openshift.io/cluster-api-machine-type"] = "master"
 	masterMachine.Status = mapiv1alpha1.MachineStatus{
 		NodeRef: &corev1.ObjectReference{
 			Namespace: "",
@@ -494,8 +494,8 @@ func TestIsMaster(t *testing.T) {
 	masterNode.Labels["node-role.kubernetes.io/master"] = ""
 
 	workerMachine := machine("worker")
-	workerMachine.Labels["sigs.k8s.io/cluster-api-machine-role"] = "worker"
-	workerMachine.Labels["sigs.k8s.io/cluster-api-machine-type"] = "worker"
+	workerMachine.Labels["machine.openshift.io/cluster-api-machine-role"] = "worker"
+	workerMachine.Labels["machine.openshift.io/cluster-api-machine-type"] = "worker"
 
 	workerMachine.Status = mapiv1alpha1.MachineStatus{
 		NodeRef: &corev1.ObjectReference{
