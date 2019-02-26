@@ -35,15 +35,17 @@ func (optr *Operator) statusProgressing() error {
 	desiredVersions := optr.operandVersions
 	currentVersions, err := optr.getCurrentVersions()
 	if err != nil {
-		glog.Errorf("error getting current versions: %v", err)
+		glog.Errorf("Error getting operator current versions: %v", err)
 		return err
 	}
 	var isProgressing osconfigv1.ConditionStatus
 	var message string
 	if !reflect.DeepEqual(desiredVersions, currentVersions) {
+		glog.V(2).Info("Syncing status: progressing")
 		message = fmt.Sprintf("Progressing towards %s", optr.printOperandVersions())
 		isProgressing = osconfigv1.ConditionTrue
 	} else {
+		glog.V(2).Info("Syncing status: re-syncing")
 		message = fmt.Sprintf("Running resync for %s", optr.printOperandVersions())
 		isProgressing = osconfigv1.ConditionFalse
 	}
@@ -67,7 +69,7 @@ func (optr *Operator) statusProgressing() error {
 
 	co, err := optr.getOrCreateClusterOperator()
 	if err != nil {
-		glog.Errorf("failed to get or create Cluster Operator: %v", err)
+		glog.Errorf("Failed to get or create Cluster Operator: %v", err)
 		return err
 	}
 	return optr.syncStatus(co, conds)
@@ -99,6 +101,7 @@ func (optr *Operator) statusAvailable() error {
 		return err
 	}
 	co.Status.Versions = optr.operandVersions
+	glog.V(2).Info("Syncing status: available")
 	return optr.syncStatus(co, conds)
 }
 
@@ -110,7 +113,7 @@ func (optr *Operator) statusFailing(error string) error {
 	desiredVersions := optr.operandVersions
 	currentVersions, err := optr.getCurrentVersions()
 	if err != nil {
-		glog.Errorf("error getting current versions: %v", err)
+		glog.Errorf("Error getting current versions: %v", err)
 		return err
 	}
 
@@ -142,6 +145,7 @@ func (optr *Operator) statusFailing(error string) error {
 	if err != nil {
 		return err
 	}
+	glog.V(2).Info("Syncing status: failing")
 	return optr.syncStatus(co, conds)
 }
 
