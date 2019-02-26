@@ -85,6 +85,7 @@ required = [
 
   [[prune.project]]
     name = "k8s.io/code-generator"
+    unused-packages = false
     non-go = false
 
 [[constraint]]
