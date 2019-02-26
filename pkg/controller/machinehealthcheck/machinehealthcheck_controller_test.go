@@ -7,7 +7,6 @@ import (
 	"time"
 
 	mapiv1alpha1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
-	healthcheckingapis "github.com/openshift/machine-api-operator/pkg/apis"
 	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
@@ -30,7 +29,7 @@ var (
 func init() {
 	// Add types to scheme
 	mapiv1alpha1.AddToScheme(scheme.Scheme)
-	healthcheckingapis.AddToScheme(scheme.Scheme)
+	healthcheckingv1alpha1.AddToScheme(scheme.Scheme)
 }
 
 func node(name string, ready bool) *v1.Node {
