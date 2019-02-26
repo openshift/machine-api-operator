@@ -14,9 +14,9 @@ import (
 
 const (
 	// AwsCredsSecretIDKey is secret key containing AWS KeyId
-	AwsCredsSecretIDKey = "awsAccessKeyId"
+	AwsCredsSecretIDKey = "aws_access_key_id"
 	// AwsCredsSecretAccessKey is secret key containing AWS Secret Key
-	AwsCredsSecretAccessKey = "awsSecretAccessKey"
+	AwsCredsSecretAccessKey = "aws_secret_access_key"
 )
 
 // NewClient creates our client wrapper object for the actual AWS clients we use.
