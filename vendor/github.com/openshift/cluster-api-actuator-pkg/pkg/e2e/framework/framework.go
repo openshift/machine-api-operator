@@ -11,6 +11,7 @@ import (
 	"github.com/golang/glog"
 
 	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
+	healthcheckingclient "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
 	appsv1beta2 "k8s.io/api/apps/v1beta2"
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
@@ -95,9 +96,11 @@ type SSHConfig struct {
 
 // Framework supports common operations used by tests
 type Framework struct {
-	KubeClient         *kubernetes.Clientset
-	CAPIClient         *clientset.Clientset
-	APIExtensionClient *apiextensionsclientset.Clientset
+	KubeClient           *kubernetes.Clientset
+	CAPIClient           *clientset.Clientset
+	APIExtensionClient   *apiextensionsclientset.Clientset
+	HealthCheckingClient *healthcheckingclient.Clientset
+
 	// APIRegistrationClient *apiregistrationclientset.Clientset
 	Kubeconfig string
 	RestConfig *rest.Config
@@ -204,6 +207,13 @@ func (f *Framework) buildClientsets() error {
 
 	if f.APIExtensionClient == nil {
 		f.APIExtensionClient, err = apiextensionsclientset.NewForConfig(f.RestConfig)
+		if err != nil {
+			return err
+		}
+	}
+
+	if f.HealthCheckingClient == nil {
+		f.HealthCheckingClient, err = healthcheckingclient.NewForConfig(f.RestConfig)
 		if err != nil {
 			return err
 		}
