@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"strings"
 
+	v1 "k8s.io/api/core/v1"
+
 	"github.com/golang/glog"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
@@ -39,10 +41,18 @@ func (optr *Operator) statusProgressing() error {
 		return err
 	}
 	var isProgressing osconfigv1.ConditionStatus
+
+	co, err := optr.getOrCreateClusterOperator()
+	if err != nil {
+		glog.Errorf("Failed to get or create Cluster Operator: %v", err)
+		return err
+	}
+
 	var message string
 	if !reflect.DeepEqual(desiredVersions, currentVersions) {
 		glog.V(2).Info("Syncing status: progressing")
 		message = fmt.Sprintf("Progressing towards %s", optr.printOperandVersions())
+		optr.eventRecorder.Eventf(co, v1.EventTypeNormal, "Status upgrade", message)
 		isProgressing = osconfigv1.ConditionTrue
 	} else {
 		glog.V(2).Info("Syncing status: re-syncing")
@@ -67,11 +77,6 @@ func (optr *Operator) statusProgressing() error {
 		},
 	}
 
-	co, err := optr.getOrCreateClusterOperator()
-	if err != nil {
-		glog.Errorf("Failed to get or create Cluster Operator: %v", err)
-		return err
-	}
 	return optr.syncStatus(co, conds)
 }
 
@@ -145,6 +150,7 @@ func (optr *Operator) statusFailing(error string) error {
 	if err != nil {
 		return err
 	}
+	optr.eventRecorder.Eventf(co, v1.EventTypeWarning, "Status failing", error)
 	glog.V(2).Info("Syncing status: failing")
 	return optr.syncStatus(co, conds)
 }
