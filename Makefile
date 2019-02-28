@@ -16,7 +16,7 @@ ifeq ($(NO_DOCKER), 1)
   DOCKER_CMD =
   IMAGE_BUILD_CMD = imagebuilder
 else
-  DOCKER_CMD := docker run --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z -w /go/src/github.com/openshift/machine-api-operator golang:1.10
+  DOCKER_CMD := docker run --rm -v "$(PWD)":/go/src/github.com/redhat-nfvpe/machine-api-operator:Z -w /go/src/github.com/redhat-nfvpe/machine-api-operator golang:1.10
   IMAGE_BUILD_CMD = docker build
 endif
 

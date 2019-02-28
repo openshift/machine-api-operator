@@ -21,5 +21,5 @@ spec:
   - name: baremetal-machine-controllers
     from:
       kind: DockerImage
-      name: docker.io/openshift/origin-baremetal-machine-controllers:v4.0.0
+      name: quay.io/oglok/cluster-api-provider-baremetal@sha256:007b36754737d948bb88913de8cad49613f5e960176781944e04fee250f68b7a
 

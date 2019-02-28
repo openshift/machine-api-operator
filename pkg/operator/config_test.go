@@ -11,7 +11,7 @@ var (
 	expectedAWSImage                = "docker.io/openshift/origin-aws-machine-controllers:v4.0.0"
 	expectedLibvirtImage            = "docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0"
 	expectedOpenstackImage          = "docker.io/openshift/origin-openstack-machine-controllers:v4.0.0"
-	expectedBaremetalImage          = "docker.io/openshift/origin-baremetal-machine-controllers:v4.0.0"
+	expectedBaremetalImage          = "quay.io/oglok/cluster-api-provider-baremetal@sha256:007b36754737d948bb88913de8cad49613f5e960176781944e04fee250f68b7a"
 	expectedMachineAPIOperatorImage = "docker.io/openshift/origin-machine-api-operator:v4.0.0"
 )
 
