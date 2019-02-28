@@ -23,6 +23,9 @@ spec:
         args:
         - "start"
         - "--images-json=/etc/machine-api-operator-config/images/images.json"
+        env:
+        - name: RELEASE_VERSION
+          value: "0.0.1-snapshot"
         resources:
           limits:
             cpu: 20m

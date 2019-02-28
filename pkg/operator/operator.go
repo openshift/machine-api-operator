@@ -2,9 +2,8 @@ package operator
 
 import (
 	"fmt"
+	"os"
 	"time"
-
-	"github.com/openshift/machine-api-operator/pkg/version"
 
 	"github.com/golang/glog"
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
@@ -76,20 +75,21 @@ func New(
 	eventBroadcaster.StartLogging(glog.Infof)
 	eventBroadcaster.StartRecordingToSink(&coreclientsetv1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
 
+	// we must report the version from the release payload when we report available at that level
+	operandVersions := []osconfigv1.OperandVersion{}
+	if releaseVersion := os.Getenv("RELEASE_VERSION"); len(releaseVersion) > 0 {
+		operandVersions = append(operandVersions, osconfigv1.OperandVersion{Name: "operator", Version: releaseVersion})
+	}
+
 	optr := &Operator{
-		namespace:     namespace,
-		name:          name,
-		imagesFile:    imagesFile,
-		kubeClient:    kubeClient,
-		osClient:      osClient,
-		eventRecorder: eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "machineapioperator"}),
-		queue:         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
-		operandVersions: []osconfigv1.OperandVersion{
-			{
-				Name:    "operator",
-				Version: version.Raw,
-			},
-		},
+		namespace:       namespace,
+		name:            name,
+		imagesFile:      imagesFile,
+		kubeClient:      kubeClient,
+		osClient:        osClient,
+		eventRecorder:   eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "machineapioperator"}),
+		queue:           workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
+		operandVersions: operandVersions,
 	}
 
 	serviceAccountInfomer.Informer().AddEventHandler(optr.eventHandler())
