@@ -8,7 +8,14 @@ required = [
   "k8s.io/code-generator/cmd/informer-gen",
   "k8s.io/code-generator/cmd/openapi-gen",
   "k8s.io/gengo/args",
-  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/openshift"
+  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e",
+  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/actuators",
+  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/autoscaler",
+  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/infra",
+  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/operators",
+  "github.com/openshift/cluster-autoscaler-operator/pkg/apis",
+  "github.com/onsi/ginkgo",
+  "github.com/onsi/gomega",
 ]
 
 [[constraint]]
@@ -78,6 +85,12 @@ required = [
   branch = "master" #osdk_branch_annotation
   # version = "=v0.1.1" #osdk_version_annotation
 
+# We need to specify fsnotify source to avoid dep panic
+# https://github.com/golang/dep/issues/1799
+[[override]]
+  name = "gopkg.in/fsnotify.v1"
+  source = "https://github.com/fsnotify/fsnotify.git"
+
 [prune]
   go-tests = true
   unused-packages = true
@@ -88,6 +101,8 @@ required = [
     unused-packages = false
     non-go = false
 
-[[constraint]]
-  name = "github.com/openshift/cluster-api-actuator-pkg"
-  revision = "2620fd63480ea1155c71de87a022f1f564f09ff2"
+  [[prune.project]]
+    name = "github.com/openshift/cluster-api-actuator-pkg"
+    unused-packages = false
+    non-go = false
+    go-tests = false

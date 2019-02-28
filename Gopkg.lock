@@ -255,6 +255,20 @@
   version = "v0.5.0"
 
 [[projects]]
+  digest = "1:41933d387bfa3eaa6a82647914ed7044f7b8355764c24fb920892bc8c03ef0c3"
+  name = "github.com/hpcloud/tail"
+  packages = [
+    ".",
+    "ratelimiter",
+    "util",
+    "watch",
+    "winfile",
+  ]
+  pruneopts = "NUT"
+  revision = "a30252cb686a21eb2d0b98132633053ec2f7f1e5"
+  version = "v1.0.0"
+
+[[projects]]
   digest = "1:9a52adf44086cead3b384e5d0dbf7a1c1cce65e67552ee3383a8561c42a18cd3"
   name = "github.com/imdario/mergo"
   packages = ["."]
@@ -322,6 +336,54 @@
   version = "1.0.1"
 
 [[projects]]
+  digest = "1:cdc5cfc04dd0b98f86433207fe6d9879757c46734441a08886acc11251c7ed4a"
+  name = "github.com/onsi/ginkgo"
+  packages = [
+    ".",
+    "config",
+    "internal/codelocation",
+    "internal/containernode",
+    "internal/failer",
+    "internal/leafnodes",
+    "internal/remote",
+    "internal/spec",
+    "internal/spec_iterator",
+    "internal/specrunner",
+    "internal/suite",
+    "internal/testingtproxy",
+    "internal/writer",
+    "reporters",
+    "reporters/stenographer",
+    "reporters/stenographer/support/go-colorable",
+    "reporters/stenographer/support/go-isatty",
+    "types",
+  ]
+  pruneopts = "NUT"
+  revision = "2e1be8f7d90e9d3e3e58b0ce470f2f14d075406f"
+  version = "v1.7.0"
+
+[[projects]]
+  digest = "1:0db10c512b410a1ecd8845e31db52622c08b76198f7ab76afb25319c84a7fd4b"
+  name = "github.com/onsi/gomega"
+  packages = [
+    ".",
+    "format",
+    "internal/assertion",
+    "internal/asyncassertion",
+    "internal/oraclematcher",
+    "internal/testingtsupport",
+    "matchers",
+    "matchers/support/goraph/bipartitegraph",
+    "matchers/support/goraph/edge",
+    "matchers/support/goraph/node",
+    "matchers/support/goraph/util",
+    "types",
+  ]
+  pruneopts = "NUT"
+  revision = "65fb64232476ad9046e57c26cd0bff3d3a8dc6cd"
+  version = "v1.4.3"
+
+[[projects]]
   branch = "master"
   digest = "1:cc3fa3c52c919e8c8257de59cf1d9d1526521938c8804727b0294ce9bfaa5bc0"
   name = "github.com/openshift/api"
@@ -353,7 +415,7 @@
   revision = "5af2e329a3e8b7d536a508266e3ffb485cd849b0"
 
 [[projects]]
-  digest = "1:72fe9aecc0c2e30d051a236236d9e175542b64245ea4e8b025eb1cbc58980ba0"
+  digest = "1:b0150859bab6a284654ee54e87a4add303b46377f69b051d38f2ab61759b6805"
   name = "github.com/openshift/cluster-api"
   packages = [
     "pkg/apis/cluster/common",
@@ -372,29 +434,40 @@
     "pkg/client/informers_generated/externalversions/machine/v1beta1",
     "pkg/client/listers_generated/cluster/v1alpha1",
     "pkg/client/listers_generated/machine/v1beta1",
+    "pkg/controller/node",
+    "pkg/controller/noderefutil",
+    "pkg/util",
   ]
   pruneopts = "NUT"
   revision = "91fca585a85b163ddfd119fd09c128c9feadddca"
 
 [[projects]]
-  digest = "1:9fd11fe137591af5321a6e33c48e37eb1f320aeb3cb5bc92bf4e071a90198258"
+  branch = "master"
+  digest = "1:1ee5186bf8929f72c679bc85d2216a30dcb9abff85d72348416df0e1e205005b"
   name = "github.com/openshift/cluster-api-actuator-pkg"
   packages = [
-    "pkg/e2e/openshift",
-    "pkg/e2e/openshift/suites",
+    "pkg/e2e",
+    "pkg/e2e/actuators",
+    "pkg/e2e/autoscaler",
+    "pkg/e2e/framework",
+    "pkg/e2e/infra",
+    "pkg/e2e/operators",
+    "pkg/manifests",
+    "pkg/types",
   ]
-  pruneopts = "NUT"
-  revision = "2620fd63480ea1155c71de87a022f1f564f09ff2"
+  pruneopts = ""
+  revision = "33d9d05e028924403738f77749568e925042bd02"
 
 [[projects]]
-  digest = "1:34e5ed50e072e876fd27372bec3cd4d22ff790153798bade2df855f0a603ae29"
+  branch = "master"
+  digest = "1:4dcebfe12917390dc19606bd61bbacb75c66750fbdef323749cc898965ca2912"
   name = "github.com/openshift/cluster-autoscaler-operator"
   packages = [
     "pkg/apis",
     "pkg/apis/autoscaling/v1alpha1",
   ]
   pruneopts = "NUT"
-  revision = "4bcabb30b24b7289ea2b935f5a9cf0b89784835d"
+  revision = "35a851c282d709c6af06c4447b418645687927bb"
 
 [[projects]]
   branch = "master"
@@ -521,19 +594,31 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:3f3a05ae0b95893d90b9b3b5afdb79a9b3d96e4e36e099d841ae602e4aca0da8"
+  digest = "1:0a0319f9ca4ef4105cd909596be58789777f985d3ed96bdd01893bb54f639dda"
   name = "golang.org/x/crypto"
-  packages = ["ssh/terminal"]
+  packages = [
+    "curve25519",
+    "ed25519",
+    "ed25519/internal/edwards25519",
+    "internal/chacha20",
+    "internal/subtle",
+    "poly1305",
+    "ssh",
+    "ssh/terminal",
+  ]
   pruneopts = "NUT"
   revision = "0e37d006457bf46f9e6692014ba72ef82c33022c"
 
 [[projects]]
   branch = "master"
-  digest = "1:1400b8e87c2c9bd486ea1a13155f59f8f02d385761206df05c0b7db007a53b2c"
+  digest = "1:5f2ebc67cec29f15af897e3c8c90753b8b354f2311bdfb64f7a502c5c5bb657c"
   name = "golang.org/x/net"
   packages = [
     "context",
     "context/ctxhttp",
+    "html",
+    "html/atom",
+    "html/charset",
     "http/httpguts",
     "http2",
     "http2/hpack",
@@ -568,17 +653,29 @@
   revision = "1561086e645b2809fb9f8a1e2a38160bf8d53bf4"
 
 [[projects]]
-  digest = "1:e33513a825fcd765e97b5de639a2f7547542d1a8245df0cef18e1fd390b778a9"
+  digest = "1:2c4e3b27329379d7b5f889038b48086140ea60708fb92e4b19d6a775926ea30b"
   name = "golang.org/x/text"
   packages = [
     "collate",
     "collate/build",
+    "encoding",
+    "encoding/charmap",
+    "encoding/htmlindex",
+    "encoding/internal",
+    "encoding/internal/identifier",
+    "encoding/japanese",
+    "encoding/korean",
+    "encoding/simplifiedchinese",
+    "encoding/traditionalchinese",
+    "encoding/unicode",
     "internal/colltab",
     "internal/gen",
     "internal/tag",
     "internal/triegen",
     "internal/ucd",
+    "internal/utf8internal",
     "language",
+    "runes",
     "secure/bidirule",
     "transform",
     "unicode/bidi",
@@ -632,12 +729,29 @@
   version = "v1.3.0"
 
 [[projects]]
+  digest = "1:1b91ae0dc69a41d4c2ed23ea5cffb721ea63f5037ca4b81e6d6771fbb8f45129"
+  name = "gopkg.in/fsnotify.v1"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9"
+  source = "https://github.com/fsnotify/fsnotify.git"
+  version = "v1.4.7"
+
+[[projects]]
   digest = "1:2d1fbdc6777e5408cabeb02bf336305e724b925ff4546ded0fa8715a7267922a"
   name = "gopkg.in/inf.v0"
   packages = ["."]
   pruneopts = "NUT"
   revision = "d2d2541c53f18d2a059457998ce2876cc8e67cbf"
   version = "v0.9.1"
+
+[[projects]]
+  branch = "v1"
+  digest = "1:8fb1ccb16a6cfecbfdfeb84d8ea1cc7afa8f9ef16526bc2326f72d993e32cef1"
+  name = "gopkg.in/tomb.v1"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "dd632973f1e7218eb1089048e0798ec9ae7dceb8"
 
 [[projects]]
   digest = "1:7c95b35057a0ff2e19f707173cc1a947fa43a6eb5c4d300d196ece0334046082"
@@ -1020,6 +1134,14 @@
   revision = "53fc44b56078cd095b11bd44cfa0288ee4cf718f"
   version = "v0.1.4"
 
+[[projects]]
+  digest = "1:8730e0150dfb2b7e173890c8b9868e7a273082ef8e39f4940e3506a481cf895c"
+  name = "sigs.k8s.io/yaml"
+  packages = ["."]
+  pruneopts = "NUT"
+  revision = "fd68e9863619f6ec2fdd8625fe1f02e7c877e480"
+  version = "v1.1.0"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
@@ -1032,16 +1154,23 @@
     "github.com/blang/semver",
     "github.com/ghodss/yaml",
     "github.com/golang/glog",
+    "github.com/onsi/ginkgo",
+    "github.com/onsi/gomega",
     "github.com/openshift/api/config/v1",
     "github.com/openshift/client-go/config/clientset/versioned",
     "github.com/openshift/client-go/config/clientset/versioned/fake",
-    "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/openshift",
+    "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e",
+    "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/actuators",
+    "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/autoscaler",
+    "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/infra",
+    "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/operators",
     "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1",
     "github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset",
     "github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset/scheme",
     "github.com/openshift/cluster-api/pkg/client/informers_generated/externalversions",
     "github.com/openshift/cluster-api/pkg/client/informers_generated/externalversions/machine/v1beta1",
     "github.com/openshift/cluster-api/pkg/client/listers_generated/machine/v1beta1",
+    "github.com/openshift/cluster-autoscaler-operator/pkg/apis",
     "github.com/openshift/cluster-version-operator/lib/resourceapply",
     "github.com/openshift/cluster-version-operator/lib/resourcemerge",
     "github.com/openshift/cluster-version-operator/lib/resourceread",
