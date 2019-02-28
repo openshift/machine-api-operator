@@ -2,24 +2,24 @@ apiVersion: machine.openshift.io/v1beta1
 kind: MachineSet
 metadata:
   labels:
-    sigs.k8s.io/cluster-api-cluster: {{ .ClusterID }}
-    sigs.k8s.io/cluster-api-machine-role: worker
-    sigs.k8s.io/cluster-api-machine-type: worker
+    machine.openshift.io/cluster-api-cluster: {{ .ClusterID }}
+    machine.openshift.io/cluster-api-machine-role: worker
+    machine.openshift.io/cluster-api-machine-type: worker
   name: worker
   namespace: openshift-machine-api
 spec:
   replicas: 2
   selector:
     matchLabels:
-      sigs.k8s.io/cluster-api-cluster: {{ .ClusterID }}
-      sigs.k8s.io/cluster-api-machineset: worker
+      machine.openshift.io/cluster-api-cluster: {{ .ClusterID }}
+      machine.openshift.io/cluster-api-machineset: worker
   template:
     metadata:
       labels:
-        sigs.k8s.io/cluster-api-cluster: {{ .ClusterID }}
-        sigs.k8s.io/cluster-api-machine-role: worker
-        sigs.k8s.io/cluster-api-machine-type: worker
-        sigs.k8s.io/cluster-api-machineset: worker
+        machine.openshift.io/cluster-api-cluster: {{ .ClusterID }}
+        machine.openshift.io/cluster-api-machine-role: worker
+        machine.openshift.io/cluster-api-machine-type: worker
+        machine.openshift.io/cluster-api-machineset: worker
     spec:
       providerSpec:
         value:
@@ -27,7 +27,7 @@ spec:
             name: aws-credentials-secret
           ami:
             id: ami-05c79276d240b93bc
-          apiVersion: awsproviderconfig.k8s.io/v1alpha1
+          apiVersion: awsproviderconfig.openshift.io/v1beta1
           iamInstanceProfile:
             id: {{ .ClusterID }}-worker-profile
           instanceType: t2.medium

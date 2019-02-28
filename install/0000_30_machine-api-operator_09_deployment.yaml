@@ -15,6 +15,7 @@ spec:
       labels:
         k8s-app: machine-api-operator
     spec:
+      priorityClassName: system-node-critical
       containers:
       - name: machine-api-operator
         image: docker.io/openshift/origin-machine-api-operator:v4.0.0
@@ -24,11 +25,8 @@ spec:
         - "start"
         - "--images-json=/etc/machine-api-operator-config/images/images.json"
         resources:
-          limits:
-            cpu: 20m
-            memory: 50Mi
           requests:
-            cpu: 20m
+            cpu: 10m
             memory: 50Mi
         volumeMounts:
         - name: images

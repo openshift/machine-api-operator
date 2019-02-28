@@ -4,16 +4,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// MachineHealthCheckSpec defines the desired state of MachineHealthCheck
-type MachineHealthCheckSpec struct {
-	Selector metav1.LabelSelector `json:"selector"`
-}
-
-// MachineHealthCheckStatus defines the observed state of MachineHealthCheck
-type MachineHealthCheckStatus struct {
-	// TODO(alberto)
-}
-
+// +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // MachineHealthCheck is the Schema for the machinehealthchecks API
@@ -35,6 +26,12 @@ type MachineHealthCheckList struct {
 	Items           []MachineHealthCheck `json:"items"`
 }
 
-func init() {
-	SchemeBuilder.Register(&MachineHealthCheck{}, &MachineHealthCheckList{})
+// MachineHealthCheckSpec defines the desired state of MachineHealthCheck
+type MachineHealthCheckSpec struct {
+	Selector metav1.LabelSelector `json:"selector"`
+}
+
+// MachineHealthCheckStatus defines the observed state of MachineHealthCheck
+type MachineHealthCheckStatus struct {
+	// TODO(alberto)
 }

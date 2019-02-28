@@ -7,7 +7,6 @@ import (
 	"time"
 
 	mapiv1alpha1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
-	healthcheckingapis "github.com/openshift/machine-api-operator/pkg/apis"
 	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
@@ -30,7 +29,7 @@ var (
 func init() {
 	// Add types to scheme
 	mapiv1alpha1.AddToScheme(scheme.Scheme)
-	healthcheckingapis.AddToScheme(scheme.Scheme)
+	healthcheckingv1alpha1.AddToScheme(scheme.Scheme)
 }
 
 func node(name string, ready bool) *v1.Node {
@@ -479,8 +478,8 @@ func TestRemediate(t *testing.T) {
 
 func TestIsMaster(t *testing.T) {
 	masterMachine := machine("master")
-	masterMachine.Labels["sigs.k8s.io/cluster-api-machine-role"] = "master"
-	masterMachine.Labels["sigs.k8s.io/cluster-api-machine-type"] = "master"
+	masterMachine.Labels["machine.openshift.io/cluster-api-machine-role"] = "master"
+	masterMachine.Labels["machine.openshift.io/cluster-api-machine-type"] = "master"
 	masterMachine.Status = mapiv1alpha1.MachineStatus{
 		NodeRef: &corev1.ObjectReference{
 			Namespace: "",
@@ -494,8 +493,8 @@ func TestIsMaster(t *testing.T) {
 	masterNode.Labels["node-role.kubernetes.io/master"] = ""
 
 	workerMachine := machine("worker")
-	workerMachine.Labels["sigs.k8s.io/cluster-api-machine-role"] = "worker"
-	workerMachine.Labels["sigs.k8s.io/cluster-api-machine-type"] = "worker"
+	workerMachine.Labels["machine.openshift.io/cluster-api-machine-role"] = "worker"
+	workerMachine.Labels["machine.openshift.io/cluster-api-machine-type"] = "worker"
 
 	workerMachine.Status = mapiv1alpha1.MachineStatus{
 		NodeRef: &corev1.ObjectReference{

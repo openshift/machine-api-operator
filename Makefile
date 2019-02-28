@@ -21,7 +21,7 @@ else
 endif
 
 .PHONY: check
-check: lint fmt vet test ## Run code validations
+check: lint fmt vet verify-codegen test ## Run code validations
 
 .PHONY: build
 build: machine-api-operator nodelink-controller machine-healthcheck ## Build binaries
@@ -36,7 +36,15 @@ nodelink-controller:
 
 .PHONY: machine-healthcheck
 machine-healthcheck:
-	$(DOCKER_CMD) ./hack/go-build.sh machine-healthcheck 
+	$(DOCKER_CMD) ./hack/go-build.sh machine-healthcheck
+
+.PHONY: update-codegen
+update-codegen:
+	$(DOCKER_CMD) ./hack/update-codegen.sh
+
+.PHONY: verify-codegen
+verify-codegen:
+	$(DOCKER_CMD) ./hack/verify-codegen.sh
 
 .PHONY: build-integration
 build-integration: ## Build integration test binary
@@ -45,7 +53,7 @@ build-integration: ## Build integration test binary
 	$(DOCKER_CMD) go build $(GOGCFLAGS) -o bin/integration github.com/openshift/machine-api-operator/test/integration
 
 test-e2e:
-	go run ./test/e2e/*.go -alsologtostderr
+	go run ./vendor/github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/openshift/*.go -alsologtostderr
 
 .PHONY: test
 test: ## Run tests

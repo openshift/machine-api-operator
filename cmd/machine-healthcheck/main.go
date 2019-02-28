@@ -6,7 +6,7 @@ import (
 
 	"github.com/golang/glog"
 	mapiv1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
-	"github.com/openshift/machine-api-operator/pkg/apis"
+	"github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
 	"github.com/openshift/machine-api-operator/pkg/controller"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -40,7 +40,7 @@ func main() {
 	glog.Infof("Registering Components.")
 
 	// Setup Scheme for all resources
-	if err := apis.AddToScheme(mgr.GetScheme()); err != nil {
+	if err := v1alpha1.AddToScheme(mgr.GetScheme()); err != nil {
 		glog.Fatal(err)
 	}
 	if err := mapiv1.AddToScheme(mgr.GetScheme()); err != nil {

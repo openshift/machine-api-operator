@@ -337,12 +337,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:322c31cff0c43a987bba7c10ba588f63d5a050a0d9b4a4bd4ede559bb1233e23"
+  digest = "1:ec466a563736ea21396b94cf98c6ebdafe4d728fb73cdc840bb4660482384ab2"
   name = "github.com/openshift/client-go"
   packages = [
     "config/clientset/versioned",
+    "config/clientset/versioned/fake",
     "config/clientset/versioned/scheme",
     "config/clientset/versioned/typed/config/v1",
+    "config/clientset/versioned/typed/config/v1/fake",
     "config/listers/config/v1",
     "security/clientset/versioned/scheme",
     "security/clientset/versioned/typed/security/v1",
@@ -375,15 +377,24 @@
   revision = "91fca585a85b163ddfd119fd09c128c9feadddca"
 
 [[projects]]
-  digest = "1:88a77d15e6ccd75e18697c7b7c1a4956f601e3481ea26ddc67d78d25518a535e"
+  digest = "1:9fd11fe137591af5321a6e33c48e37eb1f320aeb3cb5bc92bf4e071a90198258"
+  name = "github.com/openshift/cluster-api-actuator-pkg"
+  packages = [
+    "pkg/e2e/openshift",
+    "pkg/e2e/openshift/suites",
+  ]
+  pruneopts = "NUT"
+  revision = "2620fd63480ea1155c71de87a022f1f564f09ff2"
+
+[[projects]]
+  digest = "1:34e5ed50e072e876fd27372bec3cd4d22ff790153798bade2df855f0a603ae29"
   name = "github.com/openshift/cluster-autoscaler-operator"
   packages = [
     "pkg/apis",
     "pkg/apis/autoscaling/v1alpha1",
   ]
   pruneopts = "NUT"
-  revision = "55d8a9017618d3ea22105068095813993b830df8"
-  version = "v0.0.0"
+  revision = "4bcabb30b24b7289ea2b935f5a9cf0b89784835d"
 
 [[projects]]
   branch = "master"
@@ -438,6 +449,14 @@
   version = "v0.8.1"
 
 [[projects]]
+  digest = "1:0028cb19b2e4c3112225cd871870f2d9cf49b9b4276531f03438a88e94be86fe"
+  name = "github.com/pmezard/go-difflib"
+  packages = ["difflib"]
+  pruneopts = "NUT"
+  revision = "792786c7400a136282c1664665ae0a8db921c6c2"
+  version = "v1.0.0"
+
+[[projects]]
   digest = "1:b2339e83ce9b5c4f79405f949429a7f68a9a904fed903c672aac1e7ceb7f5f02"
   name = "github.com/sirupsen/logrus"
   packages = ["."]
@@ -460,6 +479,14 @@
   pruneopts = "NUT"
   revision = "9a97c102cda95a86cec2345a6f09f55a939babf5"
   version = "v1.0.2"
+
+[[projects]]
+  digest = "1:42e8c2456d7ec0f31e182c20022e74324c4da2cb3bd9069ff9b131fe33466308"
+  name = "github.com/stretchr/testify"
+  packages = ["assert"]
+  pruneopts = "NUT"
+  revision = "ffdc059bfe9ce6a4e144ba849dbedead332c6053"
+  version = "v1.3.0"
 
 [[projects]]
   digest = "1:22f696cee54865fb8e9ff91df7b633f6b8f22037a8015253c6b6a71ca82219c7"
@@ -725,10 +752,11 @@
   revision = "103fd098999dc9c0c88536f5c9ad2e5da39373ae"
 
 [[projects]]
-  digest = "1:8ca68a22db4fd26e33360fa940ba8857948b3305d4706ad71cd2b77c1c839a46"
+  digest = "1:e6f6dc2d4e426798544b311dc3f28956461582609e9a317982be18712b8cb2f4"
   name = "k8s.io/client-go"
   packages = [
     "discovery",
+    "discovery/fake",
     "dynamic",
     "informers",
     "informers/admissionregistration",
@@ -865,7 +893,7 @@
   revision = "1f13a808da65775f22cbf47862c4e5898d8f4ca1"
 
 [[projects]]
-  digest = "1:6262e52f5247e54db8cf024fc6149706147ac5778b8368d4692191367ef91d3b"
+  digest = "1:8ab487a323486c8bbbaa3b689850487fdccc6cbea8690620e083b2d230a4447e"
   name = "k8s.io/code-generator"
   packages = [
     "cmd/client-gen",
@@ -893,7 +921,7 @@
     "cmd/openapi-gen/args",
     "pkg/util",
   ]
-  pruneopts = "UT"
+  pruneopts = "T"
   revision = "6702109cc68eb6fe6350b83e14407c8d7309fd1a"
 
 [[projects]]
@@ -1006,16 +1034,14 @@
     "github.com/golang/glog",
     "github.com/openshift/api/config/v1",
     "github.com/openshift/client-go/config/clientset/versioned",
-    "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1",
-    "github.com/openshift/cluster-api/pkg/apis/cluster/v1alpha1",
+    "github.com/openshift/client-go/config/clientset/versioned/fake",
+    "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/openshift",
     "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1",
     "github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset",
     "github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset/scheme",
     "github.com/openshift/cluster-api/pkg/client/informers_generated/externalversions",
     "github.com/openshift/cluster-api/pkg/client/informers_generated/externalversions/machine/v1beta1",
     "github.com/openshift/cluster-api/pkg/client/listers_generated/machine/v1beta1",
-    "github.com/openshift/cluster-autoscaler-operator/pkg/apis",
-    "github.com/openshift/cluster-autoscaler-operator/pkg/apis/autoscaling/v1alpha1",
     "github.com/openshift/cluster-version-operator/lib/resourceapply",
     "github.com/openshift/cluster-version-operator/lib/resourcemerge",
     "github.com/openshift/cluster-version-operator/lib/resourceread",
@@ -1023,29 +1049,30 @@
     "github.com/sirupsen/logrus",
     "github.com/spf13/cobra",
     "github.com/spf13/pflag",
+    "github.com/stretchr/testify/assert",
     "k8s.io/api/apps/v1",
     "k8s.io/api/apps/v1beta2",
-    "k8s.io/api/batch/v1",
     "k8s.io/api/core/v1",
     "k8s.io/api/rbac/v1beta1",
     "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1",
     "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset",
     "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme",
     "k8s.io/apimachinery/pkg/api/errors",
-    "k8s.io/apimachinery/pkg/api/resource",
     "k8s.io/apimachinery/pkg/apis/meta/v1",
     "k8s.io/apimachinery/pkg/labels",
     "k8s.io/apimachinery/pkg/runtime",
     "k8s.io/apimachinery/pkg/runtime/schema",
+    "k8s.io/apimachinery/pkg/runtime/serializer",
     "k8s.io/apimachinery/pkg/types",
     "k8s.io/apimachinery/pkg/util/runtime",
-    "k8s.io/apimachinery/pkg/util/sets",
     "k8s.io/apimachinery/pkg/util/uuid",
     "k8s.io/apimachinery/pkg/util/wait",
+    "k8s.io/apimachinery/pkg/watch",
+    "k8s.io/client-go/discovery",
+    "k8s.io/client-go/discovery/fake",
     "k8s.io/client-go/informers",
     "k8s.io/client-go/informers/apps/v1",
     "k8s.io/client-go/informers/core/v1",
-    "k8s.io/client-go/informers/rbac/v1",
     "k8s.io/client-go/kubernetes",
     "k8s.io/client-go/kubernetes/scheme",
     "k8s.io/client-go/kubernetes/typed/core/v1",
@@ -1053,11 +1080,13 @@
     "k8s.io/client-go/listers/core/v1",
     "k8s.io/client-go/plugin/pkg/client/auth/gcp",
     "k8s.io/client-go/rest",
+    "k8s.io/client-go/testing",
     "k8s.io/client-go/tools/cache",
     "k8s.io/client-go/tools/clientcmd",
     "k8s.io/client-go/tools/leaderelection",
     "k8s.io/client-go/tools/leaderelection/resourcelock",
     "k8s.io/client-go/tools/record",
+    "k8s.io/client-go/util/flowcontrol",
     "k8s.io/client-go/util/workqueue",
     "k8s.io/code-generator/cmd/client-gen",
     "k8s.io/code-generator/cmd/conversion-gen",
@@ -1067,7 +1096,6 @@
     "k8s.io/code-generator/cmd/lister-gen",
     "k8s.io/code-generator/cmd/openapi-gen",
     "k8s.io/gengo/args",
-    "k8s.io/utils/pointer",
     "sigs.k8s.io/controller-runtime/pkg/client",
     "sigs.k8s.io/controller-runtime/pkg/client/config",
     "sigs.k8s.io/controller-runtime/pkg/client/fake",
@@ -1075,7 +1103,6 @@
     "sigs.k8s.io/controller-runtime/pkg/handler",
     "sigs.k8s.io/controller-runtime/pkg/manager",
     "sigs.k8s.io/controller-runtime/pkg/reconcile",
-    "sigs.k8s.io/controller-runtime/pkg/runtime/scheme",
     "sigs.k8s.io/controller-runtime/pkg/runtime/signals",
     "sigs.k8s.io/controller-runtime/pkg/source",
   ]

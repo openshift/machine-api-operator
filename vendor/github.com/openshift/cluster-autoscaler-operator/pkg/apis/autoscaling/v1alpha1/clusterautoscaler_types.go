@@ -64,4 +64,5 @@ type ScaleDownConfig struct {
 	DelayAfterAdd     string `json:"delayAfterAdd"`
 	DelayAfterDelete  string `json:"delayAfterDelete"`
 	DelayAfterFailure string `json:"delayAfterFailure"`
+	UnneededTime      string `json:"unneededTime,omitempty"`
 }
