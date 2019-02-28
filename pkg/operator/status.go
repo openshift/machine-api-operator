@@ -105,6 +105,8 @@ func (optr *Operator) statusAvailable() error {
 	if err != nil {
 		return err
 	}
+
+	// 	important: we only write the version field if we report available at the present level
 	co.Status.Versions = optr.operandVersions
 	glog.V(2).Info("Syncing status: available")
 	return optr.syncStatus(co, conds)
