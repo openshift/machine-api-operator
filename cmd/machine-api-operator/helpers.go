@@ -7,7 +7,7 @@ import (
 
 	"github.com/golang/glog"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -41,7 +41,7 @@ func CreateResourceLock(cb *ClientBuilder, componentNamespace, componentName str
 
 	id, err := os.Hostname()
 	if err != nil {
-		glog.Fatalf("error creating lock: %v", err)
+		glog.Fatalf("Error creating lock: %v", err)
 	}
 
 	// add a uniquifier so that two processes on the same host don't accidentally both become active

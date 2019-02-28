@@ -1,11 +1,13 @@
 package operator
 
 import (
+	"testing"
+
 	osconfigv1 "github.com/openshift/api/config/v1"
 	fakeconfigclientset "github.com/openshift/client-go/config/clientset/versioned/fake"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"testing"
+	"k8s.io/client-go/tools/record"
 )
 
 func TestPrintOperandVersions(t *testing.T) {
@@ -61,6 +63,7 @@ func TestOperatorStatusProgressing(t *testing.T) {
 				Version: "1.0",
 			},
 		},
+		eventRecorder: record.NewFakeRecorder(5),
 	}
 	for i, tc := range tCases {
 		co := &osconfigv1.ClusterOperator{ObjectMeta: metav1.ObjectMeta{Name: clusterOperatorName}}

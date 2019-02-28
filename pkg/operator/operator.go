@@ -103,15 +103,15 @@ func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer optr.queue.ShutDown()
 
-	glog.Info("Starting MachineAPIOperator")
-	defer glog.Info("Shutting down MachineAPIOperator")
+	glog.Info("Starting Machine API Operator")
+	defer glog.Info("Shutting down Machine API Operator")
 
 	if !cache.WaitForCacheSync(stopCh,
 		optr.deployListerSynced) {
-		glog.Error("failed to sync caches")
+		glog.Error("Failed to sync caches")
 		return
 	}
-	glog.Info("Synched up caches")
+	glog.Info("Synced up caches")
 	for i := 0; i < workers; i++ {
 		go wait.Until(optr.worker, time.Second, stopCh)
 	}
@@ -134,14 +134,13 @@ func (optr *Operator) worker() {
 }
 
 func (optr *Operator) processNextWorkItem() bool {
-	glog.V(4).Info("processing next work item")
 	key, quit := optr.queue.Get()
 	if quit {
 		return false
 	}
 	defer optr.queue.Done(key)
 
-	glog.V(4).Infof("processing key %s", key)
+	glog.V(4).Infof("Processing key %s", key)
 	err := optr.syncHandler(key.(string))
 	optr.handleErr(err, key)
 
@@ -150,22 +149,18 @@ func (optr *Operator) processNextWorkItem() bool {
 
 func (optr *Operator) handleErr(err error, key interface{}) {
 	if err == nil {
-		//TODO: set operator Done.
-
 		optr.queue.Forget(key)
 		return
 	}
 
-	//TODO: set operator degraded.
-
 	if optr.queue.NumRequeues(key) < maxRetries {
-		glog.V(2).Infof("Error syncing operator %v: %v", key, err)
+		glog.V(1).Infof("Error syncing operator %v: %v", key, err)
 		optr.queue.AddRateLimited(key)
 		return
 	}
 
 	utilruntime.HandleError(err)
-	glog.V(2).Infof("Dropping operator %q out of the queue: %v", key, err)
+	glog.V(1).Infof("Dropping operator %q out of the queue: %v", key, err)
 	optr.queue.Forget(key)
 }
 
@@ -176,10 +171,9 @@ func (optr *Operator) sync(key string) error {
 		glog.V(4).Infof("Finished syncing operator %q (%v)", key, time.Since(startTime))
 	}()
 
-	glog.Infof("Getting operator config using kubeclient")
 	operatorConfig, err := optr.maoConfigFromInstallConfig()
 	if err != nil {
-		glog.Errorf("failed getting operator config: %v", err)
+		glog.Errorf("Failed getting operator config: %v", err)
 		return err
 	}
 
