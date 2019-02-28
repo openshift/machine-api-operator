@@ -375,7 +375,6 @@ func (c *Controller) processNode(node *corev1.Node) error {
 	}
 
 	if matchingMachine == nil {
-		glog.Warning("No machine was found for node %q", node.Name)
 		return fmt.Errorf("no machine was found for node: %q", node.Name)
 	}
 
