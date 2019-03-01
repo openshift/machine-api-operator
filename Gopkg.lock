@@ -26,7 +26,7 @@
   revision = "de5bf2ad457846296e2031421a34e2568e304e35"
 
 [[projects]]
-  digest = "1:56dc93502979addda45bd3b0069640b66ac8765909bfee35caa908b9b1df2c80"
+  digest = "1:6435c993e406d5be75f92f59109b1474c771341751a9616f14eb532b6436bc2f"
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -63,8 +63,8 @@
     "service/sts",
   ]
   pruneopts = "NUT"
-  revision = "f63ecde3e92bac72832e9b860480b29792e6a924"
-  version = "v1.17.7"
+  revision = "3f4520a9e0e2eff8bf1ef6da734d373c4c368429"
+  version = "v1.17.8"
 
 [[projects]]
   branch = "master"
@@ -403,7 +403,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:d8272fe44631800c21dfa1aea6d409d878b54b6444c2edda688c9d61708078ef"
+  digest = "1:d999c2f8181e9a17d4e16ef743e3383602c063ddf2d5207f7858f1262da7ab31"
   name = "github.com/openshift/api"
   packages = [
     "config/v1",
@@ -413,7 +413,7 @@
     "security/v1",
   ]
   pruneopts = "NUT"
-  revision = "c58918e29f89383d2e1467bad7156e2b0c49497f"
+  revision = "5eb2215fbabe96f19654a85c6cb99700cef4e734"
 
 [[projects]]
   branch = "master"
@@ -461,7 +461,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:6ac2bb33deac2492caaff530855139f037bc61fa03f63bb448362aff6ab121d6"
+  digest = "1:2ac3f15060d7be7ff940d9b702553d7c34a4d8ad84a4fc4692a0dbb188f2533c"
   name = "github.com/openshift/cluster-api-actuator-pkg"
   packages = [
     "pkg/e2e",
@@ -474,7 +474,7 @@
     "pkg/types",
   ]
   pruneopts = ""
-  revision = "2d4a4db2c045e388f94577a8f2f3843526de1678"
+  revision = "96d86a898a162b4250852cc5e621fb0f86171952"
 
 [[projects]]
   branch = "master"
@@ -485,7 +485,7 @@
     "pkg/apis/autoscaling/v1alpha1",
   ]
   pruneopts = "NUT"
-  revision = "a5857c33b730c45c5651bbda3166994be0ee9a3a"
+  revision = "dba99ca61465ce5cad85d81c17b83bae8cb08c8d"
 
 [[projects]]
   branch = "master"
@@ -497,7 +497,7 @@
     "lib/resourceread",
   ]
   pruneopts = "NUT"
-  revision = "70c0232ed95e4b0e0cd78efdcdec6f2410f592bb"
+  revision = "bcf8bf290bc7d0090769b4722831dbb157b75d01"
 
 [[projects]]
   branch = "master"
@@ -505,7 +505,7 @@
   name = "github.com/operator-framework/operator-sdk"
   packages = ["version"]
   pruneopts = "NUT"
-  revision = "f6d83791dd8880f0e33d549343642aabadc9d3a0"
+  revision = "82aff45a9c9011b147cfe260dcdb208a364ee6d1"
 
 [[projects]]
   digest = "1:93b1d84c5fa6d1ea52f4114c37714cddd84d5b78f151b62bb101128dd51399bf"
@@ -658,7 +658,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:9dd23eb3fd7b27452fe6a3f0f7a47e5531810209988ed134855f8fe875517a4a"
+  digest = "1:5b1e3560b10bebafefcafa45db8cb121bfa1994b1503997b8b46631c2540e79a"
   name = "golang.org/x/crypto"
   packages = [
     "curve25519",
@@ -671,7 +671,7 @@
     "ssh/terminal",
   ]
   pruneopts = "NUT"
-  revision = "31a38585487a4b1fd6ff4f8f3db26f1fb296ac82"
+  revision = "8dd112bcdc25174059e45e07517d9fc663123347"
 
 [[projects]]
   branch = "master"
@@ -689,7 +689,7 @@
     "idna",
   ]
   pruneopts = "NUT"
-  revision = "c95aed5357e77a4bf7d3955c46740000a17adee1"
+  revision = "92fc7df08ae7536330f5a21328292abfa70520a8"
 
 [[projects]]
   branch = "master"
@@ -707,9 +707,10 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:39b588d684c37b617026ee2cb1923de5bb543e77f00abdab6b1e42ab274f598c"
+  digest = "1:06016ff94d4b63a5d59477d44567a8baab8d9f0b1f7c7e226fc5870cffdf2d07"
   name = "golang.org/x/sys"
   packages = [
+    "cpu",
     "unix",
     "windows",
   ]
@@ -779,7 +780,7 @@
     "internal/semver",
   ]
   pruneopts = "NUT"
-  revision = "f0a709d59f0fd2d705cf7767149e23a7a99f585b"
+  revision = "589c23e65e65055d47b9ad4a99723bc389136265"
 
 [[projects]]
   digest = "1:d395d49d784dd3a11938a3e85091b6570664aa90ff2767a626565c6c130fa7e9"
@@ -1177,7 +1178,7 @@
     "pkg/util/sets",
   ]
   pruneopts = "NUT"
-  revision = "d50a959ae76a85c7c262a9767ef29f37093c2b8a"
+  revision = "b3a7cee44a305be0a69e1b9ac03018307287e1b0"
 
 [[projects]]
   digest = "1:ff54706d46de40c865b5fcfc4bde1087c02510cd12e0150de8e405ab427d9907"

@@ -302,6 +302,7 @@ var _ = g.Describe("[Feature:Machines] Autoscaler should", func() {
 					glog.Errorf("Machine %q does not have node reference set", machine.Name)
 					return false, nil
 				}
+				glog.Infof("Machine %q is linked to node %q", machine.Name, machine.Status.NodeRef.Name)
 				nodeCounter++
 			}
 

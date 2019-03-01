@@ -63,11 +63,21 @@ var _ = g.Describe("[Feature:Operators] Cluster autoscaler cluster operator shou
 				return false, nil
 			}
 			if available := cvoresourcemerge.FindOperatorStatusCondition(clusterOperator.Status.Conditions, osconfigv1.OperatorAvailable); available != nil {
-				if available.Status == osconfigv1.ConditionTrue {
-					return true, nil
+				if available.Status != osconfigv1.ConditionTrue {
+					return false, nil
 				}
 			}
-			return false, nil
+			if progressing := cvoresourcemerge.FindOperatorStatusCondition(clusterOperator.Status.Conditions, osconfigv1.OperatorProgressing); progressing != nil {
+				if progressing.Status == osconfigv1.ConditionTrue {
+					return false, nil
+				}
+			}
+			if failing := cvoresourcemerge.FindOperatorStatusCondition(clusterOperator.Status.Conditions, osconfigv1.OperatorFailing); failing != nil {
+				if failing.Status == osconfigv1.ConditionTrue {
+					return false, nil
+				}
+			}
+			return true, nil
 		})
 		o.Expect(err).NotTo(o.HaveOccurred())
 	})
