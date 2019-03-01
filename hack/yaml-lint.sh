@@ -1,6 +1,6 @@
 #!/bin/sh
 if [ "$IS_CONTAINER" != "" ]; then
-  yamllint -d relaxed ./install/
+  yamllint -d relaxed ./config/manifests/
 else
   docker run --rm \
     --env IS_CONTAINER=TRUE \
