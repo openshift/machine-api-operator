@@ -52,6 +52,7 @@ build-integration: ## Build integration test binary
 	mkdir -p bin
 	$(DOCKER_CMD) go build $(GOGCFLAGS) -o bin/integration github.com/openshift/machine-api-operator/test/integration
 
+.PHONY: test-e2e
 test-e2e: ## Run openshift specific e2e test
 	go test -timeout 60m \
 		-v ./vendor/github.com/openshift/cluster-api-actuator-pkg/pkg/e2e \
@@ -59,6 +60,12 @@ test-e2e: ## Run openshift specific e2e test
 		-machine-api-namespace $${NAMESPACE:-openshift-machine-api} \
 		-ginkgo.v \
 		-args -v 5 -logtostderr true
+
+.PHONY: deploy-kubemark
+deploy-kubemark:
+	kustomize build config | kubectl apply -f -
+	kustomize build | kubectl apply -f -
+	kubectl apply -f config/kubemark-install-config.yaml
 
 .PHONY: test
 test: ## Run tests
