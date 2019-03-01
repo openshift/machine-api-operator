@@ -21,6 +21,7 @@ spec:
         api: clusterapi
         k8s-app: controller
     spec:
+      priorityClassName: system-node-critical
       nodeSelector:
         node-role.kubernetes.io/master: ""
       tolerations:
