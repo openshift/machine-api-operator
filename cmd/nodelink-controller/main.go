@@ -375,12 +375,14 @@ func (c *Controller) processNode(node *corev1.Node) error {
 	}
 
 	if matchingMachine == nil {
-		glog.Warning("No machine was found for node %q", node.Name)
 		return fmt.Errorf("no machine was found for node: %q", node.Name)
 	}
 
 	glog.V(3).Infof("Found machine %s for node %s", machineKey, node.Name)
 	modNode := node.DeepCopy()
+	if modNode.Annotations == nil {
+		modNode.Annotations = map[string]string{}
+	}
 	modNode.Annotations[machineAnnotationKey] = fmt.Sprintf("%s/%s", matchingMachine.Namespace, matchingMachine.Name)
 
 	if modNode.Labels == nil {
