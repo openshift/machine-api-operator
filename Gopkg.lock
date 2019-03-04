@@ -26,47 +26,6 @@
   revision = "de5bf2ad457846296e2031421a34e2568e304e35"
 
 [[projects]]
-  digest = "1:6435c993e406d5be75f92f59109b1474c771341751a9616f14eb532b6436bc2f"
-  name = "github.com/aws/aws-sdk-go"
-  packages = [
-    "aws",
-    "aws/awserr",
-    "aws/awsutil",
-    "aws/client",
-    "aws/client/metadata",
-    "aws/corehandlers",
-    "aws/credentials",
-    "aws/credentials/ec2rolecreds",
-    "aws/credentials/endpointcreds",
-    "aws/credentials/processcreds",
-    "aws/credentials/stscreds",
-    "aws/csm",
-    "aws/defaults",
-    "aws/ec2metadata",
-    "aws/endpoints",
-    "aws/request",
-    "aws/session",
-    "aws/signer/v4",
-    "internal/ini",
-    "internal/sdkio",
-    "internal/sdkrand",
-    "internal/sdkuri",
-    "internal/shareddefaults",
-    "private/protocol",
-    "private/protocol/ec2query",
-    "private/protocol/query",
-    "private/protocol/query/queryutil",
-    "private/protocol/rest",
-    "private/protocol/xml/xmlutil",
-    "service/ec2",
-    "service/ec2/ec2iface",
-    "service/sts",
-  ]
-  pruneopts = "NUT"
-  revision = "3f4520a9e0e2eff8bf1ef6da734d373c4c368429"
-  version = "v1.17.8"
-
-[[projects]]
   branch = "master"
   digest = "1:707ebe952a8b3d00b343c01536c79c73771d100f63ec6babeaed5c79e2b8a8dd"
   name = "github.com/beorn7/perks"
@@ -287,27 +246,12 @@
   version = "v1.0"
 
 [[projects]]
-  digest = "1:1f2aebae7e7c856562355ec0198d8ca2fa222fb05e5b1b66632a1fce39631885"
-  name = "github.com/jmespath/go-jmespath"
-  packages = ["."]
-  pruneopts = "NUT"
-  revision = "c2b33e84"
-
-[[projects]]
   digest = "1:8e36686e8b139f8fe240c1d5cf3a145bc675c22ff8e707857cdd3ae17b00d728"
   name = "github.com/json-iterator/go"
   packages = ["."]
   pruneopts = "NUT"
   revision = "1624edc4454b8682399def8740d46db5e4362ba4"
   version = "v1.1.5"
-
-[[projects]]
-  digest = "1:58999a98719fddbac6303cb17e8d85b945f60b72f48e3a2df6b950b97fa926f1"
-  name = "github.com/konsorten/go-windows-terminal-sequences"
-  packages = ["."]
-  pruneopts = "NUT"
-  revision = "f55edac94c9bbba5d6182a4be46d86a2c9b5b50e"
-  version = "v1.0.2"
 
 [[projects]]
   branch = "master"
@@ -403,7 +347,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:d999c2f8181e9a17d4e16ef743e3383602c063ddf2d5207f7858f1262da7ab31"
+  digest = "1:d55199abc6f7e58529ad7aa5fe95ef3fb93ce15bb5b1260225c50cb3a5010211"
   name = "github.com/openshift/api"
   packages = [
     "config/v1",
@@ -413,11 +357,11 @@
     "security/v1",
   ]
   pruneopts = "NUT"
-  revision = "5eb2215fbabe96f19654a85c6cb99700cef4e734"
+  revision = "b75f8002d9873eb84986b824850058977e116e5b"
 
 [[projects]]
   branch = "master"
-  digest = "1:ec466a563736ea21396b94cf98c6ebdafe4d728fb73cdc840bb4660482384ab2"
+  digest = "1:d96479fd13379a28d51b3ff330ed0d0a86757395134f8974fe05f59503c6d815"
   name = "github.com/openshift/client-go"
   packages = [
     "config/clientset/versioned",
@@ -430,7 +374,7 @@
     "security/clientset/versioned/typed/security/v1",
   ]
   pruneopts = "NUT"
-  revision = "31ef839c86359881d2c312c4f0131febc6662400"
+  revision = "2d89985ca24a8307e4b5db2574a62d3e6c2444b4"
 
 [[projects]]
   digest = "1:c1f3dc0f5ed5314fa7cb81a087209589d86dbfac97da55f818e1dce5e8be06e9"
@@ -461,7 +405,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:2ac3f15060d7be7ff940d9b702553d7c34a4d8ad84a4fc4692a0dbb188f2533c"
+  digest = "1:02ee77e73735959df97d51e58ad18f5198a80779f23112b1c95033e242e02a3f"
   name = "github.com/openshift/cluster-api-actuator-pkg"
   packages = [
     "pkg/e2e",
@@ -474,7 +418,7 @@
     "pkg/types",
   ]
   pruneopts = ""
-  revision = "96d86a898a162b4250852cc5e621fb0f86171952"
+  revision = "3efa4690c70f9ae43099944c3eb4ba66d9e8c325"
 
 [[projects]]
   branch = "master"
@@ -485,7 +429,7 @@
     "pkg/apis/autoscaling/v1alpha1",
   ]
   pruneopts = "NUT"
-  revision = "dba99ca61465ce5cad85d81c17b83bae8cb08c8d"
+  revision = "0c2284a7a7cff0e123ace8d5e43337e4cc9739e9"
 
 [[projects]]
   branch = "master"
@@ -497,7 +441,15 @@
     "lib/resourceread",
   ]
   pruneopts = "NUT"
-  revision = "bcf8bf290bc7d0090769b4722831dbb157b75d01"
+  revision = "d8611ec571d0c201c47044a729e0cf673ccd1a68"
+
+[[projects]]
+  branch = "master"
+  digest = "1:fb1baca237786871362ee17ee7d8d3bbda8345adc517b387e00b34467080dca7"
+  name = "github.com/openshift/library-go"
+  packages = ["pkg/config/clusteroperator/v1helpers"]
+  pruneopts = "NUT"
+  revision = "67ba562464684b95438c9dc80acedf74c701ced6"
 
 [[projects]]
   branch = "master"
@@ -505,7 +457,7 @@
   name = "github.com/operator-framework/operator-sdk"
   packages = ["version"]
   pruneopts = "NUT"
-  revision = "82aff45a9c9011b147cfe260dcdb208a364ee6d1"
+  revision = "c2efe6f74e7b5b430c84f8f6e6f167730cd5a7d9"
 
 [[projects]]
   digest = "1:93b1d84c5fa6d1ea52f4114c37714cddd84d5b78f151b62bb101128dd51399bf"
@@ -592,14 +544,6 @@
   ]
   pruneopts = "NUT"
   revision = "bbced9601137e764853b2fad7ec3e2dc4c504e02"
-
-[[projects]]
-  digest = "1:e256b859ab89f005f2f639f5ed9807d0873d9135e27c6382f419b840ff9abe71"
-  name = "github.com/sirupsen/logrus"
-  packages = ["."]
-  pruneopts = "NUT"
-  revision = "e1e72e9de974bd926e5c56f83753fba2df402ce5"
-  version = "v1.3.0"
 
 [[projects]]
   digest = "1:343d44e06621142ab09ae0c76c1799104cdfddd3ffb445d78b1adf8dc3ffaf3d"
@@ -689,7 +633,7 @@
     "idna",
   ]
   pruneopts = "NUT"
-  revision = "92fc7df08ae7536330f5a21328292abfa70520a8"
+  revision = "16b79f2e4e95ea23b2bf9903c9809ff7b013ce85"
 
 [[projects]]
   branch = "master"
@@ -707,7 +651,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:06016ff94d4b63a5d59477d44567a8baab8d9f0b1f7c7e226fc5870cffdf2d07"
+  digest = "1:fe90275b2037b2af8597456a2adf1d74ad7eea33a67a696307761c867aaeaebf"
   name = "golang.org/x/sys"
   packages = [
     "cpu",
@@ -715,7 +659,7 @@
     "windows",
   ]
   pruneopts = "NUT"
-  revision = "a34e9553db1e492c9a76e60db2296ae7e5fbb772"
+  revision = "c2f5717e611cf8e89a852a41081355194d80c943"
 
 [[projects]]
   digest = "1:2c4e3b27329379d7b5f889038b48086140ea60708fb92e4b19d6a775926ea30b"
@@ -1235,11 +1179,6 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
-    "github.com/aws/aws-sdk-go/aws",
-    "github.com/aws/aws-sdk-go/aws/credentials",
-    "github.com/aws/aws-sdk-go/aws/session",
-    "github.com/aws/aws-sdk-go/service/ec2",
-    "github.com/aws/aws-sdk-go/service/ec2/ec2iface",
     "github.com/blang/semver",
     "github.com/ghodss/yaml",
     "github.com/golang/glog",
@@ -1264,17 +1203,11 @@
     "github.com/openshift/cluster-version-operator/lib/resourcemerge",
     "github.com/openshift/cluster-version-operator/lib/resourceread",
     "github.com/operator-framework/operator-sdk/version",
-    "github.com/sirupsen/logrus",
     "github.com/spf13/cobra",
     "github.com/spf13/pflag",
     "github.com/stretchr/testify/assert",
     "k8s.io/api/apps/v1",
-    "k8s.io/api/apps/v1beta2",
     "k8s.io/api/core/v1",
-    "k8s.io/api/rbac/v1beta1",
-    "k8s.io/apiextensions-apiserver/pkg/apis/apiextensions/v1beta1",
-    "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset",
-    "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme",
     "k8s.io/apimachinery/pkg/api/errors",
     "k8s.io/apimachinery/pkg/apis/meta/v1",
     "k8s.io/apimachinery/pkg/labels",
