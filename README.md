@@ -121,13 +121,45 @@ However you can run it in a vanilla Kubernetes cluster by precreating some asset
 
 - Create a `openshift-machine-api-operator` namespace
 - Create a [CRD Status definition](test/integration/manifests/status-crd.yaml)
-- Create a [CRD Machine definition](test/integration/manifests/0000_50_machine-api-operator_02_machine.crd.yaml)
-- Create a [CRD MachineSet definition](test/integration/manifests/0000_50_machine-api-operator_03_machineset.crd.yaml)
-- Create a [CRD MachineDeployment definition](test/integration/manifests/0000_50_machine-api-operator_04_machinedeployment.crd.yaml)
-- Create a [CRD Cluster definition](test/integration/manifests/0000_50_machine-api-operator_05_cluster.crd.yaml)
+- Create a [CRD Machine definition](install/0000_30_machine-api-operator_02_machine.crd.yaml)
+- Create a [CRD MachineSet definition](install/0000_30_machine-api-operator_03_machineset.crd.yaml)
+- Create a [CRD MachineDeployment definition](install/0000_30_machine-api-operator_04_machinedeployment.crd.yaml)
+- Create a [CRD Cluster definition](install/0000_30_machine-api-operator_05_cluster.crd.yaml)
 - Create a [Installer config](test/integration/manifests/install-config.yaml)
-- Then you can run it as a [deployment](install/0000_50_machine-api-operator_08_deployment.yaml)
+- Then you can run it as a [deployment](install/0000_30_machine-api-operator_09_deployment.yaml)
 - You should then be able to deploy a [cluster](test/integration/manifests/cluster.yaml) and a [machineSet](test/integration/manifests/machineset.yaml) object
+
+## Machine API operator with Kubemark over Kubernetes
+
+INFO: For development and testing purposes only
+
+1. Deploy MAO over Kubernetes:
+  ```sh
+   $ kustomize build | kubectl apply -f -
+   ```
+
+2. Deploy [Kubemark actuator](https://github.com/openshift/cluster-api-provider-kubemark) prerequisities:
+   ```sh
+   $ kustomize build config | kubectl apply -f -
+   ```
+
+3. Create `cluster-config-v1` configmap to tell the MAO to deploy `kubemark` provider:
+   ```yaml
+   apiVersion: v1
+   kind: ConfigMap
+   metadata:
+     name: cluster-config-v1
+     namespace: kube-system
+   data:
+     install-config: |-
+       platform:
+         kubemark: {}
+   ```
+
+   The file is already present under `config/kubemark-install-config.yaml` so it's sufficient to run:
+   ```sh
+   $ kubectl apply -f config/kubemark-install-config.yaml
+   ```
 
 ## CI & tests
 

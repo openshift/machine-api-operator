@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 
 	"github.com/golang/glog"
@@ -46,28 +47,27 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 		glog.Fatalf("error creating clients: %v", err)
 	}
 	stopCh := make(chan struct{})
-	run := func(stop <-chan struct{}) {
 
-		ctx := CreateControllerContext(cb, stopCh, componentNamespace)
-		if err := startControllers(ctx); err != nil {
-			glog.Fatalf("error starting controllers: %v", err)
-		}
-
-		ctx.KubeNamespacedInformerFactory.Start(ctx.Stop)
-		close(ctx.InformersStarted)
-
-		select {}
-	}
-
-	leaderelection.RunOrDie(leaderelection.LeaderElectionConfig{
+	leaderelection.RunOrDie(context.TODO(), leaderelection.LeaderElectionConfig{
 		Lock:          CreateResourceLock(cb, componentNamespace, componentName),
 		LeaseDuration: LeaseDuration,
 		RenewDeadline: RenewDeadline,
 		RetryPeriod:   RetryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
-			OnStartedLeading: run,
+			OnStartedLeading: func(ctx context.Context) {
+				ctrlCtx := CreateControllerContext(cb, stopCh, componentNamespace)
+
+				if err := startControllers(ctrlCtx); err != nil {
+					glog.Fatalf("error starting controllers: %v", err)
+				}
+
+				ctrlCtx.KubeNamespacedInformerFactory.Start(ctrlCtx.Stop)
+				close(ctrlCtx.InformersStarted)
+
+				select {}
+			},
 			OnStoppedLeading: func() {
-				glog.Fatalf("leaderelection lost")
+				glog.Fatalf("Leader election lost")
 			},
 		},
 	})

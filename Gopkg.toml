@@ -8,7 +8,14 @@ required = [
   "k8s.io/code-generator/cmd/informer-gen",
   "k8s.io/code-generator/cmd/openapi-gen",
   "k8s.io/gengo/args",
-  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/openshift"
+  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e",
+  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/actuators",
+  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/autoscaler",
+  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/infra",
+  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/operators",
+  "github.com/openshift/cluster-autoscaler-operator/pkg/apis",
+  "github.com/onsi/ginkgo",
+  "github.com/onsi/gomega",
 ]
 
 [[constraint]]
@@ -29,7 +36,7 @@ required = [
 
 [[override]]
   name = "k8s.io/kube-aggregator"
-  branch = "release-1.10"
+  version = "kubernetes-1.12.5"
 
 [[override]]
   name = "github.com/openshift/cluster-api"
@@ -45,38 +52,41 @@ required = [
 
 [[override]]
   name = "k8s.io/code-generator"
-  # revision for tag "kubernetes-1.11.2"
-  revision = "6702109cc68eb6fe6350b83e14407c8d7309fd1a"
+  version = "kubernetes-1.12.5"
 
 [[override]]
   name = "k8s.io/api"
-  # revision for tag "kubernetes-1.11.2"
-  revision = "2d6f90ab1293a1fb871cf149423ebb72aa7423aa"
+  version = "kubernetes-1.12.5"
 
 [[override]]
   name = "k8s.io/apiextensions-apiserver"
-  # revision for tag "kubernetes-1.11.2"
-  revision = "408db4a50408e2149acbd657bceb2480c13cb0a4"
+  version = "kubernetes-1.12.5"
 
 [[override]]
   name = "k8s.io/apimachinery"
-  # revision for tag "kubernetes-1.11.2"
-  revision = "103fd098999dc9c0c88536f5c9ad2e5da39373ae"
+  version = "kubernetes-1.12.5"
 
 [[override]]
   name = "k8s.io/client-go"
-  # revision for tag "kubernetes-1.11.2"
-  revision = "1f13a808da65775f22cbf47862c4e5898d8f4ca1"
-  
+  version = "kubernetes-1.12.5"
+
 [[override]]
   name = "sigs.k8s.io/controller-runtime"
-  version = "v0.1.4"
+  # version = "v0.1.8" # does not work, still pulls v.1.10 instead
+  revision = "c63ebda0bf4be5f0a8abd4003e4ea546032545ba"
+
 
 [[constraint]]
   name = "github.com/operator-framework/operator-sdk"
   # The version rule is used for a specific release and the master branch for in between releases.
   branch = "master" #osdk_branch_annotation
   # version = "=v0.1.1" #osdk_version_annotation
+
+# We need to specify fsnotify source to avoid dep panic
+# https://github.com/golang/dep/issues/1799
+[[override]]
+  name = "gopkg.in/fsnotify.v1"
+  source = "https://github.com/fsnotify/fsnotify.git"
 
 [prune]
   go-tests = true
@@ -88,6 +98,8 @@ required = [
     unused-packages = false
     non-go = false
 
-[[constraint]]
-  name = "github.com/openshift/cluster-api-actuator-pkg"
-  revision = "2620fd63480ea1155c71de87a022f1f564f09ff2"
+  [[prune.project]]
+    name = "github.com/openshift/cluster-api-actuator-pkg"
+    unused-packages = false
+    non-go = false
+    go-tests = false

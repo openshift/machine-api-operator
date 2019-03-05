@@ -136,7 +136,7 @@ type Controller struct {
 
 func (c *Controller) addNode(obj interface{}) {
 	node := obj.(*corev1.Node)
-	glog.V(3).Infof("adding node: %s", node.Name)
+	glog.V(3).Infof("Adding node: %q", node.Name)
 	c.enqueueNode(node)
 }
 
@@ -144,7 +144,7 @@ func (c *Controller) updateNode(old, cur interface{}) {
 	//oldNode := old.(*corev1.Node)
 	curNode := cur.(*corev1.Node)
 
-	glog.V(3).Infof("updating node: %s", curNode.Name)
+	glog.V(3).Infof("Updating node: %q", curNode.Name)
 	c.enqueueNode(curNode)
 }
 
@@ -164,7 +164,7 @@ func (c *Controller) deleteNode(obj interface{}) {
 		}
 	}
 
-	glog.V(3).Infof("deleting node")
+	glog.V(3).Infof("Deleting node")
 	c.enqueueNode(node)
 }
 
@@ -177,7 +177,7 @@ func (c *Controller) addMachine(obj interface{}) {
 	for _, a := range machine.Status.Addresses {
 		// Use the internal IP to look for matches:
 		if a.Type == corev1.NodeInternalIP {
-			glog.V(3).Infof("adding machine %s into machineAddress list for %s", machine.Name, a.Address)
+			glog.V(3).Infof("Adding machine %q into machineAddress list for %q", machine.Name, a.Address)
 			c.machineAddress[a.Address] = machine
 			break
 		}
@@ -194,7 +194,7 @@ func (c *Controller) updateMachine(old, cur interface{}) {
 		// Use the internal IP to look for matches:
 		if a.Type == corev1.NodeInternalIP {
 			c.machineAddress[a.Address] = machine
-			glog.V(3).Infof("updating machine addresses list. Machine: %s, address: %s", machine.Name, a.Address)
+			glog.V(3).Infof("Updating machine addresses list. Machine: %q, address: %q", machine.Name, a.Address)
 			break
 		}
 	}
@@ -213,8 +213,7 @@ func (c *Controller) deleteMachine(obj interface{}) {
 			break
 		}
 	}
-
-	glog.V(3).Infof("delete obsolete machines from machine adressses list")
+	glog.V(3).Infof("Delete obsolete machines from machine addresses list")
 }
 
 // WaitForCacheSync is a wrapper around cache.WaitForCacheSync that generates log messages
@@ -307,9 +306,9 @@ func (c *Controller) handleErr(err error, key interface{}) {
 // This function is not meant to be invoked concurrently with the same key.
 func (c *Controller) syncNode(key string) error {
 	startTime := time.Now()
-	glog.V(3).Infof("syncing node")
+	glog.V(3).Infof("Syncing node")
 	defer func() {
-		glog.V(3).Infof("finished syncing node, duration: %s", time.Now().Sub(startTime))
+		glog.V(3).Infof("Finished syncing node, duration: %s", time.Now().Sub(startTime))
 	}()
 
 	_, _, err := cache.SplitMetaNamespaceKey(key)
@@ -319,7 +318,7 @@ func (c *Controller) syncNode(key string) error {
 
 	node, err := c.nodeLister.Get(key)
 	if errors.IsNotFound(err) {
-		glog.Info("node has been deleted")
+		glog.Infof("Error syncing, Node %s has been deleted", key)
 		return nil
 	}
 	if err != nil {
@@ -337,14 +336,14 @@ func (c *Controller) processNode(node *corev1.Node) error {
 		var err error
 		namespace, machineName, err := cache.SplitMetaNamespaceKey(machineKey)
 		if err != nil {
-			glog.Infof("machine annotation format is incorrect %v: %v\n", machineKey, err)
+			glog.Infof("Error processing node %q. Machine annotation format is incorrect %q: %v", node.Name, machineKey, err)
 			return err
 		}
 		matchingMachine, err = c.machinesLister.Machines(namespace).Get(machineName)
 		// If machine matching annotation is not found, we'll still try to find one via IP matching:
 		if err != nil {
 			if errors.IsNotFound(err) {
-				glog.Warning("machine matching node has been deleted, will attempt to find new machine by IP")
+				glog.Warningf("Machine %q associated to node %q has been deleted, will attempt to find new machine by IP", machineKey, node.Name)
 			} else {
 				return err
 			}
@@ -361,11 +360,11 @@ func (c *Controller) processNode(node *corev1.Node) error {
 			}
 		}
 		if nodeInternalIP == "" {
-			glog.Warning("unable to find InternalIP for node")
-			return fmt.Errorf("unable to find InternalIP for node: %s", node.Name)
+			glog.Warningf("Unable to find InternalIP for node %q", node.Name)
+			return fmt.Errorf("unable to find InternalIP for node: %q", node.Name)
 		}
 
-		glog.V(3).Infof("searching machine cache for IP match for node")
+		glog.V(4).Infof("Searching machine cache for IP match for node %q", node.Name)
 		c.machineAddressMux.Lock()
 		machine, found := c.machineAddress[nodeInternalIP]
 		c.machineAddressMux.Unlock()
@@ -376,11 +375,14 @@ func (c *Controller) processNode(node *corev1.Node) error {
 	}
 
 	if matchingMachine == nil {
-		glog.Warning("no matching machine found for node")
-		return fmt.Errorf("no matching machine found for node: %s", node.Name)
+		return fmt.Errorf("no machine was found for node: %q", node.Name)
 	}
 
+	glog.V(3).Infof("Found machine %s for node %s", machineKey, node.Name)
 	modNode := node.DeepCopy()
+	if modNode.Annotations == nil {
+		modNode.Annotations = map[string]string{}
+	}
 	modNode.Annotations[machineAnnotationKey] = fmt.Sprintf("%s/%s", matchingMachine.Namespace, matchingMachine.Name)
 
 	if modNode.Labels == nil {
@@ -388,17 +390,17 @@ func (c *Controller) processNode(node *corev1.Node) error {
 	}
 
 	for k, v := range matchingMachine.Spec.Labels {
-		glog.V(3).Infof("copying label %s = %s", k, v)
+		glog.V(3).Infof("Copying label %s = %s", k, v)
 		modNode.Labels[k] = v
 	}
 
 	addTaintsToNode(modNode, matchingMachine)
 
 	if !reflect.DeepEqual(node, modNode) {
-		glog.V(3).Infof("node has changed, updating")
+		glog.V(3).Infof("Node %q has changed, updating", modNode.Name)
 		_, err := c.kubeClient.CoreV1().Nodes().Update(modNode)
 		if err != nil {
-			glog.Errorf("error updating node: %v", err)
+			glog.Errorf("Error updating node: %v", err)
 			return err
 		}
 	}
@@ -410,7 +412,7 @@ func (c *Controller) processNode(node *corev1.Node) error {
 // However, we believe many components can directly taint a node and there is no direct source of truth that should enforce a single writer of taints
 func addTaintsToNode(node *corev1.Node, machine *mapiv1.Machine) {
 	for _, mTaint := range machine.Spec.Taints {
-		glog.V(3).Infof("machine taint: %v", mTaint)
+		glog.V(3).Infof("Adding taint %v from machine %q to node %q", mTaint, machine.Name, node.Name)
 		alreadyPresent := false
 		for _, nTaint := range node.Spec.Taints {
 			if nTaint.Key == mTaint.Key && nTaint.Effect == mTaint.Effect {
