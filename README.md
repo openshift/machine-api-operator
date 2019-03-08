@@ -87,9 +87,9 @@ $ make nodelink-controller
      # systemctl stop kubelet
      ```
 
-  1. After some time the node will transition into `Unready` state
-  1. Watch the machine `healthcheck` controller logs to see how it notices a node
-     in `Unready` state and starts to reconcile the node
+  1. After some time the node will transition into `NotReady` state
+  1. Watch the `machine-healthcheck` controller logs to see how it notices a node
+     in `NotReady` state and starts to reconcile the node
   1. After some time the current node instance is terminated and
      new instance is created. Followed by new node joining the cluster
      and turning in `Ready` state.
