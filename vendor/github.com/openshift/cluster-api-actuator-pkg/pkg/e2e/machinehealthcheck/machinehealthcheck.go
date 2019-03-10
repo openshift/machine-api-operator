@@ -3,6 +3,7 @@ package machinehealthcheck
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -86,13 +87,18 @@ var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck controller", f
 		err = client.List(context.TODO(), &listOptions, machineList)
 		Expect(err).ToNot(HaveOccurred())
 
-		for _, m := range machineList.Items {
+		for i, m := range machineList.Items {
 			if m.Status.NodeRef != nil && m.Status.NodeRef.Name == workerNode.Name {
-				workerMachine = &m
+				workerMachine = &machineList.Items[i]
 				glog.V(2).Infof("Worker machine %s", workerMachine.Name)
 			}
 		}
 		Expect(workerMachine).ToNot(BeNil())
+
+		if strings.Contains(workerMachine.Name, "kubemark") {
+			glog.V(2).Info("Can not run this tests with the 'KubeMark' provider")
+			Skip("Can not run this tests with the 'KubeMark' provider")
+		}
 
 		glog.V(2).Infof("Create machine health check with label selector: %s", workerMachine.Labels)
 		err = e2e.CreateMachineHealthCheck(workerMachine.Labels)
