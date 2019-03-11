@@ -569,7 +569,7 @@ type OpenIDClaims struct {
 
 type OAuthList struct {
 	metav1.TypeMeta `json:",inline"`
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata"`
 
 	Items []OAuth `json:"items"`
 }

@@ -43,6 +43,10 @@ required = [
   revision = "0c3e884db79556cf786aa8436f5be977ef10c211"
 
 [[override]]
+  name = "github.com/openshift/cluster-api-actuator-pkg"
+  branch = "master"
+
+[[override]]
   name = "github.com/openshift/api"
   branch = "master"
 

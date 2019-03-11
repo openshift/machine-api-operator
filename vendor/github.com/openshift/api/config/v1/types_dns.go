@@ -71,6 +71,6 @@ type DNSStatus struct {
 type DNSList struct {
 	metav1.TypeMeta `json:",inline"`
 	// Standard object's metadata.
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata"`
 	Items           []DNS `json:"items"`
 }

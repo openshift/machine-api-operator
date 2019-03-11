@@ -32,6 +32,6 @@ type ProxySpec struct {
 type ProxyList struct {
 	metav1.TypeMeta `json:",inline"`
 	// Standard object's metadata.
-	metav1.ListMeta `json:"metadata,omitempty"`
+	metav1.ListMeta `json:"metadata"`
 	Items           []Proxy `json:"items"`
 }
