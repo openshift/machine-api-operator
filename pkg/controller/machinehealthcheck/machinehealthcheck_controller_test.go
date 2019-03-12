@@ -8,6 +8,8 @@ import (
 
 	mapiv1alpha1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
+	"github.com/openshift/machine-api-operator/pkg/util/conditions"
+
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -19,7 +21,11 @@ import (
 )
 
 const (
-	namespace = "openshift-machine-api"
+	namespace         = "openshift-machine-api"
+	badConditionsData = `items:
+- name: Ready 
+  timeout: 60s
+  status: Unknown`
 )
 
 var (
@@ -35,7 +41,7 @@ func init() {
 func node(name string, ready bool) *v1.Node {
 	nodeReadyStatus := corev1.ConditionTrue
 	if !ready {
-		nodeReadyStatus = corev1.ConditionFalse
+		nodeReadyStatus = corev1.ConditionUnknown
 	}
 
 	return &v1.Node{
@@ -105,6 +111,21 @@ func machineHealthCheck(name string) *healthcheckingv1alpha1.MachineHealthCheck 
 	}
 }
 
+func configMap(name string, data string) *corev1.ConfigMap {
+	return &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind: "ConfigMap",
+		},
+		Data: map[string]string{
+			"conditions": data,
+		},
+	}
+}
+
 func TestHasMatchingLabels(t *testing.T) {
 	machine := machine("machine")
 	testsCases := []struct {
@@ -164,18 +185,6 @@ func TestHasMatchingLabels(t *testing.T) {
 	}
 }
 
-func TestIsHealthy(t *testing.T) {
-	nodeHealthy := node("healthy", true)
-	nodeUnhealthy := node("unhealthy", false)
-
-	if health := isHealthy(nodeHealthy); !health {
-		t.Errorf("isHealthy expected true, got %t", health)
-	}
-	if health := isHealthy(nodeUnhealthy); health {
-		t.Errorf("isHealthy expected false, got %t", health)
-	}
-}
-
 func TestGetNodeCondition(t *testing.T) {
 
 	testsCases := []struct {
@@ -206,7 +215,7 @@ func TestGetNodeCondition(t *testing.T) {
 	}
 
 	for _, tc := range testsCases {
-		got := getNodeCondition(tc.node, tc.condition.Type)
+		got := conditions.GetNodeCondition(tc.node, tc.condition.Type)
 		if !reflect.DeepEqual(got, tc.expected) {
 			t.Errorf("Test case: %s. Expected: %v, got: %v", tc.node.Name, tc.expected, got)
 		}
@@ -301,8 +310,9 @@ func TestReconcile(t *testing.T) {
 func newFakeReconciler(initObjects ...runtime.Object) *ReconcileMachineHealthCheck {
 	fakeClient := fake.NewFakeClient(initObjects...)
 	return &ReconcileMachineHealthCheck{
-		client: fakeClient,
-		scheme: scheme.Scheme,
+		client:    fakeClient,
+		scheme:    scheme.Scheme,
+		namespace: namespace,
 	}
 }
 
@@ -333,33 +343,6 @@ func TestHasMachineSetOwner(t *testing.T) {
 
 }
 
-func TestLastTransitionTime(t *testing.T) {
-	node := node("test", true)
-	testsCases := []struct {
-		node      *v1.Node
-		condition corev1.NodeConditionType
-		expected  metav1.Time
-	}{
-		{
-			node:      node,
-			condition: corev1.NodeReady,
-			expected:  knownDate,
-		},
-		{
-			node:      node,
-			condition: corev1.NodeOutOfDisk,
-			expected:  metav1.Time{Time: metav1.Now().Add(-2 * remediationWaitTime)},
-		},
-	}
-
-	for _, tc := range testsCases {
-		got := lastTransitionTime(tc.node, tc.condition)
-		if got.Sub(tc.expected.Time) > time.Second {
-			t.Errorf("Expected %s, got %s", tc.expected.String(), got.String())
-		}
-	}
-}
-
 func TestUnhealthyForTooLong(t *testing.T) {
 	nodeUnhealthyForTooLong := node("nodeUnhealthyForTooLong", false)
 	nodeRecentlyUnhealthy := node("nodeRecentlyUnhealthy", false)
@@ -378,13 +361,13 @@ func TestUnhealthyForTooLong(t *testing.T) {
 		},
 	}
 	for _, tc := range testsCases {
-		if got := unhealthyForTooLong(tc.node); got != tc.expected {
+		if got := unhealthyForTooLong(&tc.node.Status.Conditions[0], time.Minute); got != tc.expected {
 			t.Errorf("Test case: %s. Expected: %t, got: %t", tc.node.Name, tc.expected, got)
 		}
 	}
 }
 
-func TestRemediate(t *testing.T) {
+func testRemediation(t *testing.T, remediationWaitTime time.Duration, initObjects ...runtime.Object) {
 	nodeHealthy := node("nodeHealthy", true)
 	nodeHealthy.Annotations = map[string]string{
 		"machine": fmt.Sprintf("%s/%s", namespace, "machineWithNodehealthy"),
@@ -454,13 +437,14 @@ func TestRemediate(t *testing.T) {
 		},
 	}
 
-	r := newFakeReconciler(
-		nodeHealthy,
-		nodeRecentlyUnhealthy,
-		machineWithNodeHealthy,
-		machineWithNodeRecentlyUnhealthy,
-		machineWithNoOwnerController,
-		machineWithNoNodeRef)
+	initObjects = append(initObjects, nodeHealthy)
+	initObjects = append(initObjects, nodeRecentlyUnhealthy)
+	initObjects = append(initObjects, machineWithNodeHealthy)
+	initObjects = append(initObjects, machineWithNodeRecentlyUnhealthy)
+	initObjects = append(initObjects, machineWithNoOwnerController)
+	initObjects = append(initObjects, machineWithNoNodeRef)
+
+	r := newFakeReconciler(initObjects...)
 	for _, tc := range testsCases {
 		result, err := remediate(r, tc.machine)
 		if result != tc.expected.result {
@@ -474,6 +458,15 @@ func TestRemediate(t *testing.T) {
 			t.Errorf("Test case: %s. Expected: %s error, got: %v", tc.machine.Name, errorExpectation, err)
 		}
 	}
+}
+
+func TestRemediateWithoutUnhealthyConditionsConfigMap(t *testing.T) {
+	testRemediation(t, 5*time.Minute)
+}
+
+func TestRemediateWithUnhealthyConditionsConfigMap(t *testing.T) {
+	cmBadConditions := configMap(healthcheckingv1alpha1.ConfigMapNodeUnhealthyConditions, badConditionsData)
+	testRemediation(t, 1*time.Minute, cmBadConditions)
 }
 
 func TestIsMaster(t *testing.T) {

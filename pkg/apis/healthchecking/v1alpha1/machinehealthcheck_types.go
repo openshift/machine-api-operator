@@ -4,6 +4,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
+// ConfigMapNodeUnhealthyConditions contains the name of the unhealthy conditions config map
+const ConfigMapNodeUnhealthyConditions = "node-unhealthy-conditions"
+
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
