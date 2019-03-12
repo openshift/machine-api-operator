@@ -80,6 +80,22 @@ $ make nodelink-controller
            machine.openshift.io/cluster-api-machineset: cluster-worker-us-east-1a
      ```
 
+  1. By default, the machine health check controller recognize only `NotReady` condition and will remove
+     unhealthy machine after 5 minutes. If you want to customize unhealthy conditions you can create `node-unhealthy-conditions` config map, for example:
+     ```yaml
+     apiVersion: v1
+     kind: ConfigMap
+     metadata:
+       name: node-unhealthy-conditions
+       namespace: openshift-machine-api
+     data:
+       conditions: |
+         items:
+         - name: NetworkUnavailable 
+           timeout: 5m
+           status: True
+     ```
+  
   1. Pick a node that is managed by one of the machineset's machines
   1. SSH into the node, disable and stop the kubelet services:
      ```
