@@ -3,7 +3,6 @@ package machinehealthcheck
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
 	. "github.com/onsi/ginkgo"
@@ -58,6 +57,13 @@ var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck controller", f
 		client, err = e2e.LoadClient()
 		Expect(err).ToNot(HaveOccurred())
 
+		isKubemarkProvider, err := e2e.IsKubemarkProvider(client)
+		Expect(err).ToNot(HaveOccurred())
+		if isKubemarkProvider {
+			glog.V(2).Info("Can not run this tests with the 'KubeMark' provider")
+			Skip("Can not run this tests with the 'KubeMark' provider")
+		}
+
 		listOptions := runtimeclient.ListOptions{
 			Namespace: e2e.TestContext.MachineApiNamespace,
 		}
@@ -94,11 +100,6 @@ var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck controller", f
 			}
 		}
 		Expect(workerMachine).ToNot(BeNil())
-
-		if strings.Contains(workerMachine.Name, "kubemark") {
-			glog.V(2).Info("Can not run this tests with the 'KubeMark' provider")
-			Skip("Can not run this tests with the 'KubeMark' provider")
-		}
 
 		glog.V(2).Infof("Create machine health check with label selector: %s", workerMachine.Labels)
 		err = e2e.CreateMachineHealthCheck(workerMachine.Labels)
@@ -137,6 +138,13 @@ var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck controller", f
 	})
 
 	AfterEach(func() {
+		isKubemarkProvider, err := e2e.IsKubemarkProvider(client)
+		Expect(err).ToNot(HaveOccurred())
+		if isKubemarkProvider {
+			glog.V(2).Info("Can not run this tests with the 'KubeMark' provider")
+			Skip("Can not run this tests with the 'KubeMark' provider")
+		}
+
 		waitForWorkersToGetReady(numberOfReadyWorkers)
 		deleteMachineHealthCheck(e2e.MachineHealthCheckName)
 		deleteKubeletKillerPods()

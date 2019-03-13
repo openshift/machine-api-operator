@@ -13,10 +13,16 @@ required = [
   "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/autoscaler",
   "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/infra",
   "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/operators",
+  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/machinehealthcheck",
   "github.com/openshift/cluster-autoscaler-operator/pkg/apis",
   "github.com/onsi/ginkgo",
   "github.com/onsi/gomega",
 ]
+
+# To override the revision="commit_id" constraint from the cluster-api-actuator-pkg
+# for github.com/openshift/machine-api-operator
+[[override]]
+  name = "github.com/openshift/machine-api-operator"
 
 [[constraint]]
   name = "github.com/ghodss/yaml"

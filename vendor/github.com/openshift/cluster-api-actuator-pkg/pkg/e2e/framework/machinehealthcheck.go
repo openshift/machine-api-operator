@@ -9,15 +9,15 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/util/rand"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/rand"
 )
 
 const (
 	// KubeletKillerPodName contains the name of the pod that stops kubelet process
 	KubeletKillerPodName = "kubelet-killer"
 	// NodeWorkerLabel contains label that every worker node has
-	NodeWorkerLabel        = "node-role.kubernetes.io/worker"
+	NodeWorkerLabel = "node-role.kubernetes.io/worker"
 	// MachineHealthCheckName contains the name of the machinehealthcheck used for tests
 	MachineHealthCheckName = "workers-check"
 )
@@ -115,7 +115,7 @@ func StopKubelet(nodeName string) error {
 				},
 			},
 			NodeName: nodeName,
-			HostPID: true,
+			HostPID:  true,
 		},
 	}
 	return client.Create(context.TODO(), pod)
