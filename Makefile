@@ -21,7 +21,11 @@ else
 endif
 
 .PHONY: check
-check: lint fmt vet verify-codegen test ## Run code validations
+check: lint fmt vet verify-codegen check-pkg test ## Run code validations
+
+.PHONY: check-pkg
+check-pkg:
+	dep check | grep -q cluster-api-actuator-pkg && exit 1 || exit 0
 
 .PHONY: build
 build: machine-api-operator nodelink-controller machine-healthcheck ## Build binaries
