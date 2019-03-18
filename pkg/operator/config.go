@@ -31,6 +31,8 @@ const (
 	OpenStackProvider = Provider("openstack")
 	// KubemarkPlatformType is used to install on Kubemark
 	KubemarkProvider = Provider("kubemark")
+	// BareMetalPlatformType is used for install using managed Bare Metal
+	BareMetalProvider = Provider("baremetal")
 )
 
 type Provider string
@@ -54,6 +56,7 @@ type Images struct {
 	ClusterAPIControllerOpenStack string `json:"clusterAPIControllerOpenStack"`
 	ClusterAPIControllerLibvirt   string `json:"clusterAPIControllerLibvirt"`
 	ClusterAPIControllerKubemark  string `json:"clusterAPIControllerKubemark"`
+	ClusterAPIControllerBareMetal string `json:"clusterAPIControllerBareMetal"`
 }
 
 // InstallConfig contains the mao relevant config coming from the install config, i.e provider
@@ -75,6 +78,9 @@ type InstallPlatform struct {
 
 	// Kubemark is the configuration used when running with Kubemark
 	Kubemark interface{} `json:"kubemark,omitempty"`
+
+	// BareMetal is the configuration used when running on managed Bare Metal
+	BareMetal interface{} `json:"baremetal,omitempty"`
 }
 
 func getInstallConfig(client kubernetes.Interface) (*InstallConfig, error) {
@@ -124,6 +130,9 @@ func getProviderFromInstallConfig(installConfig *InstallConfig) (Provider, error
 	if installConfig.Kubemark != nil {
 		return KubemarkProvider, nil
 	}
+	if installConfig.BareMetal != nil {
+		return BareMetalProvider, nil
+	}
 	return "", fmt.Errorf("no platform provider found on install config")
 }
 
@@ -150,6 +159,9 @@ func getProviderControllerFromImages(provider Provider, images Images) (string, 
 		return images.ClusterAPIControllerOpenStack, nil
 	case KubemarkProvider:
 		return images.ClusterAPIControllerKubemark, nil
+	case BareMetalProvider:
+		//FIXME Replace with a proper controller once its available
+		return images.ClusterAPIControllerLibvirt, nil
 	}
 	return "", fmt.Errorf("not known platform provider given %s", provider)
 }
