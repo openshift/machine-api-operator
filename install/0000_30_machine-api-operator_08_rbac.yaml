@@ -67,6 +67,9 @@ rules:
       - events
     verbs:
       - create
+      - watch
+      - list
+      - patch
 
   - apiGroups:
       - ""
