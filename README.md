@@ -93,11 +93,11 @@ $ make nodelink-controller
      data:
        conditions: |
          items:
-         - name: NetworkUnavailable 
+         - name: NetworkUnavailable
            timeout: 5m
            status: True
      ```
-  
+
   1. Pick a node that is managed by one of the machineset's machines
   1. SSH into the node, disable and stop the kubelet services:
      ```
@@ -138,14 +138,14 @@ You can see it in action by running an [OpenShift Cluster deployed by the Instal
 However you can run it in a vanilla Kubernetes cluster by precreating some assets:
 
 - Create a `openshift-machine-api-operator` namespace
-- Create a [CRD Status definition](test/integration/manifests/status-crd.yaml)
+- Create a [CRD Status definition](config/0000_00_cluster-version-operator_01_clusteroperator.crd.yaml)
 - Create a [CRD Machine definition](install/0000_30_machine-api-operator_02_machine.crd.yaml)
 - Create a [CRD MachineSet definition](install/0000_30_machine-api-operator_03_machineset.crd.yaml)
 - Create a [CRD MachineDeployment definition](install/0000_30_machine-api-operator_04_machinedeployment.crd.yaml)
 - Create a [CRD Cluster definition](install/0000_30_machine-api-operator_05_cluster.crd.yaml)
-- Create a [Installer config](test/integration/manifests/install-config.yaml)
+- Create a [Installer config](config/kubemark-config-infra.yaml)
 - Then you can run it as a [deployment](install/0000_30_machine-api-operator_09_deployment.yaml)
-- You should then be able to deploy a [cluster](test/integration/manifests/cluster.yaml) and a [machineSet](test/integration/manifests/machineset.yaml) object
+- You should then be able to deploy a [machineSet](config/machineset.yaml) object
 
 ## Machine API operator with Kubemark over Kubernetes
 
