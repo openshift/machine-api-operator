@@ -405,7 +405,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:02ee77e73735959df97d51e58ad18f5198a80779f23112b1c95033e242e02a3f"
+  digest = "1:8424b42c156401cdc35ace93dd3506341054f0cc80fcead8fc9a07072b828132"
   name = "github.com/openshift/cluster-api-actuator-pkg"
   packages = [
     "pkg/e2e",
@@ -413,12 +413,13 @@
     "pkg/e2e/autoscaler",
     "pkg/e2e/framework",
     "pkg/e2e/infra",
+    "pkg/e2e/machinehealthcheck",
     "pkg/e2e/operators",
     "pkg/manifests",
     "pkg/types",
   ]
   pruneopts = ""
-  revision = "3efa4690c70f9ae43099944c3eb4ba66d9e8c325"
+  revision = "47c603ff969ae4952659070f46eb51685727c533"
 
 [[projects]]
   branch = "master"
@@ -835,7 +836,7 @@
   version = "kubernetes-1.12.5"
 
 [[projects]]
-  digest = "1:453d19db061f4021786dad87cf1ddf39c39079cff800cc919b9023a793439561"
+  digest = "1:b6590ba7c03bfe522c04fca8e7c496ed8a0be45bcb818b559e9f44733c83d423"
   name = "k8s.io/apimachinery"
   packages = [
     "pkg/api/equality",
@@ -871,6 +872,7 @@
     "pkg/util/mergepatch",
     "pkg/util/naming",
     "pkg/util/net",
+    "pkg/util/rand",
     "pkg/util/runtime",
     "pkg/util/sets",
     "pkg/util/strategicpatch",
@@ -889,7 +891,7 @@
   version = "kubernetes-1.12.5"
 
 [[projects]]
-  digest = "1:7905dd4431f65971eab406e83e00cd94e41daaf3e557c023bf5bd15eae8af37f"
+  digest = "1:184f454fbbed5a87fe8c8f74937a304985d5d82c5425d748c3d7d13b3261d7e8"
   name = "k8s.io/client-go"
   packages = [
     "discovery",
@@ -1008,6 +1010,14 @@
     "rest",
     "rest/watch",
     "restmapper",
+    "scale",
+    "scale/scheme",
+    "scale/scheme/appsint",
+    "scale/scheme/appsv1beta1",
+    "scale/scheme/appsv1beta2",
+    "scale/scheme/autoscalingv1",
+    "scale/scheme/extensionsint",
+    "scale/scheme/extensionsv1beta1",
     "testing",
     "third_party/forked/golang/template",
     "tools/auth",
@@ -1191,6 +1201,7 @@
     "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/actuators",
     "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/autoscaler",
     "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/infra",
+    "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/machinehealthcheck",
     "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/operators",
     "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1",
     "github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset",
