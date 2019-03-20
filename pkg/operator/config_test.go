@@ -90,6 +90,17 @@ func TestGetProviderFromInstallConfig(t *testing.T) {
 				InstallPlatform{
 					AWS:       nil,
 					Libvirt:   nil,
+					OpenStack: nil,
+					None:      notNil,
+				},
+			},
+			expected: NoneProvider,
+		},
+		{
+			ic: &InstallConfig{
+				InstallPlatform{
+					AWS:       nil,
+					Libvirt:   nil,
 					OpenStack: notNil,
 				},
 			},
