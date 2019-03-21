@@ -33,6 +33,7 @@ const (
 	KubemarkProvider = Provider("kubemark")
 	// BareMetalPlatformType is used for install using managed Bare Metal
 	BareMetalProvider = Provider("baremetal")
+	NoneProvider      = Provider("none")
 )
 
 type Provider string
@@ -81,6 +82,9 @@ type InstallPlatform struct {
 
 	// BareMetal is the configuration used when running on managed Bare Metal
 	BareMetal interface{} `json:"baremetal,omitempty"`
+
+	// None is the configuration used when running on unmanaged UPI
+	None interface{} `json:"none,omitempty"`
 }
 
 func getInstallConfig(client kubernetes.Interface) (*InstallConfig, error) {
@@ -133,6 +137,9 @@ func getProviderFromInstallConfig(installConfig *InstallConfig) (Provider, error
 	if installConfig.BareMetal != nil {
 		return BareMetalProvider, nil
 	}
+	if installConfig.None != nil {
+		return NoneProvider, nil
+	}
 	return "", fmt.Errorf("no platform provider found on install config")
 }
 
@@ -162,6 +169,8 @@ func getProviderControllerFromImages(provider Provider, images Images) (string, 
 	case BareMetalProvider:
 		//FIXME Replace with a proper controller once its available
 		return images.ClusterAPIControllerLibvirt, nil
+	case NoneProvider:
+		return "None", nil
 	}
 	return "", fmt.Errorf("not known platform provider given %s", provider)
 }
