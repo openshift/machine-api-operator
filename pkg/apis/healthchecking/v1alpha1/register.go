@@ -36,6 +36,8 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&MachineHealthCheck{},
 		&MachineHealthCheckList{},
+		&MachineDisruptionBudget{},
+		&MachineDisruptionBudgetList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil
