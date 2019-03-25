@@ -23,6 +23,7 @@ popd
 
 echo "Coping generated CRDs"
 cp $dir/src/github.com/openshift/machine-api-operator/config/crds/healthchecking_v1alpha1_machinehealthcheck.yaml install/0000_30_machine-api-operator_07_machinehealthcheck.crd.yaml
+cp $dir/src/github.com/openshift/machine-api-operator/config/crds/healthchecking_v1alpha1_machinedisruptionbudget.yaml install/0000_30_machine-api-operator_08_machinedisruptionbudget.crd.yaml
 cp $dir/src/github.com/openshift/machine-api-operator/config/crds/machine_v1beta1_machineset.yaml install/0000_30_machine-api-operator_03_machineset.crd.yaml
 cp $dir/src/github.com/openshift/machine-api-operator/config/crds/machine_v1beta1_machine.yaml install/0000_30_machine-api-operator_02_machine.crd.yaml
 
