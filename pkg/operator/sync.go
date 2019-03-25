@@ -28,11 +28,6 @@ func (optr *Operator) syncAll(config OperatorConfig) error {
 	}
 	if config.Controllers.Provider != clusterAPIControllerNoOp {
 		if err := optr.syncClusterAPIController(config); err != nil {
-			if err := optr.statusFailing(err.Error()); err != nil {
-				// Just log the error here.  We still want to
-				// return the outer error.
-				glog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
-			}
 			glog.Errorf("Error syncing cluster api controller: %v", err)
 			return err
 		}

@@ -112,6 +112,20 @@ $ make nodelink-controller
      new instance is created. Followed by new node joining the cluster
      and turning in `Ready` state.
 
+
+## ClusterOperator Custom Resource
+
+Each operator which is deployed using CVO, is expected to create [ClusterOperator custom resource](https://github.com/openshift/cluster-version-operator/blob/master/docs/dev/clusteroperator.md) as well.
+This resource is used to communicate surrent state or status of the operator to the admins or higher level entities.
+
+`ClusterOperatorStatus` has three types of conditions:
+* Failing
+* Progressing
+* Available
+
+MAO uses work queue mechanism for reconciling desired state of the world with the actual state of the world. If processing a particular work queue item fails even after retrying for configured `maxRetries`(which is 15), item is removed from the work queue and `Failing` `ClusterOperatorStatus` condition is set at ClusterOperator object. 
+
+
 ## Dev
 
 - Build:

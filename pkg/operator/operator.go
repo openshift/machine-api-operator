@@ -161,7 +161,9 @@ func (optr *Operator) handleErr(err error, key interface{}) {
 		optr.queue.AddRateLimited(key)
 		return
 	}
-
+	if err := optr.statusFailing(err.Error()); err != nil {
+		glog.Errorf("Error syncing Operator: %v", err)
+	}
 	utilruntime.HandleError(err)
 	glog.V(1).Infof("Dropping operator %q out of the queue: %v", key, err)
 	optr.queue.Forget(key)
@@ -177,7 +179,7 @@ func (optr *Operator) sync(key string) error {
 	operatorConfig, err := optr.maoConfigFromInfrastructure()
 	if err != nil {
 		glog.Errorf("Failed getting operator config: %v", err)
-		return err
+		return fmt.Errorf("failed getting operator config: %v", err)
 	}
 	return optr.syncAll(*operatorConfig)
 }

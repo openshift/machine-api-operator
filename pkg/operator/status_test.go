@@ -102,3 +102,72 @@ func TestOperatorStatusProgressing(t *testing.T) {
 		assert.True(t, condition.LastTransitionTime.Equal(&conditionAfterAnotherSync.LastTransitionTime), "test-case %v expected LastTransitionTime not to be updated if condition state is same", i)
 	}
 }
+
+func TestOperatorStatusFailing(t *testing.T) {
+	type tCase struct {
+		currentVersion            []osconfigv1.OperandVersion
+		desiredVersion            []osconfigv1.OperandVersion
+		expectedFailingStatus     osconfigv1.ConditionStatus
+		expectedProgressingStatus osconfigv1.ConditionStatus
+		expectedErr               string
+	}
+	tCases := []tCase{
+		{
+			currentVersion: []osconfigv1.OperandVersion{
+				{
+					Name:    "operator",
+					Version: "1.0",
+				},
+			},
+			desiredVersion: []osconfigv1.OperandVersion{
+				{
+					Name:    "operator",
+					Version: "1.0",
+				},
+			},
+			expectedFailingStatus:     osconfigv1.ConditionTrue,
+			expectedProgressingStatus: osconfigv1.ConditionFalse,
+			expectedErr:               "Failed to resync for operator: 1.0 because xyz error",
+		},
+		{
+			currentVersion: []osconfigv1.OperandVersion{
+				{
+					Name:    "operator",
+					Version: "1.0",
+				},
+			},
+			desiredVersion: []osconfigv1.OperandVersion{
+				{
+					Name:    "operator",
+					Version: "2.0",
+				},
+			},
+			expectedFailingStatus:     osconfigv1.ConditionTrue,
+			expectedProgressingStatus: osconfigv1.ConditionFalse,
+			expectedErr:               "Failed when progressing towards operator: 2.0 because xyz error",
+		},
+	}
+
+	optr := Operator{eventRecorder: record.NewFakeRecorder(5)}
+	for i, tc := range tCases {
+		optr.operandVersions = tc.currentVersion
+		co := &osconfigv1.ClusterOperator{ObjectMeta: metav1.ObjectMeta{Name: clusterOperatorName}}
+		co.Status.Versions = tc.desiredVersion
+
+		optr.osClient = fakeconfigclientset.NewSimpleClientset(co)
+		optr.statusFailing("xyz error")
+		o, _ := optr.osClient.ConfigV1().ClusterOperators().Get(clusterOperatorName, metav1.GetOptions{})
+		var pcondition osconfigv1.ClusterOperatorStatusCondition
+		var fcondition osconfigv1.ClusterOperatorStatusCondition
+		for _, coCondition := range o.Status.Conditions {
+			if coCondition.Type == osconfigv1.OperatorFailing {
+				fcondition = coCondition
+			}
+			if coCondition.Type == osconfigv1.OperatorProgressing {
+				pcondition = coCondition
+			}
+		}
+		assert.Equal(t, tc.expectedFailingStatus, fcondition.Status, "test-case %v expected condition %v to be %v, but got %v", i, fcondition.Type, tc.expectedFailingStatus, fcondition.Status)
+		assert.Equal(t, tc.expectedProgressingStatus, pcondition.Status, "test-case %v expected condition %v to be %v, but got %v", i, pcondition.Type, tc.expectedProgressingStatus, pcondition.Status)
+	}
+}
