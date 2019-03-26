@@ -167,8 +167,7 @@ func getProviderControllerFromImages(provider Provider, images Images) (string, 
 	case KubemarkProvider:
 		return images.ClusterAPIControllerKubemark, nil
 	case BareMetalProvider:
-		//FIXME Replace with a proper controller once its available
-		return images.ClusterAPIControllerLibvirt, nil
+		return images.ClusterAPIControllerBareMetal, nil
 	case NoneProvider:
 		return "None", nil
 	}
