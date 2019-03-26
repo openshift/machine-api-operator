@@ -10,6 +10,7 @@ import (
 
 	osconfigv1 "github.com/openshift/api/config/v1"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	appsinformersv1 "k8s.io/client-go/informers/apps/v1"
@@ -171,7 +172,7 @@ func (optr *Operator) sync(key string) error {
 		glog.V(4).Infof("Finished syncing operator %q (%v)", key, time.Since(startTime))
 	}()
 
-	operatorConfig, err := optr.maoConfigFromInstallConfig()
+	operatorConfig, err := optr.maoConfigFromInfrastructure()
 	if err != nil {
 		glog.Errorf("Failed getting operator config: %v", err)
 		return err
@@ -187,13 +188,13 @@ func (optr *Operator) sync(key string) error {
 	return optr.syncAll(*operatorConfig)
 }
 
-func (optr *Operator) maoConfigFromInstallConfig() (*OperatorConfig, error) {
-	installConfig, err := getInstallConfig(optr.kubeClient)
+func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
+	infra, err := optr.osClient.ConfigV1().Infrastructures().Get("cluster", metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
 
-	provider, err := getProviderFromInstallConfig(installConfig)
+	provider, err := getProviderFromInfrastructure(infra)
 	if err != nil {
 		return nil, err
 	}
