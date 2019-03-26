@@ -69,7 +69,7 @@ test-e2e: ## Run openshift specific e2e test
 deploy-kubemark:
 	kustomize build config | kubectl apply -f -
 	kustomize build | kubectl apply -f -
-	kubectl apply -f config/kubemark-install-config.yaml
+	kubectl apply -f config/kubemark-config-infra.yaml
 
 .PHONY: test
 test: ## Run tests
