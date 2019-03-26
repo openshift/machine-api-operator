@@ -161,22 +161,36 @@ INFO: For development and testing purposes only
    $ kustomize build config | kubectl apply -f -
    ```
 
-3. Create `cluster-config-v1` configmap to tell the MAO to deploy `kubemark` provider:
+3. Create `cluster` `infrastructure.config.openshift.io` to tell the MAO to deploy `kubemark` provider:
    ```yaml
-   apiVersion: v1
-   kind: ConfigMap
+   apiVersion: apiextensions.k8s.io/v1beta1
+   kind: CustomResourceDefinition
    metadata:
-     name: cluster-config-v1
-     namespace: kube-system
-   data:
-     install-config: |-
-       platform:
-         kubemark: {}
+     name: infrastructures.config.openshift.io
+   spec:
+     group: config.openshift.io
+     names:
+       kind: Infrastructure
+       listKind: InfrastructureList
+       plural: infrastructures
+       singular: infrastructure
+     scope: Cluster
+     versions:
+     - name: v1
+       served: true
+   storage: true
+   ---
+   apiVersion: config.openshift.io/v1
+   kind: Infrastructure
+   metadata:
+     name: cluster
+   status:
+     platform: kubemark
    ```
 
-   The file is already present under `config/kubemark-install-config.yaml` so it's sufficient to run:
+   The file is already present under `config/kubemark-config-infra.yaml` so it's sufficient to run:
    ```sh
-   $ kubectl apply -f config/kubemark-install-config.yaml
+   $ kubectl apply -f config/kubemark-config-infra.yaml
    ```
 
 ## CI & tests
