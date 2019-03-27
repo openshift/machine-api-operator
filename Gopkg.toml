@@ -113,3 +113,7 @@ required = [
     unused-packages = false
     non-go = false
     go-tests = false
+
+[[constraint]]
+  name = "github.com/prometheus/client_golang"
+  version = "0.9.2"
