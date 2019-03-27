@@ -49,7 +49,8 @@ type ServingInfo struct {
 	// this is anonymous so that we can inline it for serialization
 	CertInfo `json:",inline"`
 	// ClientCA is the certificate bundle for all the signers that you'll recognize for incoming client certificates
-	ClientCA string `json:"clientCA"`
+	// +optional
+	ClientCA string `json:"clientCA,omitempty"`
 	// NamedCertificates is a list of certificates to use to secure requests to specific hostnames
 	NamedCertificates []NamedCertificate `json:"namedCertificates,omitempty"`
 	// MinTLSVersion is the minimum TLS version supported.
@@ -252,9 +253,6 @@ type GenericAPIServerConfig struct {
 
 	// admissionConfig holds information about how to configure admission.
 	AdmissionConfig AdmissionConfig `json:"admission"`
-
-	// TODO remove this.  We need a cut-over or we'll have a gap.
-	AdmissionPluginConfig map[string]AdmissionPluginConfig `json:"admissionPluginConfig,omitempty"`
 
 	KubeClientConfig KubeClientConfig `json:"kubeClientConfig"`
 }

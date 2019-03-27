@@ -3,6 +3,7 @@ package infra
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/golang/glog"
@@ -12,20 +13,20 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/scale"
-	"k8s.io/client-go/tools/cache"
 	"k8s.io/utils/pointer"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 )
 
 const (
-	nodeWorkerRoleLabel = "node-role.kubernetes.io/worker"
-	machineRoleLabel    = "machine.openshift.io/cluster-api-machine-role"
-	machineAPIGroup     = "machine.openshift.io"
+	machineRoleLabel = "machine.openshift.io/cluster-api-machine-role"
+	machineAPIGroup  = "machine.openshift.io"
 )
 
 func isOneMachinePerNode(client runtimeclient.Client) bool {
@@ -121,29 +122,6 @@ func getMachinesFromMachineSet(client runtimeclient.Client, machineSet mapiv1bet
 	return machinesForSet, nil
 }
 
-// getMachineFromNode returns the machine referenced by the "controllernode.MachineAnnotationKey" annotation in the given node
-func getMachineFromNode(client runtimeclient.Client, node *corev1.Node) (*mapiv1beta1.Machine, error) {
-	machineNamespaceKey, ok := node.Annotations[controllernode.MachineAnnotationKey]
-	if !ok {
-		return nil, fmt.Errorf("node %q does not have a MachineAnnotationKey %q", node.Name, controllernode.MachineAnnotationKey)
-	}
-	namespace, machineName, err := cache.SplitMetaNamespaceKey(machineNamespaceKey)
-	if err != nil {
-		return nil, fmt.Errorf("machine annotation format is incorrect %v: %v", machineNamespaceKey, err)
-	}
-
-	if namespace != e2e.TestContext.MachineApiNamespace {
-		return nil, fmt.Errorf("Machine %q is forbidden to live outside of default %v namespace", machineNamespaceKey, e2e.TestContext.MachineApiNamespace)
-	}
-
-	machine, err := e2e.GetMachine(context.TODO(), client, machineName)
-	if err != nil {
-		return nil, fmt.Errorf("error querying api for machine object: %v", err)
-	}
-
-	return machine, nil
-}
-
 // deleteMachine deletes a specific machine and returns an error otherwise
 func deleteMachine(client runtimeclient.Client, machine *mapiv1beta1.Machine) error {
 	return wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
@@ -188,28 +166,6 @@ func getNodeFromMachine(client runtimeclient.Client, machine *mapiv1beta1.Machin
 
 	glog.Infof("Machine %q is backing node %q", machine.Name, node.Name)
 	return &node, nil
-}
-
-// getWorkerNode returns a node with the nodeWorkerRoleLabel label
-func getWorkerNode(client runtimeclient.Client) (*corev1.Node, error) {
-	nodeList := corev1.NodeList{}
-	listOptions := runtimeclient.ListOptions{}
-	listOptions.MatchingLabels(map[string]string{nodeWorkerRoleLabel: ""})
-	if err := wait.PollImmediate(1*time.Second, time.Minute, func() (bool, error) {
-		if err := client.List(context.TODO(), &listOptions, &nodeList); err != nil {
-			glog.Errorf("Error querying api for nodeList object: %v, retrying...", err)
-			return false, nil
-		}
-		if len(nodeList.Items) < 1 {
-			glog.Errorf("No nodes were found with label %q", nodeWorkerRoleLabel)
-			return false, nil
-		}
-		return true, nil
-	}); err != nil {
-		glog.Errorf("Error calling getWorkerMachine: %v", err)
-		return nil, err
-	}
-	return &nodeList.Items[0], nil
 }
 
 // nodesAreReady returns true if an array of nodes are all ready
@@ -333,6 +289,223 @@ func waitUntilAllNodesAreSchedulable(client runtimeclient.Client) error {
 			}
 			glog.Infof("Node %q is schedulable", node.Name)
 		}
+		return true, nil
+	})
+}
+
+func machineFromMachineset(machineset *mapiv1beta1.MachineSet) *mapiv1beta1.Machine {
+	randomUUID := string(uuid.NewUUID())
+
+	machine := &mapiv1beta1.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: machineset.Namespace,
+			Name:      "machine-" + randomUUID[:6],
+			Labels:    machineset.Labels,
+		},
+		Spec: machineset.Spec.Template.Spec,
+	}
+	if machine.Spec.ObjectMeta.Labels == nil {
+		machine.Spec.ObjectMeta.Labels = map[string]string{}
+	}
+	for key := range nodeDrainLabels {
+		if _, exists := machine.Spec.ObjectMeta.Labels[key]; exists {
+			continue
+		}
+		machine.Spec.ObjectMeta.Labels[key] = nodeDrainLabels[key]
+	}
+	return machine
+}
+
+func waitUntilNodesAreReady(client runtimeclient.Client, listOpt *runtimeclient.ListOptions, nodeCount int) error {
+	return wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
+		nodes := corev1.NodeList{}
+		if err := client.List(context.TODO(), listOpt, &nodes); err != nil {
+			glog.Errorf("Error querying api for Node object: %v, retrying...", err)
+			return false, nil
+		}
+		// expecting nodeGroupSize nodes
+		readyNodes := 0
+		for _, node := range nodes.Items {
+			if _, exists := node.Labels[e2e.WorkerNodeRoleLabel]; !exists {
+				continue
+			}
+
+			if !e2e.IsNodeReady(&node) {
+				continue
+			}
+
+			readyNodes++
+		}
+
+		if readyNodes < nodeCount {
+			glog.Errorf("Expecting %v nodes with %#v labels in Ready state, got %v", nodeCount, nodeDrainLabels, readyNodes)
+			return false, nil
+		}
+
+		glog.Infof("Expected number (%v) of nodes with %v label in Ready state found", nodeCount, nodeDrainLabels)
+		return true, nil
+	})
+}
+
+func waitUntilNodesAreDeleted(client runtimeclient.Client, listOpt *runtimeclient.ListOptions) error {
+	return wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
+		nodes := corev1.NodeList{}
+		if err := client.List(context.TODO(), listOpt, &nodes); err != nil {
+			glog.Errorf("Error querying api for Node object: %v, retrying...", err)
+			return false, nil
+		}
+		// expecting nodeGroupSize nodes
+		nodeCounter := 0
+		for _, node := range nodes.Items {
+			if _, exists := node.Labels[e2e.WorkerNodeRoleLabel]; !exists {
+				continue
+			}
+
+			if !e2e.IsNodeReady(&node) {
+				continue
+			}
+
+			nodeCounter++
+		}
+
+		if nodeCounter > 0 {
+			glog.Errorf("Expecting to found 0 nodes with %#v labels , got %v", nodeDrainLabels, nodeCounter)
+			return false, nil
+		}
+
+		glog.Infof("Found 0 number of nodes with %v label as expected", nodeDrainLabels)
+		return true, nil
+	})
+}
+
+func waitUntilAllRCPodsAreReady(client runtimeclient.Client, rc *corev1.ReplicationController) error {
+	return wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
+		rcObj := corev1.ReplicationController{}
+		key := types.NamespacedName{
+			Namespace: rc.Namespace,
+			Name:      rc.Name,
+		}
+		if err := client.Get(context.TODO(), key, &rcObj); err != nil {
+			glog.Errorf("Error querying api RC %q object: %v, retrying...", rc.Name, err)
+			return false, nil
+		}
+		if rcObj.Status.ReadyReplicas == 0 {
+			glog.Infof("Waiting for at least one RC ready replica, ReadyReplicas: %v, Replicas: %v", rcObj.Status.ReadyReplicas, rcObj.Status.Replicas)
+			return false, nil
+		}
+		glog.Infof("Waiting for RC ready replicas, ReadyReplicas: %v, Replicas: %v", rcObj.Status.ReadyReplicas, rcObj.Status.Replicas)
+		return rcObj.Status.Replicas == rcObj.Status.ReadyReplicas, nil
+	})
+}
+
+func verifyNodeDraining(client runtimeclient.Client, targetMachine *mapiv1beta1.Machine, rc *corev1.ReplicationController) (string, error) {
+	var drainedNodeName string
+	err := wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
+		machine := mapiv1beta1.Machine{}
+
+		key := types.NamespacedName{
+			Namespace: targetMachine.Namespace,
+			Name:      targetMachine.Name,
+		}
+		if err := client.Get(context.TODO(), key, &machine); err != nil {
+			glog.Errorf("Error querying api machine %q object: %v, retrying...", targetMachine.Name, err)
+			return false, nil
+		}
+		if machine.Status.NodeRef == nil || machine.Status.NodeRef.Kind != "Node" {
+			glog.Error("Machine %q not linked to a node", machine.Name)
+			return false, nil
+		}
+
+		drainedNodeName = machine.Status.NodeRef.Name
+		node := corev1.Node{}
+
+		if err := client.Get(context.TODO(), types.NamespacedName{Name: drainedNodeName}, &node); err != nil {
+			glog.Errorf("Error querying api node %q object: %v, retrying...", drainedNodeName, err)
+			return false, nil
+		}
+
+		if !node.Spec.Unschedulable {
+			glog.Errorf("Node %q is expected to be marked as unschedulable, it is not", node.Name)
+			return false, nil
+		}
+
+		glog.Infof("Node %q is mark unschedulable as expected", node.Name)
+
+		pods := corev1.PodList{}
+		listOpt := &runtimeclient.ListOptions{}
+		listOpt.MatchingLabels(rc.Spec.Selector)
+		if err := client.List(context.TODO(), listOpt, &pods); err != nil {
+			glog.Errorf("Error querying api for Pods object: %v, retrying...", err)
+			return false, nil
+		}
+
+		podCounter := 0
+		for _, pod := range pods.Items {
+			if pod.Spec.NodeName != machine.Status.NodeRef.Name {
+				continue
+			}
+			if !pod.DeletionTimestamp.IsZero() {
+				continue
+			}
+			podCounter++
+		}
+
+		glog.Infof("Have %v pods scheduled to node %q", podCounter, machine.Status.NodeRef.Name)
+
+		// Verify we have enough pods running as well
+		rcObj := corev1.ReplicationController{}
+		key = types.NamespacedName{
+			Namespace: rc.Namespace,
+			Name:      rc.Name,
+		}
+		if err := client.Get(context.TODO(), key, &rcObj); err != nil {
+			glog.Errorf("Error querying api RC %q object: %v, retrying...", rc.Name, err)
+			return false, nil
+		}
+
+		// The point of the test is to make sure majority of the pods are rescheduled
+		// to other nodes. Pod disruption budget makes sure at most one pod
+		// owned by the RC is not Ready. So no need to test it. Though, useful to have it printed.
+		glog.Infof("RC ReadyReplicas: %v, Replicas: %v", rcObj.Status.ReadyReplicas, rcObj.Status.Replicas)
+
+		// This makes sure at most one replica is not ready
+		if rcObj.Status.Replicas-rcObj.Status.ReadyReplicas > 1 {
+			return false, fmt.Errorf("pod disruption budget not respected, node was not properly drained")
+		}
+
+		// Depends on timing though a machine can be deleted even before there is only
+		// one pod left on the node (that is being evicted).
+		if podCounter > 2 {
+			glog.Infof("Expecting at most 2 pods to be scheduled to drained node %q, got %v", machine.Status.NodeRef.Name, podCounter)
+			return false, nil
+		}
+
+		glog.Info("Expected result: all pods from the RC up to last one or two got scheduled to a different node while respecting PDB")
+		return true, nil
+	})
+
+	return drainedNodeName, err
+}
+
+func waitUntilNodeDoesNotExists(client runtimeclient.Client, nodeName string) error {
+	return wait.PollImmediate(e2e.RetryMedium, e2e.WaitLong, func() (bool, error) {
+		node := corev1.Node{}
+
+		key := types.NamespacedName{
+			Name: nodeName,
+		}
+		err := client.Get(context.TODO(), key, &node)
+		if err == nil {
+			glog.Errorf("Node %q not yet deleted", nodeName)
+			return false, nil
+		}
+
+		if !strings.Contains(err.Error(), "not found") {
+			glog.Errorf("Error querying api node %q object: %v, retrying...", nodeName, err)
+			return false, nil
+		}
+
+		glog.Infof("Node %q successfully deleted", nodeName)
 		return true, nil
 	})
 }
