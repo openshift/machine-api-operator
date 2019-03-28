@@ -25,7 +25,7 @@ check: lint fmt vet verify-codegen check-pkg test ## Run code validations
 
 .PHONY: check-pkg
 check-pkg:
-	dep check | grep -q cluster-api-actuator-pkg && exit 1 || exit 0
+	./hack/verify-actuator-pkg.sh
 
 .PHONY: build
 build: machine-api-operator nodelink-controller machine-healthcheck ## Build binaries
