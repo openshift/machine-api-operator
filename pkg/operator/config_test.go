@@ -13,6 +13,7 @@ var (
 	expectedOpenstackImage          = "docker.io/openshift/origin-openstack-machine-controllers:v4.0.0"
 	expectedMachineAPIOperatorImage = "docker.io/openshift/origin-machine-api-operator:v4.0.0"
 	expectedBareMetalImage          = "quay.io/openshift/origin-baremetal-machine-controllers:v4.0.0"
+	expectedAzureImage              = "quay.io/openshift/origin-azure-machine-controllers:v4.0.0"
 )
 
 func TestInstallConfigFromClusterConfig(t *testing.T) {
@@ -120,6 +121,18 @@ func TestGetProviderFromInstallConfig(t *testing.T) {
 				},
 			},
 			expected: BareMetalProvider,
+		},
+		{
+			ic: &InstallConfig{
+				InstallPlatform{
+					AWS:       nil,
+					Libvirt:   nil,
+					OpenStack: nil,
+					BareMetal: nil,
+					Azure:     notNil,
+				},
+			},
+			expected: AzureProvider,
 		}}
 
 	for _, test := range tests {
@@ -164,6 +177,9 @@ func TestGetImagesFromJSONFile(t *testing.T) {
 	if img.ClusterAPIControllerBareMetal != expectedBareMetalImage {
 		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedBareMetalImage, img.ClusterAPIControllerBareMetal)
 	}
+	if img.ClusterAPIControllerAzure != expectedAzureImage {
+		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedAzureImage, img.ClusterAPIControllerAzure)
+	}
 }
 
 func TestGetProviderControllerFromImages(t *testing.T) {
@@ -181,7 +197,20 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 		{
 			provider:      OpenStackProvider,
 			expectedImage: expectedOpenstackImage,
-		}}
+		},
+		{
+			provider:      BareMetalProvider,
+			expectedImage: expectedBareMetalImage,
+		},
+		{
+			provider:      AzureProvider,
+			expectedImage: expectedAzureImage,
+		},
+		{
+			provider:      NoneProvider,
+			expectedImage: "None",
+		},
+	}
 
 	imagesJSONFile := "fixtures/images.json"
 	img, err := getImagesFromJSONFile(imagesJSONFile)
