@@ -54,6 +54,13 @@ func TestGetProviderFromInfrastructure(t *testing.T) {
 			},
 		},
 		expected: BareMetalProvider,
+	}, {
+		infra: &configv1.Infrastructure{
+			Status: configv1.InfrastructureStatus{
+				Platform: configv1.VSpherePlatform,
+			},
+		},
+		expected: VSphereProvider,
 	}}
 
 	for _, test := range tests {

@@ -177,8 +177,9 @@ func (optr *Operator) sync(key string) error {
 		glog.Errorf("Failed getting operator config: %v", err)
 		return err
 	}
-	if operatorConfig.Controllers.Provider == "None" {
-		glog.V(1).Info("`None` provider specified, reporting available")
+	switch p := operatorConfig.Controllers.Provider; p {
+	case "vSphere", "None":
+		glog.V(1).Infof("%q provider specified, reporting available", p)
 		if err := optr.statusAvailable(); err != nil {
 			glog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
 			return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)

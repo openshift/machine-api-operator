@@ -22,7 +22,9 @@ const (
 	KubemarkProvider = Provider("kubemark")
 	// BareMetalPlatformType is used for install using managed Bare Metal
 	BareMetalProvider = Provider("baremetal")
-	NoneProvider      = Provider("none")
+	// VSpherePlatformType is used for install on vSphere
+	VSphereProvider = Provider("vsphere")
+	NoneProvider    = Provider("none")
 )
 
 type Provider string
@@ -63,6 +65,8 @@ func getProviderFromInfrastructure(infra *configv1.Infrastructure) (Provider, er
 		return KubemarkProvider, nil
 	case configv1.PlatformType("baremetal"):
 		return BareMetalProvider, nil
+	case configv1.VSpherePlatform:
+		return VSphereProvider, nil
 	}
 	return "", fmt.Errorf("no platform provider found on install config")
 }
@@ -92,6 +96,8 @@ func getProviderControllerFromImages(provider Provider, images Images) (string, 
 		return images.ClusterAPIControllerKubemark, nil
 	case BareMetalProvider:
 		return images.ClusterAPIControllerBareMetal, nil
+	case VSphereProvider:
+		return "vSphere", nil
 	case NoneProvider:
 		return "None", nil
 	}
