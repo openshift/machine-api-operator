@@ -10,7 +10,6 @@ data:
       "clusterAPIControllerAWS": "docker.io/openshift/origin-aws-machine-controllers:v4.0.0",
       "clusterAPIControllerOpenStack": "docker.io/openshift/origin-openstack-machine-controllers:v4.0.0",
       "clusterAPIControllerLibvirt": "docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0",
-      "clusterAPIControllerKubemark": "docker.io/gofed/kubemark-machine-controllers:v1.0",
       "clusterAPIControllerBareMetal": "quay.io/openshift/origin-baremetal-machine-controllers:v4.0.0",
       "clusterAPIControllerAzure": "quay.io/openshift/origin-azure-machine-controllers:v4.0.0"
     }

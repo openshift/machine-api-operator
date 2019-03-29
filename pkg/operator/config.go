@@ -17,6 +17,8 @@ import (
 )
 
 const (
+	// TODO(alberto): move to "quay.io/openshift/origin-kubemark-machine-controllers:v4.0.0" once available
+	clusterAPIControllerKubemark = "docker.io/gofed/kubemark-machine-controllers:v1.0"
 	// ClusterConfigNamespace is the namespace containing the cluster config
 	ClusterConfigNamespace = "kube-system"
 	// ClusterConfigName is the name of the cluster config configmap
@@ -57,7 +59,6 @@ type Images struct {
 	ClusterAPIControllerAWS       string `json:"clusterAPIControllerAWS"`
 	ClusterAPIControllerOpenStack string `json:"clusterAPIControllerOpenStack"`
 	ClusterAPIControllerLibvirt   string `json:"clusterAPIControllerLibvirt"`
-	ClusterAPIControllerKubemark  string `json:"clusterAPIControllerKubemark"`
 	ClusterAPIControllerBareMetal string `json:"clusterAPIControllerBareMetal"`
 	ClusterAPIControllerAzure     string `json:"clusterAPIControllerAzure"`
 }
@@ -173,7 +174,7 @@ func getProviderControllerFromImages(provider Provider, images Images) (string, 
 	case OpenStackProvider:
 		return images.ClusterAPIControllerOpenStack, nil
 	case KubemarkProvider:
-		return images.ClusterAPIControllerKubemark, nil
+		return clusterAPIControllerKubemark, nil
 	case BareMetalProvider:
 		return images.ClusterAPIControllerBareMetal, nil
 	case AzureProvider:
