@@ -33,6 +33,7 @@ const (
 	KubemarkProvider = Provider("kubemark")
 	// BareMetalPlatformType is used for install using managed Bare Metal
 	BareMetalProvider = Provider("baremetal")
+	AzureProvider     = Provider("azure")
 	NoneProvider      = Provider("none")
 )
 
@@ -58,6 +59,7 @@ type Images struct {
 	ClusterAPIControllerLibvirt   string `json:"clusterAPIControllerLibvirt"`
 	ClusterAPIControllerKubemark  string `json:"clusterAPIControllerKubemark"`
 	ClusterAPIControllerBareMetal string `json:"clusterAPIControllerBareMetal"`
+	ClusterAPIControllerAzure     string `json:"clusterAPIControllerAzure"`
 }
 
 // InstallConfig contains the mao relevant config coming from the install config, i.e provider
@@ -82,6 +84,9 @@ type InstallPlatform struct {
 
 	// BareMetal is the configuration used when running on managed Bare Metal
 	BareMetal interface{} `json:"baremetal,omitempty"`
+
+	// Azure is the configuration used when running on managed Azure
+	Azure interface{} `json:"azure,omitempty"`
 
 	// None is the configuration used when running on unmanaged UPI
 	None interface{} `json:"none,omitempty"`
@@ -137,6 +142,9 @@ func getProviderFromInstallConfig(installConfig *InstallConfig) (Provider, error
 	if installConfig.BareMetal != nil {
 		return BareMetalProvider, nil
 	}
+	if installConfig.Azure != nil {
+		return AzureProvider, nil
+	}
 	if installConfig.None != nil {
 		return NoneProvider, nil
 	}
@@ -168,6 +176,8 @@ func getProviderControllerFromImages(provider Provider, images Images) (string, 
 		return images.ClusterAPIControllerKubemark, nil
 	case BareMetalProvider:
 		return images.ClusterAPIControllerBareMetal, nil
+	case AzureProvider:
+		return images.ClusterAPIControllerAzure, nil
 	case NoneProvider:
 		return "None", nil
 	}
