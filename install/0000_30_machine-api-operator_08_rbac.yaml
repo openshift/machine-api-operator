@@ -36,6 +36,14 @@ rules:
       - update
 
   - apiGroups:
+      - config.openshift.io
+    resources:
+      - infrastructures
+      - infrastructures/status
+    verbs:
+      - get
+
+  - apiGroups:
       - apps
     resources:
       - deployments
