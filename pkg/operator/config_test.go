@@ -19,49 +19,56 @@ var (
 func TestGetProviderFromInfrastructure(t *testing.T) {
 	tests := []struct {
 		infra    *configv1.Infrastructure
-		expected Provider
+		expected configv1.PlatformType
 	}{{
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
 				Platform: configv1.AWSPlatform,
 			},
 		},
-		expected: AWSProvider,
+		expected: configv1.AWSPlatform,
 	}, {
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
 				Platform: configv1.LibvirtPlatform,
 			},
 		},
-		expected: LibvirtProvider,
-	}, {
-		infra: &configv1.Infrastructure{
-			Status: configv1.InfrastructureStatus{
-				Platform: configv1.NonePlatform,
-			},
-		},
-		expected: NoneProvider,
+		expected: configv1.LibvirtPlatform,
 	}, {
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
 				Platform: configv1.OpenStackPlatform,
 			},
 		},
-		expected: OpenStackProvider,
-	}, {
-		infra: &configv1.Infrastructure{
-			Status: configv1.InfrastructureStatus{
-				Platform: configv1.PlatformType("baremetal"),
-			},
-		},
-		expected: BareMetalProvider,
+		expected: configv1.OpenStackPlatform,
 	}, {
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
 				Platform: configv1.AzurePlatform,
 			},
 		},
-		expected: AzureProvider,
+		expected: configv1.AzurePlatform,
+	}, {
+		infra: &configv1.Infrastructure{
+			Status: configv1.InfrastructureStatus{
+				Platform: bareMetalPlatform,
+			},
+		},
+		expected: bareMetalPlatform,
+	}, {
+		infra: &configv1.Infrastructure{
+			Status: configv1.InfrastructureStatus{
+				Platform: kubemarkPlatform,
+			},
+		},
+		expected: kubemarkPlatform,
+	}, {
+		infra: &configv1.Infrastructure{
+			Status: configv1.InfrastructureStatus{
+				Platform: configv1.NonePlatform,
+			},
+		},
+		expected: configv1.NonePlatform,
 	}}
 
 	for _, test := range tests {
@@ -99,31 +106,35 @@ func TestGetImagesFromJSONFile(t *testing.T) {
 
 func TestGetProviderControllerFromImages(t *testing.T) {
 	tests := []struct {
-		provider      Provider
+		provider      configv1.PlatformType
 		expectedImage string
 	}{{
-		provider:      AWSProvider,
+		provider:      configv1.AWSPlatform,
 		expectedImage: expectedAWSImage,
 	},
 		{
-			provider:      LibvirtProvider,
+			provider:      configv1.LibvirtPlatform,
 			expectedImage: expectedLibvirtImage,
 		},
 		{
-			provider:      OpenStackProvider,
+			provider:      configv1.OpenStackPlatform,
 			expectedImage: expectedOpenstackImage,
 		},
 		{
-			provider:      BareMetalProvider,
+			provider:      bareMetalPlatform,
 			expectedImage: expectedBareMetalImage,
 		},
 		{
-			provider:      AzureProvider,
+			provider:      configv1.AzurePlatform,
 			expectedImage: expectedAzureImage,
 		},
 		{
-			provider:      NoneProvider,
-			expectedImage: "None",
+			provider:      kubemarkPlatform,
+			expectedImage: clusterAPIControllerKubemark,
+		},
+		{
+			provider:      configv1.NonePlatform,
+			expectedImage: clusterAPIControllerNoOp,
 		},
 	}
 

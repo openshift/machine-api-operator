@@ -14,18 +14,9 @@ import (
 const (
 	// TODO(alberto): move to "quay.io/openshift/origin-kubemark-machine-controllers:v4.0.0" once available
 	clusterAPIControllerKubemark = "docker.io/gofed/kubemark-machine-controllers:v1.0"
-	// AWSPlatformType is used to install on AWS
-	AWSProvider = Provider("aws")
-	// LibvirtPlatformType is used to install of libvirt
-	LibvirtProvider = Provider("libvirt")
-	// OpenStackPlatformType is used to install on OpenStack
-	OpenStackProvider = Provider("openstack")
-	// KubemarkPlatformType is used to install on Kubemark
-	KubemarkProvider = Provider("kubemark")
-	// BareMetalPlatformType is used for install using managed Bare Metal
-	BareMetalProvider = Provider("baremetal")
-	AzureProvider     = Provider("azure")
-	NoneProvider      = Provider("none")
+	clusterAPIControllerNoOp     = "no-op"
+	kubemarkPlatform             = configv1.PlatformType("kubemark")
+	bareMetalPlatform            = configv1.PlatformType("baremetal")
 )
 
 type Provider string
@@ -52,54 +43,11 @@ type Images struct {
 	ClusterAPIControllerAzure     string `json:"clusterAPIControllerAzure"`
 }
 
-// InstallConfig contains the mao relevant config coming from the install config, i.e provider
-type InstallConfig struct {
-	InstallPlatform `json:"platform"`
-}
-
-// InstallPlatform is the configuration for the specific platform upon which to perform
-// the installation. Only one of the platform configuration should be set
-type InstallPlatform struct {
-	// AWS is the configuration used when running on AWS
-	AWS interface{} `json:"aws,omitempty"`
-
-	// Libvirt is the configuration used when running on libvirt
-	Libvirt interface{} `json:"libvirt,omitempty"`
-
-	// OpenStack is the configuration used when running on OpenStack
-	OpenStack interface{} `json:"openstack,omitempty"`
-
-	// Kubemark is the configuration used when running with Kubemark
-	Kubemark interface{} `json:"kubemark,omitempty"`
-
-	// BareMetal is the configuration used when running on managed Bare Metal
-	BareMetal interface{} `json:"baremetal,omitempty"`
-
-	// Azure is the configuration used when running on managed Azure
-	Azure interface{} `json:"azure,omitempty"`
-
-	// None is the configuration used when running on unmanaged UPI
-	None interface{} `json:"none,omitempty"`
-}
-
-func getProviderFromInfrastructure(infra *configv1.Infrastructure) (Provider, error) {
-	switch infra.Status.Platform {
-	case configv1.AWSPlatform:
-		return AWSProvider, nil
-	case configv1.LibvirtPlatform:
-		return LibvirtProvider, nil
-	case configv1.OpenStackPlatform:
-		return OpenStackProvider, nil
-	case configv1.AzurePlatform:
-		return AzureProvider, nil
-	case configv1.NonePlatform:
-		return NoneProvider, nil
-	case configv1.PlatformType("kubemark"):
-		return KubemarkProvider, nil
-	case configv1.PlatformType("baremetal"):
-		return BareMetalProvider, nil
+func getProviderFromInfrastructure(infra *configv1.Infrastructure) (configv1.PlatformType, error) {
+	if infra.Status.Platform == "" {
+		return "", fmt.Errorf("no platform provider found on install config")
 	}
-	return "", fmt.Errorf("no platform provider found on install config")
+	return infra.Status.Platform, nil
 }
 
 func getImagesFromJSONFile(filePath string) (*Images, error) {
@@ -115,24 +63,23 @@ func getImagesFromJSONFile(filePath string) (*Images, error) {
 	return &i, nil
 }
 
-func getProviderControllerFromImages(provider Provider, images Images) (string, error) {
-	switch provider {
-	case AWSProvider:
+func getProviderControllerFromImages(platform configv1.PlatformType, images Images) (string, error) {
+	switch platform {
+	case configv1.AWSPlatform:
 		return images.ClusterAPIControllerAWS, nil
-	case LibvirtProvider:
+	case configv1.LibvirtPlatform:
 		return images.ClusterAPIControllerLibvirt, nil
-	case OpenStackProvider:
+	case configv1.OpenStackPlatform:
 		return images.ClusterAPIControllerOpenStack, nil
-	case KubemarkProvider:
-		return clusterAPIControllerKubemark, nil
-	case BareMetalProvider:
-		return images.ClusterAPIControllerBareMetal, nil
-	case AzureProvider:
+	case configv1.AzurePlatform:
 		return images.ClusterAPIControllerAzure, nil
-	case NoneProvider:
-		return "None", nil
+	case bareMetalPlatform:
+		return images.ClusterAPIControllerBareMetal, nil
+	case kubemarkPlatform:
+		return clusterAPIControllerKubemark, nil
+	default:
+		return clusterAPIControllerNoOp, nil
 	}
-	return "", fmt.Errorf("not known platform provider given %s", provider)
 }
 
 func getMachineAPIOperatorFromImages(images Images) (string, error) {
