@@ -3,7 +3,7 @@ package operator
 import (
 	"testing"
 
-	v1 "k8s.io/api/core/v1"
+	configv1 "github.com/openshift/api/config/v1"
 )
 
 var (
@@ -16,147 +16,62 @@ var (
 	expectedAzureImage              = "quay.io/openshift/origin-azure-machine-controllers:v4.0.0"
 )
 
-func TestInstallConfigFromClusterConfig(t *testing.T) {
-	data := make(map[string]string)
-	data[InstallConfigKey] = `
-admin:
-  email: test
-  password: test
-  sshKey: |
-    test
-baseDomain: a-domain.com
-clusterID: a7265676-7dc3-4ff3-8759-f2d6e3934e76
-machines:
-- name: master
-  platform: {}
-  replicas: 3
-- name: worker
-  platform: {}
-  replicas: 3
-metadata:
-  creationTimestamp: null
-  name: test
-networking:
-  podCIDR: 10.2.0.0/16
-  serviceCIDR: 10.3.0.0/16
-  type: flannel
-platform:
-  aws:
-    region: us-east-1
-    vpcCIDRBlock: 10.0.0.0/16
-    vpcID: ""
-pullSecret: “"
-`
-	cfg := v1.ConfigMap{
-		Data: data,
-	}
-
-	res, err := getInstallConfigFromClusterConfig(&cfg)
-	if err != nil {
-		t.Errorf("failed to get install config: %v", err)
-	}
-	if res.InstallPlatform.AWS != nil && res.InstallPlatform.Libvirt == nil && res.InstallPlatform.OpenStack == nil && res.InstallPlatform.BareMetal == nil {
-		t.Logf("got install config successfully: %+v", res)
-	} else {
-		t.Errorf("failed to getInstallConfigFromClusterConfig. Expected aws to be not nil, got: %+v", res)
-	}
-}
-
-func TestGetProviderFromInstallConfig(t *testing.T) {
-	var notNil = "not nil"
+func TestGetProviderFromInfrastructure(t *testing.T) {
 	tests := []struct {
-		ic       *InstallConfig
+		infra    *configv1.Infrastructure
 		expected Provider
 	}{{
-		ic: &InstallConfig{
-			InstallPlatform{
-				AWS:       notNil,
-				Libvirt:   nil,
-				OpenStack: nil,
-				BareMetal: nil,
+		infra: &configv1.Infrastructure{
+			Status: configv1.InfrastructureStatus{
+				Platform: configv1.AWSPlatform,
 			},
 		},
 		expected: AWSProvider,
-	},
-		{
-			ic: &InstallConfig{
-				InstallPlatform{
-					AWS:       nil,
-					Libvirt:   notNil,
-					OpenStack: nil,
-					BareMetal: nil,
-				},
+	}, {
+		infra: &configv1.Infrastructure{
+			Status: configv1.InfrastructureStatus{
+				Platform: configv1.LibvirtPlatform,
 			},
-			expected: LibvirtProvider,
 		},
-		{
-			ic: &InstallConfig{
-				InstallPlatform{
-					AWS:       nil,
-					Libvirt:   nil,
-					OpenStack: nil,
-					None:      notNil,
-				},
+		expected: LibvirtProvider,
+	}, {
+		infra: &configv1.Infrastructure{
+			Status: configv1.InfrastructureStatus{
+				Platform: configv1.NonePlatform,
 			},
-			expected: NoneProvider,
 		},
-		{
-			ic: &InstallConfig{
-				InstallPlatform{
-					AWS:       nil,
-					Libvirt:   nil,
-					OpenStack: notNil,
-					BareMetal: nil,
-				},
+		expected: NoneProvider,
+	}, {
+		infra: &configv1.Infrastructure{
+			Status: configv1.InfrastructureStatus{
+				Platform: configv1.OpenStackPlatform,
 			},
-			expected: OpenStackProvider,
 		},
-		{
-			ic: &InstallConfig{
-				InstallPlatform{
-					AWS:       nil,
-					Libvirt:   nil,
-					OpenStack: nil,
-					BareMetal: notNil,
-				},
+		expected: OpenStackProvider,
+	}, {
+		infra: &configv1.Infrastructure{
+			Status: configv1.InfrastructureStatus{
+				Platform: configv1.PlatformType("baremetal"),
 			},
-			expected: BareMetalProvider,
 		},
-		{
-			ic: &InstallConfig{
-				InstallPlatform{
-					AWS:       nil,
-					Libvirt:   nil,
-					OpenStack: nil,
-					BareMetal: nil,
-					Azure:     notNil,
-				},
+		expected: BareMetalProvider,
+	}, {
+		infra: &configv1.Infrastructure{
+			Status: configv1.InfrastructureStatus{
+				Platform: configv1.AzurePlatform,
 			},
-			expected: AzureProvider,
-		}}
+		},
+		expected: AzureProvider,
+	}}
 
 	for _, test := range tests {
-		res, err := getProviderFromInstallConfig(test.ic)
+		res, err := getProviderFromInfrastructure(test.infra)
 		if err != nil {
-			t.Errorf("failed getProviderFromInstallConfig: %v", err)
+			t.Errorf("failed getProviderFromInfrastructure: %v", err)
 		}
 		if test.expected != res {
-			t.Errorf("failed getProviderFromInstallConfig. Expected: %q, got: %q", test.expected, res)
+			t.Errorf("failed getProviderFromInfrastructure. Expected: %q, got: %q", test.expected, res)
 		}
-	}
-
-	// More than one installPlatform should error
-	ic := &InstallConfig{
-		InstallPlatform{
-			AWS:       nil,
-			Libvirt:   notNil,
-			OpenStack: notNil,
-			BareMetal: nil,
-		},
-	}
-	res, err := getProviderFromInstallConfig(ic)
-	if err == nil {
-		t.Errorf("failed getProviderFromInstallConfig. Expected error, got: %v", res)
 	}
 }
 
