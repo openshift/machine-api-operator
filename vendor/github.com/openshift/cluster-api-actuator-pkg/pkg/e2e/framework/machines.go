@@ -387,3 +387,26 @@ func (m *MachinesToDelete) Delete() {
 
 	m.machines = make([]machineToDelete, 0)
 }
+
+// GetMachineMachinesSet retruns machine owner machine set
+func GetMachineMachinesSet(machine *machinev1beta1.Machine) (*machinev1beta1.MachineSet, error) {
+	client, err := LoadClient()
+	if err != nil {
+		return nil, err
+	}
+
+	if len(machine.OwnerReferences) == 0 {
+		return nil, fmt.Errorf("machine %s does not have owner controller", machine.Name)
+	}
+
+	machineSet := &machinev1beta1.MachineSet{}
+	key := runtimeclient.ObjectKey{
+		Namespace: TestContext.MachineApiNamespace,
+		Name:      machine.OwnerReferences[0].Name,
+	}
+	err = client.Get(context.TODO(), key, machineSet)
+	if err != nil {
+		return nil, err
+	}
+	return machineSet, nil
+}
