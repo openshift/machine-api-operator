@@ -22,3 +22,7 @@ spec:
     from:
       kind: DockerImage
       name: quay.io/openshift/origin-baremetal-machine-controllers:v4.0.0
+  - name: azure-machine-controllers
+    from:
+      kind: DockerImage
+      name: quay.io/openshift/origin-azure-machine-controllers:v4.0.0
