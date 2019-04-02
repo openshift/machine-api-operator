@@ -16,7 +16,7 @@ const (
 	clusterAPIControllerKubemark = "docker.io/gofed/kubemark-machine-controllers:v1.0"
 	clusterAPIControllerNoOp     = "no-op"
 	kubemarkPlatform             = configv1.PlatformType("kubemark")
-	bareMetalPlatform            = configv1.PlatformType("baremetal")
+	bareMetalPlatform            = configv1.PlatformType("BareMetal")
 )
 
 type Provider string
