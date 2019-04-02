@@ -331,21 +331,8 @@ func hasMatchingLabels(machineHealthCheck *healthcheckingv1alpha1.MachineHealthC
 }
 
 func isMaster(machine mapiv1.Machine, client client.Client) bool {
-	machineMasterLabels := []string{
-		"machine.openshift.io/cluster-api-machine-role",
-		"machine.openshift.io/cluster-api-machine-type",
-		"sigs.k8s.io/cluster-api-machine-role",
-		"sigs.k8s.io/cluster-api-machine-type",
-	}
-	nodeMasterLabels := []string{
+	masterLabels := []string{
 		"node-role.kubernetes.io/master",
-	}
-
-	machineLabels := labels.Set(machine.Labels)
-	for _, masterLabel := range machineMasterLabels {
-		if machineLabels.Get(masterLabel) == "master" {
-			return true
-		}
 	}
 
 	node, err := getNodeFromMachine(machine, client)
@@ -354,7 +341,7 @@ func isMaster(machine mapiv1.Machine, client client.Client) bool {
 		return false
 	}
 	nodeLabels := labels.Set(node.Labels)
-	for _, masterLabel := range nodeMasterLabels {
+	for _, masterLabel := range masterLabels {
 		if nodeLabels.Has(masterLabel) {
 			return true
 		}
