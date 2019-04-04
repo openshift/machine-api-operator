@@ -61,20 +61,9 @@ func (optr *Operator) statusProgressing() error {
 	}
 
 	conds := []osconfigv1.ClusterOperatorStatusCondition{
-		{
-			Type:    osconfigv1.OperatorProgressing,
-			Status:  isProgressing,
-			Reason:  string(ReasonSyncing),
-			Message: message,
-		},
-		{
-			Type:   osconfigv1.OperatorAvailable,
-			Status: osconfigv1.ConditionTrue,
-		},
-		{
-			Type:   osconfigv1.OperatorFailing,
-			Status: osconfigv1.ConditionFalse,
-		},
+		newClusterOperatorStatusCondition(osconfigv1.OperatorProgressing, isProgressing, string(ReasonSyncing), message),
+		newClusterOperatorStatusCondition(osconfigv1.OperatorAvailable, osconfigv1.ConditionTrue, "", ""),
+		newClusterOperatorStatusCondition(osconfigv1.OperatorFailing, osconfigv1.ConditionFalse, "", ""),
 	}
 
 	return optr.syncStatus(co, conds)
@@ -84,21 +73,10 @@ func (optr *Operator) statusProgressing() error {
 // and message, and sets both the Progressing and Failing conditions to False.
 func (optr *Operator) statusAvailable() error {
 	conds := []osconfigv1.ClusterOperatorStatusCondition{
-		{
-			Type:    osconfigv1.OperatorAvailable,
-			Status:  osconfigv1.ConditionTrue,
-			Reason:  string(ReasonEmpty),
-			Message: fmt.Sprintf("Cluster Machine API Operator is available at %s", optr.printOperandVersions()),
-		},
-		{
-			Type:   osconfigv1.OperatorProgressing,
-			Status: osconfigv1.ConditionFalse,
-		},
-
-		{
-			Type:   osconfigv1.OperatorFailing,
-			Status: osconfigv1.ConditionFalse,
-		},
+		newClusterOperatorStatusCondition(osconfigv1.OperatorAvailable, osconfigv1.ConditionTrue, string(ReasonEmpty),
+			fmt.Sprintf("Cluster Machine API Operator is available at %s", optr.printOperandVersions())),
+		newClusterOperatorStatusCondition(osconfigv1.OperatorProgressing, osconfigv1.ConditionFalse, "", ""),
+		newClusterOperatorStatusCondition(osconfigv1.OperatorFailing, osconfigv1.ConditionFalse, "", ""),
 	}
 
 	co, err := optr.getOrCreateClusterOperator()
@@ -132,20 +110,10 @@ func (optr *Operator) statusFailing(error string) error {
 	}
 
 	conds := []osconfigv1.ClusterOperatorStatusCondition{
-		{
-			Type:    osconfigv1.OperatorFailing,
-			Status:  osconfigv1.ConditionTrue,
-			Reason:  string(ReasonSyncFailed),
-			Message: message,
-		},
-		{
-			Type:   osconfigv1.OperatorProgressing,
-			Status: osconfigv1.ConditionFalse,
-		},
-		{
-			Type:   osconfigv1.OperatorAvailable,
-			Status: osconfigv1.ConditionTrue,
-		},
+		newClusterOperatorStatusCondition(osconfigv1.OperatorFailing, osconfigv1.ConditionTrue,
+			string(ReasonSyncFailed), message),
+		newClusterOperatorStatusCondition(osconfigv1.OperatorProgressing, osconfigv1.ConditionFalse, "", ""),
+		newClusterOperatorStatusCondition(osconfigv1.OperatorAvailable, osconfigv1.ConditionTrue, "", ""),
 	}
 
 	co, err := optr.getOrCreateClusterOperator()
@@ -155,6 +123,18 @@ func (optr *Operator) statusFailing(error string) error {
 	optr.eventRecorder.Eventf(co, v1.EventTypeWarning, "Status failing", error)
 	glog.V(2).Info("Syncing status: failing")
 	return optr.syncStatus(co, conds)
+}
+
+func newClusterOperatorStatusCondition(conditionType osconfigv1.ClusterStatusConditionType,
+	conditionStatus osconfigv1.ConditionStatus, reason string,
+	message string) osconfigv1.ClusterOperatorStatusCondition {
+	return osconfigv1.ClusterOperatorStatusCondition{
+		Type:               conditionType,
+		Status:             conditionStatus,
+		LastTransitionTime: metav1.Now(),
+		Reason:             reason,
+		Message:            message,
+	}
 }
 
 //syncStatus applies the new condition to the mao ClusterOperator object.
