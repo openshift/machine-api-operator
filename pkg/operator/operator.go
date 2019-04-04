@@ -177,14 +177,6 @@ func (optr *Operator) sync(key string) error {
 		glog.Errorf("Failed getting operator config: %v", err)
 		return err
 	}
-	if operatorConfig.Controllers.Provider == clusterAPIControllerNoOp {
-		glog.V(1).Info("No-op provider specified, reporting available")
-		if err := optr.statusAvailable(); err != nil {
-			glog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
-			return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
-		}
-		return nil
-	}
 	return optr.syncAll(*operatorConfig)
 }
 
