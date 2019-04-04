@@ -13,8 +13,10 @@ type Project struct {
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
 	// spec holds user settable values for configuration
+	// +required
 	Spec ProjectSpec `json:"spec"`
 	// status holds observed values from the cluster. They may not be overridden.
+	// +optional
 	Status ProjectStatus `json:"status"`
 }
 
@@ -35,7 +37,7 @@ type ProjectSpec struct {
 	// If it is not specified, a default template is used.
 	//
 	// +optional
-	ProjectRequestTemplate TemplateReference `json:"projectRequestTemplate,omitempty"`
+	ProjectRequestTemplate TemplateReference `json:"projectRequestTemplate"`
 }
 
 type ProjectStatus struct {

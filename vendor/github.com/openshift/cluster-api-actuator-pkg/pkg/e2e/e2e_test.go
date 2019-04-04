@@ -13,7 +13,6 @@ import (
 	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
 	"k8s.io/client-go/kubernetes/scheme"
 
-	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/actuators"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/autoscaler"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/infra"
 	_ "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/machinehealthcheck"

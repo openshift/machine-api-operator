@@ -23,31 +23,31 @@ func TestGetProviderFromInfrastructure(t *testing.T) {
 	}{{
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
-				Platform: configv1.AWSPlatform,
+				Platform: configv1.AWSPlatformType,
 			},
 		},
-		expected: configv1.AWSPlatform,
+		expected: configv1.AWSPlatformType,
 	}, {
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
-				Platform: configv1.LibvirtPlatform,
+				Platform: configv1.LibvirtPlatformType,
 			},
 		},
-		expected: configv1.LibvirtPlatform,
+		expected: configv1.LibvirtPlatformType,
 	}, {
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
-				Platform: configv1.OpenStackPlatform,
+				Platform: configv1.OpenStackPlatformType,
 			},
 		},
-		expected: configv1.OpenStackPlatform,
+		expected: configv1.OpenStackPlatformType,
 	}, {
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
-				Platform: configv1.AzurePlatform,
+				Platform: configv1.AzurePlatformType,
 			},
 		},
-		expected: configv1.AzurePlatform,
+		expected: configv1.AzurePlatformType,
 	}, {
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
@@ -65,10 +65,10 @@ func TestGetProviderFromInfrastructure(t *testing.T) {
 	}, {
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
-				Platform: configv1.NonePlatform,
+				Platform: configv1.NonePlatformType,
 			},
 		},
-		expected: configv1.NonePlatform,
+		expected: configv1.NonePlatformType,
 	}}
 
 	for _, test := range tests {
@@ -109,15 +109,15 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 		provider      configv1.PlatformType
 		expectedImage string
 	}{{
-		provider:      configv1.AWSPlatform,
+		provider:      configv1.AWSPlatformType,
 		expectedImage: expectedAWSImage,
 	},
 		{
-			provider:      configv1.LibvirtPlatform,
+			provider:      configv1.LibvirtPlatformType,
 			expectedImage: expectedLibvirtImage,
 		},
 		{
-			provider:      configv1.OpenStackPlatform,
+			provider:      configv1.OpenStackPlatformType,
 			expectedImage: expectedOpenstackImage,
 		},
 		{
@@ -125,7 +125,7 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 			expectedImage: expectedBareMetalImage,
 		},
 		{
-			provider:      configv1.AzurePlatform,
+			provider:      configv1.AzurePlatformType,
 			expectedImage: expectedAzureImage,
 		},
 		{
@@ -133,7 +133,7 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 			expectedImage: clusterAPIControllerKubemark,
 		},
 		{
-			provider:      configv1.NonePlatform,
+			provider:      configv1.NonePlatformType,
 			expectedImage: clusterAPIControllerNoOp,
 		},
 	}

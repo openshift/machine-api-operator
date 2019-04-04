@@ -12,8 +12,10 @@ import (
 type APIServer struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
-	Spec              APIServerSpec   `json:"spec"`
-	Status            APIServerStatus `json:"status"`
+	// +required
+	Spec APIServerSpec `json:"spec"`
+	// +optional
+	Status APIServerStatus `json:"status"`
 }
 
 type APIServerSpec struct {

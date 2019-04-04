@@ -65,13 +65,13 @@ func getImagesFromJSONFile(filePath string) (*Images, error) {
 
 func getProviderControllerFromImages(platform configv1.PlatformType, images Images) (string, error) {
 	switch platform {
-	case configv1.AWSPlatform:
+	case configv1.AWSPlatformType:
 		return images.ClusterAPIControllerAWS, nil
-	case configv1.LibvirtPlatform:
+	case configv1.LibvirtPlatformType:
 		return images.ClusterAPIControllerLibvirt, nil
-	case configv1.OpenStackPlatform:
+	case configv1.OpenStackPlatformType:
 		return images.ClusterAPIControllerOpenStack, nil
-	case configv1.AzurePlatform:
+	case configv1.AzurePlatformType:
 		return images.ClusterAPIControllerAzure, nil
 	case bareMetalPlatform:
 		return images.ClusterAPIControllerBareMetal, nil
