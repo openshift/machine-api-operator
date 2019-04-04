@@ -2,13 +2,13 @@ package machinehealthcheck
 
 import (
 	"context"
-
 	golangerrors "errors"
 	"time"
 
 	"github.com/golang/glog"
 	mapiv1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
+	"github.com/openshift/machine-api-operator/pkg/controller/disruption"
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
 
 	corev1 "k8s.io/api/core/v1"
@@ -200,20 +200,27 @@ func remediate(r *ReconcileMachineHealthCheck, remediationStrategy *healthchecki
 		// apply remediation logic, if at least one condition last more than specified timeout
 		// specific remediation logic goes here
 		if unhealthyForTooLong(nodeCondition, conditionTimeout) {
+			// do not fail immediatlty, but try again if the method fails because of the update conflict
+			if err = disruption.RetryDecrementMachineDisruptionsAllowed(r.client, machine); err != nil {
+				// if the error appears here it means that machine healthcheck operation restricted by machine
+				// disruption budget, in this case we want to re-try after one minute
+				glog.Warning(err)
+				return reconcile.Result{Requeue: true, RequeueAfter: time.Minute}, nil
+			}
+
 			if remediationStrategy != nil && *remediationStrategy == remediationStrategyReboot {
 				return r.remediationStrategyReboot(machine, node)
-			} else {
-				if isMaster(*machine, r.client) {
-					glog.Infof("The machine %s is a master node, skipping remediation", machine.Name)
-					return reconcile.Result{}, nil
-				}
-				glog.Infof("Machine %s has been unhealthy for too long, deleting", machine.Name)
-				if err := r.client.Delete(context.TODO(), machine); err != nil {
-					glog.Errorf("Failed to delete machine %s, requeuing referenced node", machine.Name)
-					return reconcile.Result{}, err
-				}
+			}
+			if isMaster(*machine, r.client) {
+				glog.Infof("The machine %s is a master node, skipping remediation", machine.Name)
 				return reconcile.Result{}, nil
 			}
+			glog.Infof("Machine %s has been unhealthy for too long, deleting", machine.Name)
+			if err := r.client.Delete(context.TODO(), machine); err != nil {
+				glog.Errorf("Failed to delete machine %s, requeuing referenced node", machine.Name)
+				return reconcile.Result{}, err
+			}
+			return reconcile.Result{}, nil
 		}
 
 		now := time.Now()

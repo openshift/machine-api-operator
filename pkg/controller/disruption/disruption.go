@@ -9,14 +9,16 @@ import (
 	mapiv1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
 	machineutil "github.com/openshift/machine-api-operator/pkg/util/machines"
-	apiequality "k8s.io/apimachinery/pkg/api/equality"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/retry"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -26,16 +28,31 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
-// DeletionTimeout sets maximum time from the moment a machine is added to DisruptedMachines in MDB.Status
-// to the time when the machine is expected to be seen by MDB controller as having been marked for deletion.
-// If the machine was not marked for deletion during that time it is assumed that it won't be deleted at
-// all and the corresponding entry can be removed from mdb.Status.DisruptedMachines. It is assumed that
-// machine/mdb apiserver to controller latency is relatively small (like 1-2sec) so the below value should
-// be more than enough.
-// If the controller is running on a different node it is important that the two nodes have synced
-// clock (via ntp for example). Otherwise MachineDisruptionBudget controller may not provide enough
-// protection against unwanted pod disruptions.
-const DeletionTimeout = 2 * time.Minute
+const (
+	// DeletionTimeout sets maximum time from the moment a machine is added to DisruptedMachines in MDB.Status
+	// to the time when the machine is expected to be seen by MDB controller as having been marked for deletion.
+	// If the machine was not marked for deletion during that time it is assumed that it won't be deleted at
+	// all and the corresponding entry can be removed from mdb.Status.DisruptedMachines. It is assumed that
+	// machine/mdb apiserver to controller latency is relatively small (like 1-2sec) so the below value should
+	// be more than enough.
+	// If the controller is running on a different node it is important that the two nodes have synced
+	// clock (via ntp for example). Otherwise MachineDisruptionBudget controller may not provide enough
+	// protection against unwanted machine disruptions.
+	DeletionTimeout = 2 * time.Minute
+	// maxDisruptedMachinSize is the max size of MachineDisruptionBudgetStatus.DisruptedMachines.
+	// MachineHealthCheck will refuse to delete machine covered by the corresponding MDB
+	// if the size of the map exceeds this value.
+	maxDisruptedMachinSize = 50
+)
+
+// updateMDBRetry is the retry for a conflict where multiple clients
+// are making changes to the same resource.
+var updateMDBRetry = wait.Backoff{
+	Steps:    20,
+	Duration: 500 * time.Millisecond,
+	Factor:   1.0,
+	Jitter:   0.1,
+}
 
 // Add creates a new MachineDisruption Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and start it when the Manager is started.
@@ -326,7 +343,7 @@ func (r *ReconcileMachineDisruption) updateMachineDisruptionBudgetStatus(
 		ObservedGeneration:        mdb.Generation,
 	}
 
-	return r.client.Update(context.TODO(), newMdb)
+	return r.client.Status().Update(context.TODO(), newMdb)
 }
 
 // failSafe is an attempt to at least update the MachineDisruptionsAllowed field to
@@ -336,7 +353,7 @@ func (r *ReconcileMachineDisruption) updateMachineDisruptionBudgetStatus(
 func (r *ReconcileMachineDisruption) failSafe(mdb *healthcheckingv1alpha1.MachineDisruptionBudget) error {
 	newMdb := mdb.DeepCopy()
 	mdb.Status.MachineDisruptionsAllowed = 0
-	return r.client.Update(context.TODO(), newMdb)
+	return r.client.Status().Update(context.TODO(), newMdb)
 }
 
 func (r *ReconcileMachineDisruption) getMachineDisruptionBudgetForMachine(machine *mapiv1.Machine) *healthcheckingv1alpha1.MachineDisruptionBudget {
@@ -440,4 +457,73 @@ func (r *ReconcileMachineDisruption) machineToMachineDisruptionBudget(o handler.
 
 	name := client.ObjectKey{Namespace: mdb.Namespace, Name: mdb.Name}
 	return []reconcile.Request{{NamespacedName: name}}
+}
+
+// isMachineDisruptionAllowed returns true if the provided MachineDisruptionBudget allows any disruption
+func isMachineDisruptionAllowed(mdb *healthcheckingv1alpha1.MachineDisruptionBudget, maxDisruptedMachinSize int) bool {
+	if mdb.Status.ObservedGeneration < mdb.Generation {
+		glog.Warningf("The machine disruption budget %s is still being processed by the server", mdb.Name)
+		return false
+	}
+	if mdb.Status.MachineDisruptionsAllowed < 0 {
+		glog.Warningf("The machine disruption budget %s MachineDisruptionsAllowed is negative", mdb.Name)
+		return false
+	}
+	if len(mdb.Status.DisruptedMachines) > maxDisruptedMachinSize {
+		glog.Warningf("The machine disruption budget %s DisruptedMachines map too big - too many deletions not confirmed by MDB controller", mdb.Name)
+		return false
+	}
+	if mdb.Status.MachineDisruptionsAllowed == 0 {
+		glog.Warningf("Cannot remediate machine as it would violate the machine's disruption budget %s", mdb.Name)
+		return false
+	}
+
+	return true
+}
+
+func decrementMachineDisruptionsAllowed(c client.Client, machineName string, mdb *healthcheckingv1alpha1.MachineDisruptionBudget) error {
+	mdb.Status.MachineDisruptionsAllowed--
+	if mdb.Status.DisruptedMachines == nil {
+		mdb.Status.DisruptedMachines = make(map[string]metav1.Time)
+	}
+	// MachineHealthCheck controller needs to inform the MDB controller that it is about to remediate a machine
+	// so it should not consider it as available in calculations when updating MachineDisruptions allowed.
+	// If the machine is not remediated within a reasonable time limit MDB controller will assume that it won't
+	// be remediated at all and remove it from DisruptedMachines map.
+	mdb.Status.DisruptedMachines[machineName] = metav1.Time{Time: time.Now()}
+	return c.Status().Update(context.TODO(), mdb)
+}
+
+// RetryDecrementMachineDisruptionsAllowed validates if the disruption is allowed, when it allowed it will decrement
+// MDB MachineDisruptionsAllowed parameter and update the status of the MDB, in case when update failed
+// on the conflict it will try again with the backoff
+func RetryDecrementMachineDisruptionsAllowed(c client.Client, machine *mapiv1.Machine) error {
+	var mdb *healthcheckingv1alpha1.MachineDisruptionBudget
+	err := retry.RetryOnConflict(updateMDBRetry, func() error {
+		mdbs, err := machineutil.GetMachineMachineDisruptionBudgets(c, machine)
+		if err != nil {
+			return err
+		}
+
+		if len(mdbs) > 1 {
+			return fmt.Errorf("machine %q has more than one MachineDisruptionBudget, which is not supported", machine.Name)
+		}
+
+		if len(mdbs) == 1 {
+			mdb = mdbs[0]
+
+			if !isMachineDisruptionAllowed(mdb, maxDisruptedMachinSize) {
+				return fmt.Errorf("machine disruption is not allowed")
+			}
+
+			return decrementMachineDisruptionsAllowed(c, machine.Name, mdb)
+		}
+		return nil
+	})
+
+	if err == wait.ErrWaitTimeout {
+		err = fmt.Errorf("couldn't update MachineDisruptionBudget %q due to conflicts", mdb.Name)
+	}
+
+	return err
 }
