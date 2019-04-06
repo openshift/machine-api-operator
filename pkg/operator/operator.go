@@ -11,6 +11,7 @@ import (
 	osconfigv1 "github.com/openshift/api/config/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	appsinformersv1 "k8s.io/client-go/informers/apps/v1"
@@ -20,8 +21,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
-
-	"github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset/scheme"
 )
 
 const (
@@ -77,13 +76,16 @@ func New(
 		operandVersions = append(operandVersions, osconfigv1.OperandVersion{Name: "operator", Version: releaseVersion})
 	}
 
+	eventRecorderScheme := runtime.NewScheme()
+	osconfigv1.Install(eventRecorderScheme)
+
 	optr := &Operator{
 		namespace:       namespace,
 		name:            name,
 		imagesFile:      imagesFile,
 		kubeClient:      kubeClient,
 		osClient:        osClient,
-		eventRecorder:   eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "machineapioperator"}),
+		eventRecorder:   eventBroadcaster.NewRecorder(eventRecorderScheme, v1.EventSource{Component: "machineapioperator"}),
 		queue:           workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
 		operandVersions: operandVersions,
 	}
