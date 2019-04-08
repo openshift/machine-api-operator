@@ -114,6 +114,12 @@ $ make nodelink-controller
 
 ## Dev
 
+- Generate code (if needed):
+
+  ```sh
+  $ make generate
+  ```
+
 - Build:
 
   ```sh
