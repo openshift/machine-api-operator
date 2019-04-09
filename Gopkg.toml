@@ -15,6 +15,7 @@ required = [
   "github.com/openshift/cluster-autoscaler-operator/pkg/apis",
   "github.com/onsi/ginkgo",
   "github.com/onsi/gomega",
+  "sigs.k8s.io/controller-tools/cmd/controller-gen", # for crd/rbac generation
 ]
 
 # To override the revision="commit_id" constraint from the cluster-api-actuator-pkg

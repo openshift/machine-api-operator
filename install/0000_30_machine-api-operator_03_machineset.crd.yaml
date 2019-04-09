@@ -6,6 +6,27 @@ metadata:
     controller-tools.k8s.io: "1.0"
   name: machinesets.machine.openshift.io
 spec:
+  additionalPrinterColumns:
+  - JSONPath: .spec.replicas
+    description: Desired Replicas
+    name: Desired
+    type: integer
+  - JSONPath: .status.replicas
+    description: Current Replicas
+    name: Current
+    type: integer
+  - JSONPath: .status.readyReplicas
+    description: Ready Replicas
+    name: Ready
+    type: integer
+  - JSONPath: .status.availableReplicas
+    description: Observed number of available replicas
+    name: Available
+    type: string
+  - JSONPath: .metadata.creationTimestamp
+    description: Machineset age
+    name: Age
+    type: date
   group: machine.openshift.io
   names:
     kind: MachineSet
@@ -64,20 +85,39 @@ spec:
                     More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#spec-and-status'
                   properties:
                     configSource:
-                      description: To populate in the associated Node for dynamic
-                        kubelet config. This field already exists in Node, so any
-                        updates to it in the Machine spec will be automatically copied
-                        to the linked NodeRef from the status. The rest of dynamic
-                        kubelet config support should then work as-is.
+                      description: ConfigSource is used to populate in the associated
+                        Node for dynamic kubelet config. This field already exists
+                        in Node, so any updates to it in the Machine spec will be
+                        automatically copied to the linked NodeRef from the status.
+                        The rest of dynamic kubelet config support should then work
+                        as-is.
                       type: object
                     metadata:
-                      description: This ObjectMeta will autopopulate the Node created.
+                      description: ObjectMeta will autopopulate the Node created.
                         Use this to indicate what labels, annotations, name prefix,
                         etc., should be used when creating the Node.
                       type: object
+                    providerID:
+                      description: ProviderID is the identification ID of the machine
+                        provided by the provider. This field must match the provider
+                        ID as seen on the node object corresponding to this machine.
+                        This field is required by higher level consumers of cluster-api.
+                        Example use case is cluster autoscaler with cluster-api as
+                        provider. Clean-up login in the autoscaler compares machines
+                        v/s nodes to find out machines at provider which could not
+                        get registered as Kubernetes nodes. With cluster-api as a
+                        generic out-of-tree provider for autoscaler, this field is
+                        required by autoscaler to be able to have a provider view
+                        of the list of machines. Another list of nodes is queries
+                        from the k8s apiserver and then comparison is done to find
+                        out unregistered machines and are marked for delete. This
+                        field will be set by the actuators and consumed by higher
+                        level entities like autoscaler  who will be interfacing with
+                        cluster-api as generic provider.
+                      type: string
                     providerSpec:
-                      description: Provider-specific configuration to use during node
-                        creation.
+                      description: ProviderSpec details Provider-specific configuration
+                        to use during node creation.
                       properties:
                         value:
                           description: Value is an inlined, serialized representation
@@ -102,9 +142,9 @@ spec:
                           type: object
                       type: object
                     taints:
-                      description: The full, authoritative list of taints to apply
-                        to the corresponding Node. This list will overwrite any modifications
-                        made to the Node on an ongoing basis.
+                      description: Taints is the full, authoritative list of taints
+                        to apply to the corresponding Node. This list will overwrite
+                        any modifications made to the Node on an ongoing basis.
                       items:
                         type: object
                       type: array
@@ -118,12 +158,13 @@ spec:
                         this field at runtime is invalid.
                       properties:
                         controlPlane:
-                          description: Semantic version of the Kubernetes control
-                            plane to run. This should only be populated when the machine
-                            is a master.
+                          description: ControlPlane is the semantic version of the
+                            Kubernetes control plane to run. This should only be populated
+                            when the machine is a control plane.
                           type: string
                         kubelet:
-                          description: Semantic version of kubelet to run
+                          description: Kubelet is the semantic version of kubelet
+                            to run
                           type: string
                       required:
                       - kubelet
@@ -184,26 +225,6 @@ spec:
           - replicas
           type: object
   version: v1beta1
-  additionalPrinterColumns:
-  - JSONPath: .spec.replicas
-    description: Desired Replicas
-    name: Desired
-    type: integer
-  - JSONPath: .status.replicas
-    description: Current Replicas
-    name: Current
-    type: integer
-  - JSONPath: .status.readyReplicas
-    description: Ready Replicas
-    name: Ready
-    type: integer
-  - JSONPath: .status.availableReplicas
-    name: Available
-    description: Observed number of available replicas
-    type: string
-  - JSONPath: .metadata.creationTimestamp
-    name: Age
-    type: date
 status:
   acceptedNames:
     kind: ""

@@ -42,6 +42,13 @@ nodelink-controller:
 machine-healthcheck:
 	$(DOCKER_CMD) ./hack/go-build.sh machine-healthcheck
 
+.PHONY: generate
+generate: gen-crd update-codegen
+
+.PHONY: gen-crd
+gen-crd:
+	$(DOCKER_CMD) ./hack/gen-crd.sh
+
 .PHONY: update-codegen
 update-codegen:
 	$(DOCKER_CMD) ./hack/update-codegen.sh
