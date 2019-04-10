@@ -6,7 +6,6 @@ import (
 
 	"github.com/golang/glog"
 	appsv1 "k8s.io/api/apps/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
@@ -55,11 +54,15 @@ func (optr *Operator) syncClusterAPIController(config OperatorConfig) error {
 	controller := resourceread.ReadDeploymentV1OrDie(controllerBytes)
 	_, updated, err := resourceapply.ApplyDeployment(optr.kubeClient.AppsV1(), controller)
 	if err != nil {
+		glog.Error("Failed to apply deployment")
 		return err
 	}
 	if updated {
+		glog.Infof("Deployment applied: %v", controller)
+		glog.Info("Deployment was updated, waiting for rollout")
 		return optr.waitForDeploymentRollout(controller)
 	}
+	glog.Info("Deployment was not updated.")
 	return nil
 }
 
@@ -69,9 +72,6 @@ func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment) erro
 		// This will be debugged later on to find out the root cause. For now, working aound is to use kubeClient.AppsV1
 		// d, err := optr.deployLister.Deployments(resource.Namespace).Get(resource.Name)
 		d, err := optr.kubeClient.AppsV1().Deployments(resource.Namespace).Get(resource.Name, metav1.GetOptions{})
-		if apierrors.IsNotFound(err) {
-			return false, nil
-		}
 		if err != nil {
 			// Do not return error here, as we could be updating the API Server itself, in which case we
 			// want to continue waiting.
