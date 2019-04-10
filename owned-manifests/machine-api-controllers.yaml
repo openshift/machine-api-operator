@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: clusterapi-manager-controllers
+  name: machine-api-controllers
   namespace: {{ .TargetNamespace }}
   labels:
     api: clusterapi
@@ -39,7 +39,7 @@ spec:
       - name: controller-manager
         image: {{ .Controllers.Provider }}
         command:
-          - "./manager"
+          - /manager
         args:
           - --logtostderr=true
           - --v=3
@@ -70,7 +70,7 @@ spec:
           requests:
             cpu: 10m
             memory: 20Mi
-      - name: machine-healthcheck
+      - name: machine-healthcheck-controller
         image: {{ .Controllers.MachineHealthCheck }}
         command:
           - /machine-healthcheck
