@@ -81,6 +81,7 @@ func startControllers(ctx *ControllerContext) error {
 
 		config,
 		ctx.KubeNamespacedInformerFactory.Apps().V1().Deployments(),
+		ctx.ConfigInformerFactory.Config().V1().FeatureGates(),
 
 		ctx.ClientBuilder.KubeClientOrDie(componentName),
 		ctx.ClientBuilder.OpenshiftClientOrDie(componentName),

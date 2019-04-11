@@ -6,9 +6,11 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	osclientset "github.com/openshift/client-go/config/clientset/versioned"
-
 	osconfigv1 "github.com/openshift/api/config/v1"
+	osclientset "github.com/openshift/client-go/config/clientset/versioned"
+	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
+	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
+
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -49,6 +51,9 @@ type Operator struct {
 	deployLister       appslisterv1.DeploymentLister
 	deployListerSynced cache.InformerSynced
 
+	featureGateLister    configlistersv1.FeatureGateLister
+	featureGateCacheSync cache.InformerSynced
+
 	// queue only ever has one item, but it has nice error handling backoff/retry semantics
 	queue           workqueue.RateLimitingInterface
 	operandVersions []osconfigv1.OperandVersion
@@ -62,6 +67,7 @@ func New(
 	config string,
 
 	deployInformer appsinformersv1.DeploymentInformer,
+	featureGateInformer configinformersv1.FeatureGateInformer,
 
 	kubeClient kubernetes.Interface,
 	osClient osclientset.Interface,
@@ -91,12 +97,16 @@ func New(
 	}
 
 	deployInformer.Informer().AddEventHandler(optr.eventHandler())
+	featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
 
 	optr.config = config
 	optr.syncHandler = optr.sync
 
 	optr.deployLister = deployInformer.Lister()
 	optr.deployListerSynced = deployInformer.Informer().HasSynced
+
+	optr.featureGateLister = featureGateInformer.Lister()
+	optr.featureGateCacheSync = featureGateInformer.Informer().HasSynced
 
 	return optr
 }

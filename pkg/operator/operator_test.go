@@ -88,10 +88,15 @@ func TestOperatorSync_NoOp(t *testing.T) {
 				},
 			}
 
+			configClient := fakeos.NewSimpleClientset()
+			configSharedInformer := configinformersv1.NewSharedInformerFactoryWithOptions(configClient, 10*time.Minute)
+			featureGateInformer := configSharedInformer.Config().V1().FeatureGates()
+
 			optr := Operator{
-				eventRecorder: record.NewFakeRecorder(5),
-				osClient:      fakeconfigclientset.NewSimpleClientset(infra),
-				imagesFile:    imagesFilePath,
+				eventRecorder:     record.NewFakeRecorder(5),
+				osClient:          fakeconfigclientset.NewSimpleClientset(infra),
+				imagesFile:        imagesFilePath,
+				featureGateLister: featureGateInformer.Lister(),
 			}
 
 			err = optr.sync("test-key")
