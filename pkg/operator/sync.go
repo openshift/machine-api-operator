@@ -5,15 +5,15 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+
 	appsv1 "k8s.io/api/apps/v1"
+	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	"path/filepath"
-
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
-	"github.com/openshift/cluster-version-operator/lib/resourceread"
 )
 
 const (
@@ -48,11 +48,7 @@ func (optr *Operator) syncAll(config OperatorConfig) error {
 }
 
 func (optr *Operator) syncClusterAPIController(config OperatorConfig) error {
-	controllerBytes, err := PopulateTemplate(&config, filepath.Join(ownedManifestsDir, "clusterapi-manager-controllers.yaml"))
-	if err != nil {
-		return err
-	}
-	controller := resourceread.ReadDeploymentV1OrDie(controllerBytes)
+	controller := newDeployment(config)
 	_, updated, err := resourceapply.ApplyDeployment(optr.kubeClient.AppsV1(), controller)
 	if err != nil {
 		return err
@@ -89,4 +85,127 @@ func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment) erro
 		glog.V(4).Infof("Deployment %q is not ready. status: (replicas: %d, updated: %d, ready: %d, unavailable: %d)", d.Name, d.Status.Replicas, d.Status.UpdatedReplicas, d.Status.ReadyReplicas, d.Status.UnavailableReplicas)
 		return false, nil
 	})
+}
+
+func newDeployment(config OperatorConfig) *appsv1.Deployment {
+	replicas := int32(1)
+	template := newPodTemplateSpec(config)
+
+	return &appsv1.Deployment{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "clusterapi-manager-controllers",
+			Namespace: config.TargetNamespace,
+			Labels: map[string]string{
+				"api":     "clusterapi",
+				"k8s-app": "controller",
+			},
+		},
+		Spec: appsv1.DeploymentSpec{
+			Replicas: &replicas,
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"api":     "clusterapi",
+					"k8s-app": "controller",
+				},
+			},
+			Template: *template,
+		},
+	}
+}
+
+func newPodTemplateSpec(config OperatorConfig) *corev1.PodTemplateSpec {
+	containers := newContainers(config)
+	tolerations := []corev1.Toleration{
+		{
+			Key:    "node-role.kubernetes.io/master",
+			Effect: corev1.TaintEffectNoSchedule,
+		},
+		{
+			Key:      "CriticalAddonsOnly",
+			Operator: corev1.TolerationOpExists,
+		},
+		{
+			Key:      "node.alpha.kubernetes.io/notReady",
+			Effect:   corev1.TaintEffectNoExecute,
+			Operator: corev1.TolerationOpExists,
+		},
+		{
+			Key:      "node.alpha.kubernetes.io/unreachable",
+			Effect:   corev1.TaintEffectNoExecute,
+			Operator: corev1.TolerationOpExists,
+		},
+	}
+
+	_true := true
+	user := int64(65534)
+	return &corev1.PodTemplateSpec{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				"api":     "clusterapi",
+				"k8s-app": "controller",
+			},
+		},
+		Spec: corev1.PodSpec{
+			Containers:        containers,
+			PriorityClassName: "system-node-critical",
+			NodeSelector:      map[string]string{"node-role.kubernetes.io/master": ""},
+			SecurityContext: &corev1.PodSecurityContext{
+				RunAsNonRoot: &_true,
+				RunAsUser:    &user,
+			},
+			Tolerations: tolerations,
+		},
+	}
+}
+
+func newContainers(config OperatorConfig) []corev1.Container {
+	controllerManagerMemory := resource.MustParse("20Mi")
+	controllerManagerCPU := resource.MustParse("10m")
+	resources := corev1.ResourceRequirements{
+		Requests: map[corev1.ResourceName]resource.Quantity{
+			corev1.ResourceMemory: controllerManagerMemory,
+			corev1.ResourceCPU:    controllerManagerCPU,
+		},
+	}
+	args := []string{"--logtostderr=true", "--v=3"}
+
+	return []corev1.Container{
+		{
+			Name:      "controller-manager",
+			Image:     config.Controllers.Provider,
+			Command:   []string{"/manager"},
+			Args:      args,
+			Resources: resources,
+		},
+		{
+			Name:    "machine-controller",
+			Image:   config.Controllers.Provider,
+			Command: []string{"/machine-controller-manager"},
+			Args:    args,
+			Env: []corev1.EnvVar{
+				{
+					Name: "NODE_NAME",
+					ValueFrom: &corev1.EnvVarSource{
+						FieldRef: &corev1.ObjectFieldSelector{
+							FieldPath: "spec.nodeName",
+						},
+					},
+				},
+			},
+		},
+		{
+			Name:      "nodelink-controller",
+			Image:     config.Controllers.NodeLink,
+			Command:   []string{"/nodelink-controller"},
+			Args:      args,
+			Resources: resources,
+		},
+		{
+			Name:      "machine-healthcheck",
+			Image:     config.Controllers.MachineHealthCheck,
+			Command:   []string{"/machine-healthcheck"},
+			Args:      args,
+			Resources: resources,
+		},
+	}
 }
