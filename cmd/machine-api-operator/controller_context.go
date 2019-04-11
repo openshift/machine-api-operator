@@ -3,6 +3,9 @@ package main
 import (
 	"time"
 
+	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions"
+
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/informers"
 )
@@ -11,7 +14,8 @@ import (
 type ControllerContext struct {
 	ClientBuilder *ClientBuilder
 
-	KubeNamespacedInformerFactory informers.SharedInformerFactory
+	KubeNamespacedInformerFactory   informers.SharedInformerFactory
+	ConfigNamespacedInformerFactory configinformersv1.SharedInformerFactory
 
 	AvailableResources map[schema.GroupVersionResource]bool
 
@@ -25,12 +29,15 @@ type ControllerContext struct {
 // CreateControllerContext creates the ControllerContext with the ClientBuilder.
 func CreateControllerContext(cb *ClientBuilder, stop <-chan struct{}, targetNamespace string) *ControllerContext {
 	kubeClient := cb.KubeClientOrDie("kube-shared-informer")
+	openshiftClient := cb.OpenshiftClientOrDie("openshift-shared-informer")
 
-	kubeNamespacedSharedInformer := informers.NewFilteredSharedInformerFactory(kubeClient, resyncPeriod()(), targetNamespace, nil)
+	kubeNamespacedSharedInformer := informers.NewSharedInformerFactoryWithOptions(kubeClient, resyncPeriod()(), informers.WithNamespace(targetNamespace))
+	configNamespacesShareInformer := configinformersv1.NewSharedInformerFactoryWithOptions(openshiftClient, resyncPeriod()(), configinformersv1.WithNamespace(metav1.NamespaceNone))
 
 	return &ControllerContext{
-		ClientBuilder:                 cb,
-		KubeNamespacedInformerFactory: kubeNamespacedSharedInformer,
+		ClientBuilder:                   cb,
+		KubeNamespacedInformerFactory:   kubeNamespacedSharedInformer,
+		ConfigNamespacedInformerFactory: configNamespacesShareInformer,
 		Stop:             stop,
 		InformersStarted: make(chan struct{}),
 		ResyncPeriod:     resyncPeriod(),

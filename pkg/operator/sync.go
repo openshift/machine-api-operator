@@ -8,11 +8,13 @@ import (
 
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
+	osev1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 )
 
@@ -48,7 +50,25 @@ func (optr *Operator) syncAll(config OperatorConfig) error {
 }
 
 func (optr *Operator) syncClusterAPIController(config OperatorConfig) error {
-	controller := newDeployment(config)
+	// Fetch the Feature
+	featureGate, err := optr.featureGateLister.Get(MachineAPIOperatorFeatureGate)
+
+	var featureSet osev1.FeatureSet
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			return err
+		}
+		glog.V(2).Infof("failed to find feature gate %s, will use default feature set", MachineAPIOperatorFeatureGate)
+		featureSet = osev1.Default
+	}
+
+	featureSet = featureGate.Spec.FeatureSet
+	features, err := generateFeatureMap(featureSet)
+	if err != nil {
+		return err
+	}
+
+	controller := newDeployment(config, features)
 	_, updated, err := resourceapply.ApplyDeployment(optr.kubeClient.AppsV1(), controller)
 	if err != nil {
 		return err
@@ -87,9 +107,9 @@ func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment) erro
 	})
 }
 
-func newDeployment(config OperatorConfig) *appsv1.Deployment {
+func newDeployment(config OperatorConfig, features map[string]bool) *appsv1.Deployment {
 	replicas := int32(1)
-	template := newPodTemplateSpec(config)
+	template := newPodTemplateSpec(config, features)
 
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
@@ -113,8 +133,8 @@ func newDeployment(config OperatorConfig) *appsv1.Deployment {
 	}
 }
 
-func newPodTemplateSpec(config OperatorConfig) *corev1.PodTemplateSpec {
-	containers := newContainers(config)
+func newPodTemplateSpec(config OperatorConfig, features map[string]bool) *corev1.PodTemplateSpec {
+	containers := newContainers(config, features)
 	tolerations := []corev1.Toleration{
 		{
 			Key:    "node-role.kubernetes.io/master",
@@ -158,7 +178,7 @@ func newPodTemplateSpec(config OperatorConfig) *corev1.PodTemplateSpec {
 	}
 }
 
-func newContainers(config OperatorConfig) []corev1.Container {
+func newContainers(config OperatorConfig, features map[string]bool) []corev1.Container {
 	controllerManagerMemory := resource.MustParse("20Mi")
 	controllerManagerCPU := resource.MustParse("10m")
 	resources := corev1.ResourceRequirements{
@@ -169,7 +189,7 @@ func newContainers(config OperatorConfig) []corev1.Container {
 	}
 	args := []string{"--logtostderr=true", "--v=3"}
 
-	return []corev1.Container{
+	containers := []corev1.Container{
 		{
 			Name:      "controller-manager",
 			Image:     config.Controllers.Provider,
@@ -200,12 +220,18 @@ func newContainers(config OperatorConfig) []corev1.Container {
 			Args:      args,
 			Resources: resources,
 		},
-		{
+	}
+
+	// add machine-health-check controller container if it exists and enabled under feature gates
+	if enabled, ok := features[FeatureGateMachineHealthCheck]; ok && enabled {
+		c := corev1.Container{
 			Name:      "machine-healthcheck",
 			Image:     config.Controllers.MachineHealthCheck,
 			Command:   []string{"/machine-healthcheck"},
 			Args:      args,
 			Resources: resources,
-		},
+		}
+		containers = append(containers, c)
 	}
+	return containers
 }
