@@ -379,13 +379,10 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:8f6432915758d422dd8a1e023c6f11ed58feb2f79fc42ad43971829886263788"
+  digest = "1:35475e90186b9102c7ba52b505f3289156fc745d15bccbd34bcea6caf7f31632"
   name = "github.com/openshift/api"
   packages = [
     "config/v1",
-    "image/docker10",
-    "image/dockerpre012",
-    "image/v1",
     "security/v1",
   ]
   pruneopts = "NUT"
@@ -393,7 +390,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:5b7eb2e76c3cfbcb30ce08cb53cb9668cedd55b00d03f80de1e9c6a1833564c7"
+  digest = "1:192abee7a3aa1ad1e84356e6fa4c14e9161ed107b44ff8fa80bbf1015c5ef426"
   name = "github.com/openshift/client-go"
   packages = [
     "config/clientset/versioned",
@@ -401,6 +398,10 @@
     "config/clientset/versioned/scheme",
     "config/clientset/versioned/typed/config/v1",
     "config/clientset/versioned/typed/config/v1/fake",
+    "config/informers/externalversions",
+    "config/informers/externalversions/config",
+    "config/informers/externalversions/config/v1",
+    "config/informers/externalversions/internalinterfaces",
     "config/listers/config/v1",
     "security/clientset/versioned/scheme",
     "security/clientset/versioned/typed/security/v1",
@@ -466,12 +467,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:40e9666d2102490edc5c3cfcecbd91677895a7d4560be5a79219df11511155dc"
+  digest = "1:b885968838fbb70f55036947919e3e65168639ab42deee923c9aef0d3730b447"
   name = "github.com/openshift/cluster-version-operator"
   packages = [
     "lib/resourceapply",
     "lib/resourcemerge",
-    "lib/resourceread",
   ]
   pruneopts = "NUT"
   revision = "d8611ec571d0c201c47044a729e0cf673ccd1a68"
@@ -1271,6 +1271,9 @@
     "github.com/openshift/api/config/v1",
     "github.com/openshift/client-go/config/clientset/versioned",
     "github.com/openshift/client-go/config/clientset/versioned/fake",
+    "github.com/openshift/client-go/config/informers/externalversions",
+    "github.com/openshift/client-go/config/informers/externalversions/config/v1",
+    "github.com/openshift/client-go/config/listers/config/v1",
     "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e",
     "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/autoscaler",
     "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/infra",
@@ -1284,7 +1287,6 @@
     "github.com/openshift/cluster-autoscaler-operator/pkg/apis",
     "github.com/openshift/cluster-version-operator/lib/resourceapply",
     "github.com/openshift/cluster-version-operator/lib/resourcemerge",
-    "github.com/openshift/cluster-version-operator/lib/resourceread",
     "github.com/operator-framework/operator-sdk/version",
     "github.com/spf13/cobra",
     "github.com/spf13/pflag",
@@ -1292,6 +1294,7 @@
     "k8s.io/api/apps/v1",
     "k8s.io/api/core/v1",
     "k8s.io/apimachinery/pkg/api/errors",
+    "k8s.io/apimachinery/pkg/api/resource",
     "k8s.io/apimachinery/pkg/apis/meta/v1",
     "k8s.io/apimachinery/pkg/labels",
     "k8s.io/apimachinery/pkg/runtime",
