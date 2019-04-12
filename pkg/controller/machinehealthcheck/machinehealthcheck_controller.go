@@ -100,7 +100,8 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 			return reconcile.Result{}, nil
 		}
 		// Error reading the object - requeue the request.
-		return reconcile.Result{}, err
+		glog.Warningf("Requeuing the key. Error reading the object: %v", err)
+		return reconcile.Result{Requeue: true}, nil
 	}
 
 	machineKey, ok := node.Annotations[machineAnnotationKey]
