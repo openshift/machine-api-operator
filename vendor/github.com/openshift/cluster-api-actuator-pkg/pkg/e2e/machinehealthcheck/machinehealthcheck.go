@@ -57,15 +57,9 @@ var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck controller", f
 		client, err = e2e.LoadClient()
 		Expect(err).ToNot(HaveOccurred())
 
-		isKubemarkProvider, err := e2e.IsKubemarkProvider(client)
-		Expect(err).ToNot(HaveOccurred())
-
-		// TODO: remove once we can create or update kubemark machines
-		// that will give use possibility to make this test work
-		if isKubemarkProvider {
-			glog.V(2).Info("Can not run this tests with the 'KubeMark' provider")
-			Skip("Can not run this tests with the 'KubeMark' provider")
-		}
+		// TODO: enable once https://github.com/openshift/cluster-api-actuator-pkg/pull/61 is fixed
+		glog.V(2).Info("Skipping machine health checking test")
+		Skip("Skipping machine health checking test")
 
 		workerNodes, err := e2e.GetWorkerNodes(client)
 		Expect(err).ToNot(HaveOccurred())
@@ -118,12 +112,9 @@ var _ = Describe("[Feature:MachineHealthCheck] MachineHealthCheck controller", f
 	})
 
 	AfterEach(func() {
-		isKubemarkProvider, err := e2e.IsKubemarkProvider(client)
-		Expect(err).ToNot(HaveOccurred())
-		if isKubemarkProvider {
-			glog.V(2).Info("Can not run this tests with the 'KubeMark' provider")
-			Skip("Can not run this tests with the 'KubeMark' provider")
-		}
+		// TODO: enable once https://github.com/openshift/cluster-api-actuator-pkg/pull/61 is fixed
+		glog.V(2).Info("Skipping machine health checking test")
+		Skip("Skipping machine health checking test")
 
 		waitForWorkersToGetReady(numberOfReadyWorkers)
 		deleteMachineHealthCheck(e2e.MachineHealthCheckName)
