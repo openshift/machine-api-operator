@@ -448,7 +448,15 @@ func testRemediation(t *testing.T, remediationWaitTime time.Duration, initObject
 	for _, tc := range testsCases {
 		result, err := remediate(r, tc.machine)
 		if result != tc.expected.result {
-			t.Errorf("Test case: %s. Expected: %v, got: %v", tc.machine.Name, tc.expected.result, result)
+			if tc.expected.result.Requeue {
+				before := tc.expected.result.RequeueAfter
+				after := tc.expected.result.RequeueAfter + time.Second
+				if after < result.RequeueAfter || before > result.RequeueAfter {
+					t.Errorf("Test case: %s. Expected RequeueAfter between: %v and %v, got: %v", tc.machine.Name, before, after, result)
+				}
+			} else {
+				t.Errorf("Test case: %s. Expected: %v, got: %v", tc.machine.Name, tc.expected.result, result)
+			}
 		}
 		if tc.expected.error != (err != nil) {
 			var errorExpectation string
