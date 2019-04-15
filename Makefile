@@ -70,6 +70,7 @@ test-e2e: ## Run openshift specific e2e test
 		-kubeconfig $${KUBECONFIG:-~/.kube/config} \
 		-machine-api-namespace $${NAMESPACE:-openshift-machine-api} \
 		-ginkgo.v \
+		-ginkgo.skip "reconcile controllers deployment" \
 		-args -v 5 -logtostderr true
 
 .PHONY: deploy-kubemark
