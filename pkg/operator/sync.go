@@ -48,7 +48,7 @@ func (optr *Operator) syncAll(config OperatorConfig) error {
 }
 
 func (optr *Operator) syncClusterAPIController(config OperatorConfig) error {
-	controllerBytes, err := PopulateTemplate(&config, filepath.Join(ownedManifestsDir, "clusterapi-manager-controllers.yaml"))
+	controllerBytes, err := PopulateTemplate(&config, filepath.Join(ownedManifestsDir, "machine-api-controllers.yaml"))
 	if err != nil {
 		return err
 	}
