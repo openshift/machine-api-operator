@@ -65,6 +65,13 @@ func TestGetProviderFromInfrastructure(t *testing.T) {
 	}, {
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
+				Platform: configv1.VSpherePlatformType,
+			},
+		},
+		expected: configv1.VSpherePlatformType,
+	}, {
+		infra: &configv1.Infrastructure{
+			Status: configv1.InfrastructureStatus{
 				Platform: configv1.NonePlatformType,
 			},
 		},
@@ -131,6 +138,10 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 		{
 			provider:      kubemarkPlatform,
 			expectedImage: clusterAPIControllerKubemark,
+		},
+		{
+			provider:      configv1.VSpherePlatformType,
+			expectedImage: clusterAPIControllerNoOp,
 		},
 		{
 			provider:      configv1.NonePlatformType,
