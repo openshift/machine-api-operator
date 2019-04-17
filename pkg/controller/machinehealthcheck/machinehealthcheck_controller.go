@@ -232,9 +232,13 @@ func remediate(r *ReconcileMachineHealthCheck, machine *mapiv1.Machine) (reconci
 			durationUnhealthy.String(),
 		)
 
+		// calculate the duration until the node will be unhealthy for too long
+		// and re-queue after with this timeout, add one second just to be sure
+		// that we will not enter this loop again before the node unhealthy for too long
+		unhealthyTooLongTimeout := conditionTimeout - durationUnhealthy + time.Second
 		// be sure that we will use timeout with the minimal value for the reconcile.Result
-		if minimalConditionTimeout == 0 || minimalConditionTimeout > conditionTimeout {
-			minimalConditionTimeout = conditionTimeout
+		if minimalConditionTimeout == 0 || minimalConditionTimeout > unhealthyTooLongTimeout {
+			minimalConditionTimeout = unhealthyTooLongTimeout
 		}
 		result = &reconcile.Result{Requeue: true, RequeueAfter: minimalConditionTimeout}
 	}
