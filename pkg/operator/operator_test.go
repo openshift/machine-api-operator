@@ -127,10 +127,10 @@ func TestOperatorSync_NoOp(t *testing.T) {
 			expectedConditions := map[configv1.ClusterStatusConditionType]configv1.ConditionStatus{
 				configv1.OperatorAvailable:   configv1.ConditionTrue,
 				configv1.OperatorProgressing: configv1.ConditionFalse,
-				configv1.OperatorFailing:     configv1.ConditionTrue,
+				configv1.OperatorDegraded:    configv1.ConditionTrue,
 			}
 			if tc.expectedNoop {
-				expectedConditions[configv1.OperatorFailing] = configv1.ConditionFalse
+				expectedConditions[configv1.OperatorDegraded] = configv1.ConditionFalse
 			}
 			actualConditions := map[configv1.ClusterStatusConditionType]configv1.ConditionStatus{}
 			for _, c := range o.Status.Conditions {
