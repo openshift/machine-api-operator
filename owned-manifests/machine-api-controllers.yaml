@@ -22,6 +22,7 @@ spec:
         k8s-app: controller
     spec:
       priorityClassName: system-node-critical
+      serviceAccountName: machine-api-operator
       nodeSelector:
         node-role.kubernetes.io/master: ""
       tolerations:
