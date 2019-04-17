@@ -122,6 +122,10 @@ rules:
       - get
       - list
       - watch
+      # Only these two additional lines are needed for kubemark actuator to
+      # create and remove kubemark instances
+      - create
+      - delete
 
   - apiGroups:
       - ""
