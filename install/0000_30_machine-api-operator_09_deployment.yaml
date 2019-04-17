@@ -16,6 +16,7 @@ spec:
         k8s-app: machine-api-operator
     spec:
       priorityClassName: system-node-critical
+      serviceAccountName: machine-api-operator
       containers:
       - name: machine-api-operator
         image: docker.io/openshift/origin-machine-api-operator:v4.0.0
