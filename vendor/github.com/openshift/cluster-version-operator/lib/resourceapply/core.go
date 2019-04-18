@@ -21,6 +21,10 @@ func ApplyNamespace(client coreclientv1.NamespacesGetter, required *corev1.Names
 	if err != nil {
 		return nil, false, err
 	}
+	// if we only create this resource, we have no need to continue further
+	if IsCreateOnly(required) {
+		return nil, false, nil
+	}
 
 	modified := pointer.BoolPtr(false)
 	resourcemerge.EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
@@ -43,6 +47,10 @@ func ApplyService(client coreclientv1.ServicesGetter, required *corev1.Service) 
 	}
 	if err != nil {
 		return nil, false, err
+	}
+	// if we only create this resource, we have no need to continue further
+	if IsCreateOnly(required) {
+		return nil, false, nil
 	}
 
 	modified := pointer.BoolPtr(false)
@@ -69,6 +77,10 @@ func ApplyServiceAccount(client coreclientv1.ServiceAccountsGetter, required *co
 	if err != nil {
 		return nil, false, err
 	}
+	// if we only create this resource, we have no need to continue further
+	if IsCreateOnly(required) {
+		return nil, false, nil
+	}
 
 	modified := pointer.BoolPtr(false)
 	resourcemerge.EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
@@ -89,6 +101,10 @@ func ApplyConfigMap(client coreclientv1.ConfigMapsGetter, required *corev1.Confi
 	}
 	if err != nil {
 		return nil, false, err
+	}
+	// if we only create this resource, we have no need to continue further
+	if IsCreateOnly(required) {
+		return nil, false, nil
 	}
 
 	modified := pointer.BoolPtr(false)

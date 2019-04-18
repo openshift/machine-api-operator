@@ -378,7 +378,7 @@
   version = "v1.4.3"
 
 [[projects]]
-  branch = "master"
+  branch = "rebase-1.13.4"
   digest = "1:8f6432915758d422dd8a1e023c6f11ed58feb2f79fc42ad43971829886263788"
   name = "github.com/openshift/api"
   packages = [
@@ -389,11 +389,11 @@
     "security/v1",
   ]
   pruneopts = "NUT"
-  revision = "d2f01e7b77a6fc78b328db20285423838419fef7"
+  revision = "3a6077f1f910bfaec1f34ae9db3492a52e804ae0"
 
 [[projects]]
-  branch = "master"
-  digest = "1:5b7eb2e76c3cfbcb30ce08cb53cb9668cedd55b00d03f80de1e9c6a1833564c7"
+  branch = "rebase-1.13.4"
+  digest = "1:192abee7a3aa1ad1e84356e6fa4c14e9161ed107b44ff8fa80bbf1015c5ef426"
   name = "github.com/openshift/client-go"
   packages = [
     "config/clientset/versioned",
@@ -401,12 +401,16 @@
     "config/clientset/versioned/scheme",
     "config/clientset/versioned/typed/config/v1",
     "config/clientset/versioned/typed/config/v1/fake",
+    "config/informers/externalversions",
+    "config/informers/externalversions/config",
+    "config/informers/externalversions/config/v1",
+    "config/informers/externalversions/internalinterfaces",
     "config/listers/config/v1",
     "security/clientset/versioned/scheme",
     "security/clientset/versioned/typed/security/v1",
   ]
   pruneopts = "NUT"
-  revision = "7cc0953bbbb7925e30232c056606d666942bb542"
+  revision = "84c2b942258aea2462e675e03aeb8eb4cb5f3c29"
 
 [[projects]]
   branch = "openshift-4.0-cluster-api-0.0.0-alpha.4"
@@ -434,11 +438,11 @@
     "pkg/util",
   ]
   pruneopts = "NUT"
-  revision = "5c833e464afbd8a9b3aca3f1d09943478bd90521"
+  revision = "34fb0d070a2ed877b1df06a2b79bbc4f92bcad2d"
 
 [[projects]]
   branch = "master"
-  digest = "1:ada209c942e97be1ee2b8310da6f393df8b5789175eca2b580184b81eb469b39"
+  digest = "1:5feaa2a91b1c3e75c33e0b22c0ee984cb2c4e8deb40baa7c1098fc27a746f611"
   name = "github.com/openshift/cluster-api-actuator-pkg"
   packages = [
     "pkg/e2e",
@@ -451,22 +455,23 @@
     "pkg/types",
   ]
   pruneopts = ""
-  revision = "480b54695c31cb66af3b8d0925d5c3adef044b05"
+  revision = "f9b241eadbe0f38b075e4c307f4e50d655d62155"
 
 [[projects]]
   branch = "master"
-  digest = "1:4dcebfe12917390dc19606bd61bbacb75c66750fbdef323749cc898965ca2912"
+  digest = "1:95477dd994da5b855f4751bdaa55ee64da4d3bc16fde83b13ca73c3271ddb9a3"
   name = "github.com/openshift/cluster-autoscaler-operator"
   packages = [
     "pkg/apis",
-    "pkg/apis/autoscaling/v1alpha1",
+    "pkg/apis/autoscaling/v1",
+    "pkg/apis/autoscaling/v1beta1",
   ]
   pruneopts = "NUT"
-  revision = "0c2284a7a7cff0e123ace8d5e43337e4cc9739e9"
+  revision = "17350a84b40565851a3f1bd21c6f8a6763b8eacb"
 
 [[projects]]
   branch = "master"
-  digest = "1:40e9666d2102490edc5c3cfcecbd91677895a7d4560be5a79219df11511155dc"
+  digest = "1:237c641c55f5ba0b119a49a561afb078c19b807317b9ec2f8cc2bed49283b814"
   name = "github.com/openshift/cluster-version-operator"
   packages = [
     "lib/resourceapply",
@@ -474,7 +479,7 @@
     "lib/resourceread",
   ]
   pruneopts = "NUT"
-  revision = "d8611ec571d0c201c47044a729e0cf673ccd1a68"
+  revision = "797a840d7ea27fa6985b9da4601a6fd1e9286e94"
 
 [[projects]]
   branch = "master"
@@ -835,7 +840,7 @@
   version = "v2.2.2"
 
 [[projects]]
-  digest = "1:0ae5137dc94a40cd72fe4fcdf9db0c119d2d63df04af5958cfd514a2a21b3988"
+  digest = "1:50c54ca27ed4d58993d9f104f7c00478a210c3f3deccddee43ef8ff22f9072d7"
   name = "k8s.io/api"
   packages = [
     "admission/v1beta1",
@@ -873,8 +878,8 @@
     "storage/v1beta1",
   ]
   pruneopts = "NUT"
-  revision = "05914d821849570fba9eacfb29466f2d8d3cd229"
-  version = "kubernetes-1.13.1"
+  revision = "5cb15d34447165a97c76ed5a60e4e99c8a01ecfe"
+  version = "kubernetes-1.13.4"
 
 [[projects]]
   digest = "1:c7241ad82ccc1cbb957909ddb9253627bebae1fe3178f9dd21d2e0ce699c4b6b"
@@ -888,11 +893,12 @@
     "pkg/client/listers/apiextensions/v1beta1",
   ]
   pruneopts = "NUT"
-  revision = "0fe22c71c47604641d9aa352c785b7912c200562"
-  version = "kubernetes-1.13.1"
+  revision = "d002e88f6236312f0289d9d1deab106751718ff0"
+  source = "github.com/openshift/kubernetes-apiextensions-apiserver"
+  version = "kubernetes-1.13.4"
 
 [[projects]]
-  digest = "1:53ef6c8e5c2649d5c29019a05a5173ede135b89b0502ac674b5ff079e1d9b979"
+  digest = "1:13e0b6393e90f30ea0f832777c4ce359c63e4c96fcf69eeb11d2ed0aed40dfd4"
   name = "k8s.io/apimachinery"
   packages = [
     "pkg/api/equality",
@@ -943,11 +949,12 @@
     "third_party/forked/golang/reflect",
   ]
   pruneopts = "NUT"
-  revision = "2b1284ed4c93a43499e781493253e2ac5959c4fd"
-  version = "kubernetes-1.13.1"
+  revision = "86fb29eff6288413d76bd8506874fddd9fccdff0"
+  source = "github.com/openshift/kubernetes-apimachinery"
+  version = "kubernetes-1.13.4"
 
 [[projects]]
-  digest = "1:fb2545296e42a3ccdb52eedd19e08afb82c249efad23eb255990ad7e750f7f4c"
+  digest = "1:64883521ab906a0d7e2aba5c0af82b8882e44e941df8a9fd66cd66ae7dffe8b2"
   name = "k8s.io/client-go"
   packages = [
     "discovery",
@@ -1000,39 +1007,72 @@
     "informers/storage/v1alpha1",
     "informers/storage/v1beta1",
     "kubernetes",
+    "kubernetes/fake",
     "kubernetes/scheme",
     "kubernetes/typed/admissionregistration/v1alpha1",
+    "kubernetes/typed/admissionregistration/v1alpha1/fake",
     "kubernetes/typed/admissionregistration/v1beta1",
+    "kubernetes/typed/admissionregistration/v1beta1/fake",
     "kubernetes/typed/apps/v1",
+    "kubernetes/typed/apps/v1/fake",
     "kubernetes/typed/apps/v1beta1",
+    "kubernetes/typed/apps/v1beta1/fake",
     "kubernetes/typed/apps/v1beta2",
+    "kubernetes/typed/apps/v1beta2/fake",
     "kubernetes/typed/auditregistration/v1alpha1",
+    "kubernetes/typed/auditregistration/v1alpha1/fake",
     "kubernetes/typed/authentication/v1",
+    "kubernetes/typed/authentication/v1/fake",
     "kubernetes/typed/authentication/v1beta1",
+    "kubernetes/typed/authentication/v1beta1/fake",
     "kubernetes/typed/authorization/v1",
+    "kubernetes/typed/authorization/v1/fake",
     "kubernetes/typed/authorization/v1beta1",
+    "kubernetes/typed/authorization/v1beta1/fake",
     "kubernetes/typed/autoscaling/v1",
+    "kubernetes/typed/autoscaling/v1/fake",
     "kubernetes/typed/autoscaling/v2beta1",
+    "kubernetes/typed/autoscaling/v2beta1/fake",
     "kubernetes/typed/autoscaling/v2beta2",
+    "kubernetes/typed/autoscaling/v2beta2/fake",
     "kubernetes/typed/batch/v1",
+    "kubernetes/typed/batch/v1/fake",
     "kubernetes/typed/batch/v1beta1",
+    "kubernetes/typed/batch/v1beta1/fake",
     "kubernetes/typed/batch/v2alpha1",
+    "kubernetes/typed/batch/v2alpha1/fake",
     "kubernetes/typed/certificates/v1beta1",
+    "kubernetes/typed/certificates/v1beta1/fake",
     "kubernetes/typed/coordination/v1beta1",
+    "kubernetes/typed/coordination/v1beta1/fake",
     "kubernetes/typed/core/v1",
+    "kubernetes/typed/core/v1/fake",
     "kubernetes/typed/events/v1beta1",
+    "kubernetes/typed/events/v1beta1/fake",
     "kubernetes/typed/extensions/v1beta1",
+    "kubernetes/typed/extensions/v1beta1/fake",
     "kubernetes/typed/networking/v1",
+    "kubernetes/typed/networking/v1/fake",
     "kubernetes/typed/policy/v1beta1",
+    "kubernetes/typed/policy/v1beta1/fake",
     "kubernetes/typed/rbac/v1",
+    "kubernetes/typed/rbac/v1/fake",
     "kubernetes/typed/rbac/v1alpha1",
+    "kubernetes/typed/rbac/v1alpha1/fake",
     "kubernetes/typed/rbac/v1beta1",
+    "kubernetes/typed/rbac/v1beta1/fake",
     "kubernetes/typed/scheduling/v1alpha1",
+    "kubernetes/typed/scheduling/v1alpha1/fake",
     "kubernetes/typed/scheduling/v1beta1",
+    "kubernetes/typed/scheduling/v1beta1/fake",
     "kubernetes/typed/settings/v1alpha1",
+    "kubernetes/typed/settings/v1alpha1/fake",
     "kubernetes/typed/storage/v1",
+    "kubernetes/typed/storage/v1/fake",
     "kubernetes/typed/storage/v1alpha1",
+    "kubernetes/typed/storage/v1alpha1/fake",
     "kubernetes/typed/storage/v1beta1",
+    "kubernetes/typed/storage/v1beta1/fake",
     "listers/admissionregistration/v1alpha1",
     "listers/admissionregistration/v1beta1",
     "listers/apps/v1",
@@ -1104,8 +1144,9 @@
     "util/workqueue",
   ]
   pruneopts = "NUT"
-  revision = "8d9ed539ba3134352c586810e749e58df4e94e4f"
-  version = "kubernetes-1.13.1"
+  revision = "b40b2a5939e43f7ffe0028ad67586b7ce50bb675"
+  source = "github.com/openshift/kubernetes-client-go"
+  version = "kubernetes-1.13.4"
 
 [[projects]]
   digest = "1:dc1ae99dcab96913d81ae970b1f7a7411a54199b14bfb17a7e86f9a56979c720"
@@ -1136,7 +1177,7 @@
   ]
   pruneopts = "T"
   revision = "c2090bec4d9b1fb25de3812f868accc2bc9ecbae"
-  version = "kubernetes-1.13.1"
+  version = "kubernetes-1.13.4"
 
 [[projects]]
   branch = "master"
@@ -1174,8 +1215,9 @@
     "pkg/client/clientset_generated/clientset/typed/apiregistration/v1",
   ]
   pruneopts = "NUT"
-  revision = "1e8cd453c47488cff773c5ebcd70ca0b0ce054d9"
-  version = "kubernetes-1.13.1"
+  revision = "3e0149950b0e22a3b8579db52bd50e40d0dac10e"
+  source = "github.com/openshift/kubernetes-kube-aggregator"
+  version = "kubernetes-1.13.4"
 
 [[projects]]
   branch = "master"
@@ -1189,11 +1231,11 @@
   revision = "b3a7cee44a305be0a69e1b9ac03018307287e1b0"
 
 [[projects]]
-  digest = "1:ff54706d46de40c865b5fcfc4bde1087c02510cd12e0150de8e405ab427d9907"
+  digest = "1:214d064b9bce33022c9fee76b5fc7a61936590e027743a80b8ce60187b379145"
   name = "k8s.io/utils"
   packages = ["pointer"]
   pruneopts = "NUT"
-  revision = "045dc31ee5c40e8240241ce28dc24d7b56130373"
+  revision = "66066c83e385e385ccc3c964b44fd7dcd413d0ed"
 
 [[projects]]
   digest = "1:f9536a0685b75eef97e368e810d124641afc4185d7c619a67e3ac2f5af2fe9a1"
@@ -1271,6 +1313,9 @@
     "github.com/openshift/api/config/v1",
     "github.com/openshift/client-go/config/clientset/versioned",
     "github.com/openshift/client-go/config/clientset/versioned/fake",
+    "github.com/openshift/client-go/config/informers/externalversions",
+    "github.com/openshift/client-go/config/informers/externalversions/config/v1",
+    "github.com/openshift/client-go/config/listers/config/v1",
     "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e",
     "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/autoscaler",
     "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/infra",
@@ -1308,6 +1353,7 @@
     "k8s.io/client-go/informers/apps/v1",
     "k8s.io/client-go/informers/core/v1",
     "k8s.io/client-go/kubernetes",
+    "k8s.io/client-go/kubernetes/fake",
     "k8s.io/client-go/kubernetes/scheme",
     "k8s.io/client-go/kubernetes/typed/core/v1",
     "k8s.io/client-go/listers/apps/v1",

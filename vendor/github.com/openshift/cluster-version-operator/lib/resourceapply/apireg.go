@@ -18,6 +18,10 @@ func ApplyAPIService(client apiregclientv1.APIServicesGetter, required *apiregv1
 	if err != nil {
 		return nil, false, err
 	}
+	// if we only create this resource, we have no need to continue further
+	if IsCreateOnly(required) {
+		return nil, false, nil
+	}
 
 	modified := pointer.BoolPtr(false)
 	resourcemerge.EnsureAPIService(modified, existing, *required)

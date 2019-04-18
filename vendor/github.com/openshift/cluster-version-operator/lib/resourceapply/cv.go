@@ -19,6 +19,10 @@ func ApplyClusterVersion(client configclientv1.ClusterVersionsGetter, required *
 	if err != nil {
 		return nil, false, err
 	}
+	// if we only create this resource, we have no need to continue further
+	if IsCreateOnly(required) {
+		return nil, false, nil
+	}
 
 	modified := pointer.BoolPtr(false)
 	resourcemerge.EnsureClusterVersion(modified, existing, *required)
@@ -38,6 +42,10 @@ func ApplyClusterVersionFromCache(lister configlistersv1.ClusterVersionLister, c
 	}
 	if err != nil {
 		return nil, false, err
+	}
+	// if we only create this resource, we have no need to continue further
+	if IsCreateOnly(required) {
+		return nil, false, nil
 	}
 
 	// Don't want to mutate cache.

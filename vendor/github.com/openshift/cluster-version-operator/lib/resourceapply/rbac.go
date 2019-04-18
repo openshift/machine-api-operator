@@ -19,6 +19,10 @@ func ApplyClusterRoleBinding(client rbacclientv1.ClusterRoleBindingsGetter, requ
 	if err != nil {
 		return nil, false, err
 	}
+	// if we only create this resource, we have no need to continue further
+	if IsCreateOnly(required) {
+		return nil, false, nil
+	}
 
 	modified := pointer.BoolPtr(false)
 	resourcemerge.EnsureClusterRoleBinding(modified, existing, *required)
@@ -39,6 +43,10 @@ func ApplyClusterRole(client rbacclientv1.ClusterRolesGetter, required *rbacv1.C
 	}
 	if err != nil {
 		return nil, false, err
+	}
+	// if we only create this resource, we have no need to continue further
+	if IsCreateOnly(required) {
+		return nil, false, nil
 	}
 
 	modified := pointer.BoolPtr(false)
@@ -61,6 +69,10 @@ func ApplyRoleBinding(client rbacclientv1.RoleBindingsGetter, required *rbacv1.R
 	if err != nil {
 		return nil, false, err
 	}
+	// if we only create this resource, we have no need to continue further
+	if IsCreateOnly(required) {
+		return nil, false, nil
+	}
 
 	modified := pointer.BoolPtr(false)
 	resourcemerge.EnsureRoleBinding(modified, existing, *required)
@@ -81,6 +93,10 @@ func ApplyRole(client rbacclientv1.RolesGetter, required *rbacv1.Role) (*rbacv1.
 	}
 	if err != nil {
 		return nil, false, err
+	}
+	// if we only create this resource, we have no need to continue further
+	if IsCreateOnly(required) {
+		return nil, false, nil
 	}
 
 	modified := pointer.BoolPtr(false)
