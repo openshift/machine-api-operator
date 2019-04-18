@@ -74,7 +74,7 @@ func (optr *Operator) syncClusterAPIController(config OperatorConfig) error {
 		config.Controllers.MachineHealthCheckEnabled = true
 	}
 
-	controllerBytes, err := PopulateTemplate(&config, filepath.Join(ownedManifestsDir, "machine-api-controllers.yaml"))
+	controllerBytes, err := PopulateTemplate(&config, filepath.Join(optr.ownedManifestsDir, "machine-api-controllers.yaml"))
 	if err != nil {
 		return err
 	}

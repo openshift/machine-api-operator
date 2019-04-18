@@ -39,8 +39,9 @@ const (
 type Operator struct {
 	namespace, name string
 
-	imagesFile string
-	config     string
+	imagesFile        string
+	config            string
+	ownedManifestsDir string
 
 	kubeClient    kubernetes.Interface
 	osClient      osclientset.Interface
@@ -86,14 +87,15 @@ func New(
 	osconfigv1.Install(eventRecorderScheme)
 
 	optr := &Operator{
-		namespace:       namespace,
-		name:            name,
-		imagesFile:      imagesFile,
-		kubeClient:      kubeClient,
-		osClient:        osClient,
-		eventRecorder:   eventBroadcaster.NewRecorder(eventRecorderScheme, v1.EventSource{Component: "machineapioperator"}),
-		queue:           workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
-		operandVersions: operandVersions,
+		namespace:         namespace,
+		name:              name,
+		imagesFile:        imagesFile,
+		ownedManifestsDir: ownedManifestsDir,
+		kubeClient:        kubeClient,
+		osClient:          osClient,
+		eventRecorder:     eventBroadcaster.NewRecorder(eventRecorderScheme, v1.EventSource{Component: "machineapioperator"}),
+		queue:             workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
+		operandVersions:   operandVersions,
 	}
 
 	deployInformer.Informer().AddEventHandler(optr.eventHandler())
