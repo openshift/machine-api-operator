@@ -6,12 +6,14 @@ import (
 
 	"github.com/golang/glog"
 	appsv1 "k8s.io/api/apps/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"path/filepath"
 
+	osev1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 	"github.com/openshift/cluster-version-operator/lib/resourceread"
 )
@@ -48,7 +50,31 @@ func (optr *Operator) syncAll(config OperatorConfig) error {
 }
 
 func (optr *Operator) syncClusterAPIController(config OperatorConfig) error {
-	controllerBytes, err := PopulateTemplate(&config, filepath.Join(ownedManifestsDir, "machine-api-controllers.yaml"))
+	// Fetch the Feature
+	featureGate, err := optr.featureGateLister.Get(MachineAPIFeatureGateName)
+
+	var featureSet osev1.FeatureSet
+	if err != nil {
+		if !errors.IsNotFound(err) {
+			return err
+		}
+		glog.V(2).Infof("failed to find feature gate %s, will use default feature set", MachineAPIFeatureGateName)
+		featureSet = osev1.Default
+	} else {
+		featureSet = featureGate.Spec.FeatureSet
+	}
+
+	features, err := generateFeatureMap(featureSet)
+	if err != nil {
+		return err
+	}
+
+	// add machine-health-check controller container if it exists and enabled under feature gates
+	if enabled, ok := features[FeatureGateMachineHealthCheck]; ok && enabled {
+		config.Controllers.MachineHealthCheckEnabled = true
+	}
+
+	controllerBytes, err := PopulateTemplate(&config, filepath.Join(optr.ownedManifestsDir, "machine-api-controllers.yaml"))
 	if err != nil {
 		return err
 	}

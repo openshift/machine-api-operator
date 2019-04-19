@@ -20,6 +20,10 @@ func ApplyDeployment(client appsclientv1.DeploymentsGetter, required *appsv1.Dep
 	if err != nil {
 		return nil, false, err
 	}
+	// if we only create this resource, we have no need to continue further
+	if IsCreateOnly(required) {
+		return nil, false, nil
+	}
 
 	modified := pointer.BoolPtr(false)
 	resourcemerge.EnsureDeployment(modified, existing, *required)
@@ -40,6 +44,10 @@ func ApplyDeploymentFromCache(lister appslisterv1.DeploymentLister, client appsc
 	}
 	if err != nil {
 		return nil, false, err
+	}
+	// if we only create this resource, we have no need to continue further
+	if IsCreateOnly(required) {
+		return nil, false, nil
 	}
 
 	existing = existing.DeepCopy()
@@ -63,6 +71,10 @@ func ApplyDaemonSet(client appsclientv1.DaemonSetsGetter, required *appsv1.Daemo
 	if err != nil {
 		return nil, false, err
 	}
+	// if we only create this resource, we have no need to continue further
+	if IsCreateOnly(required) {
+		return nil, false, nil
+	}
 
 	modified := pointer.BoolPtr(false)
 	resourcemerge.EnsureDaemonSet(modified, existing, *required)
@@ -83,6 +95,10 @@ func ApplyDaemonSetFromCache(lister appslisterv1.DaemonSetLister, client appscli
 	}
 	if err != nil {
 		return nil, false, err
+	}
+	// if we only create this resource, we have no need to continue further
+	if IsCreateOnly(required) {
+		return nil, false, nil
 	}
 
 	existing = existing.DeepCopy()

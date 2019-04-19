@@ -41,7 +41,8 @@ required = [
 
 [[override]]
   name = "k8s.io/kube-aggregator"
-  version = "kubernetes-1.13.1"
+  version = "kubernetes-1.13.4"
+  source = "github.com/openshift/kubernetes-kube-aggregator"
 
 [[override]]
   name = "github.com/openshift/cluster-api"
@@ -53,31 +54,34 @@ required = [
 
 [[override]]
   name = "github.com/openshift/api"
-  branch = "master"
+  branch = "rebase-1.13.4"
 
 [[override]]
   name = "github.com/openshift/client-go"
-  branch = "master"
+  branch = "rebase-1.13.4"
 
 [[override]]
   name = "k8s.io/code-generator"
-  version = "kubernetes-1.13.1"
+  version = "kubernetes-1.13.4"
 
 [[override]]
   name = "k8s.io/api"
-  version = "kubernetes-1.13.1"
+  version = "kubernetes-1.13.4"
 
 [[override]]
   name = "k8s.io/apiextensions-apiserver"
-  version = "kubernetes-1.13.1"
+  version = "kubernetes-1.13.4"
+  source = "github.com/openshift/kubernetes-apiextensions-apiserver"
 
 [[override]]
   name = "k8s.io/apimachinery"
-  version = "kubernetes-1.13.1"
+  version = "kubernetes-1.13.4"
+  source = "github.com/openshift/kubernetes-apimachinery"
 
 [[override]]
   name = "k8s.io/client-go"
-  version = "kubernetes-1.13.1"
+  version = "kubernetes-1.13.4"
+  source = "github.com/openshift/kubernetes-client-go"
 
 [[override]]
   name = "sigs.k8s.io/controller-runtime"

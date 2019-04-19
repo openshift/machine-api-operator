@@ -6,9 +6,11 @@ import (
 	"time"
 
 	"github.com/golang/glog"
-	osclientset "github.com/openshift/client-go/config/clientset/versioned"
-
 	osconfigv1 "github.com/openshift/api/config/v1"
+	osclientset "github.com/openshift/client-go/config/clientset/versioned"
+	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
+	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
+
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -37,8 +39,9 @@ const (
 type Operator struct {
 	namespace, name string
 
-	imagesFile string
-	config     string
+	imagesFile        string
+	config            string
+	ownedManifestsDir string
 
 	kubeClient    kubernetes.Interface
 	osClient      osclientset.Interface
@@ -48,6 +51,9 @@ type Operator struct {
 
 	deployLister       appslisterv1.DeploymentLister
 	deployListerSynced cache.InformerSynced
+
+	featureGateLister    configlistersv1.FeatureGateLister
+	featureGateCacheSync cache.InformerSynced
 
 	// queue only ever has one item, but it has nice error handling backoff/retry semantics
 	queue           workqueue.RateLimitingInterface
@@ -62,6 +68,7 @@ func New(
 	config string,
 
 	deployInformer appsinformersv1.DeploymentInformer,
+	featureGateInformer configinformersv1.FeatureGateInformer,
 
 	kubeClient kubernetes.Interface,
 	osClient osclientset.Interface,
@@ -80,23 +87,28 @@ func New(
 	osconfigv1.Install(eventRecorderScheme)
 
 	optr := &Operator{
-		namespace:       namespace,
-		name:            name,
-		imagesFile:      imagesFile,
-		kubeClient:      kubeClient,
-		osClient:        osClient,
-		eventRecorder:   eventBroadcaster.NewRecorder(eventRecorderScheme, v1.EventSource{Component: "machineapioperator"}),
-		queue:           workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
-		operandVersions: operandVersions,
+		namespace:         namespace,
+		name:              name,
+		imagesFile:        imagesFile,
+		ownedManifestsDir: ownedManifestsDir,
+		kubeClient:        kubeClient,
+		osClient:          osClient,
+		eventRecorder:     eventBroadcaster.NewRecorder(eventRecorderScheme, v1.EventSource{Component: "machineapioperator"}),
+		queue:             workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
+		operandVersions:   operandVersions,
 	}
 
 	deployInformer.Informer().AddEventHandler(optr.eventHandler())
+	featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
 
 	optr.config = config
 	optr.syncHandler = optr.sync
 
 	optr.deployLister = deployInformer.Lister()
 	optr.deployListerSynced = deployInformer.Informer().HasSynced
+
+	optr.featureGateLister = featureGateInformer.Lister()
+	optr.featureGateCacheSync = featureGateInformer.Informer().HasSynced
 
 	return optr
 }
@@ -209,11 +221,12 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 	}
 
 	return &OperatorConfig{
-		optr.namespace,
-		Controllers{
-			providerControllerImage,
-			machineAPIOperatorImage,
-			machineAPIOperatorImage,
+		TargetNamespace: optr.namespace,
+		Controllers: Controllers{
+			Provider:                  providerControllerImage,
+			NodeLink:                  machineAPIOperatorImage,
+			MachineHealthCheck:        machineAPIOperatorImage,
+			MachineHealthCheckEnabled: true,
 		},
 	}, nil
 }

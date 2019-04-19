@@ -19,6 +19,10 @@ func ApplyCustomResourceDefinition(client apiextclientv1beta1.CustomResourceDefi
 	if err != nil {
 		return nil, false, err
 	}
+	// if we only create this resource, we have no need to continue further
+	if IsCreateOnly(required) {
+		return nil, false, nil
+	}
 
 	modified := pointer.BoolPtr(false)
 	resourcemerge.EnsureCustomResourceDefinition(modified, existing, *required)
@@ -38,6 +42,10 @@ func ApplyCustomResourceDefinitionFromCache(lister apiextlistersv1beta1.CustomRe
 	}
 	if err != nil {
 		return nil, false, err
+	}
+	// if we only create this resource, we have no need to continue further
+	if IsCreateOnly(required) {
+		return nil, false, nil
 	}
 
 	existing = existing.DeepCopy()
