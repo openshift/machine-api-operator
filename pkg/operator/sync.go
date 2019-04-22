@@ -57,7 +57,7 @@ func (optr *Operator) syncClusterAPIController(config OperatorConfig) error {
 		if !errors.IsNotFound(err) {
 			return err
 		}
-		glog.V(2).Infof("failed to find feature gate %s, will use default feature set", MachineAPIFeatureGateName)
+		glog.V(2).Infof("Failed to find feature gate %q, will use default feature set", MachineAPIFeatureGateName)
 		featureSet = osev1.Default
 	} else {
 		featureSet = featureGate.Spec.FeatureSet
@@ -70,6 +70,7 @@ func (optr *Operator) syncClusterAPIController(config OperatorConfig) error {
 
 	// add machine-health-check controller container if it exists and enabled under feature gates
 	if enabled, ok := features[FeatureGateMachineHealthCheck]; ok && enabled {
+		glog.V(2).Infof("Feature %q is enabled", FeatureGateMachineHealthCheck)
 		config.Controllers.MachineHealthCheckEnabled = true
 	}
 

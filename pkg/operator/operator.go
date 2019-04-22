@@ -223,10 +223,9 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 	return &OperatorConfig{
 		TargetNamespace: optr.namespace,
 		Controllers: Controllers{
-			Provider:                  providerControllerImage,
-			NodeLink:                  machineAPIOperatorImage,
-			MachineHealthCheck:        machineAPIOperatorImage,
-			MachineHealthCheckEnabled: true,
+			Provider:           providerControllerImage,
+			NodeLink:           machineAPIOperatorImage,
+			MachineHealthCheck: machineAPIOperatorImage,
 		},
 	}, nil
 }

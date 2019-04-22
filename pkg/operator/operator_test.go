@@ -181,21 +181,34 @@ func deploymentHasContainer(d *appsv1.Deployment, containerName string) bool {
 	return false
 }
 
-func TestOperatorSyncClusterAPIControllerHealthCheckControllerNotDeployed(t *testing.T) {
-	fg := &v1.FeatureGate{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: MachineAPIFeatureGateName,
+func TestOperatorSyncClusterAPIControllerHealthCheckController(t *testing.T) {
+	tests := []struct {
+		featureGate                          *v1.FeatureGate
+		expectedMachineHealthCheckController bool
+	}{{
+		featureGate: &v1.FeatureGate{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: MachineAPIFeatureGateName,
+			},
+			Spec: v1.FeatureGateSpec{
+				FeatureSet: configv1.Default,
+			},
 		},
-		Spec: v1.FeatureGateSpec{
-			FeatureSet: configv1.Default,
+		expectedMachineHealthCheckController: false,
+	}, {
+		featureGate:                          &v1.FeatureGate{},
+		expectedMachineHealthCheckController: false,
+	}, {
+		featureGate: &v1.FeatureGate{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: MachineAPIFeatureGateName,
+			},
+			Spec: v1.FeatureGateSpec{
+				FeatureSet: configv1.TechPreviewNoUpgrade,
+			},
 		},
-	}
-
-	kubeclientSet := fakekube.NewSimpleClientset()
-	op, err := initOperator(fg, kubeclientSet)
-	if err != nil {
-		t.Errorf("Unable to init operator: %v", err)
-	}
+		expectedMachineHealthCheckController: true,
+	}}
 
 	oc := OperatorConfig{
 		TargetNamespace: targetNamespace,
@@ -206,59 +219,24 @@ func TestOperatorSyncClusterAPIControllerHealthCheckControllerNotDeployed(t *tes
 		},
 	}
 
-	if err := op.syncClusterAPIController(oc); err != nil {
-		t.Errorf("Failed to sync machine API controller: %v", err)
-	}
+	for _, tc := range tests {
+		kubeclientSet := fakekube.NewSimpleClientset()
+		op, err := initOperator(tc.featureGate, kubeclientSet)
+		if err != nil {
+			t.Fatalf("Unable to init operator: %v", err)
+		}
 
-	d, err := kubeclientSet.AppsV1().Deployments(targetNamespace).Get(deploymentName, metav1.GetOptions{})
-	if err != nil {
-		t.Errorf("Failed to get %q deployment: %v", deploymentName, err)
-	}
+		if err := op.syncClusterAPIController(oc); err != nil {
+			t.Errorf("Failed to sync machine API controller: %v", err)
+		}
 
-	if deploymentHasContainer(d, hcControllerName) {
-		t.Errorf("Did not expect to find %q container", hcControllerName)
-	} else {
-		t.Logf("%q container not found as expected", hcControllerName)
-	}
-}
+		d, err := op.deployLister.Deployments(targetNamespace).Get(deploymentName)
+		if err != nil {
+			t.Errorf("Failed to get %q deployment: %v", deploymentName, err)
+		}
 
-func TestOperatorSyncClusterAPIControllerHealthCheckControllerDeployed(t *testing.T) {
-	fg := &v1.FeatureGate{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: MachineAPIFeatureGateName,
-		},
-		Spec: v1.FeatureGateSpec{
-			FeatureSet: configv1.TechPreviewNoUpgrade,
-		},
-	}
-
-	kubeclientSet := fakekube.NewSimpleClientset()
-	op, err := initOperator(fg, kubeclientSet)
-	if err != nil {
-		t.Errorf("Unable to init operator: %v", err)
-	}
-
-	oc := OperatorConfig{
-		TargetNamespace: targetNamespace,
-		Controllers: Controllers{
-			Provider:           "controllers-provider",
-			NodeLink:           "controllers-nodelink",
-			MachineHealthCheck: "controllers-machinehealthcheck",
-		},
-	}
-
-	if err := op.syncClusterAPIController(oc); err != nil {
-		t.Errorf("Failed to sync machine API controller: %v", err)
-	}
-
-	d, err := op.deployLister.Deployments(targetNamespace).Get(deploymentName)
-	if err != nil {
-		t.Errorf("Failed to get %q deployment: %v", deploymentName, err)
-	}
-
-	if deploymentHasContainer(d, hcControllerName) {
-		t.Logf("%q container found as expected", hcControllerName)
-	} else {
-		t.Errorf("Failed to find find %q container", hcControllerName)
+		if deploymentHasContainer(d, hcControllerName) != tc.expectedMachineHealthCheckController {
+			t.Errorf("Expected deploymentHasContainer for %q container to be %t", hcControllerName, tc.expectedMachineHealthCheckController)
+		}
 	}
 }
