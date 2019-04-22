@@ -52,8 +52,8 @@ type Operator struct {
 	deployLister       appslisterv1.DeploymentLister
 	deployListerSynced cache.InformerSynced
 
-	featureGateLister    configlistersv1.FeatureGateLister
-	featureGateCacheSync cache.InformerSynced
+	featureGateLister      configlistersv1.FeatureGateLister
+	featureGateCacheSynced cache.InformerSynced
 
 	// queue only ever has one item, but it has nice error handling backoff/retry semantics
 	queue           workqueue.RateLimitingInterface
@@ -108,7 +108,7 @@ func New(
 	optr.deployListerSynced = deployInformer.Informer().HasSynced
 
 	optr.featureGateLister = featureGateInformer.Lister()
-	optr.featureGateCacheSync = featureGateInformer.Informer().HasSynced
+	optr.featureGateCacheSynced = featureGateInformer.Informer().HasSynced
 
 	return optr
 }
@@ -122,7 +122,8 @@ func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 	defer glog.Info("Shutting down Machine API Operator")
 
 	if !cache.WaitForCacheSync(stopCh,
-		optr.deployListerSynced) {
+		optr.deployListerSynced,
+		optr.featureGateCacheSynced) {
 		glog.Error("Failed to sync caches")
 		return
 	}
