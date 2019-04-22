@@ -45,16 +45,8 @@ required = [
   source = "github.com/openshift/kubernetes-kube-aggregator"
 
 [[override]]
-  name = "github.com/openshift/cluster-api"
-  branch = "openshift-4.0-cluster-api-0.0.0-alpha.4"
-
-[[override]]
   name = "github.com/openshift/cluster-api-actuator-pkg"
   branch = "master"
-
-[[override]]
-  name = "github.com/openshift/api"
-  branch = "rebase-1.13.4"
 
 [[override]]
   name = "github.com/openshift/client-go"
