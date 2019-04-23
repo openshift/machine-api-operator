@@ -378,8 +378,7 @@
   version = "v1.4.3"
 
 [[projects]]
-  branch = "rebase-1.13.4"
-  digest = "1:8f6432915758d422dd8a1e023c6f11ed58feb2f79fc42ad43971829886263788"
+  digest = "1:d399751e77e2460e41253b656863f6b68da4fe91ea26f46e045227b7556c93f1"
   name = "github.com/openshift/api"
   packages = [
     "config/v1",
@@ -389,7 +388,7 @@
     "security/v1",
   ]
   pruneopts = "NUT"
-  revision = "3a6077f1f910bfaec1f34ae9db3492a52e804ae0"
+  revision = "8e476cb7322e59919cbb6482fd076ec5a214df25"
 
 [[projects]]
   branch = "rebase-1.13.4"
@@ -442,7 +441,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:5feaa2a91b1c3e75c33e0b22c0ee984cb2c4e8deb40baa7c1098fc27a746f611"
+  digest = "1:7cbcae314ea9375bebbecfc8b520bbce9786f9c4d1b42824f2a1613695e3faad"
   name = "github.com/openshift/cluster-api-actuator-pkg"
   packages = [
     "pkg/e2e",
@@ -455,7 +454,7 @@
     "pkg/types",
   ]
   pruneopts = ""
-  revision = "f9b241eadbe0f38b075e4c307f4e50d655d62155"
+  revision = "59a034672129ff21181ac38871a47dabbc900c7f"
 
 [[projects]]
   branch = "master"
@@ -479,7 +478,7 @@
     "lib/resourceread",
   ]
   pruneopts = "NUT"
-  revision = "797a840d7ea27fa6985b9da4601a6fd1e9286e94"
+  revision = "a928be9f42cac2f65296402019daa6f0badea1aa"
 
 [[projects]]
   branch = "master"
