@@ -51,6 +51,16 @@ rules:
       - get
 
   - apiGroups:
+      - config.openshift.io
+    resources:
+      - featuregates
+      - featuregates/status
+    verbs:
+      - get
+      - list
+      - watch
+
+  - apiGroups:
       - metalkube.org
     resources:
       - baremetalhosts
