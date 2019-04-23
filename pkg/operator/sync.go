@@ -8,7 +8,6 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 
 	"path/filepath"
@@ -91,10 +90,7 @@ func (optr *Operator) syncClusterAPIController(config OperatorConfig) error {
 
 func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment) error {
 	return wait.Poll(deploymentRolloutPollInterval, deploymentRolloutTimeout, func() (bool, error) {
-		// TODO(vikas): When using deployLister, an issue is happening related to the apiVersion of cluster-api objects.
-		// This will be debugged later on to find out the root cause. For now, working aound is to use kubeClient.AppsV1
-		// d, err := optr.deployLister.Deployments(resource.Namespace).Get(resource.Name)
-		d, err := optr.kubeClient.AppsV1().Deployments(resource.Namespace).Get(resource.Name, metav1.GetOptions{})
+		d, err := optr.deployLister.Deployments(resource.Namespace).Get(resource.Name)
 		if apierrors.IsNotFound(err) {
 			return false, nil
 		}

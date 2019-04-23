@@ -13,6 +13,7 @@ import (
 	fakeconfigclientset "github.com/openshift/client-go/config/clientset/versioned/fake"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 
@@ -148,17 +149,21 @@ const (
 
 func initOperator(featureGate *v1.FeatureGate, kubeclientSet *fakekube.Clientset) (*Operator, error) {
 	configClient := fakeos.NewSimpleClientset(featureGate)
-	configSharedInformer := configinformersv1.NewSharedInformerFactoryWithOptions(configClient, 10*time.Minute)
+	kubeNamespacedSharedInformer := informers.NewSharedInformerFactoryWithOptions(kubeclientSet, 2*time.Minute, informers.WithNamespace(targetNamespace))
+	configSharedInformer := configinformersv1.NewSharedInformerFactoryWithOptions(configClient, 2*time.Minute)
 	featureGateInformer := configSharedInformer.Config().V1().FeatureGates()
+	deployInformer := kubeNamespacedSharedInformer.Apps().V1().Deployments()
 
 	op := &Operator{
 		kubeClient:        kubeclientSet,
 		featureGateLister: featureGateInformer.Lister(),
+		deployLister:      deployInformer.Lister(),
 		ownedManifestsDir: "../../owned-manifests",
 	}
 
 	stop := make(<-chan struct{})
 	configSharedInformer.Start(stop)
+	kubeNamespacedSharedInformer.Start(stop)
 
 	if !cache.WaitForCacheSync(stop, featureGateInformer.Informer().HasSynced) {
 		return nil, fmt.Errorf("unable to wait for cache to sync")
@@ -246,7 +251,7 @@ func TestOperatorSyncClusterAPIControllerHealthCheckControllerDeployed(t *testin
 		t.Errorf("Failed to sync machine API controller: %v", err)
 	}
 
-	d, err := kubeclientSet.AppsV1().Deployments(targetNamespace).Get(deploymentName, metav1.GetOptions{})
+	d, err := op.deployLister.Deployments(targetNamespace).Get(deploymentName)
 	if err != nil {
 		t.Errorf("Failed to get %q deployment: %v", deploymentName, err)
 	}
