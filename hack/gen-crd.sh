@@ -2,6 +2,9 @@
 
 set -eu
 
+echo "Can not generate CRDS until https://github.com/kubernetes-sigs/controller-tools/pull/195 gets merged"
+exit 1
+
 echo "Building controller-gen tool..."
 # github.com/openshift/machine-api-operator/vendor/
 go build -o bin/controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen
