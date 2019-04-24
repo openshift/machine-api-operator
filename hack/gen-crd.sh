@@ -3,7 +3,8 @@
 set -eu
 
 echo "Building controller-gen tool..."
-go build -o bin/controller-gen github.com/openshift/machine-api-operator/vendor/sigs.k8s.io/controller-tools/cmd/controller-gen
+# github.com/openshift/machine-api-operator/vendor/
+go build -o bin/controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen
 
 dir=$(mktemp -d -t XXXXXXXX)
 echo $dir
@@ -11,6 +12,7 @@ mkdir -p $dir/src/github.com/openshift/machine-api-operator/pkg/apis
 mkdir -p $dir/src/github.com/openshift/machine-api-operator/vendor
 
 cp -r pkg/apis/healthchecking $dir/src/github.com/openshift/machine-api-operator/pkg/apis/.
+cp -r PROJECT $dir/src/github.com/openshift/machine-api-operator/.
 cp -r vendor/github.com/openshift/cluster-api/pkg/apis/machine $dir/src/github.com/openshift/machine-api-operator/pkg/apis
 # Some dependencies need to be coppied as well. Othwerwise, controller-gen will complain about non-existing kind Unsupported
 cp -r vendor/k8s.io $dir/src/github.com/openshift/machine-api-operator/vendor/.
@@ -18,7 +20,7 @@ cp -r vendor/github.com $dir/src/github.com/openshift/machine-api-operator/vendo
 
 cwd=$(pwd)
 pushd $dir/src/github.com/openshift/machine-api-operator
-GOPATH=$dir ${cwd}/bin/controller-gen crd --domain openshift.io
+GOPATH=$dir ${cwd}/bin/controller-gen crd --domain openshift.io --skip-map-validation=false
 popd
 
 echo "Coping generated CRDs"
