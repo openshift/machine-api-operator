@@ -68,13 +68,16 @@ spec:
                 going to ignore it if set in create or update request.
               type: string
             creationTimestamp:
+              anyOf:
+              - format: date-time
+                type: string
+              - enum:
+                - "null"
               description: 'CreationTimestamp is a timestamp representing the server
                 time when this object was created. It is not guaranteed to be set
                 in happens-before order across separate operations. Clients may not
                 set this value. It is represented in RFC3339 form and is in UTC.  Populated
                 by the system. Read-only. Null for lists. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata'
-              format: date-time
-              type: string
             deletionGracePeriodSeconds:
               description: Number of seconds allowed for this object to gracefully
                 terminate before it will be removed from the system. Only set when
@@ -82,6 +85,11 @@ spec:
               format: int64
               type: integer
             deletionTimestamp:
+              anyOf:
+              - format: date-time
+                type: string
+              - enum:
+                - "null"
               description: 'DeletionTimestamp is RFC 3339 date and time at which this
                 resource will be deleted. This field is set by the server when a graceful
                 deletion is requested by the user, and is not directly settable by
@@ -101,8 +109,6 @@ spec:
                 fully terminated. If not set, graceful deletion of the object has
                 not been requested.  Populated by the system when a graceful deletion
                 is requested. Read-only. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata'
-              format: date-time
-              type: string
             finalizers:
               description: Must be empty before the object is deleted from the registry.
                 Each entry is an identifier for the responsible component that will
@@ -239,14 +245,17 @@ spec:
                         or update request.
                       type: string
                     creationTimestamp:
+                      anyOf:
+                      - format: date-time
+                        type: string
+                      - enum:
+                        - "null"
                       description: 'CreationTimestamp is a timestamp representing
                         the server time when this object was created. It is not guaranteed
                         to be set in happens-before order across separate operations.
                         Clients may not set this value. It is represented in RFC3339
                         form and is in UTC.  Populated by the system. Read-only. Null
                         for lists. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata'
-                      format: date-time
-                      type: string
                     deletionGracePeriodSeconds:
                       description: Number of seconds allowed for this object to gracefully
                         terminate before it will be removed from the system. Only
@@ -255,6 +264,11 @@ spec:
                       format: int64
                       type: integer
                     deletionTimestamp:
+                      anyOf:
+                      - format: date-time
+                        type: string
+                      - enum:
+                        - "null"
                       description: 'DeletionTimestamp is RFC 3339 date and time at
                         which this resource will be deleted. This field is set by
                         the server when a graceful deletion is requested by the user,
@@ -277,8 +291,6 @@ spec:
                         of the object has not been requested.  Populated by the system
                         when a graceful deletion is requested. Read-only. More info:
                         https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata'
-                      format: date-time
-                      type: string
                     finalizers:
                       description: Must be empty before the object is deleted from
                         the registry. Each entry is an identifier for the responsible
@@ -413,14 +425,17 @@ spec:
                             it if set in create or update request.
                           type: string
                         creationTimestamp:
+                          anyOf:
+                          - format: date-time
+                            type: string
+                          - enum:
+                            - "null"
                           description: 'CreationTimestamp is a timestamp representing
                             the server time when this object was created. It is not
                             guaranteed to be set in happens-before order across separate
                             operations. Clients may not set this value. It is represented
                             in RFC3339 form and is in UTC.  Populated by the system.
                             Read-only. Null for lists. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata'
-                          format: date-time
-                          type: string
                         deletionGracePeriodSeconds:
                           description: Number of seconds allowed for this object to
                             gracefully terminate before it will be removed from the
@@ -429,6 +444,11 @@ spec:
                           format: int64
                           type: integer
                         deletionTimestamp:
+                          anyOf:
+                          - format: date-time
+                            type: string
+                          - enum:
+                            - "null"
                           description: 'DeletionTimestamp is RFC 3339 date and time
                             at which this resource will be deleted. This field is
                             set by the server when a graceful deletion is requested
@@ -452,8 +472,6 @@ spec:
                             set, graceful deletion of the object has not been requested.  Populated
                             by the system when a graceful deletion is requested. Read-only.
                             More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata'
-                          format: date-time
-                          type: string
                         finalizers:
                           description: Must be empty before the object is deleted
                             from the registry. Each entry is an identifier for the

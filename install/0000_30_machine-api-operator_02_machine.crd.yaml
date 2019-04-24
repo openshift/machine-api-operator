@@ -68,13 +68,16 @@ spec:
                 going to ignore it if set in create or update request.
               type: string
             creationTimestamp:
+              anyOf:
+              - format: date-time
+                type: string
+              - enum:
+                - "null"
               description: 'CreationTimestamp is a timestamp representing the server
                 time when this object was created. It is not guaranteed to be set
                 in happens-before order across separate operations. Clients may not
                 set this value. It is represented in RFC3339 form and is in UTC.  Populated
                 by the system. Read-only. Null for lists. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata'
-              format: date-time
-              type: string
             deletionGracePeriodSeconds:
               description: Number of seconds allowed for this object to gracefully
                 terminate before it will be removed from the system. Only set when
@@ -82,6 +85,11 @@ spec:
               format: int64
               type: integer
             deletionTimestamp:
+              anyOf:
+              - format: date-time
+                type: string
+              - enum:
+                - "null"
               description: 'DeletionTimestamp is RFC 3339 date and time at which this
                 resource will be deleted. This field is set by the server when a graceful
                 deletion is requested by the user, and is not directly settable by
@@ -101,8 +109,6 @@ spec:
                 fully terminated. If not set, graceful deletion of the object has
                 not been requested.  Populated by the system when a graceful deletion
                 is requested. Read-only. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata'
-              format: date-time
-              type: string
             finalizers:
               description: Must be empty before the object is deleted from the registry.
                 Each entry is an identifier for the responsible component that will
@@ -226,14 +232,17 @@ spec:
                     request.
                   type: string
                 creationTimestamp:
+                  anyOf:
+                  - format: date-time
+                    type: string
+                  - enum:
+                    - "null"
                   description: 'CreationTimestamp is a timestamp representing the
                     server time when this object was created. It is not guaranteed
                     to be set in happens-before order across separate operations.
                     Clients may not set this value. It is represented in RFC3339 form
                     and is in UTC.  Populated by the system. Read-only. Null for lists.
                     More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata'
-                  format: date-time
-                  type: string
                 deletionGracePeriodSeconds:
                   description: Number of seconds allowed for this object to gracefully
                     terminate before it will be removed from the system. Only set
@@ -241,6 +250,11 @@ spec:
                   format: int64
                   type: integer
                 deletionTimestamp:
+                  anyOf:
+                  - format: date-time
+                    type: string
+                  - enum:
+                    - "null"
                   description: 'DeletionTimestamp is RFC 3339 date and time at which
                     this resource will be deleted. This field is set by the server
                     when a graceful deletion is requested by the user, and is not
@@ -261,8 +275,6 @@ spec:
                     the resource is fully terminated. If not set, graceful deletion
                     of the object has not been requested.  Populated by the system
                     when a graceful deletion is requested. Read-only. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata'
-                  format: date-time
-                  type: string
                 finalizers:
                   description: Must be empty before the object is deleted from the
                     registry. Each entry is an identifier for the responsible component
@@ -487,10 +499,13 @@ spec:
                     last operation.
                   type: string
                 lastUpdated:
+                  anyOf:
+                  - format: date-time
+                    type: string
+                  - enum:
+                    - "null"
                   description: LastUpdated is the timestamp at which LastOperation
                     API was last-updated.
-                  format: date-time
-                  type: string
                 state:
                   description: State is the current status of the last performed operation.
                     E.g. Processing, Failed, Successful etc
@@ -501,9 +516,12 @@ spec:
                   type: string
               type: object
             lastUpdated:
+              anyOf:
+              - format: date-time
+                type: string
+              - enum:
+                - "null"
               description: LastUpdated identifies when this status was last observed.
-              format: date-time
-              type: string
             nodeRef:
               description: NodeRef will point to the corresponding Node if it exists.
               type: object
