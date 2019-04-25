@@ -72,6 +72,17 @@ rules:
       - patch
 
   - apiGroups:
+      - metal3.io
+    resources:
+      - baremetalhosts
+    verbs:
+      - get
+      - list
+      - watch
+      - update
+      - patch
+
+  - apiGroups:
       - apps
     resources:
       - deployments
