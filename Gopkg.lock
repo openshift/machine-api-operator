@@ -441,7 +441,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:7cbcae314ea9375bebbecfc8b520bbce9786f9c4d1b42824f2a1613695e3faad"
+  digest = "1:10a5ccf52b9b2af2f8e9bf51ef8e67324e9e999f73099ddea1c849ae5295ced8"
   name = "github.com/openshift/cluster-api-actuator-pkg"
   packages = [
     "pkg/e2e",
@@ -454,7 +454,7 @@
     "pkg/types",
   ]
   pruneopts = ""
-  revision = "59a034672129ff21181ac38871a47dabbc900c7f"
+  revision = "7405f6233af2dd7ff0bc6ac815d4a7e954af8ade"
 
 [[projects]]
   branch = "master"

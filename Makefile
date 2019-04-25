@@ -65,12 +65,8 @@ build-integration: ## Build integration test binary
 
 .PHONY: test-e2e
 test-e2e: ## Run openshift specific e2e test
-	go test -timeout 60m \
-		-v ./vendor/github.com/openshift/cluster-api-actuator-pkg/pkg/e2e \
-		-kubeconfig $${KUBECONFIG:-~/.kube/config} \
-		-machine-api-namespace $${NAMESPACE:-openshift-machine-api} \
-		-ginkgo.v \
-		-args -v 5 -logtostderr true
+	cd ./vendor/github.com/openshift/cluster-api-actuator-pkg && \
+		make test-e2e
 
 .PHONY: deploy-kubemark
 deploy-kubemark:
