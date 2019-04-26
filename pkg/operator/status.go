@@ -31,7 +31,7 @@ const (
 )
 
 // statusProgressing sets the Progressing condition to True, with the given
-// reason and message, and sets both the Available and Failing conditions to
+// reason and message, and sets both the Available and Degraded conditions to
 // False.
 func (optr *Operator) statusProgressing() error {
 	desiredVersions := optr.operandVersions
@@ -63,20 +63,20 @@ func (optr *Operator) statusProgressing() error {
 	conds := []osconfigv1.ClusterOperatorStatusCondition{
 		newClusterOperatorStatusCondition(osconfigv1.OperatorProgressing, isProgressing, string(ReasonSyncing), message),
 		newClusterOperatorStatusCondition(osconfigv1.OperatorAvailable, osconfigv1.ConditionTrue, "", ""),
-		newClusterOperatorStatusCondition(osconfigv1.OperatorFailing, osconfigv1.ConditionFalse, "", ""),
+		newClusterOperatorStatusCondition(osconfigv1.OperatorDegraded, osconfigv1.ConditionFalse, "", ""),
 	}
 
 	return optr.syncStatus(co, conds)
 }
 
 // statusAvailable sets the Available condition to True, with the given reason
-// and message, and sets both the Progressing and Failing conditions to False.
+// and message, and sets both the Progressing and Degraded conditions to False.
 func (optr *Operator) statusAvailable() error {
 	conds := []osconfigv1.ClusterOperatorStatusCondition{
 		newClusterOperatorStatusCondition(osconfigv1.OperatorAvailable, osconfigv1.ConditionTrue, string(ReasonEmpty),
 			fmt.Sprintf("Cluster Machine API Operator is available at %s", optr.printOperandVersions())),
 		newClusterOperatorStatusCondition(osconfigv1.OperatorProgressing, osconfigv1.ConditionFalse, "", ""),
-		newClusterOperatorStatusCondition(osconfigv1.OperatorFailing, osconfigv1.ConditionFalse, "", ""),
+		newClusterOperatorStatusCondition(osconfigv1.OperatorDegraded, osconfigv1.ConditionFalse, "", ""),
 	}
 
 	co, err := optr.getOrCreateClusterOperator()
@@ -90,11 +90,11 @@ func (optr *Operator) statusAvailable() error {
 	return optr.syncStatus(co, conds)
 }
 
-// statusFailing sets the Failing condition to True, with the given reason and
+// statusDegraded sets the Degraded condition to True, with the given reason and
 // message, and sets the Progressing condition to False, and the Available
 // condition to True.  This indicates that the operator is present and may be
 // partially functioning, but is in a degraded or failing state.
-func (optr *Operator) statusFailing(error string) error {
+func (optr *Operator) statusDegraded(error string) error {
 	desiredVersions := optr.operandVersions
 	currentVersions, err := optr.getCurrentVersions()
 	if err != nil {
@@ -110,7 +110,7 @@ func (optr *Operator) statusFailing(error string) error {
 	}
 
 	conds := []osconfigv1.ClusterOperatorStatusCondition{
-		newClusterOperatorStatusCondition(osconfigv1.OperatorFailing, osconfigv1.ConditionTrue,
+		newClusterOperatorStatusCondition(osconfigv1.OperatorDegraded, osconfigv1.ConditionTrue,
 			string(ReasonSyncFailed), message),
 		newClusterOperatorStatusCondition(osconfigv1.OperatorProgressing, osconfigv1.ConditionFalse, "", ""),
 		newClusterOperatorStatusCondition(osconfigv1.OperatorAvailable, osconfigv1.ConditionTrue, "", ""),
@@ -120,8 +120,8 @@ func (optr *Operator) statusFailing(error string) error {
 	if err != nil {
 		return err
 	}
-	optr.eventRecorder.Eventf(co, v1.EventTypeWarning, "Status failing", error)
-	glog.V(2).Info("Syncing status: failing")
+	optr.eventRecorder.Eventf(co, v1.EventTypeWarning, "Status degraded", error)
+	glog.V(2).Info("Syncing status: degraded")
 	return optr.syncStatus(co, conds)
 }
 
