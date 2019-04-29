@@ -1,0 +1,45 @@
+apiVersion: machine.openshift.io/v1beta1
+kind: Machine
+metadata:
+  labels:
+    machine.openshift.io/cluster-api-cluster: clusterID
+    machine.openshift.io/cluster-api-machine-role: role
+    machine.openshift.io/cluster-api-machine-type: role
+  name: machineName
+  namespace: openshift-machine-api
+spec:
+  providerSpec:
+    value:
+      kind: AWSMachineProviderConfig
+      ami:
+        id: ami-0df3f99538fbef10f
+      apiVersion: awsproviderconfig.openshift.io/v1beta1
+      blockDevices:
+        - ebs:
+            iops: 0
+            volumeSize: 120
+            volumeType: gp2
+      credentialsSecret:
+        name: aws-cloud-credentials
+      deviceIndex: 0
+      iamInstanceProfile:
+        id: clusterID-worker-profile
+      instanceType: m4.large
+      placement:
+        availabilityZone: us-east-1a
+        region: us-east-1
+      securityGroups:
+        - filters:
+            - name: tag:Name
+              values:
+                - clusterID-worker-sg
+      subnet:
+        filters:
+          - name: tag:Name
+            values:
+              - clusterID-private-us-east-1a
+      tags:
+        - name: kubernetes.io/cluster/clusterID
+          value: owned
+      userDataSecret:
+        name: worker-user-data
