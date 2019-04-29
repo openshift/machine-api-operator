@@ -11,6 +11,21 @@ else
   IMAGE_BUILD_CMD = docker build
 endif
 
+ifeq ($(KUBECONFIG),)
+KUBECONFIG := ~/.kube/config
+endif
+
+# This definition is make-3.81 compatible which is the default stock
+# verion on Darwin.
+define ginkgo_test
+	go test -timeout 60m \
+		-v ./pkg/e2e \
+		-kubeconfig $1 \
+		-machine-api-namespace $2 \
+		-args -v 5 -logtostderr \
+		$3 $4 $5 $6 $7 $8 $9
+endef
+
 .PHONY: depend
 depend:
 	dep version || go get -u github.com/golang/dep/cmd/dep
@@ -44,22 +59,22 @@ build-e2e:
 	go test -c -o bin/e2e github.com/openshift/cluster-api-actuator-pkg/pkg/e2e
 
 .PHONY: test-e2e
-test-e2e: ## Run openshift specific e2e test
-	# Run operator tests first to preserve logs for troubleshooting test
-	# failures and flakes.
-	# Feature:Operator tests remove deployments. Thus loosing all the logs
-	# previously acquired.
-	E2EWORKDIR=${PWD} hack/ci-integration.sh -ginkgo.v -ginkgo.noColor=true -ginkgo.focus "Feature:Operators"
-	E2EWORKDIR=${PWD} hack/ci-integration.sh -ginkgo.v -ginkgo.noColor=true -ginkgo.skip "Feature:Operators"
+# Run operator tests first to preserve logs for troubleshooting test
+# failures and flakes. Feature:Operator tests remove deployments. Thus
+# loosing all the logs previously acquired.
+test-e2e:
+	$(call ginkgo_test,$(KUBECONFIG),openshift-machine-api,-ginkgo.v,-ginkgo.noColor=true,-ginkgo.focus "Feature:Operators")
+	$(call ginkgo_test,$(KUBECONFIG),openshift-machine-api,-ginkgo.v,-ginkgo.noColor=true,-ginkgo.skip "Feature:Operators")
+
+.PHONY: k8s-e2e k8s-e2e-operators k8s-e2e-features
 
 .PHONY: k8s-e2e
-k8s-e2e: ## Run k8s specific e2e test
-	# Run operator tests first to preserve logs for troubleshooting test
-	# failures and flakes.
-	# Feature:Operator tests remove deployments. Thus loosing all the logs
-	# previously acquired.
-	NAMESPACE=kube-system hack/ci-integration.sh -ginkgo.v -ginkgo.noColor=true -ginkgo.focus "Feature:Operators"
-	NAMESPACE=kube-system hack/ci-integration.sh -ginkgo.v -ginkgo.noColor=true -ginkgo.skip "Feature:Operators"
+# Run k8s specific e2e test Run operator tests first to preserve logs
+# for troubleshooting test failures and flakes. Feature:Operator tests
+# remove deployments. Thus loosing all the logs previously acquired.
+k8s-e2e:
+	$(call ginkgo_test,$(KUBECONFIG),kube-system,-ginkgo.v,-ginkgo.noColor=true,-ginkgo.focus "Feature:Operators")
+	$(call ginkgo_test,$(KUBECONFIG),kube-system,-ginkgo.v,-ginkgo.noColor=true,-ginkgo.skip "Feature:Operators")
 
 .PHONY: help
 help:
