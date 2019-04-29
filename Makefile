@@ -65,8 +65,7 @@ build-integration: ## Build integration test binary
 
 .PHONY: test-e2e
 test-e2e: ## Run openshift specific e2e test
-	cd ./vendor/github.com/openshift/cluster-api-actuator-pkg && \
-		make test-e2e
+	$(MAKE) -C ./vendor/github.com/openshift/cluster-api-actuator-pkg $@
 
 .PHONY: deploy-kubemark
 deploy-kubemark:
