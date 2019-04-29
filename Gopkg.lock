@@ -413,7 +413,7 @@
 
 [[projects]]
   branch = "openshift-4.0-cluster-api-0.0.0-alpha.4"
-  digest = "1:254e6bfaccd0d24b32e3886403467173cc70f111c2ab23de37307b1eacca996b"
+  digest = "1:fd7bc783f3b4e5894248bad9f17e9972a93b70b46b1f45dd154dee56eaf5e111"
   name = "github.com/openshift/cluster-api"
   packages = [
     "pkg/apis/cluster/common",
@@ -437,11 +437,11 @@
     "pkg/util",
   ]
   pruneopts = "NUT"
-  revision = "34fb0d070a2ed877b1df06a2b79bbc4f92bcad2d"
+  revision = "d8958b539e331bf5ebb056b7f872541e13fb8e01"
 
 [[projects]]
   branch = "master"
-  digest = "1:7cbcae314ea9375bebbecfc8b520bbce9786f9c4d1b42824f2a1613695e3faad"
+  digest = "1:c51e502153acd32f728210817c40fc8e1d6851d2b64a0be0b5c0186ee32218ac"
   name = "github.com/openshift/cluster-api-actuator-pkg"
   packages = [
     "pkg/e2e",
@@ -454,7 +454,7 @@
     "pkg/types",
   ]
   pruneopts = ""
-  revision = "59a034672129ff21181ac38871a47dabbc900c7f"
+  revision = "286578aa9fd0510b7c37fbd4b4ab9c0eab7b03eb"
 
 [[projects]]
   branch = "master"
