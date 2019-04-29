@@ -2,7 +2,6 @@ package operator
 
 import (
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"path/filepath"
@@ -10,12 +9,15 @@ import (
 	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
+	osclientset "github.com/openshift/client-go/config/clientset/versioned"
 	fakeconfigclientset "github.com/openshift/client-go/config/clientset/versioned/fake"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/informers"
-	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/workqueue"
 
 	v1 "github.com/openshift/api/config/v1"
 	fakeos "github.com/openshift/client-go/config/clientset/versioned/fake"
@@ -147,29 +149,38 @@ const (
 	hcControllerName = "machine-healthcheck-controller"
 )
 
-func initOperator(featureGate *v1.FeatureGate, kubeclientSet *fakekube.Clientset) (*Operator, error) {
-	configClient := fakeos.NewSimpleClientset(featureGate)
-	kubeNamespacedSharedInformer := informers.NewSharedInformerFactoryWithOptions(kubeclientSet, 2*time.Minute, informers.WithNamespace(targetNamespace))
-	configSharedInformer := configinformersv1.NewSharedInformerFactoryWithOptions(configClient, 2*time.Minute)
+func newFakeOperator(
+	kubeClient kubernetes.Interface,
+	osClient osclientset.Interface,
+	stopCh <-chan struct{},
+) *Operator {
+
+	kubeNamespacedSharedInformer := informers.NewSharedInformerFactoryWithOptions(kubeClient, 2*time.Minute, informers.WithNamespace(targetNamespace))
+	configSharedInformer := configinformersv1.NewSharedInformerFactoryWithOptions(osClient, 2*time.Minute)
 	featureGateInformer := configSharedInformer.Config().V1().FeatureGates()
 	deployInformer := kubeNamespacedSharedInformer.Apps().V1().Deployments()
 
-	op := &Operator{
-		kubeClient:        kubeclientSet,
-		featureGateLister: featureGateInformer.Lister(),
-		deployLister:      deployInformer.Lister(),
-		ownedManifestsDir: "../../owned-manifests",
+	optr := &Operator{
+		kubeClient:             kubeClient,
+		osClient:               osClient,
+		featureGateLister:      featureGateInformer.Lister(),
+		deployLister:           deployInformer.Lister(),
+		ownedManifestsDir:      "../../owned-manifests",
+		imagesFile:             "fixtures/images.json",
+		namespace:              targetNamespace,
+		queue:                  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
+		deployListerSynced:     deployInformer.Informer().HasSynced,
+		featureGateCacheSynced: featureGateInformer.Informer().HasSynced,
 	}
 
-	stop := make(<-chan struct{})
-	configSharedInformer.Start(stop)
-	kubeNamespacedSharedInformer.Start(stop)
+	optr.syncHandler = optr.sync
+	deployInformer.Informer().AddEventHandler(optr.eventHandler())
+	featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
 
-	if !cache.WaitForCacheSync(stop, featureGateInformer.Informer().HasSynced) {
-		return nil, fmt.Errorf("unable to wait for cache to sync")
-	}
+	configSharedInformer.Start(stopCh)
+	kubeNamespacedSharedInformer.Start(stopCh)
 
-	return op, nil
+	return optr
 }
 
 func deploymentHasContainer(d *appsv1.Deployment, containerName string) bool {
@@ -210,33 +221,36 @@ func TestOperatorSyncClusterAPIControllerHealthCheckController(t *testing.T) {
 		expectedMachineHealthCheckController: true,
 	}}
 
-	oc := OperatorConfig{
-		TargetNamespace: targetNamespace,
-		Controllers: Controllers{
-			Provider:           "controllers-provider",
-			NodeLink:           "controllers-nodelink",
-			MachineHealthCheck: "controllers-machinehealthcheck",
-		},
-	}
-
 	for _, tc := range tests {
+		infra := &configv1.Infrastructure{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "cluster",
+			},
+			Status: configv1.InfrastructureStatus{
+				Platform: configv1.AWSPlatformType,
+			},
+		}
+
 		kubeclientSet := fakekube.NewSimpleClientset()
-		op, err := initOperator(tc.featureGate, kubeclientSet)
-		if err != nil {
-			t.Fatalf("Unable to init operator: %v", err)
-		}
+		configClient := fakeos.NewSimpleClientset(tc.featureGate, infra)
 
-		if err := op.syncClusterAPIController(oc); err != nil {
-			t.Errorf("Failed to sync machine API controller: %v", err)
-		}
+		stopCh := make(<-chan struct{})
+		optr := newFakeOperator(kubeclientSet, configClient, stopCh)
+		go optr.Run(2, stopCh)
 
-		d, err := op.deployLister.Deployments(targetNamespace).Get(deploymentName)
-		if err != nil {
-			t.Errorf("Failed to get %q deployment: %v", deploymentName, err)
-		}
-
-		if deploymentHasContainer(d, hcControllerName) != tc.expectedMachineHealthCheckController {
-			t.Errorf("Expected deploymentHasContainer for %q container to be %t", hcControllerName, tc.expectedMachineHealthCheckController)
+		if err := wait.PollImmediate(1*time.Second, 5*time.Second, func() (bool, error) {
+			d, err := optr.deployLister.Deployments(targetNamespace).Get(deploymentName)
+			if err != nil {
+				t.Logf("Failed to get %q deployment: %v", deploymentName, err)
+				return false, nil
+			}
+			if deploymentHasContainer(d, hcControllerName) != tc.expectedMachineHealthCheckController {
+				t.Logf("Expected deploymentHasContainer for %q container to be %t", hcControllerName, tc.expectedMachineHealthCheckController)
+				return false, nil
+			}
+			return true, nil
+		}); err != nil {
+			t.Errorf("Failed to verify %q deployment", deploymentName)
 		}
 	}
 }
