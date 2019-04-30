@@ -49,8 +49,8 @@ test-e2e: ## Run openshift specific e2e test
 	# failures and flakes.
 	# Feature:Operator tests remove deployments. Thus loosing all the logs
 	# previously acquired.
-	hack/ci-integration.sh -ginkgo.v -ginkgo.noColor=true -ginkgo.focus "Feature:Operators"
-	hack/ci-integration.sh -ginkgo.v -ginkgo.noColor=true -ginkgo.skip "Feature:Operators"
+	E2EWORKDIR=$${E2EWORKDIR:-$(PWD)} hack/ci-integration.sh -ginkgo.v -ginkgo.noColor=true -ginkgo.focus "Feature:Operators"
+	E2EWORKDIR=$${E2EWORKDIR:-$(PWD)} hack/ci-integration.sh -ginkgo.v -ginkgo.noColor=true -ginkgo.skip "Feature:Operators"
 
 .PHONY: k8s-e2e
 k8s-e2e: ## Run k8s specific e2e test
