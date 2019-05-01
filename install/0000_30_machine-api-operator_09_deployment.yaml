@@ -46,9 +46,7 @@ spec:
         runAsNonRoot: true
         runAsUser: 65534
       tolerations:
-      - key: "node-role.kubernetes.io/master"
-        operator: "Exists"
-        effect: "NoSchedule"
+      - operator: "Exists"
       volumes:
       - name: images
         configMap:
