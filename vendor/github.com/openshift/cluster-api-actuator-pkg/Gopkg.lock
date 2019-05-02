@@ -364,15 +364,16 @@
   version = "v1.4.2"
 
 [[projects]]
-  digest = "1:853f9ec7a92a4b87a9b660e838731623d098613ef3bd5443b8331790ff7bef10"
+  branch = "master"
+  digest = "1:1267d3ab59b1de9f72b0bd74615c0926814806fbf2a6136cffc0fe1ee66a22f4"
   name = "github.com/openshift/api"
   packages = ["config/v1"]
   pruneopts = ""
-  revision = "8e476cb7322e59919cbb6482fd076ec5a214df25"
+  revision = "77b8897ec79a562e85920134fc65b63300c4d27a"
 
 [[projects]]
   branch = "openshift-4.0-cluster-api-0.0.0-alpha.4"
-  digest = "1:70aff930abe993c5b2c11128f615ac7ad529e99d82ee3fb13e41e2afac30a38c"
+  digest = "1:094eb37dfdc149e4b46a1f8ba2f0a01d2e14973b20ae758038ab66aef16b75ae"
   name = "github.com/openshift/cluster-api"
   packages = [
     "pkg/apis/cluster/common",
@@ -388,7 +389,7 @@
     "pkg/util",
   ]
   pruneopts = ""
-  revision = "d8958b539e331bf5ebb056b7f872541e13fb8e01"
+  revision = "0b649f443f830353db113f92aa86db2d4d34943a"
 
 [[projects]]
   branch = "master"
@@ -1062,6 +1063,7 @@
     "github.com/onsi/ginkgo",
     "github.com/onsi/gomega",
     "github.com/openshift/api/config/v1",
+    "github.com/openshift/cluster-api/pkg/apis/cluster/v1alpha1",
     "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1",
     "github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset",
     "github.com/openshift/cluster-api/pkg/controller/node",
