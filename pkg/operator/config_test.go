@@ -52,10 +52,10 @@ func TestGetProviderFromInfrastructure(t *testing.T) {
 	}, {
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
-				Platform: bareMetalPlatform,
+				Platform: configv1.BareMetalPlatformType,
 			},
 		},
-		expected: bareMetalPlatform,
+		expected: configv1.BareMetalPlatformType,
 	}, {
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
@@ -129,7 +129,7 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 			expectedImage: expectedOpenstackImage,
 		},
 		{
-			provider:      bareMetalPlatform,
+			provider:      configv1.BareMetalPlatformType,
 			expectedImage: expectedBareMetalImage,
 		},
 		{

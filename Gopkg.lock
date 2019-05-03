@@ -378,7 +378,8 @@
   version = "v1.4.3"
 
 [[projects]]
-  digest = "1:d399751e77e2460e41253b656863f6b68da4fe91ea26f46e045227b7556c93f1"
+  branch = "master"
+  digest = "1:866ca9797ad2333047e29e9d86a3c52220573ad1ac1d181b4e3c9e2c7b2067d9"
   name = "github.com/openshift/api"
   packages = [
     "config/v1",
@@ -388,7 +389,7 @@
     "security/v1",
   ]
   pruneopts = "NUT"
-  revision = "8e476cb7322e59919cbb6482fd076ec5a214df25"
+  revision = "275768afc8f66b79aeb12debf94ffc85255104ad"
 
 [[projects]]
   branch = "rebase-1.13.4"

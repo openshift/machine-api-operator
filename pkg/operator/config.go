@@ -16,7 +16,6 @@ const (
 	clusterAPIControllerKubemark = "docker.io/gofed/kubemark-machine-controllers:v1.0"
 	clusterAPIControllerNoOp     = "no-op"
 	kubemarkPlatform             = configv1.PlatformType("kubemark")
-	bareMetalPlatform            = configv1.PlatformType("BareMetal")
 )
 
 type Provider string
@@ -74,7 +73,7 @@ func getProviderControllerFromImages(platform configv1.PlatformType, images Imag
 		return images.ClusterAPIControllerOpenStack, nil
 	case configv1.AzurePlatformType:
 		return images.ClusterAPIControllerAzure, nil
-	case bareMetalPlatform:
+	case configv1.BareMetalPlatformType:
 		return images.ClusterAPIControllerBareMetal, nil
 	case kubemarkPlatform:
 		return clusterAPIControllerKubemark, nil

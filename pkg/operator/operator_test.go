@@ -50,7 +50,7 @@ func TestOperatorSync_NoOp(t *testing.T) {
 			expectedNoop: false,
 		},
 		{
-			platform:     bareMetalPlatform,
+			platform:     configv1.BareMetalPlatformType,
 			expectedNoop: false,
 		},
 		{
