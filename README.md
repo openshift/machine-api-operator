@@ -17,26 +17,28 @@ This allows to convey desired state of machines in a cluster in a declarative fa
 ## Controllers
 
 ### Cluster API controllers
-- [MachineSet Controller](https://github.com/kubernetes-sigs/cluster-api/tree/master/pkg/controller)
-  - Reconciles desired state for [MachineSets](https://github.com/kubernetes-sigs/cluster-api/blob/master/pkg/apis/cluster/v1alpha1/machineset_types.go) by ensuring presence of specified number of replicas and config for a set of machines.
+- [MachineSet Controller](https://github.com/openshift/cluster-api/tree/master/pkg/controller/machineset)
+  - Reconciles desired state for [MachineSets](https://github.com/openshift/cluster-api/blob/master/pkg/apis/machine/v1beta1/machineset_types.go) by ensuring presence of specified number of replicas and config for a set of machines.
 
-- [Machine Controller](https://github.com/kubernetes-sigs/cluster-api/tree/master/pkg/controller)
-  - Reconciles desired state for [Machines](https://github.com/kubernetes-sigs/cluster-api/blob/master/pkg/apis/cluster/v1alpha1/machine_types.go) by ensuring that instances with a desired config exist in a given cloud provider. Currently we support:
+- [Machine Controller](https://github.com/openshift/cluster-api/tree/master/pkg/controller/machine)
+  - Reconciles desired state for [Machines](https://github.com/openshift/cluster-api/blob/master/pkg/apis/machine/v1beta1/machine_types.go) by ensuring that instances with a desired config exist in a given cloud provider. Currently we support:
 
   - [cluster-api-provider-aws](https://github.com/openshift/cluster-api-provider-aws)
 
   - [cluster-api-provider-libvirt](https://github.com/openshift/cluster-api-provider-libvirt)
 
-  - [cluster-api-provider-openstack](https://github.com/kubernetes-sigs/cluster-api-provider-openstack). Coming soon.
+  - [cluster-api-provider-azure](https://github.com/openshift/cluster-api-provider-azure) Coming soon.
+
+  - [cluster-api-provider-openstack](https://github.com/kubernetes-sigs/cluster-api-provider-openstack) Coming soon.
 
   - [cluster-api-provider-baremetal](https://github.com/metal3-io/cluster-api-provider-baremetal). Under development in [Metal3](http://metal3.io).
 
-- [Node Controller](https://github.com/kubernetes-sigs/cluster-api/tree/master/pkg/controller)
+- [Node Controller](https://github.com/openshift/cluster-api/tree/master/pkg/controller/node)
   - Reconciles desired state of machines by matching IP addresses of machine objects with IP addresses of node objects. Annotating node with a special label containing machine name that the cluster-api node controller interprets and sets corresponding nodeRef field of each relevant machine.
 
 ### Nodelink controller
 
-- Reconciles desired state of machines by matching IP addresses of machine objects with IP addresses of node objects and annotates nodes with a special [machine annotation](https://github.com/kubernetes-sigs/cluster-api/blob/master/pkg/controller/node/node.go#L35) containing the machine name. The cluster-api node controller interprets the annotation and sets the corresponding nodeRef field of each relevant machine.
+- Reconciles desired state of machines by matching IP addresses of machine objects with IP addresses of node objects and annotates nodes with a special [machine annotation](https://github.com/openshift/cluster-api/blob/master/pkg/controller/node/node.go#L34) containing the machine name. The cluster-api node controller interprets the annotation and sets the corresponding nodeRef field of each relevant machine.
 
 - Build:
 
