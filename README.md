@@ -112,6 +112,19 @@ $ make nodelink-controller
      new instance is created. Followed by new node joining the cluster
      and turning in `Ready` state.
 
+## Creating machines
+
+You can create a new machine by [applying a manifest representing an instance of the machine CRD](docs/examples/machine.yaml)
+
+The `machine.openshift.io/cluster-api-cluster` label will be used by the controllers to lookup for the right cloud instance.
+
+You can set other labels to provide a convenient way for users and consumers to retrieve groups of machines:
+```
+machine.openshift.io/cluster-api-machine-role: worker
+machine.openshift.io/cluster-api-machine-type: worker
+```
+
+
 ## Dev
 
 - Generate code (if needed):
