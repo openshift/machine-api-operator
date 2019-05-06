@@ -27,13 +27,16 @@ spec:
         metadata:
           type: object
         spec:
+          description: Specification of machine health check policy
           properties:
             selector:
+              description: Label selector to match machines whose health will be exercised
               type: object
           required:
           - selector
           type: object
         status:
+          description: Most recently observed status of MachineHealthCheck resource
           type: object
   version: v1alpha1
 status:

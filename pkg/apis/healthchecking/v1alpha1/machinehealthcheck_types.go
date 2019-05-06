@@ -16,7 +16,10 @@ type MachineHealthCheck struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec   MachineHealthCheckSpec   `json:"spec,omitempty"`
+	// Specification of machine health check policy
+	Spec MachineHealthCheckSpec `json:"spec,omitempty"`
+
+	// Most recently observed status of MachineHealthCheck resource
 	Status MachineHealthCheckStatus `json:"status,omitempty"`
 }
 
@@ -31,6 +34,7 @@ type MachineHealthCheckList struct {
 
 // MachineHealthCheckSpec defines the desired state of MachineHealthCheck
 type MachineHealthCheckSpec struct {
+	// Label selector to match machines whose health will be exercised
 	Selector metav1.LabelSelector `json:"selector"`
 }
 
