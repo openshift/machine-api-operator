@@ -60,9 +60,11 @@ spec:
       - effect: NoExecute
         key: node.kubernetes.io/not-ready
         operator: Exists
+        tolerationSeconds: 120
       - effect: NoExecute
         key: node.kubernetes.io/unreachable
         operator: Exists
+        tolerationSeconds: 120
       containers:
       - name: unready-nodes-gb
         image: gofed/kubemark-machine-controllers:v1.0
