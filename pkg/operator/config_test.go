@@ -4,7 +4,6 @@ import (
 	"testing"
 
 	configv1 "github.com/openshift/api/config/v1"
-	"github.com/openshift/cluster-version-operator/lib/resourceread"
 )
 
 var (
@@ -180,67 +179,5 @@ func TestGetMachineAPIOperatorFromImages(t *testing.T) {
 	}
 	if res != expectedMachineAPIOperatorImage {
 		t.Errorf("failed getMachineAPIOperatorFromImages. Expected: %s, got: %s", expectedMachineAPIOperatorImage, res)
-	}
-}
-
-func TestPopulateTemplateMachineHealthCheckControllerEnabled(t *testing.T) {
-	oc := &OperatorConfig{
-		TargetNamespace: "test-namespace",
-		Controllers: Controllers{
-			Provider:                  "controllers-provider",
-			NodeLink:                  "controllers-nodelink",
-			MachineHealthCheck:        "controllers-machinehealthcheck",
-			MachineHealthCheckEnabled: true,
-		},
-	}
-	controllerBytes, err := PopulateTemplate(oc, "../../owned-manifests/machine-api-controllers.yaml")
-	if err != nil {
-		t.Errorf("failed to populate template: %v", err)
-	}
-
-	controller := resourceread.ReadDeploymentV1OrDie(controllerBytes)
-	hcControllerFound := false
-	hcControllerName := "machine-healthcheck-controller"
-	for _, container := range controller.Spec.Template.Spec.Containers {
-		if container.Name == hcControllerName {
-			hcControllerFound = true
-			break
-		}
-	}
-	if !hcControllerFound {
-		t.Errorf("failed to find %q container in %q deployment", hcControllerName, controller.Name)
-	} else {
-		t.Logf("found %q container in %q deployment", hcControllerName, controller.Name)
-	}
-}
-
-func TestPopulateTemplateMachineHealthCheckControllerDisabled(t *testing.T) {
-	oc := &OperatorConfig{
-		TargetNamespace: "test-namespace",
-		Controllers: Controllers{
-			Provider:                  "controllers-provider",
-			NodeLink:                  "controllers-nodelink",
-			MachineHealthCheck:        "controllers-machinehealthcheck",
-			MachineHealthCheckEnabled: false,
-		},
-	}
-	controllerBytes, err := PopulateTemplate(oc, "../../owned-manifests/machine-api-controllers.yaml")
-	if err != nil {
-		t.Errorf("failed to populate template: %v", err)
-	}
-
-	controller := resourceread.ReadDeploymentV1OrDie(controllerBytes)
-	hcControllerFound := false
-	hcControllerName := "machine-healthcheck-controller"
-	for _, container := range controller.Spec.Template.Spec.Containers {
-		if container.Name == hcControllerName {
-			hcControllerFound = true
-			break
-		}
-	}
-	if hcControllerFound {
-		t.Errorf("did not expect to find %q container in %q deployment", hcControllerName, controller.Name)
-	} else {
-		t.Logf("did not found %q container in %q deployment", hcControllerName, controller.Name)
 	}
 }
