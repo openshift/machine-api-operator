@@ -20,7 +20,7 @@ import (
 	"reflect"
 	"testing"
 
-	mapiv1alpha1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
+	mapiv1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -32,9 +32,9 @@ func node(taints *[]corev1.Taint) *corev1.Node {
 	}
 }
 
-func machine(taints *[]corev1.Taint) *mapiv1alpha1.Machine {
-	return &mapiv1alpha1.Machine{
-		Spec: mapiv1alpha1.MachineSpec{
+func machine(taints *[]corev1.Taint) *mapiv1.Machine {
+	return &mapiv1.Machine{
+		Spec: mapiv1.MachineSpec{
 			Taints: *taints,
 		},
 	}
@@ -80,6 +80,96 @@ func TestAddTaintsToNode(t *testing.T) {
 		addTaintsToNode(node, machine)
 		if !reflect.DeepEqual(node.Spec.Taints, test.expectedFinalNodeTaints) {
 			t.Errorf("Test case: %s. Expected: %v, got: %v", test.description, test.expectedFinalNodeTaints, node.Spec.Taints)
+		}
+	}
+}
+
+func fakeController() *Controller {
+	c := Controller{}
+	c.machineAddress = make(map[string]*mapiv1.Machine)
+	return &c
+}
+
+func TestAddUpdateDeleteMachine(t *testing.T) {
+	testCases := []struct {
+		description  string
+		machine      mapiv1.Machine
+		numAddresses int
+	}{
+		{
+			description:  "Machine with no addresses",
+			machine:      mapiv1.Machine{},
+			numAddresses: 0,
+		},
+		{
+			description: "Machine with one address",
+			machine: mapiv1.Machine{
+				Status: mapiv1.MachineStatus{
+					Addresses: []corev1.NodeAddress{
+						{
+							Address: "192.168.1.1",
+							Type:    "InternalIP",
+						},
+					},
+				},
+			},
+			numAddresses: 1,
+		},
+		{
+			description: "Machine with two addresses",
+			machine: mapiv1.Machine{
+				Status: mapiv1.MachineStatus{
+					Addresses: []corev1.NodeAddress{
+						{
+							Address: "192.168.1.1",
+							Type:    "InternalIP",
+						},
+						{
+							Address: "172.0.20.2",
+							Type:    "InternalIP",
+						},
+					},
+				},
+			},
+			numAddresses: 2,
+		},
+		{
+			description: "Use InternalIP only",
+			machine: mapiv1.Machine{
+				Status: mapiv1.MachineStatus{
+					Addresses: []corev1.NodeAddress{
+						{
+							Address: "192.168.1.1",
+							Type:    "InternalIP",
+						},
+						{
+							Address: "10.0.20.2",
+							Type:    "ExternalIP",
+						},
+						{
+							Address: "host.example.com",
+							Type:    "Hostname",
+						},
+					},
+				},
+			},
+			numAddresses: 1,
+		},
+	}
+
+	for _, test := range testCases {
+		c := fakeController()
+		c.addMachine(&test.machine)
+		if len(c.machineAddress) != test.numAddresses {
+			t.Errorf("Test case: %s, after addMachine(), Expected %d addresses, got %d", test.description, test.numAddresses, len(c.machineAddress))
+		}
+		c.updateMachine(mapiv1.Machine{}, &test.machine)
+		if len(c.machineAddress) != test.numAddresses {
+			t.Errorf("Test case: %s, after updateMachine(), Expected %d addresses, got %d", test.description, test.numAddresses, len(c.machineAddress))
+		}
+		c.deleteMachine(&test.machine)
+		if len(c.machineAddress) > 0 {
+			t.Errorf("Test case: %s, after deleteMachine(), Expected 0 addresses, got %d", test.description, len(c.machineAddress))
 		}
 	}
 }

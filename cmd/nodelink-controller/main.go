@@ -179,7 +179,6 @@ func (c *Controller) addMachine(obj interface{}) {
 		if a.Type == corev1.NodeInternalIP {
 			glog.V(3).Infof("Adding machine %q into machineAddress list for %q", machine.Name, a.Address)
 			c.machineAddress[a.Address] = machine
-			break
 		}
 	}
 }
@@ -195,7 +194,6 @@ func (c *Controller) updateMachine(old, cur interface{}) {
 		if a.Type == corev1.NodeInternalIP {
 			c.machineAddress[a.Address] = machine
 			glog.V(3).Infof("Updating machine addresses list. Machine: %q, address: %q", machine.Name, a.Address)
-			break
 		}
 	}
 }
@@ -210,7 +208,6 @@ func (c *Controller) deleteMachine(obj interface{}) {
 		// Use the internal IP to look for matches:
 		if a.Type == corev1.NodeInternalIP {
 			delete(c.machineAddress, a.Address)
-			break
 		}
 	}
 	glog.V(3).Infof("Delete obsolete machines from machine addresses list")
