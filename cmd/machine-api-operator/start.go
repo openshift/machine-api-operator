@@ -5,10 +5,17 @@ import (
 	"flag"
 
 	"github.com/golang/glog"
+	osconfigv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/machine-api-operator/pkg/operator"
 	"github.com/openshift/machine-api-operator/pkg/version"
 	"github.com/spf13/cobra"
+
+	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes"
+	coreclientsetv1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/client-go/tools/leaderelection"
+	"k8s.io/client-go/tools/record"
 )
 
 var (
@@ -56,11 +63,7 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				ctrlCtx := CreateControllerContext(cb, stopCh, componentNamespace)
-
-				if err := startControllers(ctrlCtx); err != nil {
-					glog.Fatalf("error starting controllers: %v", err)
-				}
-
+				startControllers(ctrlCtx)
 				ctrlCtx.KubeNamespacedInformerFactory.Start(ctrlCtx.Stop)
 				ctrlCtx.ConfigInformerFactory.Start(ctrlCtx.Stop)
 				close(ctrlCtx.InformersStarted)
@@ -75,18 +78,26 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 	panic("unreachable")
 }
 
-func startControllers(ctx *ControllerContext) error {
+func initRecorder(kubeClient kubernetes.Interface) record.EventRecorder {
+	eventRecorderScheme := runtime.NewScheme()
+	osconfigv1.Install(eventRecorderScheme)
+	eventBroadcaster := record.NewBroadcaster()
+	eventBroadcaster.StartLogging(glog.Infof)
+	eventBroadcaster.StartRecordingToSink(&coreclientsetv1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
+	return eventBroadcaster.NewRecorder(eventRecorderScheme, v1.EventSource{Component: "machineapioperator"})
+}
+
+func startControllers(ctx *ControllerContext) {
+	kubeClient := ctx.ClientBuilder.KubeClientOrDie(componentName)
+	recorder := initRecorder(kubeClient)
 	go operator.New(
 		componentNamespace, componentName,
 		startOpts.imagesFile,
-
 		config,
 		ctx.KubeNamespacedInformerFactory.Apps().V1().Deployments(),
 		ctx.ConfigInformerFactory.Config().V1().FeatureGates(),
-
 		ctx.ClientBuilder.KubeClientOrDie(componentName),
 		ctx.ClientBuilder.OpenshiftClientOrDie(componentName),
+		recorder,
 	).Run(2, ctx.Stop)
-
-	return nil
 }

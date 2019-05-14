@@ -11,14 +11,11 @@ import (
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	appsinformersv1 "k8s.io/client-go/informers/apps/v1"
 	"k8s.io/client-go/kubernetes"
-	coreclientsetv1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	appslisterv1 "k8s.io/client-go/listers/apps/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
@@ -72,19 +69,14 @@ func New(
 
 	kubeClient kubernetes.Interface,
 	osClient osclientset.Interface,
-) *Operator {
-	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(glog.Infof)
-	eventBroadcaster.StartRecordingToSink(&coreclientsetv1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
 
+	recorder record.EventRecorder,
+) *Operator {
 	// we must report the version from the release payload when we report available at that level
 	operandVersions := []osconfigv1.OperandVersion{}
 	if releaseVersion := os.Getenv("RELEASE_VERSION"); len(releaseVersion) > 0 {
 		operandVersions = append(operandVersions, osconfigv1.OperandVersion{Name: "operator", Version: releaseVersion})
 	}
-
-	eventRecorderScheme := runtime.NewScheme()
-	osconfigv1.Install(eventRecorderScheme)
 
 	optr := &Operator{
 		namespace:         namespace,
@@ -93,7 +85,7 @@ func New(
 		ownedManifestsDir: ownedManifestsDir,
 		kubeClient:        kubeClient,
 		osClient:          osClient,
-		eventRecorder:     eventBroadcaster.NewRecorder(eventRecorderScheme, v1.EventSource{Component: "machineapioperator"}),
+		eventRecorder:     recorder,
 		queue:             workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
 		operandVersions:   operandVersions,
 	}
