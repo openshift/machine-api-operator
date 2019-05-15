@@ -434,6 +434,7 @@ var (
 func main() {
 
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
+	watchNamespace := pflag.String("namespace", "", "Namespace that the controller watches to reconcile machine-api objects. If unspecified, the controller watches for machine-api objects across all namespaces.")
 	pflag.Parse()
 
 	config, err := config.GetConfig()
@@ -453,7 +454,19 @@ func main() {
 
 	// TODO(jchaloup): set the resync period reasonably
 	kubeSharedInformers := kubeinformers.NewSharedInformerFactory(kubeClient, 5*time.Second)
-	mapiInformers := mapiinformersfactory.NewSharedInformerFactory(client, 5*time.Second)
+
+	var mapiInformers mapiinformersfactory.SharedInformerFactory
+	if *watchNamespace != "" {
+		glog.Infof("Watching machine-api objects only in namespace %q for reconciliation.", *watchNamespace)
+		mapiInformers = mapiinformersfactory.NewSharedInformerFactoryWithOptions(
+			client,
+			5*time.Second,
+			mapiinformersfactory.WithNamespace(*watchNamespace))
+	} else {
+		mapiInformers = mapiinformersfactory.NewSharedInformerFactory(
+			client,
+			5*time.Second)
+	}
 
 	ctrl := NewController(
 		kubeSharedInformers.Core().V1().Nodes(),
