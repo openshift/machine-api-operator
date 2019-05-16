@@ -8,7 +8,7 @@ import (
 
 const (
 	// MachineAPIFeatureGateName contains a name of the machine API FeatureGate object
-	MachineAPIFeatureGateName = "machine-api"
+	MachineAPIFeatureGateName = "cluster"
 
 	// FeatureGateMachineHealthCheck contains the name of the MachineHealthCheck feature gate
 	FeatureGateMachineHealthCheck = "MachineHealthCheck"
