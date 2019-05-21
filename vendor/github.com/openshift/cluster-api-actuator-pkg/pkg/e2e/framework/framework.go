@@ -426,6 +426,14 @@ func LoadClient() (runtimeclient.Client, error) {
 	return runtimeclient.New(config, runtimeclient.Options{})
 }
 
+func LoadClientset() (*kubernetes.Clientset, error) {
+	config, err := LoadConfig()
+	if err != nil {
+		return nil, fmt.Errorf("error creating client: %v", err.Error())
+	}
+	return kubernetes.NewForConfig(config)
+}
+
 func IsNodeReady(node *corev1.Node) bool {
 	for _, c := range node.Status.Conditions {
 		if c.Type == corev1.NodeReady {
