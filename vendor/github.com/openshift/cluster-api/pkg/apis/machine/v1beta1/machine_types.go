@@ -46,6 +46,12 @@ const (
 // Machine is the Schema for the machines API
 // +k8s:openapi-gen=true
 // +kubebuilder:subresource:status
+// +kubebuilder:printcolumn:name="Instance",type="string",JSONPath=".status.providerStatus.instanceId",description="Instance ID of machine created in AWS"
+// +kubebuilder:printcolumn:name="State",type="string",JSONPath=".status.providerStatus.instanceState",description="State of the AWS instance"
+// +kubebuilder:printcolumn:name="Type",type="string",JSONPath=".spec.providerSpec.value.instanceType",description="Type of instance"
+// +kubebuilder:printcolumn:name="Region",type="string",JSONPath=".spec.providerSpec.value.placement.region",description="Region associated with machine"
+// +kubebuilder:printcolumn:name="Zone",type="string",JSONPath=".spec.providerSpec.value.placement.availabilityZone",description="Zone associated with machine"
+// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="Machine age"
 type Machine struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -65,9 +71,12 @@ type MachineSpec struct {
 	// +optional
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	// Taints is the full, authoritative list of taints to apply to the corresponding
-	// Node. This list will overwrite any modifications made to the Node on
-	// an ongoing basis.
+	// The list of the taints to be applied to the corresponding Node in additive
+	// manner. This list will not overwrite any other taints added to the Node on
+	// an ongoing basis by other entities. These taints should be actively reconciled
+	// e.g. if you ask the machine controller to apply a taint and then manually remove
+	// the taint the machine controller will put it back) but not have the machine controller
+	// remove any taints
 	// +optional
 	Taints []corev1.Taint `json:"taints,omitempty"`
 
@@ -78,12 +87,12 @@ type MachineSpec struct {
 	// ProviderID is the identification ID of the machine provided by the provider.
 	// This field must match the provider ID as seen on the node object corresponding to this machine.
 	// This field is required by higher level consumers of cluster-api. Example use case is cluster autoscaler
-	// with cluster-api as provider. Clean-up login in the autoscaler compares machines v/s nodes to find out
+	// with cluster-api as provider. Clean-up logic in the autoscaler compares machines to nodes to find out
 	// machines at provider which could not get registered as Kubernetes nodes. With cluster-api as a
 	// generic out-of-tree provider for autoscaler, this field is required by autoscaler to be
-	// able to have a provider view of the list of machines. Another list of nodes is queries from the k8s apiserver
-	// and then comparison is done to find out unregistered machines and are marked for delete.
-	// This field will be set by the actuators and consumed by higher level entities like autoscaler  who will
+	// able to have a provider view of the list of machines. Another list of nodes is queried from the k8s apiserver
+	// and then a comparison is done to find out unregistered machines and are marked for delete.
+	// This field will be set by the actuators and consumed by higher level entities like autoscaler that will
 	// be interfacing with cluster-api as generic provider.
 	// +optional
 	ProviderID *string `json:"providerID,omitempty"`

@@ -379,7 +379,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:866ca9797ad2333047e29e9d86a3c52220573ad1ac1d181b4e3c9e2c7b2067d9"
+  digest = "1:3869a6789d681d346a81a197a3cab7acac10572ac888265badd9f470a25c2d19"
   name = "github.com/openshift/api"
   packages = [
     "config/v1",
@@ -389,7 +389,7 @@
     "security/v1",
   ]
   pruneopts = "NUT"
-  revision = "275768afc8f66b79aeb12debf94ffc85255104ad"
+  revision = "d5b34b957e91dbf64013a866951c3ed5770db0b5"
 
 [[projects]]
   branch = "rebase-1.13.4"
@@ -413,8 +413,8 @@
   revision = "84c2b942258aea2462e675e03aeb8eb4cb5f3c29"
 
 [[projects]]
-  branch = "openshift-4.0-cluster-api-0.0.0-alpha.4"
-  digest = "1:fd7bc783f3b4e5894248bad9f17e9972a93b70b46b1f45dd154dee56eaf5e111"
+  branch = "openshift-4.2-cluster-api-0.1.0"
+  digest = "1:487f97274cd8ff2f0974cf1752bbe7f41ed60d5b1a96c6f357152a0cbb189dff"
   name = "github.com/openshift/cluster-api"
   packages = [
     "pkg/apis/cluster/common",
@@ -438,11 +438,11 @@
     "pkg/util",
   ]
   pruneopts = "NUT"
-  revision = "d8958b539e331bf5ebb056b7f872541e13fb8e01"
+  revision = "b5b707e02e5c199ec352fff2ecffe46c7ae55968"
 
 [[projects]]
   branch = "master"
-  digest = "1:8ac51ce0543106c1f7ae943463db52e48e816420351886a14fcf799b5fd14be9"
+  digest = "1:4b7df52bc64ba967c347d93a73a8a37626d18749d28e68b9d44f4dd1ff16a4c1"
   name = "github.com/openshift/cluster-api-actuator-pkg"
   packages = [
     "pkg/e2e",
@@ -455,7 +455,7 @@
     "pkg/types",
   ]
   pruneopts = ""
-  revision = "dc2d4c7f4e839792f76b43e4844a5f87a09300b2"
+  revision = "d7dfe2c914d01bcaf887e0fb873f15c52d82a718"
 
 [[projects]]
   branch = "master"
@@ -479,7 +479,7 @@
     "lib/resourceread",
   ]
   pruneopts = "NUT"
-  revision = "a928be9f42cac2f65296402019daa6f0badea1aa"
+  revision = "44cc4bc6c2a9b89d7eadff0fa48e215283c9e717"
 
 [[projects]]
   branch = "master"
@@ -1375,6 +1375,7 @@
     "k8s.io/code-generator/cmd/informer-gen",
     "k8s.io/code-generator/cmd/lister-gen",
     "k8s.io/gengo/args",
+    "k8s.io/klog",
     "sigs.k8s.io/controller-runtime/pkg/client",
     "sigs.k8s.io/controller-runtime/pkg/client/config",
     "sigs.k8s.io/controller-runtime/pkg/client/fake",
