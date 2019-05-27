@@ -5,9 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"bytes"
-	"text/template"
-
 	configv1 "github.com/openshift/api/config/v1"
 )
 
@@ -27,10 +24,9 @@ type OperatorConfig struct {
 }
 
 type Controllers struct {
-	Provider                  string
-	NodeLink                  string
-	MachineHealthCheck        string
-	MachineHealthCheckEnabled bool
+	Provider           string
+	NodeLink           string
+	MachineHealthCheck string
 }
 
 // Images allows build systems to inject images for MAO components
@@ -87,31 +83,4 @@ func getMachineAPIOperatorFromImages(images Images) (string, error) {
 		return "", fmt.Errorf("failed gettingMachineAPIOperator image. It is empty")
 	}
 	return images.MachineAPIOperator, nil
-}
-
-// PopulateTemplate receives a template file path and renders its content populated with the config
-func PopulateTemplate(config *OperatorConfig, path string) ([]byte, error) {
-
-	data, err := ioutil.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed reading file, %v", err)
-	}
-
-	buf := &bytes.Buffer{}
-	tmpl, err := template.New("").Option("missingkey=error").Parse(string(data))
-	if err != nil {
-		return nil, err
-	}
-
-	tmplData := struct {
-		OperatorConfig
-	}{
-		OperatorConfig: *config,
-	}
-
-	if err := tmpl.Execute(buf, tmplData); err != nil {
-		return nil, err
-	}
-
-	return buf.Bytes(), nil
 }

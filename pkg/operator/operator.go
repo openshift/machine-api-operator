@@ -28,17 +28,15 @@ const (
 	// a machineconfig pool is going to be requeued:
 	//
 	// 5ms, 10ms, 20ms, 40ms, 80ms, 160ms, 320ms, 640ms, 1.3s, 2.6s, 5.1s, 10.2s, 20.4s, 41s, 82s
-	maxRetries        = 15
-	ownedManifestsDir = "owned-manifests"
+	maxRetries = 15
 )
 
 // Operator defines machine api operator.
 type Operator struct {
 	namespace, name string
 
-	imagesFile        string
-	config            string
-	ownedManifestsDir string
+	imagesFile string
+	config     string
 
 	kubeClient    kubernetes.Interface
 	osClient      osclientset.Interface
@@ -79,15 +77,14 @@ func New(
 	}
 
 	optr := &Operator{
-		namespace:         namespace,
-		name:              name,
-		imagesFile:        imagesFile,
-		ownedManifestsDir: ownedManifestsDir,
-		kubeClient:        kubeClient,
-		osClient:          osClient,
-		eventRecorder:     recorder,
-		queue:             workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
-		operandVersions:   operandVersions,
+		namespace:       namespace,
+		name:            name,
+		imagesFile:      imagesFile,
+		kubeClient:      kubeClient,
+		osClient:        osClient,
+		eventRecorder:   recorder,
+		queue:           workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
+		operandVersions: operandVersions,
 	}
 
 	deployInformer.Informer().AddEventHandler(optr.eventHandler())
@@ -184,7 +181,7 @@ func (optr *Operator) sync(key string) error {
 		glog.Errorf("Failed getting operator config: %v", err)
 		return err
 	}
-	return optr.syncAll(*operatorConfig)
+	return optr.syncAll(operatorConfig)
 }
 
 func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
