@@ -23,6 +23,9 @@ required = [
 [[override]]
   name = "github.com/openshift/machine-api-operator"
 
+[[override]]
+  name = "k8s.io/utils"
+
 [[constraint]]
   name = "github.com/ghodss/yaml"
   version = "1.0.0"
@@ -41,7 +44,7 @@ required = [
 
 [[override]]
   name = "k8s.io/kube-aggregator"
-  version = "kubernetes-1.13.4"
+  version = "kubernetes-1.14.0"
   source = "github.com/openshift/kubernetes-kube-aggregator"
 
 [[override]]
@@ -50,34 +53,36 @@ required = [
 
 [[override]]
   name = "github.com/openshift/client-go"
-  branch = "rebase-1.13.4"
+  branch = "rebase-1.14.0"
 
 [[override]]
   name = "k8s.io/code-generator"
-  version = "kubernetes-1.13.4"
+  version = "kubernetes-1.14.0"
 
 [[override]]
   name = "k8s.io/api"
-  version = "kubernetes-1.13.4"
+  version = "kubernetes-1.14.0"
 
 [[override]]
   name = "k8s.io/apiextensions-apiserver"
-  version = "kubernetes-1.13.4"
+  version = "kubernetes-1.14.0"
   source = "github.com/openshift/kubernetes-apiextensions-apiserver"
 
 [[override]]
   name = "k8s.io/apimachinery"
-  version = "kubernetes-1.13.4"
+  version = "kubernetes-1.14.0"
   source = "github.com/openshift/kubernetes-apimachinery"
 
 [[override]]
   name = "k8s.io/client-go"
-  version = "kubernetes-1.13.4"
+  version = "kubernetes-1.14.0"
   source = "github.com/openshift/kubernetes-client-go"
 
 [[override]]
   name = "sigs.k8s.io/controller-runtime"
-  branch = "release-0.1"
+  # Pin the latest master HEAD to get support webhooks
+  # which are not yet released
+  revision="96b67f231945a8e8550dbdd8bfbd550a0c68097b"
 
 [[constraint]]
   name = "github.com/operator-framework/operator-sdk"

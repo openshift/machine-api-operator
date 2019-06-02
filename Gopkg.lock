@@ -93,14 +93,6 @@
   revision = "9fb12b3b21c5415d16ac18dc5cd42c1cfdd40c4e"
 
 [[projects]]
-  digest = "1:340497a512995aa69c0add901d79a2096b3449d35a44a6f1f1115091a9f8c687"
-  name = "github.com/go-logr/zapr"
-  packages = ["."]
-  pruneopts = "NUT"
-  revision = "7536572e8d55209135cd5e7ccf7fce43dca217ab"
-  version = "v0.1.0"
-
-[[projects]]
   digest = "1:260f7ebefc63024c8dfe2c9f1a2935a89fa4213637a1f522f592f80c001cc441"
   name = "github.com/go-openapi/jsonpointer"
   packages = ["."]
@@ -183,14 +175,6 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:05f95ffdfcf651bdb0f05b40b69e7f5663047f8da75c72d58728acb59b5cc107"
-  name = "github.com/google/btree"
-  packages = ["."]
-  pruneopts = "NUT"
-  revision = "4030bb1f1f0c35b30ca7009e9ebd06849dd45306"
-
-[[projects]]
-  branch = "master"
   digest = "1:52c5834e2bebac9030c97cc0798ac11c3aa8a39f098aeb419f142533da6cd3cc"
   name = "github.com/google/gofuzz"
   packages = ["."]
@@ -216,17 +200,6 @@
   pruneopts = "NUT"
   revision = "7c663266750e7d82587642f65e60bc4083f1f84e"
   version = "v0.2.0"
-
-[[projects]]
-  branch = "master"
-  digest = "1:a86d65bc23eea505cd9139178e4d889733928fe165c7a008f41eaab039edf9df"
-  name = "github.com/gregjones/httpcache"
-  packages = [
-    ".",
-    "diskcache",
-  ]
-  pruneopts = "NUT"
-  revision = "3befbb6ad0cc97d4c25d851e9528915809e1a22f"
 
 [[projects]]
   digest = "1:52094d0f8bdf831d1a2401e9b6fee5795fdc0b2a2d1f8bb1980834c289e79129"
@@ -379,20 +352,17 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:3869a6789d681d346a81a197a3cab7acac10572ac888265badd9f470a25c2d19"
+  digest = "1:e8a766da9c4e6f8503dfbb38eac4efd7cb301185e5c9b71c4c79ebb2b72cf0e8"
   name = "github.com/openshift/api"
   packages = [
     "config/v1",
-    "image/docker10",
-    "image/dockerpre012",
-    "image/v1",
     "security/v1",
   ]
   pruneopts = "NUT"
   revision = "d5b34b957e91dbf64013a866951c3ed5770db0b5"
 
 [[projects]]
-  branch = "rebase-1.13.4"
+  branch = "rebase-1.14.0"
   digest = "1:192abee7a3aa1ad1e84356e6fa4c14e9161ed107b44ff8fa80bbf1015c5ef426"
   name = "github.com/openshift/client-go"
   packages = [
@@ -410,11 +380,11 @@
     "security/clientset/versioned/typed/security/v1",
   ]
   pruneopts = "NUT"
-  revision = "84c2b942258aea2462e675e03aeb8eb4cb5f3c29"
+  revision = "6209e06506a9182b8fc4f1dabf51f2f50678ff91"
 
 [[projects]]
   branch = "openshift-4.2-cluster-api-0.1.0"
-  digest = "1:487f97274cd8ff2f0974cf1752bbe7f41ed60d5b1a96c6f357152a0cbb189dff"
+  digest = "1:7516328d9658b35a1f97600353284230fa456f94e3c00c6f2085a0a14a0b574d"
   name = "github.com/openshift/cluster-api"
   packages = [
     "pkg/apis/cluster/common",
@@ -438,11 +408,11 @@
     "pkg/util",
   ]
   pruneopts = "NUT"
-  revision = "b5b707e02e5c199ec352fff2ecffe46c7ae55968"
+  revision = "e911af77e9a33cfb45f82ba9778876d715cdb4ea"
 
 [[projects]]
   branch = "master"
-  digest = "1:4b7df52bc64ba967c347d93a73a8a37626d18749d28e68b9d44f4dd1ff16a4c1"
+  digest = "1:9e1247f48a1cad8b678ee1e8b11b9c864824008c5bace4893d599818a3defaf9"
   name = "github.com/openshift/cluster-api-actuator-pkg"
   packages = [
     "pkg/e2e",
@@ -455,11 +425,11 @@
     "pkg/types",
   ]
   pruneopts = ""
-  revision = "d7dfe2c914d01bcaf887e0fb873f15c52d82a718"
+  revision = "079636006a97adfbf6d610b006e25e77d03d4aec"
 
 [[projects]]
   branch = "master"
-  digest = "1:95477dd994da5b855f4751bdaa55ee64da4d3bc16fde83b13ca73c3271ddb9a3"
+  digest = "1:9b0cf42e05b8defe074b2348854a6a408d167fbcc5a10077b71fc40f584837bc"
   name = "github.com/openshift/cluster-autoscaler-operator"
   packages = [
     "pkg/apis",
@@ -467,16 +437,15 @@
     "pkg/apis/autoscaling/v1beta1",
   ]
   pruneopts = "NUT"
-  revision = "17350a84b40565851a3f1bd21c6f8a6763b8eacb"
+  revision = "62768a6ba48010d12c4d86b8b06689a6970a7841"
 
 [[projects]]
   branch = "master"
-  digest = "1:237c641c55f5ba0b119a49a561afb078c19b807317b9ec2f8cc2bed49283b814"
+  digest = "1:811a3f396a14e370c3afd2350a28a3165d89c68c91052cf3367e183365425bca"
   name = "github.com/openshift/cluster-version-operator"
   packages = [
     "lib/resourceapply",
     "lib/resourcemerge",
-    "lib/resourceread",
   ]
   pruneopts = "NUT"
   revision = "44cc4bc6c2a9b89d7eadff0fa48e215283c9e717"
@@ -504,22 +473,6 @@
   pruneopts = "NUT"
   revision = "adf5a7427709b9deb95d29d3fa8a2bf9cfd388f1"
   version = "v1.2"
-
-[[projects]]
-  branch = "master"
-  digest = "1:3bf17a6e6eaa6ad24152148a631d18662f7212e21637c2699bff3369b7f00fa2"
-  name = "github.com/petar/GoLLRB"
-  packages = ["llrb"]
-  pruneopts = "NUT"
-  revision = "53be0d36a84c2a886ca057d34b6aa4468df9ccb4"
-
-[[projects]]
-  digest = "1:6c6d91dc326ed6778783cff869c49fb2f61303cdd2ebbcf90abe53505793f3b6"
-  name = "github.com/peterbourgon/diskv"
-  packages = ["."]
-  pruneopts = "NUT"
-  revision = "5f041e8faa004a95c88a202771f4cc3e991971e6"
-  version = "v2.0.1"
 
 [[projects]]
   digest = "1:14715f705ff5dfe0ffd6571d7d201dd8e921030f8070321a79380d8ca4ec1a24"
@@ -629,37 +582,6 @@
   pruneopts = "NUT"
   revision = "ffdc059bfe9ce6a4e144ba849dbedead332c6053"
   version = "v1.3.0"
-
-[[projects]]
-  digest = "1:22f696cee54865fb8e9ff91df7b633f6b8f22037a8015253c6b6a71ca82219c7"
-  name = "go.uber.org/atomic"
-  packages = ["."]
-  pruneopts = "NUT"
-  revision = "1ea20fb1cbb1cc08cbd0d913a96dead89aa18289"
-  version = "v1.3.2"
-
-[[projects]]
-  digest = "1:58ca93bdf81bac106ded02226b5395a0595d5346cdc4caa8d9c1f3a5f8f9976e"
-  name = "go.uber.org/multierr"
-  packages = ["."]
-  pruneopts = "NUT"
-  revision = "3c4937480c32f4c13a875a1829af76c98ca3d40a"
-  version = "v1.1.0"
-
-[[projects]]
-  digest = "1:85674ac609b704fd4e9f463553b6ffc3a3527a993ae0ba550eb56beaabdfe094"
-  name = "go.uber.org/zap"
-  packages = [
-    ".",
-    "buffer",
-    "internal/bufferpool",
-    "internal/color",
-    "internal/exit",
-    "zapcore",
-  ]
-  pruneopts = "NUT"
-  revision = "ff33455a0e382e8a81d14dd7c922020b6b5e7982"
-  version = "v1.9.1"
 
 [[projects]]
   branch = "master"
@@ -840,11 +762,10 @@
   version = "v2.2.2"
 
 [[projects]]
-  digest = "1:50c54ca27ed4d58993d9f104f7c00478a210c3f3deccddee43ef8ff22f9072d7"
+  digest = "1:79ac515f677d72e0fa9bc490726ef3aeac63d8b994a7880760332a30d3617e27"
   name = "k8s.io/api"
   packages = [
     "admission/v1beta1",
-    "admissionregistration/v1alpha1",
     "admissionregistration/v1beta1",
     "apps/v1",
     "apps/v1beta1",
@@ -861,15 +782,20 @@
     "batch/v1beta1",
     "batch/v2alpha1",
     "certificates/v1beta1",
+    "coordination/v1",
     "coordination/v1beta1",
     "core/v1",
     "events/v1beta1",
     "extensions/v1beta1",
     "networking/v1",
+    "networking/v1beta1",
+    "node/v1alpha1",
+    "node/v1beta1",
     "policy/v1beta1",
     "rbac/v1",
     "rbac/v1alpha1",
     "rbac/v1beta1",
+    "scheduling/v1",
     "scheduling/v1alpha1",
     "scheduling/v1beta1",
     "settings/v1alpha1",
@@ -878,11 +804,11 @@
     "storage/v1beta1",
   ]
   pruneopts = "NUT"
-  revision = "5cb15d34447165a97c76ed5a60e4e99c8a01ecfe"
-  version = "kubernetes-1.13.4"
+  revision = "40a48860b5abbba9aa891b02b32da429b08d96a0"
+  version = "kubernetes-1.14.0"
 
 [[projects]]
-  digest = "1:c7241ad82ccc1cbb957909ddb9253627bebae1fe3178f9dd21d2e0ce699c4b6b"
+  digest = "1:29bef713ea74cfa939854f6c91f283fd4d8417dc43a5f682ef109540099ae0bf"
   name = "k8s.io/apiextensions-apiserver"
   packages = [
     "pkg/apis/apiextensions",
@@ -893,12 +819,12 @@
     "pkg/client/listers/apiextensions/v1beta1",
   ]
   pruneopts = "NUT"
-  revision = "d002e88f6236312f0289d9d1deab106751718ff0"
+  revision = "53c4693659ed354d76121458fb819202dd1635fa"
   source = "github.com/openshift/kubernetes-apiextensions-apiserver"
-  version = "kubernetes-1.13.4"
+  version = "kubernetes-1.14.0"
 
 [[projects]]
-  digest = "1:13e0b6393e90f30ea0f832777c4ce359c63e4c96fcf69eeb11d2ed0aed40dfd4"
+  digest = "1:1af636a12c60cb32955ebe095454670339e034d0efe498350783bdf99c8df7aa"
   name = "k8s.io/apimachinery"
   packages = [
     "pkg/api/equality",
@@ -949,12 +875,12 @@
     "third_party/forked/golang/reflect",
   ]
   pruneopts = "NUT"
-  revision = "86fb29eff6288413d76bd8506874fddd9fccdff0"
+  revision = "d7deff9243b165ee192f5551710ea4285dcfd615"
   source = "github.com/openshift/kubernetes-apimachinery"
-  version = "kubernetes-1.13.4"
+  version = "kubernetes-1.14.0"
 
 [[projects]]
-  digest = "1:64883521ab906a0d7e2aba5c0af82b8882e44e941df8a9fd66cd66ae7dffe8b2"
+  digest = "1:57af21c43666f52c5e3c853233c41b6904563f81e93fca00d8ecf9a076132b9c"
   name = "k8s.io/client-go"
   packages = [
     "discovery",
@@ -962,7 +888,6 @@
     "dynamic",
     "informers",
     "informers/admissionregistration",
-    "informers/admissionregistration/v1alpha1",
     "informers/admissionregistration/v1beta1",
     "informers/apps",
     "informers/apps/v1",
@@ -981,6 +906,7 @@
     "informers/certificates",
     "informers/certificates/v1beta1",
     "informers/coordination",
+    "informers/coordination/v1",
     "informers/coordination/v1beta1",
     "informers/core",
     "informers/core/v1",
@@ -991,6 +917,10 @@
     "informers/internalinterfaces",
     "informers/networking",
     "informers/networking/v1",
+    "informers/networking/v1beta1",
+    "informers/node",
+    "informers/node/v1alpha1",
+    "informers/node/v1beta1",
     "informers/policy",
     "informers/policy/v1beta1",
     "informers/rbac",
@@ -998,6 +928,7 @@
     "informers/rbac/v1alpha1",
     "informers/rbac/v1beta1",
     "informers/scheduling",
+    "informers/scheduling/v1",
     "informers/scheduling/v1alpha1",
     "informers/scheduling/v1beta1",
     "informers/settings",
@@ -1009,8 +940,6 @@
     "kubernetes",
     "kubernetes/fake",
     "kubernetes/scheme",
-    "kubernetes/typed/admissionregistration/v1alpha1",
-    "kubernetes/typed/admissionregistration/v1alpha1/fake",
     "kubernetes/typed/admissionregistration/v1beta1",
     "kubernetes/typed/admissionregistration/v1beta1/fake",
     "kubernetes/typed/apps/v1",
@@ -1043,6 +972,8 @@
     "kubernetes/typed/batch/v2alpha1/fake",
     "kubernetes/typed/certificates/v1beta1",
     "kubernetes/typed/certificates/v1beta1/fake",
+    "kubernetes/typed/coordination/v1",
+    "kubernetes/typed/coordination/v1/fake",
     "kubernetes/typed/coordination/v1beta1",
     "kubernetes/typed/coordination/v1beta1/fake",
     "kubernetes/typed/core/v1",
@@ -1053,6 +984,12 @@
     "kubernetes/typed/extensions/v1beta1/fake",
     "kubernetes/typed/networking/v1",
     "kubernetes/typed/networking/v1/fake",
+    "kubernetes/typed/networking/v1beta1",
+    "kubernetes/typed/networking/v1beta1/fake",
+    "kubernetes/typed/node/v1alpha1",
+    "kubernetes/typed/node/v1alpha1/fake",
+    "kubernetes/typed/node/v1beta1",
+    "kubernetes/typed/node/v1beta1/fake",
     "kubernetes/typed/policy/v1beta1",
     "kubernetes/typed/policy/v1beta1/fake",
     "kubernetes/typed/rbac/v1",
@@ -1061,6 +998,8 @@
     "kubernetes/typed/rbac/v1alpha1/fake",
     "kubernetes/typed/rbac/v1beta1",
     "kubernetes/typed/rbac/v1beta1/fake",
+    "kubernetes/typed/scheduling/v1",
+    "kubernetes/typed/scheduling/v1/fake",
     "kubernetes/typed/scheduling/v1alpha1",
     "kubernetes/typed/scheduling/v1alpha1/fake",
     "kubernetes/typed/scheduling/v1beta1",
@@ -1073,7 +1012,6 @@
     "kubernetes/typed/storage/v1alpha1/fake",
     "kubernetes/typed/storage/v1beta1",
     "kubernetes/typed/storage/v1beta1/fake",
-    "listers/admissionregistration/v1alpha1",
     "listers/admissionregistration/v1beta1",
     "listers/apps/v1",
     "listers/apps/v1beta1",
@@ -1086,15 +1024,20 @@
     "listers/batch/v1beta1",
     "listers/batch/v2alpha1",
     "listers/certificates/v1beta1",
+    "listers/coordination/v1",
     "listers/coordination/v1beta1",
     "listers/core/v1",
     "listers/events/v1beta1",
     "listers/extensions/v1beta1",
     "listers/networking/v1",
+    "listers/networking/v1beta1",
+    "listers/node/v1alpha1",
+    "listers/node/v1beta1",
     "listers/policy/v1beta1",
     "listers/rbac/v1",
     "listers/rbac/v1alpha1",
     "listers/rbac/v1beta1",
+    "listers/scheduling/v1",
     "listers/scheduling/v1alpha1",
     "listers/scheduling/v1beta1",
     "listers/settings/v1alpha1",
@@ -1131,25 +1074,25 @@
     "tools/metrics",
     "tools/pager",
     "tools/record",
+    "tools/record/util",
     "tools/reference",
     "transport",
-    "util/buffer",
     "util/cert",
     "util/connrotation",
     "util/flowcontrol",
     "util/homedir",
-    "util/integer",
     "util/jsonpath",
+    "util/keyutil",
     "util/retry",
     "util/workqueue",
   ]
   pruneopts = "NUT"
-  revision = "b40b2a5939e43f7ffe0028ad67586b7ce50bb675"
+  revision = "6ee68ca5fd8355d024d02f9db0b3b667e8357a0f"
   source = "github.com/openshift/kubernetes-client-go"
-  version = "kubernetes-1.13.4"
+  version = "kubernetes-1.14.0"
 
 [[projects]]
-  digest = "1:dc1ae99dcab96913d81ae970b1f7a7411a54199b14bfb17a7e86f9a56979c720"
+  digest = "1:2d821667dbd520a7ef31bdc923543f197ba30021b4317fd8871618ada52f23b0"
   name = "k8s.io/code-generator"
   packages = [
     "cmd/client-gen",
@@ -1173,11 +1116,12 @@
     "cmd/lister-gen",
     "cmd/lister-gen/args",
     "cmd/lister-gen/generators",
+    "pkg/namer",
     "pkg/util",
   ]
   pruneopts = "T"
-  revision = "c2090bec4d9b1fb25de3812f868accc2bc9ecbae"
-  version = "kubernetes-1.13.4"
+  revision = "50b561225d70b3eb79a1faafd3dfe7b1a62cbe73"
+  version = "kubernetes-1.14.0"
 
 [[projects]]
   branch = "master"
@@ -1205,7 +1149,7 @@
   version = "v0.2.0"
 
 [[projects]]
-  digest = "1:c5009db1db6ba233ca0d98a1fd1a8a461f73a46ef22dfa46aceffd2e7a4aa54a"
+  digest = "1:6690868fa39b8f81d91c3901bb5ff26ba1305fc69cd0b7fd113d78e8190d7513"
   name = "k8s.io/kube-aggregator"
   packages = [
     "pkg/apis/apiregistration",
@@ -1215,9 +1159,9 @@
     "pkg/client/clientset_generated/clientset/typed/apiregistration/v1",
   ]
   pruneopts = "NUT"
-  revision = "3e0149950b0e22a3b8579db52bd50e40d0dac10e"
+  revision = "da8327669ac57b6e6a06676eeb7de19c9780f76d"
   source = "github.com/openshift/kubernetes-kube-aggregator"
-  version = "kubernetes-1.13.4"
+  version = "kubernetes-1.14.0"
 
 [[projects]]
   branch = "master"
@@ -1231,15 +1175,20 @@
   revision = "b3a7cee44a305be0a69e1b9ac03018307287e1b0"
 
 [[projects]]
-  digest = "1:214d064b9bce33022c9fee76b5fc7a61936590e027743a80b8ce60187b379145"
+  branch = "master"
+  digest = "1:0f33a050a0280c85a0ffe1480f4160e689c6ce9a94109023be5a884218fd1ec1"
   name = "k8s.io/utils"
-  packages = ["pointer"]
+  packages = [
+    "buffer",
+    "integer",
+    "pointer",
+    "trace",
+  ]
   pruneopts = "NUT"
-  revision = "66066c83e385e385ccc3c964b44fd7dcd413d0ed"
+  revision = "6999998975a717e7f5fc2a7476497044cb111854"
 
 [[projects]]
-  branch = "release-0.1"
-  digest = "1:019067c21684d52cb648ec77cc5e35750a2e2896dd1a0b6b8eb0fcf6cd24d0f1"
+  digest = "1:cd4ccccc3ed5ddace16fc70f0d492f39453649cf64fce14814f7e56f0400ed87"
   name = "sigs.k8s.io/controller-runtime"
   packages = [
     "pkg/cache",
@@ -1249,32 +1198,35 @@
     "pkg/client/config",
     "pkg/client/fake",
     "pkg/controller",
+    "pkg/conversion",
     "pkg/event",
     "pkg/handler",
     "pkg/internal/controller",
     "pkg/internal/controller/metrics",
+    "pkg/internal/log",
     "pkg/internal/objectutil",
     "pkg/internal/recorder",
     "pkg/leaderelection",
+    "pkg/log",
     "pkg/manager",
+    "pkg/manager/signals",
     "pkg/metrics",
-    "pkg/patch",
     "pkg/predicate",
     "pkg/reconcile",
     "pkg/recorder",
     "pkg/runtime/inject",
-    "pkg/runtime/log",
-    "pkg/runtime/scheme",
     "pkg/runtime/signals",
+    "pkg/scheme",
     "pkg/source",
     "pkg/source/internal",
+    "pkg/webhook",
     "pkg/webhook/admission",
-    "pkg/webhook/admission/types",
+    "pkg/webhook/conversion",
+    "pkg/webhook/internal/certwatcher",
     "pkg/webhook/internal/metrics",
-    "pkg/webhook/types",
   ]
   pruneopts = "NUT"
-  revision = "477bf4f046c31c351b46fa00262bc814ac0bbca1"
+  revision = "96b67f231945a8e8550dbdd8bfbd550a0c68097b"
 
 [[projects]]
   digest = "1:77a19ea61ca4e01817ad2bc3e91689c5097b4b439668127d1fb5d8b95c3aca03"
@@ -1330,7 +1282,6 @@
     "github.com/openshift/cluster-autoscaler-operator/pkg/apis",
     "github.com/openshift/cluster-version-operator/lib/resourceapply",
     "github.com/openshift/cluster-version-operator/lib/resourcemerge",
-    "github.com/openshift/cluster-version-operator/lib/resourceread",
     "github.com/operator-framework/operator-sdk/version",
     "github.com/spf13/cobra",
     "github.com/spf13/pflag",
@@ -1338,6 +1289,7 @@
     "k8s.io/api/apps/v1",
     "k8s.io/api/core/v1",
     "k8s.io/apimachinery/pkg/api/errors",
+    "k8s.io/apimachinery/pkg/api/resource",
     "k8s.io/apimachinery/pkg/apis/meta/v1",
     "k8s.io/apimachinery/pkg/labels",
     "k8s.io/apimachinery/pkg/runtime",
@@ -1377,6 +1329,7 @@
     "k8s.io/code-generator/cmd/lister-gen",
     "k8s.io/gengo/args",
     "k8s.io/klog",
+    "k8s.io/utils/pointer",
     "sigs.k8s.io/controller-runtime/pkg/client",
     "sigs.k8s.io/controller-runtime/pkg/client/config",
     "sigs.k8s.io/controller-runtime/pkg/client/fake",
