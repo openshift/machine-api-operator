@@ -53,7 +53,7 @@ func newReconciler(mgr manager.Manager) (*ReconcileMachineDisruption, error) {
 	r := &ReconcileMachineDisruption{
 		client:   mgr.GetClient(),
 		scheme:   mgr.GetScheme(),
-		recorder: mgr.GetRecorder("machine-disruption-controller"),
+		recorder: mgr.GetEventRecorderFor("machine-disruption-controller"),
 	}
 
 	ns, err := util.GetNamespace(util.ServiceAccountNamespaceFile)
@@ -390,7 +390,7 @@ func (r *ReconcileMachineDisruption) getMachinesForMachineDisruptionBudget(mdb *
 		Namespace:     mdb.Namespace,
 		LabelSelector: sel,
 	}
-	err = r.client.List(context.TODO(), listOptions, machines)
+	err = r.client.List(context.TODO(), machines, client.UseListOptions(listOptions))
 	if err != nil {
 		return nil, err
 	}

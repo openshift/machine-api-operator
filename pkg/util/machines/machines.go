@@ -51,8 +51,7 @@ func GetMachineMachineDisruptionBudgets(c client.Client, machine *mapiv1.Machine
 	}
 
 	list := &healthcheckingv1alpha1.MachineDisruptionBudgetList{}
-	listOptions := &client.ListOptions{Namespace: machine.Namespace}
-	err := c.List(context.TODO(), listOptions, list)
+	err := c.List(context.TODO(), list, client.InNamespace(machine.Namespace))
 	if err != nil {
 		return nil, err
 	}
