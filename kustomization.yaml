@@ -20,8 +20,9 @@ resources:
 - install/0000_30_machine-api-operator_02_machine.crd.yaml
 - install/0000_30_machine-api-operator_03_machineset.crd.yaml
 - install/0000_30_machine-api-operator_07_machinehealthcheck.crd.yaml
-- install/0000_30_machine-api-operator_08_rbac.yaml
-- install/0000_30_machine-api-operator_09_deployment.yaml
+- install/0000_30_machine-api-operator_08_machinedisruptionbudget.crd.yaml
+- install/0000_30_machine-api-operator_09_rbac.yaml
+- install/0000_30_machine-api-operator_10_deployment.yaml
 
 patches:
 - config/machine-api-operator-patch.yaml

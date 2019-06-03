@@ -27,12 +27,17 @@ import (
 
 type HealthcheckingV1alpha1Interface interface {
 	RESTClient() rest.Interface
+	MachineDisruptionBudgetsGetter
 	MachineHealthChecksGetter
 }
 
 // HealthcheckingV1alpha1Client is used to interact with features provided by the healthchecking.openshift.io group.
 type HealthcheckingV1alpha1Client struct {
 	restClient rest.Interface
+}
+
+func (c *HealthcheckingV1alpha1Client) MachineDisruptionBudgets(namespace string) MachineDisruptionBudgetInterface {
+	return newMachineDisruptionBudgets(c, namespace)
 }
 
 func (c *HealthcheckingV1alpha1Client) MachineHealthChecks(namespace string) MachineHealthCheckInterface {

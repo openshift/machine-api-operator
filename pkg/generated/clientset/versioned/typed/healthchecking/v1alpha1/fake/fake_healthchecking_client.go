@@ -28,6 +28,10 @@ type FakeHealthcheckingV1alpha1 struct {
 	*testing.Fake
 }
 
+func (c *FakeHealthcheckingV1alpha1) MachineDisruptionBudgets(namespace string) v1alpha1.MachineDisruptionBudgetInterface {
+	return &FakeMachineDisruptionBudgets{c, namespace}
+}
+
 func (c *FakeHealthcheckingV1alpha1) MachineHealthChecks(namespace string) v1alpha1.MachineHealthCheckInterface {
 	return &FakeMachineHealthChecks{c, namespace}
 }
