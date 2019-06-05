@@ -135,7 +135,7 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 
 	// If the current machine matches any existing MachineHealthCheck CRD
 	allMachineHealthChecks := &healthcheckingv1alpha1.MachineHealthCheckList{}
-	err = r.client.List(context.Background(), getMachineHealthCheckListOptions(), allMachineHealthChecks)
+	err = r.client.List(context.Background(), allMachineHealthChecks)
 	if err != nil {
 		glog.Errorf("failed to list MachineHealthChecks, %v", err)
 		return reconcile.Result{}, err

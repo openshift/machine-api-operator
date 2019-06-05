@@ -85,6 +85,12 @@ func newWorkLoad() *batchv1.Job {
 // Build default CA resource to allow fast scaling up and down
 func clusterAutoscalerResource(maxNodesTotal int) *caov1.ClusterAutoscaler {
 	tenSecondString := "10s"
+
+	// Choose a time that is at least twice as the sync period
+	// and that has high least common multiple to avoid a case
+	// when a node is considered to be empty even if there are
+	// pods already scheduled and running on the node.
+	unneededTimeString := "23s"
 	return &caov1.ClusterAutoscaler{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "default",
@@ -103,7 +109,7 @@ func clusterAutoscalerResource(maxNodesTotal int) *caov1.ClusterAutoscaler {
 				DelayAfterAdd:     &tenSecondString,
 				DelayAfterDelete:  &tenSecondString,
 				DelayAfterFailure: &tenSecondString,
-				UnneededTime:      &tenSecondString,
+				UnneededTime:      &unneededTimeString,
 			},
 			ResourceLimits: &caov1.ResourceLimits{
 				MaxNodesTotal: pointer.Int32Ptr(int32(maxNodesTotal)),

@@ -46,12 +46,6 @@ const (
 // Machine is the Schema for the machines API
 // +k8s:openapi-gen=true
 // +kubebuilder:subresource:status
-// +kubebuilder:printcolumn:name="Instance",type="string",JSONPath=".status.providerStatus.instanceId",description="Instance ID of machine created in AWS"
-// +kubebuilder:printcolumn:name="State",type="string",JSONPath=".status.providerStatus.instanceState",description="State of the AWS instance"
-// +kubebuilder:printcolumn:name="Type",type="string",JSONPath=".spec.providerSpec.value.instanceType",description="Type of instance"
-// +kubebuilder:printcolumn:name="Region",type="string",JSONPath=".spec.providerSpec.value.placement.region",description="Region associated with machine"
-// +kubebuilder:printcolumn:name="Zone",type="string",JSONPath=".spec.providerSpec.value.placement.availabilityZone",description="Zone associated with machine"
-// +kubebuilder:printcolumn:name="Age",type="date",JSONPath=".metadata.creationTimestamp",description="Machine age"
 type Machine struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
