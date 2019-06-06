@@ -11,6 +11,8 @@ const ConfigMapNodeUnhealthyConditions = "node-unhealthy-conditions"
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // MachineHealthCheck is the Schema for the machinehealthchecks API
+// kubebuilder:subresource:status
+// +kubebuilder:resource:shortName=mhc;mhcs
 // +k8s:openapi-gen=true
 type MachineHealthCheck struct {
 	metav1.TypeMeta   `json:",inline"`
