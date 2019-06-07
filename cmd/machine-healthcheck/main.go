@@ -4,6 +4,9 @@ import (
 	"flag"
 	"runtime"
 
+	"github.com/openshift/machine-api-operator/pkg/controller/disruption"
+	"github.com/openshift/machine-api-operator/pkg/controller/machinehealthcheck"
+
 	"k8s.io/klog"
 
 	"github.com/golang/glog"
@@ -55,8 +58,13 @@ func main() {
 		glog.Fatal(err)
 	}
 
+	AddToHealthCheckingManagerFuncs := []func(manager.Manager) error{
+		machinehealthcheck.Add,
+		disruption.Add,
+	}
+
 	// Setup all Controllers
-	if err := controller.AddToManager(mgr); err != nil {
+	if err := controller.AddToManager(mgr, AddToHealthCheckingManagerFuncs); err != nil {
 		glog.Fatal(err)
 	}
 
