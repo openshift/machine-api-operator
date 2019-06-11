@@ -170,7 +170,7 @@ func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev
 				RunAsNonRoot: pointer.BoolPtr(true),
 				RunAsUser:    pointer.Int64Ptr(65534),
 			},
-			ServiceAccountName: "machine-api-operator",
+			ServiceAccountName: "machine-api-controllers",
 			Tolerations:        tolerations,
 		},
 	}
@@ -183,7 +183,11 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 			corev1.ResourceCPU:    resource.MustParse("10m"),
 		},
 	}
-	args := []string{"--logtostderr=true", "--v=3"}
+	args := []string{
+		"--logtostderr=true",
+		"--v=3",
+		fmt.Sprintf("--namespace=%s", config.TargetNamespace),
+	}
 
 	containers := []corev1.Container{
 		{
