@@ -10,9 +10,10 @@ import (
 	mapiv1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
 	"github.com/openshift/machine-api-operator/pkg/util"
+	"github.com/openshift/machine-api-operator/pkg/util/conditions"
 	machineutil "github.com/openshift/machine-api-operator/pkg/util/machines"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -297,7 +298,7 @@ func (r *ReconcileMachineDisruption) countHealthyMachines(machines []mapiv1.Mach
 		if disruptionTime, found := disruptedMachines[machine.Name]; found && disruptionTime.Time.Add(DeletionTimeout).After(currentTime) {
 			continue
 		}
-		if machineutil.IsMachineHealthy(r.client, &machine) {
+		if isMachineHealthy(r.client, &machine) {
 			currentHealthy++
 		}
 	}
@@ -453,4 +454,32 @@ func (r *ReconcileMachineDisruption) machineToMachineDisruptionBudget(o handler.
 
 	name := client.ObjectKey{Namespace: mdb.Namespace, Name: mdb.Name}
 	return []reconcile.Request{{NamespacedName: name}}
+}
+
+// isMachineHealthy returns true if the the machine is running and machine node is healthy
+func isMachineHealthy(c client.Client, machine *mapiv1.Machine) bool {
+	if machine.Status.NodeRef == nil {
+		glog.Infof("machine %s does not have NodeRef", machine.Name)
+		return false
+	}
+
+	node := &v1.Node{}
+	key := client.ObjectKey{Namespace: metav1.NamespaceNone, Name: machine.Status.NodeRef.Name}
+	err := c.Get(context.TODO(), key, node)
+	if err != nil {
+		glog.Errorf("failed to fetch node for machine %s", machine.Name)
+		return false
+	}
+
+	readyCond := conditions.GetNodeCondition(node, v1.NodeReady)
+	if readyCond == nil {
+		glog.Infof("node %s does have 'Ready' condition", machine.Name)
+		return false
+	}
+
+	if readyCond.Status != v1.ConditionTrue {
+		glog.Infof("node %s does have has 'Ready' condition with the status %s", machine.Name, readyCond.Status)
+		return false
+	}
+	return true
 }
