@@ -9,6 +9,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
 
 const (
@@ -17,20 +20,7 @@ const (
 - name: Ready 
   timeout: 60s
   status: Unknown`
-	unrelatedConditionData = `items:
-- name: Unrelated 
-  timeout: 60s
-  status: Unknown`
-	unrelatedStatusData = `items:
-- name: Ready 
-  timeout: 60s
-  status: Unrelated`
 )
-
-type expectedConditions struct {
-	conditions []UnhealthyCondition
-	error      bool
-}
 
 func node(name string, ready bool) *v1.Node {
 	nodeReadyStatus := corev1.ConditionTrue
@@ -70,10 +60,99 @@ func configMap(name string, data map[string]string) *corev1.ConfigMap {
 		Data: data,
 	}
 }
+
 func TestGetNodeUnhealthyConditions(t *testing.T) {
 	nodeHealthy := node("nodeHealthy", true)
 	nodeRecentlyUnhealthy := node("nodeRecentlyUnhealthy", false)
 
+	testsCases := []struct {
+		name     string
+		node     *corev1.Node
+		conds    []UnhealthyCondition
+		expected []UnhealthyCondition
+	}{
+		{
+			name: "healthy node",
+			node: nodeHealthy,
+			conds: []UnhealthyCondition{
+				{
+					Name:    "Ready",
+					Status:  "Unknown",
+					Timeout: "60s",
+				},
+			},
+			expected: []UnhealthyCondition{},
+		},
+		{
+			name: "unhealthy node",
+			node: nodeRecentlyUnhealthy,
+			conds: []UnhealthyCondition{
+				{
+					Name:    "Ready",
+					Status:  "Unknown",
+					Timeout: "60s",
+				},
+			},
+			expected: []UnhealthyCondition{
+				{
+					Name:    "Ready",
+					Timeout: "60s",
+					Status:  "Unknown",
+				},
+			},
+		},
+		{
+			name:     "no unhealthy conditions",
+			node:     nodeRecentlyUnhealthy,
+			conds:    []UnhealthyCondition{},
+			expected: []UnhealthyCondition{},
+		},
+		{
+			name: "unrelated unhealthy condition type",
+			node: nodeRecentlyUnhealthy,
+			conds: []UnhealthyCondition{
+				{
+					Name:    "Unrelated",
+					Status:  "Unknown",
+					Timeout: "60s",
+				},
+			},
+			expected: []UnhealthyCondition{},
+		},
+		{
+			name: "unrelated unhealthy condition status",
+			node: nodeRecentlyUnhealthy,
+			conds: []UnhealthyCondition{
+				{
+					Name:    "Ready",
+					Status:  "Unrelated",
+					Timeout: "60s",
+				},
+			},
+			expected: []UnhealthyCondition{},
+		},
+	}
+
+	for _, tc := range testsCases {
+		conditions := GetNodeUnhealthyConditions(tc.node, tc.conds)
+		numOfConditions := len(conditions)
+		expectedNumOfConditions := len(tc.expected)
+		if numOfConditions != expectedNumOfConditions {
+			t.Errorf("Test case: %s. Expected number of conditions %d ,got: %d", tc.name, expectedNumOfConditions, numOfConditions)
+		}
+
+		if !reflect.DeepEqual(tc.expected, conditions) {
+			t.Errorf("Test case: %s. Expected %s conditions, got: %s", tc.name, tc.expected, conditions)
+		}
+	}
+}
+
+type Expected struct {
+	unhealthyConditions []UnhealthyCondition
+	error               bool
+}
+
+func TestGetConditionsFromConfigMap(t *testing.T) {
 	cmWithoutConditions := configMap(
 		healthcheckingv1alpha1.ConfigMapNodeUnhealthyConditions,
 		map[string]string{
@@ -86,18 +165,6 @@ func TestGetNodeUnhealthyConditions(t *testing.T) {
 			"conditions": "unparsed-data",
 		},
 	)
-	cmWithUnrelatedCondition := configMap(
-		healthcheckingv1alpha1.ConfigMapNodeUnhealthyConditions,
-		map[string]string{
-			"conditions": unrelatedConditionData,
-		},
-	)
-	cmWithUnrelatedConditionStatus := configMap(
-		healthcheckingv1alpha1.ConfigMapNodeUnhealthyConditions,
-		map[string]string{
-			"conditions": unrelatedStatusData,
-		},
-	)
 	cmWithCorrectData := configMap(
 		healthcheckingv1alpha1.ConfigMapNodeUnhealthyConditions,
 		map[string]string{
@@ -107,90 +174,78 @@ func TestGetNodeUnhealthyConditions(t *testing.T) {
 
 	testsCases := []struct {
 		name     string
-		node     *corev1.Node
 		cm       *corev1.ConfigMap
-		expected expectedConditions
+		expected Expected
 	}{
 		{
-			name: "healthy node",
-			node: nodeHealthy,
-			cm:   cmWithCorrectData,
-			expected: expectedConditions{
-				conditions: []UnhealthyCondition{},
-				error:      false,
+			name: "without condition key under the config map",
+			cm:   cmWithoutConditions,
+			expected: Expected{
+				unhealthyConditions: nil,
+				error:               true,
 			},
 		},
 		{
-			name: "unhealthy node",
-			node: nodeRecentlyUnhealthy,
+			name: "with a bad data under the config map",
+			cm:   cmWithBadData,
+			expected: Expected{
+				unhealthyConditions: nil,
+				error:               true,
+			},
+		},
+		{
+			name: "with correct data",
 			cm:   cmWithCorrectData,
-			expected: expectedConditions{
-				conditions: []UnhealthyCondition{
+			expected: Expected{
+				unhealthyConditions: []UnhealthyCondition{
 					{
 						Name:    "Ready",
-						Timeout: "60s",
 						Status:  "Unknown",
+						Timeout: "60s",
 					},
 				},
 				error: false,
 			},
 		},
 		{
-			name: "configmap without conditions",
-			node: nodeRecentlyUnhealthy,
-			cm:   cmWithoutConditions,
-			expected: expectedConditions{
-				conditions: nil,
-				error:      true,
-			},
-		},
-		{
-			name: "configmap with bad data",
-			node: nodeRecentlyUnhealthy,
-			cm:   cmWithBadData,
-			expected: expectedConditions{
-				conditions: nil,
-				error:      true,
-			},
-		},
-		{
-			name: "configmap with unrelated condition",
-			node: nodeRecentlyUnhealthy,
-			cm:   cmWithUnrelatedCondition,
-			expected: expectedConditions{
-				conditions: []UnhealthyCondition{},
-				error:      false,
-			},
-		},
-		{
-			name: "configmap with unrelated condition status",
-			node: nodeRecentlyUnhealthy,
-			cm:   cmWithUnrelatedConditionStatus,
-			expected: expectedConditions{
-				conditions: []UnhealthyCondition{},
-				error:      false,
+			name: "without unhealthy condition config map",
+			cm:   nil,
+			expected: Expected{
+				unhealthyConditions: []UnhealthyCondition{
+					{
+						Name:    "Ready",
+						Status:  "Unknown",
+						Timeout: "300s",
+					},
+					{
+						Name:    "Ready",
+						Status:  "False",
+						Timeout: "300s",
+					},
+				},
+				error: false,
 			},
 		},
 	}
 
 	for _, tc := range testsCases {
-		conditions, err := GetNodeUnhealthyConditions(tc.node, tc.cm)
+		objects := []runtime.Object{}
+		if tc.cm != nil {
+			objects = append(objects, tc.cm)
+		}
+		fakeClient := fake.NewFakeClient(objects...)
+
+		unhealthyConditions, err := GetConditionsFromConfigMap(fakeClient, namespace)
 		if tc.expected.error != (err != nil) {
 			var errorExpectation string
-			if !tc.expected.error {
+			if !tc.expected.error == true {
 				errorExpectation = "no"
 			}
-			t.Errorf("Test case: %s. Expected %s error, got: %v", tc.name, errorExpectation, err)
+			t.Errorf("Test case: %s. Expected: %s error, got: %v", tc.name, errorExpectation, err)
 		}
 
-		numOfConditions := len(conditions)
-		expectedNumOfConditions := len(tc.expected.conditions)
-		if numOfConditions != expectedNumOfConditions {
-			t.Errorf("Test case: %s. Expected number of conditions %d ,got: %d", tc.name, expectedNumOfConditions, numOfConditions)
-		}
-
-		if !reflect.DeepEqual(tc.expected.conditions, conditions) {
-			t.Errorf("Test case: %s. Expected %s conditions, got: %s", tc.name, tc.expected.conditions, conditions)
+		if !reflect.DeepEqual(tc.expected.unhealthyConditions, unhealthyConditions) {
+			t.Errorf("Test case: %s. Expected unhealthy conditions %v ,got: %v", tc.name, tc.expected.unhealthyConditions, unhealthyConditions)
 		}
 	}
 }
