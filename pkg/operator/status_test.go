@@ -1,7 +1,9 @@
 package operator
 
 import (
+	"reflect"
 	"testing"
+	"time"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
 	fakeconfigclientset "github.com/openshift/client-go/config/clientset/versioned/fake"
@@ -100,5 +102,86 @@ func TestOperatorStatusProgressing(t *testing.T) {
 		}
 		assert.Equal(t, condition.Status, conditionAfterAnotherSync.Status, "condition state is expected to be same")
 		assert.True(t, condition.LastTransitionTime.Equal(&conditionAfterAnotherSync.LastTransitionTime), "test-case %v expected LastTransitionTime not to be updated if condition state is same", i)
+	}
+}
+
+func TestGetOrCreateClusterOperator(t *testing.T) {
+	var namespace = "some-namespace"
+	var conditions = []osconfigv1.ClusterOperatorStatusCondition{
+		{
+			Type:               "Available",
+			Status:             "true",
+			Reason:             "",
+			Message:            "",
+			LastTransitionTime: metav1.NewTime(time.Now()),
+		},
+	}
+	testCases := []struct {
+		existingCO *osconfigv1.ClusterOperator
+		expectedCO *osconfigv1.ClusterOperator
+	}{
+		{
+			existingCO: nil,
+			expectedCO: &osconfigv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: clusterOperatorName,
+				},
+				Status: osconfigv1.ClusterOperatorStatus{
+					RelatedObjects: []osconfigv1.ObjectReference{
+						{
+							Group:    "",
+							Resource: "namespaces",
+							Name:     namespace,
+						},
+					},
+				},
+			},
+		},
+		{
+			existingCO: &osconfigv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: clusterOperatorName,
+				},
+				Status: osconfigv1.ClusterOperatorStatus{
+					Conditions: conditions,
+				},
+			},
+			expectedCO: &osconfigv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: clusterOperatorName,
+				},
+				Status: osconfigv1.ClusterOperatorStatus{
+					RelatedObjects: []osconfigv1.ObjectReference{
+						{
+							Group:    "",
+							Resource: "namespaces",
+							Name:     namespace,
+						},
+					},
+					Conditions: conditions,
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		var osClient *fakeconfigclientset.Clientset
+		if tc.existingCO != nil {
+			osClient = fakeconfigclientset.NewSimpleClientset(tc.existingCO)
+		} else {
+			osClient = fakeconfigclientset.NewSimpleClientset()
+		}
+		optr := Operator{
+			osClient:  osClient,
+			namespace: namespace,
+		}
+
+		co, err := optr.getOrCreateClusterOperator()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !reflect.DeepEqual(co, tc.expectedCO) {
+			t.Errorf("got: %v, expected: %v", co, tc.expectedCO)
+		}
 	}
 }

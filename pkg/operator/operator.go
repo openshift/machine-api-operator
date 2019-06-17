@@ -71,6 +71,7 @@ func New(
 	recorder record.EventRecorder,
 ) *Operator {
 	// we must report the version from the release payload when we report available at that level
+	// TODO we will report the version of the operands (so our machine api implementation version)
 	operandVersions := []osconfigv1.OperandVersion{}
 	if releaseVersion := os.Getenv("RELEASE_VERSION"); len(releaseVersion) > 0 {
 		operandVersions = append(operandVersions, osconfigv1.OperandVersion{Name: "operator", Version: releaseVersion})
