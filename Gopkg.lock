@@ -384,7 +384,7 @@
 
 [[projects]]
   branch = "openshift-4.2-cluster-api-0.1.0"
-  digest = "1:7516328d9658b35a1f97600353284230fa456f94e3c00c6f2085a0a14a0b574d"
+  digest = "1:be78df4305eaed74b43e04325aca4aebd8e8c244d2ea6ac52deb066f64190329"
   name = "github.com/openshift/cluster-api"
   packages = [
     "pkg/apis/cluster/common",
@@ -395,14 +395,6 @@
     "pkg/client/clientset_generated/clientset/scheme",
     "pkg/client/clientset_generated/clientset/typed/cluster/v1alpha1",
     "pkg/client/clientset_generated/clientset/typed/machine/v1beta1",
-    "pkg/client/informers_generated/externalversions",
-    "pkg/client/informers_generated/externalversions/cluster",
-    "pkg/client/informers_generated/externalversions/cluster/v1alpha1",
-    "pkg/client/informers_generated/externalversions/internalinterfaces",
-    "pkg/client/informers_generated/externalversions/machine",
-    "pkg/client/informers_generated/externalversions/machine/v1beta1",
-    "pkg/client/listers_generated/cluster/v1alpha1",
-    "pkg/client/listers_generated/machine/v1beta1",
     "pkg/controller/node",
     "pkg/controller/noderefutil",
     "pkg/util",
@@ -441,14 +433,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:811a3f396a14e370c3afd2350a28a3165d89c68c91052cf3367e183365425bca"
+  digest = "1:8529a8c8976002e4732532e8e7acfb666bdc456f5c2075fd933132f79fd8be57"
   name = "github.com/openshift/cluster-version-operator"
   packages = [
     "lib/resourceapply",
     "lib/resourcemerge",
   ]
   pruneopts = "NUT"
-  revision = "44cc4bc6c2a9b89d7eadff0fa48e215283c9e717"
+  revision = "b0250fa556f60c8f2fe093925ff45c2c659a0a12"
 
 [[projects]]
   branch = "master"
@@ -1275,16 +1267,11 @@
     "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/machinehealthcheck",
     "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/operators",
     "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1",
-    "github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset",
-    "github.com/openshift/cluster-api/pkg/client/informers_generated/externalversions",
-    "github.com/openshift/cluster-api/pkg/client/informers_generated/externalversions/machine/v1beta1",
-    "github.com/openshift/cluster-api/pkg/client/listers_generated/machine/v1beta1",
     "github.com/openshift/cluster-autoscaler-operator/pkg/apis",
     "github.com/openshift/cluster-version-operator/lib/resourceapply",
     "github.com/openshift/cluster-version-operator/lib/resourcemerge",
     "github.com/operator-framework/operator-sdk/version",
     "github.com/spf13/cobra",
-    "github.com/spf13/pflag",
     "github.com/stretchr/testify/assert",
     "k8s.io/api/apps/v1",
     "k8s.io/api/core/v1",
@@ -1304,13 +1291,11 @@
     "k8s.io/client-go/discovery/fake",
     "k8s.io/client-go/informers",
     "k8s.io/client-go/informers/apps/v1",
-    "k8s.io/client-go/informers/core/v1",
     "k8s.io/client-go/kubernetes",
     "k8s.io/client-go/kubernetes/fake",
     "k8s.io/client-go/kubernetes/scheme",
     "k8s.io/client-go/kubernetes/typed/core/v1",
     "k8s.io/client-go/listers/apps/v1",
-    "k8s.io/client-go/listers/core/v1",
     "k8s.io/client-go/plugin/pkg/client/auth/gcp",
     "k8s.io/client-go/rest",
     "k8s.io/client-go/testing",

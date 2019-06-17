@@ -10,7 +10,12 @@ import (
 func EnsureDeployment(modified *bool, existing *appsv1.Deployment, required appsv1.Deployment) {
 	EnsureObjectMeta(modified, &existing.ObjectMeta, required.ObjectMeta)
 
-	if existing.Spec.Selector == nil {
+	if required.Spec.Replicas != nil && required.Spec.Replicas != existing.Spec.Replicas {
+		*modified = true
+		existing.Spec.Replicas = required.Spec.Replicas
+	}
+
+	if existing.Spec.Selector == nil && required.Spec.Selector != nil {
 		*modified = true
 		existing.Spec.Selector = required.Spec.Selector
 	}
