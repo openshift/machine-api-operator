@@ -37,6 +37,43 @@ spec:
           type: object
         status:
           description: Most recently observed status of MachineHealthCheck resource
+          properties:
+            targetedConditions:
+              items:
+                properties:
+                  name:
+                    type: string
+                  status:
+                    type: string
+                required:
+                - name
+                - status
+                type: object
+              type: array
+            targetedMachines:
+              items:
+                properties:
+                  healthy:
+                    type: string
+                  name:
+                    type: string
+                  unhealthyConditions:
+                    items:
+                      type: string
+                    type: array
+                required:
+                - name
+                - healthy
+                - unhealthyConditions
+                type: object
+              type: array
+            totalHealthyMachines:
+              format: int32
+              type: integer
+          required:
+          - targetedMachines
+          - targetedConditions
+          - totalHealthyMachines
           type: object
   version: v1alpha1
 status:

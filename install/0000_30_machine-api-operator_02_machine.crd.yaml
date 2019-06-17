@@ -6,31 +6,6 @@ metadata:
     controller-tools.k8s.io: "1.0"
   name: machines.machine.openshift.io
 spec:
-  additionalPrinterColumns:
-  - JSONPath: .status.providerStatus.instanceId
-    description: Instance ID of machine created in AWS
-    name: Instance
-    type: string
-  - JSONPath: .status.providerStatus.instanceState
-    description: State of the AWS instance
-    name: State
-    type: string
-  - JSONPath: .spec.providerSpec.value.instanceType
-    description: Type of instance
-    name: Type
-    type: string
-  - JSONPath: .spec.providerSpec.value.placement.region
-    description: Region associated with machine
-    name: Region
-    type: string
-  - JSONPath: .spec.providerSpec.value.placement.availabilityZone
-    description: Zone associated with machine
-    name: Zone
-    type: string
-  - JSONPath: .metadata.creationTimestamp
-    description: Machine age
-    name: Age
-    type: date
   group: machine.openshift.io
   names:
     kind: Machine

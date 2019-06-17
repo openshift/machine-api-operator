@@ -75,8 +75,3 @@ var _ clientset.Interface = &Clientset{}
 func (c *Clientset) HealthcheckingV1alpha1() healthcheckingv1alpha1.HealthcheckingV1alpha1Interface {
 	return &fakehealthcheckingv1alpha1.FakeHealthcheckingV1alpha1{Fake: &c.Fake}
 }
-
-// Healthchecking retrieves the HealthcheckingV1alpha1Client
-func (c *Clientset) Healthchecking() healthcheckingv1alpha1.HealthcheckingV1alpha1Interface {
-	return &fakehealthcheckingv1alpha1.FakeHealthcheckingV1alpha1{Fake: &c.Fake}
-}

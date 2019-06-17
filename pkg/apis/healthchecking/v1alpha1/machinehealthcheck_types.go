@@ -1,7 +1,18 @@
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+// MachineHealthy indicates if the machine is healthy or unhealthy
+type MachineHealthy string
+
+const (
+	// MachineHealthyTrue indicates when the machine is healthy
+	MachineHealthyTrue MachineHealthy = "True"
+	// MachineHealthyFalse indicates when the machine is unhealthy
+	MachineHealthyFalse MachineHealthy = "False"
 )
 
 // ConfigMapNodeUnhealthyConditions contains the name of the unhealthy conditions config map
@@ -40,5 +51,20 @@ type MachineHealthCheckSpec struct {
 
 // MachineHealthCheckStatus defines the observed state of MachineHealthCheck
 type MachineHealthCheckStatus struct {
-	// TODO(alberto)
+	TargetedMachines     []TargetedMachine   `json:"targetedMachines"`
+	TargetedConditions   []TargetedCondition `json:"targetedConditions"`
+	TotalHealthyMachines int32               `json:"totalHealthyMachines"`
+}
+
+// TargetedMachine defines machines observed by the machine health check object
+type TargetedMachine struct {
+	Name                string                     `json:"name"`
+	Healthy             MachineHealthy             `json:"healthy"`
+	UnhealthyConditions []corev1.NodeConditionType `json:"unhealthyConditions"`
+}
+
+// TargetedCondition defines conditions observed by the machine health check object
+type TargetedCondition struct {
+	Name   corev1.NodeConditionType `json:"name"`
+	Status corev1.ConditionStatus   `json:"status"`
 }
