@@ -473,6 +473,9 @@ func setInt32(modified *bool, existing *int32, required int32) {
 }
 
 func setInt32Ptr(modified *bool, existing **int32, required *int32) {
+	if *existing == nil && required == nil {
+		return
+	}
 	if *existing == nil || (required == nil && *existing != nil) {
 		*modified = true
 		*existing = required
