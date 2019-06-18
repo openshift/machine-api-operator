@@ -5,12 +5,12 @@ import (
 	"reflect"
 	"strings"
 
-	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 
 	"github.com/golang/glog"
-
 	osconfigv1 "github.com/openshift/api/config/v1"
 	cvoresourcemerge "github.com/openshift/cluster-version-operator/lib/resourcemerge"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -148,36 +148,35 @@ func (optr *Operator) syncStatus(co *osconfigv1.ClusterOperator, conds []osconfi
 }
 
 func (optr *Operator) getOrCreateClusterOperator() (*osconfigv1.ClusterOperator, error) {
+	var co *osconfigv1.ClusterOperator
 	co, err := optr.osClient.ConfigV1().ClusterOperators().Get(clusterOperatorName, metav1.GetOptions{})
 	if errors.IsNotFound(err) {
-		// to report the status of all the managed components.
-		// TODO we will report the version of the operands (so our machine api implementation version)
-		// NOTE: related objects lets openshift/must-gather collect diagnostic content
 		co = &osconfigv1.ClusterOperator{
 			ObjectMeta: metav1.ObjectMeta{
 				Name: clusterOperatorName,
 			},
-			Status: osconfigv1.ClusterOperatorStatus{
-				Versions: optr.operandVersions,
-				RelatedObjects: []osconfigv1.ObjectReference{
-					{
-						Group:    "",
-						Resource: "namespaces",
-						Name:     optr.namespace,
-					},
-				},
-			},
 		}
-
-		glog.Infof("%s clusterOperator status does not exist, creating %v", clusterOperatorName, co)
-		co, err := optr.osClient.ConfigV1().ClusterOperators().Create(co)
+		glog.Infof("clusterOperator %q does not exist, creating a new one: %v", clusterOperatorName, co)
+		co, err = optr.osClient.ConfigV1().ClusterOperators().Create(co)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to create new clusterOperator: %v", err)
 		}
-		return co, nil
 	}
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get clusterOperator %q: %v", clusterOperatorName, err)
+	}
+
+	// Related objects lets openshift/must-gather collect diagnostic content
+	relatedObjects := []osconfigv1.ObjectReference{
+		{
+			Group:    "",
+			Resource: "namespaces",
+			Name:     optr.namespace,
+		},
+	}
+	if !equality.Semantic.DeepEqual(co.Status.RelatedObjects, relatedObjects) {
+		co.Status.RelatedObjects = relatedObjects
+		return optr.osClient.ConfigV1().ClusterOperators().UpdateStatus(co)
 	}
 	return co, nil
 }
