@@ -23,6 +23,9 @@ spec:
   names:
     kind: MachineDisruptionBudget
     plural: machinedisruptionbudgets
+    shortNames:
+    - mdb
+    - mdbs
   scope: Namespaced
   validation:
     openAPIV3Schema:

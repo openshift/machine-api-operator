@@ -10,6 +10,9 @@ spec:
   names:
     kind: MachineHealthCheck
     plural: machinehealthchecks
+    shortNames:
+    - mhc
+    - mhcs
   scope: Namespaced
   validation:
     openAPIV3Schema:

@@ -64,6 +64,7 @@ type MachineDisruptionBudgetStatus struct {
 
 // MachineDisruptionBudget is an object to define the max disruption that a collection of machines can experience
 // kubebuilder:subresource:status
+// +kubebuilder:resource:shortName=mdb;mdbs
 // +kubebuilder:printcolumn:name="Healthy",type="integer",JSONPath=".status.currentHealthy",description="The number of healthy machines"
 // +kubebuilder:printcolumn:name="Total",type="integer",JSONPath=".status.expectedMachines",description="The total number of machines"
 // +kubebuilder:printcolumn:name="Desired",type="integer",JSONPath=".status.desiredHealthy",description="The desired number of healthy machines"
