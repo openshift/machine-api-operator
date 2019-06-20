@@ -628,7 +628,7 @@ func TestReconcile(t *testing.T) {
 
 		if tc.expected.error != (err != nil) {
 			var errorExpectation string
-			if !tc.expected.error == true {
+			if !tc.expected.error {
 				errorExpectation = "no"
 			}
 			t.Errorf("Test case: %s. Expected: %s error, got: %v", tc.testName, errorExpectation, err)

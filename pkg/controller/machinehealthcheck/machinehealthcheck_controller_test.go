@@ -12,7 +12,6 @@ import (
 	maotesting "github.com/openshift/machine-api-operator/pkg/util/testing"
 
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -115,89 +114,6 @@ func TestGetNodeCondition(t *testing.T) {
 
 }
 
-type expectedReconcile struct {
-	result reconcile.Result
-	error  bool
-}
-
-func TestReconcile(t *testing.T) {
-	nodeHealthy := maotesting.NewNode("healthy", true)
-	nodeUnhealthy := maotesting.NewNode("unhealthy", false)
-	nodeWithNoMachineAnnotation := maotesting.NewNode("noAnnotated", true)
-	nodeWithNoMachineAnnotation.Annotations = map[string]string{}
-	nodeAnnotatedWithNoExistentMachine := maotesting.NewNode("noExistentMachine", true)
-	nodeAnnotatedWithNoExistentMachine.Annotations[machineAnnotationKey] = "noExistentMachine"
-	fakeMachine := maotesting.NewMachine("fakeMachine", "fakeNode")
-	fakeMachine.Status = mapiv1alpha1.MachineStatus{
-		NodeRef: &corev1.ObjectReference{
-			Namespace: "",
-			Name:      "healthy",
-		},
-	}
-
-	testsCases := []struct {
-		node     *v1.Node
-		expected expectedReconcile
-	}{
-		{
-			node: nodeHealthy,
-			expected: expectedReconcile{
-				result: reconcile.Result{},
-				error:  false,
-			},
-		},
-		{
-			node: nodeUnhealthy,
-			expected: expectedReconcile{
-				result: reconcile.Result{},
-				error:  false,
-			},
-		},
-		{
-			node: nodeWithNoMachineAnnotation,
-			expected: expectedReconcile{
-				result: reconcile.Result{},
-				error:  false,
-			},
-		},
-		{
-			node: nodeAnnotatedWithNoExistentMachine,
-			expected: expectedReconcile{
-				result: reconcile.Result{},
-				error:  false,
-			},
-		},
-	}
-
-	machineHealthCheck := maotesting.NewMachineHealthCheck("machineHealthCheck")
-	allMachineHealthChecks := &healthcheckingv1alpha1.MachineHealthCheckList{
-		Items: []healthcheckingv1alpha1.MachineHealthCheck{
-			*machineHealthCheck,
-		},
-	}
-
-	r := newFakeReconciler(nodeHealthy, nodeUnhealthy, fakeMachine, allMachineHealthChecks)
-	for _, tc := range testsCases {
-		request := reconcile.Request{
-			NamespacedName: types.NamespacedName{
-				Namespace: "",
-				Name:      tc.node.Name,
-			},
-		}
-		result, err := r.Reconcile(request)
-		if result != tc.expected.result {
-			t.Errorf("Test case: %v. Expected: %v, got: %v", tc.node.Name, tc.expected.result, result)
-		}
-		if tc.expected.error != (err != nil) {
-			var errorExpectation string
-			if !tc.expected.error {
-				errorExpectation = "no"
-			}
-			t.Errorf("Test case: %s. Expected %s error, got: %v", tc.node.Name, errorExpectation, err)
-		}
-	}
-}
-
 // newFakeReconciler returns a new reconcile.Reconciler with a fake client
 func newFakeReconciler(initObjects ...runtime.Object) *ReconcileMachineHealthCheck {
 	fakeClient := fake.NewFakeClient(initObjects...)
@@ -206,6 +122,159 @@ func newFakeReconciler(initObjects ...runtime.Object) *ReconcileMachineHealthChe
 		scheme:    scheme.Scheme,
 		namespace: namespace,
 	}
+}
+
+type expectedReconcile struct {
+	result reconcile.Result
+	error  bool
+}
+
+func testReconcile(t *testing.T, remediationWaitTime time.Duration, initObjects ...runtime.Object) {
+	// healthy node
+	nodeHealthy := maotesting.NewNode("healthy", true)
+	nodeHealthy.Annotations = map[string]string{
+		machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "machineWithNodehealthy"),
+	}
+	machineWithNodeHealthy := maotesting.NewMachine("machineWithNodehealthy", nodeHealthy.Name)
+
+	// recently unhealthy node
+	nodeRecentlyUnhealthy := maotesting.NewNode("recentlyUnhealthy", false)
+	nodeRecentlyUnhealthy.Status.Conditions[0].LastTransitionTime = metav1.Time{Time: time.Now()}
+	nodeRecentlyUnhealthy.Annotations = map[string]string{
+		machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "machineWithNodeRecentlyUnhealthy"),
+	}
+	machineWithNodeRecentlyUnhealthy := maotesting.NewMachine("machineWithNodeRecentlyUnhealthy", nodeRecentlyUnhealthy.Name)
+
+	// node without machine annotation
+	nodeWithoutMachineAnnotation := maotesting.NewNode("withoutMachineAnnotation", true)
+	nodeWithoutMachineAnnotation.Annotations = map[string]string{}
+
+	// node annotated with machine that does not exist
+	nodeAnnotatedWithNoExistentMachine := maotesting.NewNode("annotatedWithNoExistentMachine", true)
+	nodeAnnotatedWithNoExistentMachine.Annotations[machineAnnotationKey] = "annotatedWithNoExistentMachine"
+
+	// node annotated with machine without owner reference
+	nodeAnnotatedWithMachineWithoutOwnerReference := maotesting.NewNode("annotatedWithMachineWithoutOwnerReference", true)
+	nodeAnnotatedWithMachineWithoutOwnerReference.Annotations = map[string]string{
+		machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "machineWithoutOwnerController"),
+	}
+	machineWithoutOwnerController := maotesting.NewMachine("machineWithoutOwnerController", nodeAnnotatedWithMachineWithoutOwnerReference.Name)
+	machineWithoutOwnerController.OwnerReferences = nil
+
+	// node annotated with machine without node reference
+	nodeAnnotatedWithMachineWithoutNodeReference := maotesting.NewNode("annotatedWithMachineWithoutNodeReference", true)
+	nodeAnnotatedWithMachineWithoutNodeReference.Annotations = map[string]string{
+		machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "machineWithoutNodeRef"),
+	}
+	machineWithoutNodeRef := maotesting.NewMachine("machineWithoutNodeRef", nodeAnnotatedWithMachineWithoutNodeReference.Name)
+	machineWithoutNodeRef.Status.NodeRef = nil
+
+	machineHealthCheck := maotesting.NewMachineHealthCheck("machineHealthCheck")
+
+	testsCases := []struct {
+		machine  *mapiv1alpha1.Machine
+		node     *corev1.Node
+		expected expectedReconcile
+	}{
+		{
+			machine: machineWithNodeHealthy,
+			node:    nodeHealthy,
+			expected: expectedReconcile{
+				result: reconcile.Result{},
+				error:  false,
+			},
+		},
+		{
+			machine: machineWithNodeRecentlyUnhealthy,
+			node:    nodeRecentlyUnhealthy,
+			expected: expectedReconcile{
+				result: reconcile.Result{
+					Requeue:      true,
+					RequeueAfter: remediationWaitTime,
+				},
+				error: false,
+			},
+		},
+		{
+			machine: nil,
+			node:    nodeWithoutMachineAnnotation,
+			expected: expectedReconcile{
+				result: reconcile.Result{},
+				error:  false,
+			},
+		},
+		{
+			machine: nil,
+			node:    nodeAnnotatedWithNoExistentMachine,
+			expected: expectedReconcile{
+				result: reconcile.Result{},
+				error:  false,
+			},
+		},
+		{
+			machine: machineWithoutOwnerController,
+			node:    nodeAnnotatedWithMachineWithoutOwnerReference,
+			expected: expectedReconcile{
+				result: reconcile.Result{},
+				error:  false,
+			},
+		},
+		{
+			machine: machineWithoutNodeRef,
+			node:    nodeAnnotatedWithMachineWithoutNodeReference,
+			expected: expectedReconcile{
+				result: reconcile.Result{},
+				error:  true,
+			},
+		},
+	}
+
+	for _, tc := range testsCases {
+		objects := []runtime.Object{}
+		objects = append(objects, initObjects...)
+		objects = append(objects, machineHealthCheck)
+		if tc.machine != nil {
+			objects = append(objects, tc.machine)
+		}
+		objects = append(objects, tc.node)
+		r := newFakeReconciler(objects...)
+
+		request := reconcile.Request{
+			NamespacedName: types.NamespacedName{
+				Namespace: "",
+				Name:      tc.node.Name,
+			},
+		}
+		result, err := r.Reconcile(request)
+		if tc.expected.error != (err != nil) {
+			var errorExpectation string
+			if !tc.expected.error {
+				errorExpectation = "no"
+			}
+			t.Errorf("Test case: %s. Expected: %s error, got: %v", tc.node.Name, errorExpectation, err)
+		}
+
+		if result != tc.expected.result {
+			if tc.expected.result.Requeue {
+				before := tc.expected.result.RequeueAfter
+				after := tc.expected.result.RequeueAfter + time.Second
+				if after < result.RequeueAfter || before > result.RequeueAfter {
+					t.Errorf("Test case: %s. Expected RequeueAfter between: %v and %v, got: %v", tc.node.Name, before, after, result)
+				}
+			} else {
+				t.Errorf("Test case: %s. Expected: %v, got: %v", tc.node.Name, tc.expected.result, result)
+			}
+		}
+	}
+}
+
+func TestReconcileWithoutUnhealthyConditionsConfigMap(t *testing.T) {
+	testReconcile(t, 5*time.Minute)
+}
+
+func TestReconcileWithUnhealthyConditionsConfigMap(t *testing.T) {
+	cmBadConditions := maotesting.NewUnhealthyConditionsConfigMap(healthcheckingv1alpha1.ConfigMapNodeUnhealthyConditions, badConditionsData)
+	testReconcile(t, 1*time.Minute, cmBadConditions)
 }
 
 func TestHasMachineSetOwner(t *testing.T) {
@@ -257,146 +326,4 @@ func TestUnhealthyForTooLong(t *testing.T) {
 			t.Errorf("Test case: %s. Expected: %t, got: %t", tc.node.Name, tc.expected, got)
 		}
 	}
-}
-
-func testRemediation(t *testing.T, remediationWaitTime time.Duration, initObjects ...runtime.Object) {
-	nodeHealthy := maotesting.NewNode("nodeHealthy", true)
-	nodeHealthy.Annotations = map[string]string{
-		"machine": fmt.Sprintf("%s/%s", namespace, "machineWithNodehealthy"),
-	}
-
-	nodeRecentlyUnhealthy := maotesting.NewNode("nodeRecentlyUnhealthy", false)
-	nodeRecentlyUnhealthy.Status.Conditions[0].LastTransitionTime = metav1.Time{Time: time.Now()}
-	nodeRecentlyUnhealthy.Annotations = map[string]string{
-		"machine": fmt.Sprintf("%s/%s", namespace, "machineWithNodeRecentlyUnhealthy"),
-	}
-
-	machineWithNodeRecentlyUnhealthy := maotesting.NewMachine("machineWithNodeRecentlyUnhealthy", nodeRecentlyUnhealthy.Name)
-
-	machineWithNodeHealthy := maotesting.NewMachine("machineWithNodehealthy", nodeHealthy.Name)
-
-	machineWithNoOwnerController := maotesting.NewMachine("machineWithNoOwnerController", "node")
-	machineWithNoOwnerController.OwnerReferences = nil
-
-	machineWithNoNodeRef := maotesting.NewMachine("machineWithNoNodeRef", "node")
-	machineWithNoNodeRef.Status.NodeRef = nil
-
-	testsCases := []struct {
-		machine  *mapiv1alpha1.Machine
-		expected expectedReconcile
-	}{
-		{
-			machine: machineWithNodeHealthy,
-			expected: expectedReconcile{
-				result: reconcile.Result{},
-				error:  false,
-			},
-		},
-		{
-			machine: machineWithNodeRecentlyUnhealthy,
-			expected: expectedReconcile{
-				result: reconcile.Result{
-					Requeue:      true,
-					RequeueAfter: remediationWaitTime,
-				},
-				error: false,
-			},
-		},
-		{
-			machine: machineWithNoOwnerController,
-			expected: expectedReconcile{
-				result: reconcile.Result{},
-				error:  false,
-			},
-		},
-		{
-			machine: machineWithNoNodeRef,
-			expected: expectedReconcile{
-				result: reconcile.Result{},
-				error:  true,
-			},
-		},
-	}
-
-	initObjects = append(initObjects, nodeHealthy)
-	initObjects = append(initObjects, nodeRecentlyUnhealthy)
-	initObjects = append(initObjects, machineWithNodeHealthy)
-	initObjects = append(initObjects, machineWithNodeRecentlyUnhealthy)
-	initObjects = append(initObjects, machineWithNoOwnerController)
-	initObjects = append(initObjects, machineWithNoNodeRef)
-
-	r := newFakeReconciler(initObjects...)
-	for _, tc := range testsCases {
-		result, err := remediate(r, tc.machine)
-		if result != tc.expected.result {
-			if tc.expected.result.Requeue {
-				before := tc.expected.result.RequeueAfter
-				after := tc.expected.result.RequeueAfter + time.Second
-				if after < result.RequeueAfter || before > result.RequeueAfter {
-					t.Errorf("Test case: %s. Expected RequeueAfter between: %v and %v, got: %v", tc.machine.Name, before, after, result)
-				}
-			} else {
-				t.Errorf("Test case: %s. Expected: %v, got: %v", tc.machine.Name, tc.expected.result, result)
-			}
-		}
-		if tc.expected.error != (err != nil) {
-			var errorExpectation string
-			if !tc.expected.error == true {
-				errorExpectation = "no"
-			}
-			t.Errorf("Test case: %s. Expected: %s error, got: %v", tc.machine.Name, errorExpectation, err)
-		}
-	}
-}
-
-func TestRemediateWithoutUnhealthyConditionsConfigMap(t *testing.T) {
-	testRemediation(t, 5*time.Minute)
-}
-
-func TestRemediateWithUnhealthyConditionsConfigMap(t *testing.T) {
-	cmBadConditions := maotesting.NewUnhealthyConditionsConfigMap(healthcheckingv1alpha1.ConfigMapNodeUnhealthyConditions, badConditionsData)
-	testRemediation(t, 1*time.Minute, cmBadConditions)
-}
-
-func TestIsMaster(t *testing.T) {
-	masterMachine := maotesting.NewMachine("master", "master")
-	masterMachine.Labels["machine.openshift.io/cluster-api-machine-role"] = "master"
-	masterMachine.Labels["machine.openshift.io/cluster-api-machine-type"] = "master"
-
-	masterNode := maotesting.NewNode("master", true)
-	masterNode.Annotations = map[string]string{
-		"machine": fmt.Sprintf("%s/%s", namespace, "master"),
-	}
-	masterNode.Labels["node-role.kubernetes.io/master"] = ""
-
-	workerMachine := maotesting.NewMachine("worker", "worker")
-	workerMachine.Labels["machine.openshift.io/cluster-api-machine-role"] = "worker"
-	workerMachine.Labels["machine.openshift.io/cluster-api-machine-type"] = "worker"
-
-	workerNode := maotesting.NewNode("worker", true)
-	workerNode.Annotations = map[string]string{
-		"machine": fmt.Sprintf("%s/%s", namespace, "worker"),
-	}
-	workerNode.Labels["node-role.kubernetes.io/worker"] = ""
-
-	testCases := []struct {
-		machine  *mapiv1alpha1.Machine
-		expected bool
-	}{
-		{
-			machine:  masterMachine,
-			expected: true,
-		},
-		{
-			machine:  workerMachine,
-			expected: false,
-		},
-	}
-	fakeClient := fake.NewFakeClient(masterNode, workerNode)
-	for _, tc := range testCases {
-		if got := isMaster(*tc.machine, fakeClient); got != tc.expected {
-			t.Errorf("Test case: %s. Expected: %t, got: %t", tc.machine.Name, tc.expected, got)
-		}
-	}
-
 }
