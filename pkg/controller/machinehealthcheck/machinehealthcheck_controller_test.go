@@ -9,6 +9,7 @@ import (
 	mapiv1alpha1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
+	maotesting "github.com/openshift/machine-api-operator/pkg/util/testing"
 
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
@@ -28,132 +29,23 @@ const (
   status: Unknown`
 )
 
-var (
-	knownDate = metav1.Time{Time: time.Date(1985, 06, 03, 0, 0, 0, 0, time.Local)}
-)
-
 func init() {
 	// Add types to scheme
 	mapiv1alpha1.AddToScheme(scheme.Scheme)
 	healthcheckingv1alpha1.AddToScheme(scheme.Scheme)
 }
 
-func node(name string, ready bool) *v1.Node {
-	nodeReadyStatus := corev1.ConditionTrue
-	if !ready {
-		nodeReadyStatus = corev1.ConditionUnknown
-	}
-
-	return &v1.Node{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: metav1.NamespaceNone,
-			Annotations: map[string]string{
-				"machine": fmt.Sprintf("%s/%s", namespace, "fakeMachine"),
-			},
-			Labels: map[string]string{},
-		},
-		TypeMeta: metav1.TypeMeta{
-			Kind: "Node",
-		},
-		Status: corev1.NodeStatus{
-			Conditions: []corev1.NodeCondition{
-				{
-					Type:               corev1.NodeReady,
-					Status:             nodeReadyStatus,
-					LastTransitionTime: knownDate,
-				},
-			},
-		},
-	}
-}
-
-func machine(name string) *mapiv1alpha1.Machine {
-	return &mapiv1alpha1.Machine{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-			Labels: map[string]string{
-				"foo": "a",
-				"bar": "b",
-			},
-			OwnerReferences: []metav1.OwnerReference{
-				{
-					Kind: ownerControllerKind,
-				},
-			},
-		},
-		TypeMeta: metav1.TypeMeta{
-			Kind: "Machine",
-		},
-		Spec: mapiv1alpha1.MachineSpec{},
-	}
-}
-
-func machineHealthCheck(name string) *healthcheckingv1alpha1.MachineHealthCheck {
-	return &healthcheckingv1alpha1.MachineHealthCheck{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		TypeMeta: metav1.TypeMeta{
-			Kind: "MachineHealthCheck",
-		},
-		Spec: healthcheckingv1alpha1.MachineHealthCheckSpec{
-			Selector: metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					"foo": "a",
-					"bar": "b",
-				},
-			},
-		},
-		Status: healthcheckingv1alpha1.MachineHealthCheckStatus{},
-	}
-}
-
-func configMap(name string, data string) *corev1.ConfigMap {
-	return &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
-		},
-		TypeMeta: metav1.TypeMeta{
-			Kind: "ConfigMap",
-		},
-		Data: map[string]string{
-			"conditions": data,
-		},
-	}
-}
-
 func TestHasMatchingLabels(t *testing.T) {
-	machine := machine("machine")
+	machine := maotesting.NewMachine("machine", "node")
 	testsCases := []struct {
 		machine            *mapiv1alpha1.Machine
 		machineHealthCheck *healthcheckingv1alpha1.MachineHealthCheck
 		expected           bool
 	}{
 		{
-			machine: machine,
-			machineHealthCheck: &healthcheckingv1alpha1.MachineHealthCheck{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "MatchingLabels",
-					Namespace: namespace,
-				},
-				TypeMeta: metav1.TypeMeta{
-					Kind: "MachineHealthCheck",
-				},
-				Spec: healthcheckingv1alpha1.MachineHealthCheckSpec{
-					Selector: metav1.LabelSelector{
-						MatchLabels: map[string]string{
-							"foo": "a",
-							"bar": "b",
-						},
-					},
-				},
-				Status: healthcheckingv1alpha1.MachineHealthCheckStatus{},
-			},
-			expected: true,
+			machine:            machine,
+			machineHealthCheck: maotesting.NewMachineHealthCheck("foobar"),
+			expected:           true,
 		},
 		{
 			machine: machine,
@@ -193,7 +85,7 @@ func TestGetNodeCondition(t *testing.T) {
 		expected  *corev1.NodeCondition
 	}{
 		{
-			node: node("hasCondition", true),
+			node: maotesting.NewNode("hasCondition", true),
 			condition: &corev1.NodeCondition{
 				Type:   corev1.NodeReady,
 				Status: corev1.ConditionTrue,
@@ -201,11 +93,11 @@ func TestGetNodeCondition(t *testing.T) {
 			expected: &corev1.NodeCondition{
 				Type:               corev1.NodeReady,
 				Status:             corev1.ConditionTrue,
-				LastTransitionTime: knownDate,
+				LastTransitionTime: maotesting.KnownDate,
 			},
 		},
 		{
-			node: node("doesNotHaveCondition", true),
+			node: maotesting.NewNode("doesNotHaveCondition", true),
 			condition: &corev1.NodeCondition{
 				Type:   corev1.NodeOutOfDisk,
 				Status: corev1.ConditionTrue,
@@ -229,13 +121,13 @@ type expectedReconcile struct {
 }
 
 func TestReconcile(t *testing.T) {
-	nodeHealthy := node("healthy", true)
-	nodeUnhealthy := node("unhealthy", false)
-	nodeWithNoMachineAnnotation := node("noAnnotated", true)
+	nodeHealthy := maotesting.NewNode("healthy", true)
+	nodeUnhealthy := maotesting.NewNode("unhealthy", false)
+	nodeWithNoMachineAnnotation := maotesting.NewNode("noAnnotated", true)
 	nodeWithNoMachineAnnotation.Annotations = map[string]string{}
-	nodeAnnotatedWithNoExistentMachine := node("noExistentMachine", true)
+	nodeAnnotatedWithNoExistentMachine := maotesting.NewNode("noExistentMachine", true)
 	nodeAnnotatedWithNoExistentMachine.Annotations[machineAnnotationKey] = "noExistentMachine"
-	fakeMachine := machine("fakeMachine")
+	fakeMachine := maotesting.NewMachine("fakeMachine", "fakeNode")
 	fakeMachine.Status = mapiv1alpha1.MachineStatus{
 		NodeRef: &corev1.ObjectReference{
 			Namespace: "",
@@ -277,7 +169,7 @@ func TestReconcile(t *testing.T) {
 		},
 	}
 
-	machineHealthCheck := machineHealthCheck("machineHealthCheck")
+	machineHealthCheck := maotesting.NewMachineHealthCheck("machineHealthCheck")
 	allMachineHealthChecks := &healthcheckingv1alpha1.MachineHealthCheckList{
 		Items: []healthcheckingv1alpha1.MachineHealthCheck{
 			*machineHealthCheck,
@@ -317,8 +209,8 @@ func newFakeReconciler(initObjects ...runtime.Object) *ReconcileMachineHealthChe
 }
 
 func TestHasMachineSetOwner(t *testing.T) {
-	machineWithMachineSet := machine("machineWithMachineSet")
-	machineWithNoMachineSet := machine("machineWithNoMachineSet")
+	machineWithMachineSet := maotesting.NewMachine("machineWithMachineSet", "node")
+	machineWithNoMachineSet := maotesting.NewMachine("machineWithNoMachineSet", "node")
 	machineWithNoMachineSet.OwnerReferences = nil
 
 	testsCases := []struct {
@@ -344,8 +236,8 @@ func TestHasMachineSetOwner(t *testing.T) {
 }
 
 func TestUnhealthyForTooLong(t *testing.T) {
-	nodeUnhealthyForTooLong := node("nodeUnhealthyForTooLong", false)
-	nodeRecentlyUnhealthy := node("nodeRecentlyUnhealthy", false)
+	nodeUnhealthyForTooLong := maotesting.NewNode("nodeUnhealthyForTooLong", false)
+	nodeRecentlyUnhealthy := maotesting.NewNode("nodeRecentlyUnhealthy", false)
 	nodeRecentlyUnhealthy.Status.Conditions[0].LastTransitionTime = metav1.Time{Time: time.Now()}
 	testsCases := []struct {
 		node     *corev1.Node
@@ -368,37 +260,26 @@ func TestUnhealthyForTooLong(t *testing.T) {
 }
 
 func testRemediation(t *testing.T, remediationWaitTime time.Duration, initObjects ...runtime.Object) {
-	nodeHealthy := node("nodeHealthy", true)
+	nodeHealthy := maotesting.NewNode("nodeHealthy", true)
 	nodeHealthy.Annotations = map[string]string{
 		"machine": fmt.Sprintf("%s/%s", namespace, "machineWithNodehealthy"),
 	}
 
-	nodeRecentlyUnhealthy := node("nodeRecentlyUnhealthy", false)
+	nodeRecentlyUnhealthy := maotesting.NewNode("nodeRecentlyUnhealthy", false)
 	nodeRecentlyUnhealthy.Status.Conditions[0].LastTransitionTime = metav1.Time{Time: time.Now()}
 	nodeRecentlyUnhealthy.Annotations = map[string]string{
 		"machine": fmt.Sprintf("%s/%s", namespace, "machineWithNodeRecentlyUnhealthy"),
 	}
 
-	machineWithNodeRecentlyUnhealthy := machine("machineWithNodeRecentlyUnhealthy")
-	machineWithNodeRecentlyUnhealthy.Status = mapiv1alpha1.MachineStatus{
-		NodeRef: &corev1.ObjectReference{
-			Namespace: "",
-			Name:      "nodeRecentlyUnhealthy",
-		},
-	}
+	machineWithNodeRecentlyUnhealthy := maotesting.NewMachine("machineWithNodeRecentlyUnhealthy", nodeRecentlyUnhealthy.Name)
 
-	machineWithNodeHealthy := machine("machineWithNodehealthy")
-	machineWithNodeHealthy.Status = mapiv1alpha1.MachineStatus{
-		NodeRef: &corev1.ObjectReference{
-			Namespace: "",
-			Name:      "nodeHealthy",
-		},
-	}
+	machineWithNodeHealthy := maotesting.NewMachine("machineWithNodehealthy", nodeHealthy.Name)
 
-	machineWithNoOwnerController := machine("machineWithNoOwnerController")
+	machineWithNoOwnerController := maotesting.NewMachine("machineWithNoOwnerController", "node")
 	machineWithNoOwnerController.OwnerReferences = nil
 
-	machineWithNoNodeRef := machine("machineWithNoNodeRef")
+	machineWithNoNodeRef := maotesting.NewMachine("machineWithNoNodeRef", "node")
+	machineWithNoNodeRef.Status.NodeRef = nil
 
 	testsCases := []struct {
 		machine  *mapiv1alpha1.Machine
@@ -473,37 +354,26 @@ func TestRemediateWithoutUnhealthyConditionsConfigMap(t *testing.T) {
 }
 
 func TestRemediateWithUnhealthyConditionsConfigMap(t *testing.T) {
-	cmBadConditions := configMap(healthcheckingv1alpha1.ConfigMapNodeUnhealthyConditions, badConditionsData)
+	cmBadConditions := maotesting.NewUnhealthyConditionsConfigMap(healthcheckingv1alpha1.ConfigMapNodeUnhealthyConditions, badConditionsData)
 	testRemediation(t, 1*time.Minute, cmBadConditions)
 }
 
 func TestIsMaster(t *testing.T) {
-	masterMachine := machine("master")
+	masterMachine := maotesting.NewMachine("master", "master")
 	masterMachine.Labels["machine.openshift.io/cluster-api-machine-role"] = "master"
 	masterMachine.Labels["machine.openshift.io/cluster-api-machine-type"] = "master"
-	masterMachine.Status = mapiv1alpha1.MachineStatus{
-		NodeRef: &corev1.ObjectReference{
-			Namespace: "",
-			Name:      "master",
-		},
-	}
-	masterNode := node("master", true)
+
+	masterNode := maotesting.NewNode("master", true)
 	masterNode.Annotations = map[string]string{
 		"machine": fmt.Sprintf("%s/%s", namespace, "master"),
 	}
 	masterNode.Labels["node-role.kubernetes.io/master"] = ""
 
-	workerMachine := machine("worker")
+	workerMachine := maotesting.NewMachine("worker", "worker")
 	workerMachine.Labels["machine.openshift.io/cluster-api-machine-role"] = "worker"
 	workerMachine.Labels["machine.openshift.io/cluster-api-machine-type"] = "worker"
 
-	workerMachine.Status = mapiv1alpha1.MachineStatus{
-		NodeRef: &corev1.ObjectReference{
-			Namespace: "",
-			Name:      "worker",
-		},
-	}
-	workerNode := node("worker", true)
+	workerNode := maotesting.NewNode("worker", true)
 	workerNode.Annotations = map[string]string{
 		"machine": fmt.Sprintf("%s/%s", namespace, "worker"),
 	}
