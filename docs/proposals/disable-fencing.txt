@@ -1,0 +1,39 @@
+Temporarily disable machine fencing 
+===================================
+
+Summary
+----------------
+
+The Machine Healthcheck Controller (MHC) looks for failed nodes and deletes them after giving them grace time to recover (5 min by default). This feature provides a mechanism to prevent that from happening on a per-node basis.
+
+
+Motivation 
+----------------
+
+During upgrade, maintenance, and triage activities a node status may be not Ready for a while and we want a mechanism to exclude such a node from the fencing cycle.
+
+The administrator should be able to temporarily exclude nodes from being fenced.This will allow to track the machine manually without applying the machine fencing mechanism according to the system administrator considerations.
+
+User stories 
+-------------
+
+A machine is upgraded 
+A machine is set to maintenance for some reason.
+
+Goals 
+----------------
+
+Ability to temporarily exclude nodes from being fenced even if the fencing mechanism is active and the node is in a problematic status that makes it a candidate for fencing by MHC and enable administrators to handle the event manually.
+
+Proposal 
+---------------- 
+
+Set a annotation on a machine that describes if the node should be explicitly temporarily excluded from fencing mechanism handling.
+
+When MHC is looking for failed nodes, it will look for the healthchecking.openshift.io/disabled annotation on teh machine object and if it is set to "true" MHC will temporarily exclude this machine from the fencing flow.
+
+The following will enable the fencing mechanism handling on the machine :
+./cluster-up/kubectl.sh -n openshift-machine-api annotate machines <machine-name>/healthchecking.openshift.io/disabled=false  --overwrite
+
+The following will disable the fencing mechanism handling on the machine :
+./cluster-up/kubectl.sh -n openshift-machine-api annotate machines <machine-name>/healthchecking.openshift.io/disabled=true  --overwrite
