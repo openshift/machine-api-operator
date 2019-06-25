@@ -6,6 +6,6 @@ else
     --env IS_CONTAINER=TRUE \
     --volume "${PWD}:/go/src/github.com/openshift/machine-api-operator:z" \
     --workdir /go/src/github.com/openshift/machine-api-operator \
-    openshift/origin-release:golang-1.10 \
+    openshift/origin-release:golang-1.12 \
     ./hack/go-vet.sh "${@}"
 fi;
