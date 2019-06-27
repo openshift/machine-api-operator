@@ -1,0 +1,18 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: machine-api-operator
+  namespace: openshift-machine-api
+  labels:
+    k8s-app: machine-api-operator
+spec:
+  type: ClusterIP
+  ports:
+  - name: metrics
+    port: 8080
+    targetPort: metrics
+    protocol: TCP
+  selector:
+    k8s-app: machine-api-operator
+  sessionAffinity: None

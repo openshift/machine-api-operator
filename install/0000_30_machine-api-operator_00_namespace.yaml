@@ -7,3 +7,6 @@ metadata:
   labels:
     name: openshift-machine-api
     openshift.io/run-level: "1"
+    # allow openshift-monitoring to look for ServiceMonitor objects in this namespace
+    openshift.io/cluster-monitoring: "true"
+
