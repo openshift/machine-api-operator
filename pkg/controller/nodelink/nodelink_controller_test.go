@@ -130,6 +130,7 @@ func newFakeReconciler(client client.Client, machine *mapiv1beta1.Machine, node 
 	r.buildFakeNodeIndexer(*node)
 	r.buildFakeMachineIndexer(*machine)
 
+	r.nodeReadinessCache = make(map[string]bool)
 	return r
 }
 
@@ -520,7 +521,7 @@ func TestReconcile(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		r := newFakeReconciler(fake.NewFakeClientWithScheme(scheme.Scheme, tc.node), tc.machine, tc.node)
+		r := newFakeReconciler(fake.NewFakeClientWithScheme(scheme.Scheme, tc.node, tc.machine), tc.machine, tc.node)
 		request := reconcile.Request{
 			NamespacedName: client.ObjectKey{
 				Namespace: metav1.NamespaceNone,
@@ -702,6 +703,70 @@ func TestIndexMachineByInternalIP(t *testing.T) {
 		got := indexMachineByInternalIP(tc.object)
 		if !reflect.DeepEqual(got, tc.expected) {
 			t.Errorf("Expected: %v, got: %v", tc.expected, got)
+		}
+	}
+}
+
+func TestUpdateNodeRef(t *testing.T) {
+	testCases := []struct {
+		machine            *mapiv1beta1.Machine
+		node               *corev1.Node
+		nodeRef            *corev1.ObjectReference
+		nodeReadinessCache map[string]bool
+	}{
+		{
+			machine: machine("", "", nil, nil),
+			node:    node("newNode", "", nil, nil),
+			nodeRef: &corev1.ObjectReference{
+				Kind: "Node",
+				Name: "newNode",
+				UID:  "",
+			},
+			nodeReadinessCache: map[string]bool{},
+		},
+		{
+			machine: machine("", "", nil, nil),
+			node:    node("readinessChangedNode", "", nil, nil),
+			nodeRef: &corev1.ObjectReference{
+				Kind: "Node",
+				Name: "readinessChangedNode",
+				UID:  "",
+			},
+			nodeReadinessCache: map[string]bool{"readinessChangedNode": false},
+		},
+		{
+			machine:            machine("", "", nil, nil),
+			node:               node("deleting", "", nil, nil),
+			nodeRef:            nil,
+			nodeReadinessCache: map[string]bool{},
+		},
+	}
+
+	for _, tc := range testCases {
+		r := newFakeReconciler(fake.NewFakeClientWithScheme(scheme.Scheme, tc.machine), tc.machine, tc.node)
+		if tc.node.GetName() == "deleting" {
+			now := metav1.Now()
+			tc.node.DeletionTimestamp = &now
+		}
+
+		if err := r.updateNodeRef(tc.machine, tc.node); err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+
+		got := &mapiv1beta1.Machine{}
+		if err := r.client.Get(
+			context.TODO(),
+			client.ObjectKey{
+				Namespace: tc.machine.GetNamespace(),
+				Name:      tc.machine.GetName(),
+			},
+			got,
+		); err != nil {
+			t.Errorf("unexpected error getting machine: %v", err)
+		}
+
+		if !reflect.DeepEqual(got.Status.NodeRef, tc.nodeRef) {
+			t.Errorf("Expected: %v, got: %v", tc.nodeRef, got.Status.NodeRef)
 		}
 	}
 }
