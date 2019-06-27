@@ -1,7 +1,6 @@
 package disruption
 
 import (
-	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -9,8 +8,8 @@ import (
 
 	mapiv1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
+	maotesting "github.com/openshift/machine-api-operator/pkg/util/testing"
 
-	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -21,10 +20,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
-
-const namespace = "openshift-machine-api"
-
-var knownDate = metav1.Time{Time: time.Date(1985, 06, 03, 0, 0, 0, 0, time.Local)}
 
 func init() {
 	// Add types to scheme
@@ -39,47 +34,7 @@ func newFakeReconciler(recorder record.EventRecorder, initObjects ...runtime.Obj
 		client:    fakeClient,
 		recorder:  recorder,
 		scheme:    scheme.Scheme,
-		namespace: namespace,
-	}
-}
-
-func fooBar() map[string]string {
-	return map[string]string{"foo": "bar"}
-}
-
-func newSelector(labels map[string]string) *metav1.LabelSelector {
-	return &metav1.LabelSelector{MatchLabels: labels}
-}
-
-func newSelectorFooBar() *metav1.LabelSelector {
-	return newSelector(fooBar())
-}
-
-func newMinAvailableMachineDisruptionBudget(minAvailable int32) *healthcheckingv1alpha1.MachineDisruptionBudget {
-	return &healthcheckingv1alpha1.MachineDisruptionBudget{
-		TypeMeta: metav1.TypeMeta{Kind: "MachineDisruptionBudget"},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "foobar",
-			Namespace: namespace,
-		},
-		Spec: healthcheckingv1alpha1.MachineDisruptionBudgetSpec{
-			MinAvailable: &minAvailable,
-			Selector:     newSelectorFooBar(),
-		},
-	}
-}
-
-func newMaxUnavailableMachineDisruptionBudget(maxUnavailable int32) *healthcheckingv1alpha1.MachineDisruptionBudget {
-	return &healthcheckingv1alpha1.MachineDisruptionBudget{
-		TypeMeta: metav1.TypeMeta{Kind: "MachineDisruptionBudget"},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "foobar",
-			Namespace: namespace,
-		},
-		Spec: healthcheckingv1alpha1.MachineDisruptionBudgetSpec{
-			MaxUnavailable: &maxUnavailable,
-			Selector:       newSelectorFooBar(),
-		},
+		namespace: maotesting.Namespace,
 	}
 }
 
@@ -96,69 +51,18 @@ func updateMachineOwnerToMachineSet(machine *mapiv1.Machine, ms *mapiv1.MachineS
 	machine.OwnerReferences = append(machine.OwnerReferences, controllerReference)
 }
 
-func newNode(name string, ready bool) *v1.Node {
-	nodeReadyStatus := v1.ConditionTrue
-	if !ready {
-		nodeReadyStatus = v1.ConditionUnknown
-	}
-
-	return &v1.Node{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: metav1.NamespaceNone,
-			Annotations: map[string]string{
-				"machine": fmt.Sprintf("%s/%s", namespace, "fakeMachine"),
-			},
-			Labels: map[string]string{},
-			UID:    uuid.NewUUID(),
-		},
-		TypeMeta: metav1.TypeMeta{
-			Kind: "Node",
-		},
-		Status: v1.NodeStatus{
-			Conditions: []v1.NodeCondition{
-				{
-					Type:               v1.NodeReady,
-					Status:             nodeReadyStatus,
-					LastTransitionTime: knownDate,
-				},
-			},
-		},
-	}
-}
-
-func newMachine(name string, nodeName string, phase string) *mapiv1.Machine {
-	return &mapiv1.Machine{
-		TypeMeta: metav1.TypeMeta{Kind: "Machine"},
-		ObjectMeta: metav1.ObjectMeta{
-			Annotations: make(map[string]string),
-			Name:        name,
-			Namespace:   namespace,
-			Labels:      fooBar(),
-			UID:         uuid.NewUUID(),
-		},
-		Spec: mapiv1.MachineSpec{},
-		Status: mapiv1.MachineStatus{
-			NodeRef: &v1.ObjectReference{
-				Name: nodeName,
-			},
-			Phase: &phase,
-		},
-	}
-}
-
 func newMachineSet(name string, size int32) *mapiv1.MachineSet {
 	return &mapiv1.MachineSet{
 		TypeMeta: metav1.TypeMeta{Kind: "MachineSet"},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: namespace,
-			Labels:    fooBar(),
+			Namespace: maotesting.Namespace,
+			Labels:    maotesting.FooBar(),
 			UID:       uuid.NewUUID(),
 		},
 		Spec: mapiv1.MachineSetSpec{
 			Replicas: &size,
-			Selector: *newSelectorFooBar(),
+			Selector: *maotesting.NewSelectorFooBar(),
 		},
 	}
 }
@@ -181,13 +85,13 @@ func newMachineDeployment(name string, size int32) *mapiv1.MachineDeployment {
 		TypeMeta: metav1.TypeMeta{Kind: "MachineDeployment"},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: namespace,
-			Labels:    fooBar(),
+			Namespace: maotesting.Namespace,
+			Labels:    maotesting.FooBar(),
 			UID:       uuid.NewUUID(),
 		},
 		Spec: mapiv1.MachineDeploymentSpec{
 			Replicas: &size,
-			Selector: *newSelectorFooBar(),
+			Selector: *maotesting.NewSelectorFooBar(),
 		},
 	}
 }
@@ -198,24 +102,24 @@ type expectedMachineCount struct {
 }
 
 func TestGetExpectedMachineCount(t *testing.T) {
-	mdbMinAvailable := newMinAvailableMachineDisruptionBudget(1)
-	mdbMaxUnavailable := newMaxUnavailableMachineDisruptionBudget(1)
+	mdbMinAvailable := maotesting.NewMinAvailableMachineDisruptionBudget(1)
+	mdbMaxUnavailable := maotesting.NewMaxUnavailableMachineDisruptionBudget(1)
 
-	node := newNode("node", true)
+	node := maotesting.NewNode("node", true)
 
 	// will check the expected result when the machine does not owned by controller
-	machine := newMachine("machine1", node.Name, "Running")
+	machine := maotesting.NewMachine("machine1", node.Name)
 
 	// will check the expected result when the machine owned by MachineSet controller
 	machineSet := newMachineSet("ms1", 3)
-	machineControlledByMachineSet := newMachine("machine2", node.Name, "Running")
+	machineControlledByMachineSet := maotesting.NewMachine("machine2", node.Name)
 	updateMachineOwnerToMachineSet(machineControlledByMachineSet, machineSet)
 
 	// will check the expected result when the machine owned by MachineDeployment controller
 	machineSetControlledByDeployment := newMachineSet("ms2", 4)
 	machineDeployment := newMachineDeployment("md1", 4)
 	updateMachineSetOwnerToMachineDeployment(machineSetControlledByDeployment, machineDeployment)
-	machineControlledByMachineDeployment := newMachine("machine3", node.Name, "Running")
+	machineControlledByMachineDeployment := maotesting.NewMachine("machine3", node.Name)
 	updateMachineOwnerToMachineSet(machineControlledByMachineDeployment, machineSetControlledByDeployment)
 
 	testsCases := []struct {
@@ -328,25 +232,25 @@ type expectedMachinesForMDB struct {
 }
 
 func TestGetMachinesForMachineDisruptionBudget(t *testing.T) {
-	mdbWithSelector := newMinAvailableMachineDisruptionBudget(3)
+	mdbWithSelector := maotesting.NewMinAvailableMachineDisruptionBudget(3)
 
-	mdbWithoutSelector := newMinAvailableMachineDisruptionBudget(3)
+	mdbWithoutSelector := maotesting.NewMinAvailableMachineDisruptionBudget(3)
 	mdbWithoutSelector.Spec.Selector = nil
 
-	mdbWithEmptySelector := newMinAvailableMachineDisruptionBudget(3)
+	mdbWithEmptySelector := maotesting.NewMinAvailableMachineDisruptionBudget(3)
 	mdbWithEmptySelector.Spec.Selector = &metav1.LabelSelector{}
 
-	mdbWithBadSelector := newMinAvailableMachineDisruptionBudget(1)
+	mdbWithBadSelector := maotesting.NewMinAvailableMachineDisruptionBudget(1)
 	mdbWithBadSelector.Spec.Selector = &metav1.LabelSelector{
 		MatchLabels:      map[string]string{},
 		MatchExpressions: []metav1.LabelSelectorRequirement{{Operator: "fake"}},
 	}
 
-	node := newNode("node", true)
+	node := maotesting.NewNode("node", true)
 
-	machineWithLabels1 := newMachine("machineWithLabels1", node.Name, "Running")
-	machineWithLabels2 := newMachine("machineWithLabels2", node.Name, "Running")
-	machineWithoutLabels := newMachine("machineWithoutLabels", node.Name, "Running")
+	machineWithLabels1 := maotesting.NewMachine("machineWithLabels1", node.Name)
+	machineWithLabels2 := maotesting.NewMachine("machineWithLabels2", node.Name)
+	machineWithoutLabels := maotesting.NewMachine("machineWithoutLabels", node.Name)
 	machineWithoutLabels.Labels = map[string]string{}
 
 	testsCases := []struct {
@@ -416,24 +320,24 @@ type expectedDisrupteMachines struct {
 }
 
 func TestBuildDisruptedMachineMap(t *testing.T) {
-	node := newNode("node", true)
+	node := maotesting.NewNode("node", true)
 
 	currentTime := metav1.NewTime(time.Now())
 	timeAfterTwoMinutes := currentTime.Add(2 * time.Minute)
 	timeBeforeThreeMinutes := metav1.NewTime(currentTime.Add(-3 * time.Minute))
 
-	machine := newMachine("machine", node.Name, "Running")
-	deletedMachine := newMachine("deletedMachine", node.Name, "Running")
+	machine := maotesting.NewMachine("machine", node.Name)
+	deletedMachine := maotesting.NewMachine("deletedMachine", node.Name)
 	deletedMachine.DeletionTimestamp = &currentTime
-	disruptedMachineBeforeTimeout := newMachine("disruptedMachineBeforeTimeout", node.Name, "Running")
-	disruptedMachineAfterTimeout := newMachine("disruptedMachineAfterTimeout", node.Name, "Running")
+	disruptedMachineBeforeTimeout := maotesting.NewMachine("disruptedMachineBeforeTimeout", node.Name)
+	disruptedMachineAfterTimeout := maotesting.NewMachine("disruptedMachineAfterTimeout", node.Name)
 
-	mdbWithDisruptedMachines := newMinAvailableMachineDisruptionBudget(1)
+	mdbWithDisruptedMachines := maotesting.NewMinAvailableMachineDisruptionBudget(1)
 	mdbWithDisruptedMachines.Status.DisruptedMachines = map[string]metav1.Time{
 		disruptedMachineBeforeTimeout.Name: timeBeforeThreeMinutes,
 		disruptedMachineAfterTimeout.Name:  currentTime,
 	}
-	mdbWithoutDisruptedMachines := newMinAvailableMachineDisruptionBudget(1)
+	mdbWithoutDisruptedMachines := maotesting.NewMinAvailableMachineDisruptionBudget(1)
 
 	testsCases := []struct {
 		testName string
@@ -492,19 +396,19 @@ func TestBuildDisruptedMachineMap(t *testing.T) {
 }
 
 func TestCountHealthyMachines(t *testing.T) {
-	healthyNode := newNode("healthyNode", true)
-	unhealthyNode := newNode("unhealthyNode", false)
+	healthyNode := maotesting.NewNode("healthyNode", true)
+	unhealthyNode := maotesting.NewNode("unhealthyNode", false)
 
 	currentTime := metav1.NewTime(time.Now())
 	timeAfterThreeMinutes := metav1.NewTime(currentTime.Add(3 * time.Minute))
 	timeBeforeThreeMinutes := metav1.NewTime(currentTime.Add(-3 * time.Minute))
 
-	healthyMachine := newMachine("healthyMachine", healthyNode.Name, "Running")
-	unhealthyMachine := newMachine("unhealthyMachine", unhealthyNode.Name, "Running")
-	deletedMachine := newMachine("deletedMachine", healthyNode.Name, "Running")
+	healthyMachine := maotesting.NewMachine("healthyMachine", healthyNode.Name)
+	unhealthyMachine := maotesting.NewMachine("unhealthyMachine", unhealthyNode.Name)
+	deletedMachine := maotesting.NewMachine("deletedMachine", healthyNode.Name)
 	deletedMachine.DeletionTimestamp = &currentTime
-	disruptedMachineBeforeTimeout := newMachine("disruptedMachineBeforeTimeout", healthyNode.Name, "Running")
-	disruptedMachineAfterTimeout := newMachine("disruptedMachineAfterTimeout", healthyNode.Name, "Running")
+	disruptedMachineBeforeTimeout := maotesting.NewMachine("disruptedMachineBeforeTimeout", healthyNode.Name)
+	disruptedMachineAfterTimeout := maotesting.NewMachine("disruptedMachineAfterTimeout", healthyNode.Name)
 
 	r := newFakeReconciler(nil, healthyNode, unhealthyNode)
 	healthyMachinesCount := r.countHealthyMachines(
@@ -529,21 +433,21 @@ func TestCountHealthyMachines(t *testing.T) {
 }
 
 func TestGetMachineDisruptionBudgetForMachine(t *testing.T) {
-	node := newNode("node", true)
+	node := maotesting.NewNode("node", true)
 
-	machineWithoutLabels := newMachine("machineWithoutLabels", node.Name, "Running")
+	machineWithoutLabels := maotesting.NewMachine("machineWithoutLabels", node.Name)
 	machineWithoutLabels.Labels = map[string]string{}
-	machineWithWrongLabel := newMachine("machineWithoutLabels", node.Name, "Running")
+	machineWithWrongLabel := maotesting.NewMachine("machineWithoutLabels", node.Name)
 	machineWithWrongLabel.Labels = map[string]string{"wrongLabel": ""}
-	machineWithRightLabel := newMachine("machineWithRightLabel", node.Name, "Running")
+	machineWithRightLabel := maotesting.NewMachine("machineWithRightLabel", node.Name)
 
-	mdbWithRightLabel1 := newMinAvailableMachineDisruptionBudget(1)
+	mdbWithRightLabel1 := maotesting.NewMinAvailableMachineDisruptionBudget(1)
 	mdbWithRightLabel1.Name = "mdbWithRightLabel1"
-	mdbWithRightLabel2 := newMinAvailableMachineDisruptionBudget(1)
+	mdbWithRightLabel2 := maotesting.NewMinAvailableMachineDisruptionBudget(1)
 	mdbWithRightLabel2.Name = "mdbWithRightLabel2"
-	mdbWithWrongSelector := newMinAvailableMachineDisruptionBudget(1)
+	mdbWithWrongSelector := maotesting.NewMinAvailableMachineDisruptionBudget(1)
 	mdbWithWrongSelector.Name = "mdbWithWrongSelector"
-	mdbWithWrongSelector.Spec.Selector = newSelector(map[string]string{"wrongSelector": ""})
+	mdbWithWrongSelector.Spec.Selector = maotesting.NewSelector(map[string]string{"wrongSelector": ""})
 
 	testsCases := []struct {
 		testName string
@@ -609,25 +513,25 @@ type expectedReconcile struct {
 }
 
 func TestReconcile(t *testing.T) {
-	node := newNode("node", true)
+	node := maotesting.NewNode("node", true)
 
 	currentTime := metav1.NewTime(time.Now())
 	timeAfterTwoMinutes := currentTime.Add(2 * time.Minute)
 	timeBeforeThreeMinutes := metav1.NewTime(currentTime.Add(-3 * time.Minute))
 
-	machineWithWrongLabel := newMachine("machineWithWrongLabel", node.Name, "Running")
+	machineWithWrongLabel := maotesting.NewMachine("machineWithWrongLabel", node.Name)
 	machineWithWrongLabel.Labels = map[string]string{"wrongLabel": ""}
-	machineWithRightLabel := newMachine("machineWithRightLabel", node.Name, "Running")
-	disruptedMachineBeforeTimeout := newMachine("disruptedMachineBeforeTimeout", node.Name, "Running")
-	disruptedMachineAfterTimeout := newMachine("disruptedMachineAfterTimeout", node.Name, "Running")
+	machineWithRightLabel := maotesting.NewMachine("machineWithRightLabel", node.Name)
+	disruptedMachineBeforeTimeout := maotesting.NewMachine("disruptedMachineBeforeTimeout", node.Name)
+	disruptedMachineAfterTimeout := maotesting.NewMachine("disruptedMachineAfterTimeout", node.Name)
 
-	mdbWithRightLabel := newMinAvailableMachineDisruptionBudget(1)
-	mdbWithWrongSelector := newMinAvailableMachineDisruptionBudget(1)
+	mdbWithRightLabel := maotesting.NewMinAvailableMachineDisruptionBudget(1)
+	mdbWithWrongSelector := maotesting.NewMinAvailableMachineDisruptionBudget(1)
 	mdbWithWrongSelector.Spec.Selector = &metav1.LabelSelector{
 		MatchLabels:      map[string]string{},
 		MatchExpressions: []metav1.LabelSelectorRequirement{{Operator: "fake"}},
 	}
-	mdbWithDisruptedMachines := newMinAvailableMachineDisruptionBudget(1)
+	mdbWithDisruptedMachines := maotesting.NewMinAvailableMachineDisruptionBudget(1)
 	mdbWithDisruptedMachines.Status.DisruptedMachines = map[string]metav1.Time{
 		disruptedMachineBeforeTimeout.Name: timeBeforeThreeMinutes,
 		disruptedMachineAfterTimeout.Name:  currentTime,
@@ -700,7 +604,7 @@ func TestReconcile(t *testing.T) {
 		recorder := record.NewFakeRecorder(10)
 		key := types.NamespacedName{
 			Name:      "foobar",
-			Namespace: namespace,
+			Namespace: maotesting.Namespace,
 		}
 
 		objects := []runtime.Object{}
@@ -724,7 +628,7 @@ func TestReconcile(t *testing.T) {
 
 		if tc.expected.error != (err != nil) {
 			var errorExpectation string
-			if !tc.expected.error == true {
+			if !tc.expected.error {
 				errorExpectation = "no"
 			}
 			t.Errorf("Test case: %s. Expected: %s error, got: %v", tc.testName, errorExpectation, err)
