@@ -14,6 +14,7 @@ var (
 	expectedMachineAPIOperatorImage = "docker.io/openshift/origin-machine-api-operator:v4.0.0"
 	expectedBareMetalImage          = "quay.io/openshift/origin-baremetal-machine-controllers:v4.0.0"
 	expectedAzureImage              = "quay.io/openshift/origin-azure-machine-controllers:v4.0.0"
+	expectedGCPImage                = "quay.io/openshift/origin-gcp-machine-controllers:v4.0.0"
 )
 
 func TestGetProviderFromInfrastructure(t *testing.T) {
@@ -48,6 +49,13 @@ func TestGetProviderFromInfrastructure(t *testing.T) {
 			},
 		},
 		expected: configv1.AzurePlatformType,
+	}, {
+		infra: &configv1.Infrastructure{
+			Status: configv1.InfrastructureStatus{
+				Platform: configv1.GCPPlatformType,
+			},
+		},
+		expected: configv1.GCPPlatformType,
 	}, {
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
@@ -109,6 +117,9 @@ func TestGetImagesFromJSONFile(t *testing.T) {
 	if img.ClusterAPIControllerAzure != expectedAzureImage {
 		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedAzureImage, img.ClusterAPIControllerAzure)
 	}
+	if img.ClusterAPIControllerGCP != expectedGCPImage {
+		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedAzureImage, img.ClusterAPIControllerAzure)
+	}
 }
 
 func TestGetProviderControllerFromImages(t *testing.T) {
@@ -134,6 +145,10 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 		{
 			provider:      configv1.AzurePlatformType,
 			expectedImage: expectedAzureImage,
+		},
+		{
+			provider:      configv1.GCPPlatformType,
+			expectedImage: expectedGCPImage,
 		},
 		{
 			provider:      kubemarkPlatform,
