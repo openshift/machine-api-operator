@@ -37,6 +37,7 @@ type Images struct {
 	ClusterAPIControllerLibvirt   string `json:"clusterAPIControllerLibvirt"`
 	ClusterAPIControllerBareMetal string `json:"clusterAPIControllerBareMetal"`
 	ClusterAPIControllerAzure     string `json:"clusterAPIControllerAzure"`
+	ClusterAPIControllerGCP       string `json:"clusterAPIControllerGCP"`
 }
 
 func getProviderFromInfrastructure(infra *configv1.Infrastructure) (configv1.PlatformType, error) {
@@ -69,6 +70,8 @@ func getProviderControllerFromImages(platform configv1.PlatformType, images Imag
 		return images.ClusterAPIControllerOpenStack, nil
 	case configv1.AzurePlatformType:
 		return images.ClusterAPIControllerAzure, nil
+	case configv1.GCPPlatformType:
+		return images.ClusterAPIControllerGCP, nil
 	case configv1.BareMetalPlatformType:
 		return images.ClusterAPIControllerBareMetal, nil
 	case kubemarkPlatform:
