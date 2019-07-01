@@ -433,14 +433,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:8529a8c8976002e4732532e8e7acfb666bdc456f5c2075fd933132f79fd8be57"
+  digest = "1:9928e3f53e8ae5e280f275d0f39cdfd948169d91e8bdd23e2c6e07715321c858"
   name = "github.com/openshift/cluster-version-operator"
   packages = [
     "lib/resourceapply",
     "lib/resourcemerge",
   ]
   pruneopts = "NUT"
-  revision = "b0250fa556f60c8f2fe093925ff45c2c659a0a12"
+  revision = "08cac1c02538c279d9aac094d42cf8788dc4e45c"
 
 [[projects]]
   branch = "master"
@@ -1275,6 +1275,7 @@
     "github.com/stretchr/testify/assert",
     "k8s.io/api/apps/v1",
     "k8s.io/api/core/v1",
+    "k8s.io/apimachinery/pkg/api/equality",
     "k8s.io/apimachinery/pkg/api/errors",
     "k8s.io/apimachinery/pkg/api/resource",
     "k8s.io/apimachinery/pkg/apis/meta/v1",

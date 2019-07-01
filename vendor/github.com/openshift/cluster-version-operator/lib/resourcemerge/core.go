@@ -24,38 +24,8 @@ func ensurePodTemplateSpec(modified *bool, existing *corev1.PodTemplateSpec, req
 }
 
 func ensurePodSpec(modified *bool, existing *corev1.PodSpec, required corev1.PodSpec) {
-	// any container we specify, we require.
-	for _, required := range required.InitContainers {
-		var existingCurr *corev1.Container
-		for j, curr := range existing.InitContainers {
-			if curr.Name == required.Name {
-				existingCurr = &existing.InitContainers[j]
-				break
-			}
-		}
-		if existingCurr == nil {
-			*modified = true
-			existing.Containers = append(existing.InitContainers, corev1.Container{})
-			existingCurr = &existing.InitContainers[len(existing.InitContainers)-1]
-		}
-		ensureContainer(modified, existingCurr, required)
-	}
-
-	for _, required := range required.Containers {
-		var existingCurr *corev1.Container
-		for j, curr := range existing.Containers {
-			if curr.Name == required.Name {
-				existingCurr = &existing.Containers[j]
-				break
-			}
-		}
-		if existingCurr == nil {
-			*modified = true
-			existing.Containers = append(existing.Containers, corev1.Container{})
-			existingCurr = &existing.Containers[len(existing.Containers)-1]
-		}
-		ensureContainer(modified, existingCurr, required)
-	}
+	ensureContainers(modified, &existing.InitContainers, required.InitContainers)
+	ensureContainers(modified, &existing.Containers, required.Containers)
 
 	// any volume we specify, we require.
 	for _, required := range required.Volumes {
@@ -89,6 +59,37 @@ func ensurePodSpec(modified *bool, existing *corev1.PodSpec, required corev1.Pod
 	ensureTolerations(modified, &existing.Tolerations, required.Tolerations)
 	setStringIfSet(modified, &existing.PriorityClassName, required.PriorityClassName)
 	setInt32Ptr(modified, &existing.Priority, required.Priority)
+}
+
+func ensureContainers(modified *bool, existing *[]corev1.Container, required []corev1.Container) {
+	for i, existingContainer := range *existing {
+		var existingCurr *corev1.Container
+		for _, requiredContainer := range required {
+			if existingContainer.Name == requiredContainer.Name {
+				existingCurr = &(*existing)[i]
+				ensureContainer(modified, existingCurr, requiredContainer)
+				break
+			}
+		}
+		if existingCurr == nil {
+			*modified = true
+			*existing = append((*existing)[:i], (*existing)[i+1:]...)
+		}
+	}
+
+	for _, requiredContainer := range required {
+		match := false
+		for _, existingContainer := range *existing {
+			if existingContainer.Name == requiredContainer.Name {
+				match = true
+				break
+			}
+		}
+		if !match {
+			*modified = true
+			*existing = append(*existing, requiredContainer)
+		}
+	}
 }
 
 func ensureContainer(modified *bool, existing *corev1.Container, required corev1.Container) {
