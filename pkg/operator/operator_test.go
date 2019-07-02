@@ -249,3 +249,61 @@ func TestOperatorSyncClusterAPIControllerHealthCheckController(t *testing.T) {
 		}
 	}
 }
+
+func TestEnableDisableOperatorSyncClusterAPIControllerHealthCheckController(t *testing.T) {
+	infra := &v1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster",
+		},
+		Status: v1.InfrastructureStatus{
+			Platform: v1.AWSPlatformType,
+		},
+	}
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+
+	optr := newFakeOperator(nil, []runtime.Object{newFeatureGate(v1.TechPreviewNoUpgrade), infra}, stopCh)
+	go optr.Run(2, stopCh)
+
+	if err := wait.PollImmediate(1*time.Second, 5*time.Second, func() (bool, error) {
+		d, err := optr.deployLister.Deployments(targetNamespace).Get(deploymentName)
+		if err != nil {
+			t.Logf("Failed to get %q deployment: %v", deploymentName, err)
+			return false, nil
+		}
+		if !deploymentHasContainer(d, hcControllerName) {
+			t.Logf("Failed to verify that deployment %q has container %q", deploymentName, hcControllerName)
+			return false, nil
+		}
+		return true, nil
+	}); err != nil {
+		t.Fatalf("Failed to verify that deployment %q has container %q", deploymentName, hcControllerName)
+	}
+
+	t.Logf("Found %q container in %q deployment", hcControllerName, deploymentName)
+
+	hcFeatureGate, err := optr.osClient.ConfigV1().FeatureGates().Get(MachineAPIFeatureGateName, metav1.GetOptions{})
+	if err != nil {
+		t.Fatalf("Unable to get %q feature gate: %v", MachineAPIFeatureGateName, err)
+	}
+	hcFeatureGate.Spec.FeatureSet = v1.Default
+	if _, err := optr.osClient.ConfigV1().FeatureGates().Update(hcFeatureGate); err != nil {
+		t.Fatalf("Unable to update %q feature gate and set default feature set: %v", MachineAPIFeatureGateName, err)
+	}
+
+	if err := wait.PollImmediate(1*time.Second, 15*time.Second, func() (bool, error) {
+		d, err := optr.deployLister.Deployments(targetNamespace).Get(deploymentName)
+		if err != nil {
+			t.Logf("Failed to get %q deployment: %v", deploymentName, err)
+			return false, nil
+		}
+		if deploymentHasContainer(d, hcControllerName) {
+			t.Logf("Failed to verify that deployment %q has no container with name %q", deploymentName, hcControllerName)
+			return false, nil
+		}
+		return true, nil
+	}); err != nil {
+		t.Errorf("Failed to verify that deployment %q has no container with name %q ", deploymentName, hcControllerName)
+	}
+
+}
