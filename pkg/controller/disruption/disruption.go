@@ -102,7 +102,7 @@ type ReconcileMachineDisruption struct {
 // The Controller will requeue the Request to be processed again if the returned error is non-nil or
 // Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
 func (r *ReconcileMachineDisruption) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	glog.Infof("Reconciling MachineDisruption triggered by %s/%s\n", request.Namespace, request.Name)
+	glog.V(4).Infof("Reconciling MachineDisruption triggered by %s/%s\n", request.Namespace, request.Name)
 
 	// Get machine from request
 	mdb := &healthcheckingv1alpha1.MachineDisruptionBudget{}
