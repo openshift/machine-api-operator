@@ -1,0 +1,22 @@
+{{if .usingBareMetal}}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    app: ironic-exporter
+  name: metal3-baremetalhost-controller
+  namespace: openshift-machine-api
+spec:
+  endpoints:
+  - port: "9608-tcp"
+    scheme: http
+    path: /metrics
+    targetPort: 9608
+  jobLabel: app
+  namespaceSelector:
+    matchNames:
+    - metal3-baremetalhost-controller
+  selector:
+    matchLabels:
+      app: ironic-exporter
+{{- end}}

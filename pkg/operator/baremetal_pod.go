@@ -290,6 +290,7 @@ func newMetal3Containers(config *OperatorConfig, baremetalProvisioningConfig Bar
 	containers = append(containers, createContainerMetal3IronicApi(config, baremetalProvisioningConfig))
 	containers = append(containers, createContainerMetal3IronicInspector(config, baremetalProvisioningConfig))
 	containers = append(containers, createContainerMetal3StaticIpManager(config, baremetalProvisioningConfig))
+	containers = append(containers, createContainerMetal3IronicExporter(config))
 	return containers
 }
 
@@ -421,6 +422,21 @@ func createContainerMetal3StaticIpManager(config *OperatorConfig, baremetalProvi
 			buildEnvVar("PROVISIONING_IP", "provisioning_ip", baremetalProvisioningConfig),
 			buildEnvVar("PROVISIONING_INTERFACE", "provisioning_interface", baremetalProvisioningConfig),
 		},
+	}
+	return container
+}
+
+func createContainerMetal3IronicExporter(config *OperatorConfig) corev1.Container {
+
+	container := corev1.Container{
+		Name:            "metal3-ironic-exporter",
+		Image:           config.BaremetalControllers.Ironic,
+		ImagePullPolicy: "Always",
+		SecurityContext: &corev1.SecurityContext{
+			Privileged: pointer.BoolPtr(true),
+		},
+		Command:      []string{"/bin/runironic-exporter"},
+		VolumeMounts: volumeMounts,
 	}
 	return container
 }

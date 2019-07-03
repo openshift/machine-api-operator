@@ -1,0 +1,27 @@
+{{if .usingBareMetal}}
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: metal3-baremetalhost-controller
+  namespace: openshift-machine-api
+spec:
+  groups:
+  - name: metal3-baremetalhost-controller
+    rules:
+    - alert: HighCPUTemperature
+      annotations:
+        summary: "The baremetal node {{ $labels.node_name }} CPU {{ $labels.entity_id }} is too high"
+        description: "The baremetal node {{ $labels.node_name }} CPU {{ $labels.entity_id }} was too high in the past 5 minutes. Last measurement {{ $value }}"
+      expr: baremetal_temp_celsius > 96
+      for: 5m
+      labels:
+        severity: warning
+    - alert: LowCPUTemperature
+      annotations:
+        summary: "The baremetal node {{ $labels.node_name }} CPU {{ $labels.entity_id }} is too low"
+        description: "The baremetal node {{ $labels.node_name }} CPU {{ $labels.entity_id }} was too low in the past 5 minutes. Last measurement {{ $value }}"
+      expr: baremetal_temp_celsius < 3
+      for: 5m
+      labels:
+        severity: warning
+{{- end}}
