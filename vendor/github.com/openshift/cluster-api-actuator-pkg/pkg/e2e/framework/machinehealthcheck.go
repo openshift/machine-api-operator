@@ -4,10 +4,13 @@ import (
 	"context"
 
 	"github.com/ghodss/yaml"
+	osconfigv1 "github.com/openshift/api/config/v1"
 	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
+	"github.com/openshift/machine-api-operator/pkg/operator"
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
 
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/rand"
@@ -117,4 +120,38 @@ func StopKubelet(nodeName string) error {
 		},
 	}
 	return client.Create(context.TODO(), pod)
+}
+
+// CreateOrUpdateTechPreviewFeatureGate creates or updates if it already exists the cluster feature gate with tech preview features
+func CreateOrUpdateTechPreviewFeatureGate() error {
+	client, err := LoadClient()
+	if err != nil {
+		return err
+	}
+
+	fg := &osconfigv1.FeatureGate{}
+	key := types.NamespacedName{
+		Name:      operator.MachineAPIFeatureGateName,
+		Namespace: TestContext.MachineApiNamespace,
+	}
+	err = client.Get(context.TODO(), key, fg)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return client.Create(context.TODO(), &osconfigv1.FeatureGate{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      operator.MachineAPIFeatureGateName,
+					Namespace: TestContext.MachineApiNamespace,
+				},
+				Spec: osconfigv1.FeatureGateSpec{FeatureSet: osconfigv1.TechPreviewNoUpgrade},
+			})
+		}
+		return err
+	}
+
+	if fg.Spec.FeatureSet == osconfigv1.TechPreviewNoUpgrade {
+		return nil
+	}
+
+	fg.Spec = osconfigv1.FeatureGateSpec{FeatureSet: osconfigv1.TechPreviewNoUpgrade}
+	return client.Update(context.TODO(), fg)
 }

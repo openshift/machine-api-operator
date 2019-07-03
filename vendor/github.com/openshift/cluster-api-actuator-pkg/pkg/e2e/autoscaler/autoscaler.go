@@ -19,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/rest"
 	"k8s.io/utils/pointer"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -183,8 +184,45 @@ func newScaleDownCounter(w *eventWatcher, v uint32) *eventCounter {
 	return c
 }
 
+func newMaxNodesTotalReachedCounter(w *eventWatcher, v uint32) *eventCounter {
+	isAutoscalerMaxNodesTotalEvent := func(event *corev1.Event) bool {
+		return event.Source.Component == clusterAutoscalerComponent &&
+			event.Reason == clusterAutoscalerMaxNodesTotalReached &&
+			event.InvolvedObject.Kind == clusterAutoscalerObjectKind &&
+			strings.HasPrefix(event.Message, "Max total nodes in cluster reached")
+	}
+
+	c := newEventCounter(w, isAutoscalerMaxNodesTotalEvent, v, increment)
+	c.enable()
+	return c
+}
+
 func remaining(t time.Time) time.Duration {
 	return t.Sub(time.Now()).Round(time.Second)
+}
+
+func dumpClusterAutoscalerLogs(client runtimeclient.Client, restClient *rest.RESTClient) {
+	pods := corev1.PodList{}
+	caLabels := map[string]string{
+		"app": "cluster-autoscaler",
+	}
+	if err := client.List(context.TODO(), &pods, []runtimeclient.ListOptionFunc{runtimeclient.MatchingLabels(caLabels)}...); err != nil {
+		glog.Errorf("Error querying api for clusterAutoscaler pod object: %v", err)
+		return
+	}
+	// We're only expecting one pod but let's log from all that
+	// are found. If we see more than one that's indicative of
+	// some unexpected problem and we may as well dump its logs.
+	for i, pod := range pods.Items {
+		req := restClient.Get().Namespace(e2e.TestContext.MachineApiNamespace).Resource("pods").Name(pod.Name).SubResource("log")
+		res := req.Do()
+		raw, err := res.Raw()
+		if err != nil {
+			glog.Errorf("Unable to get pod logs: %v", err)
+			continue
+		}
+		glog.Infof("\n\nDumping pod logs: %d/%d, logs from %q:\n%v", i, len(pods.Items), pod.Name, string(raw))
+	}
 }
 
 var _ = g.Describe("[Feature:Machines][Serial] Autoscaler should", func() {
@@ -198,11 +236,19 @@ var _ = g.Describe("[Feature:Machines][Serial] Autoscaler should", func() {
 		client, err = e2e.LoadClient()
 		o.Expect(err).NotTo(o.HaveOccurred())
 
+		var restClient *rest.RESTClient
+		restClient, err = e2e.LoadRestClient()
+		o.Expect(err).NotTo(o.HaveOccurred())
+
 		// Anything we create we must cleanup
 		var cleanupObjects []runtime.Object
 		defer func() {
 			cascadeDelete := metav1.DeletePropagationForeground
 			for _, obj := range cleanupObjects {
+				switch obj.(type) {
+				case *caov1.ClusterAutoscaler:
+					dumpClusterAutoscalerLogs(client, restClient)
+				}
 				if err = client.Delete(context.TODO(), obj, func(opt *runtimeclient.DeleteOptions) {
 					opt.PropagationPolicy = &cascadeDelete
 				}); err != nil {
@@ -268,6 +314,7 @@ var _ = g.Describe("[Feature:Machines][Serial] Autoscaler should", func() {
 			scaledGroups[path.Join(machineSets[i].Namespace, machineSets[i].Name)] = false
 		}
 		scaleUpCounter := newScaleUpCounter(eventWatcher, 0, scaledGroups)
+		maxNodesTotalReachedCounter := newMaxNodesTotalReachedCounter(eventWatcher, 0)
 		workload := newWorkLoad()
 		o.Expect(client.Create(context.TODO(), workload)).Should(o.Succeed())
 		cleanupObjects = append(cleanupObjects, runtime.Object(workload))
@@ -286,10 +333,14 @@ var _ = g.Describe("[Feature:Machines][Serial] Autoscaler should", func() {
 		// clusterExpansionSize -1). We run for a period of
 		// time asserting that the cluster does not exceed the
 		// capped size.
-		//
-		// TODO(frobware): switch to matching on
-		// MaxNodesTotalReached when that is available in the
-		// cluster-autoscaler image.
+		testDuration = time.Now().Add(time.Duration(e2e.WaitShort))
+		o.Eventually(func() uint32 {
+			v := maxNodesTotalReachedCounter.get()
+			glog.Infof("[%s remaining] Waiting for %s to generate a %q event; observed %v",
+				remaining(testDuration), clusterAutoscalerComponent, clusterAutoscalerMaxNodesTotalReached, v)
+			return v
+		}, e2e.WaitShort, 3*time.Second).Should(o.BeNumerically(">=", 1))
+
 		testDuration = time.Now().Add(time.Duration(e2e.WaitShort))
 		o.Consistently(func() bool {
 			v := scaleUpCounter.get()

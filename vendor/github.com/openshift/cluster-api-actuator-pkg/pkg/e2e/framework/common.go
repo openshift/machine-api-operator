@@ -21,7 +21,6 @@ const (
 	WaitMedium          = 3 * time.Minute
 	WaitLong            = 10 * time.Minute
 	RetryMedium         = 5 * time.Second
-
 	// DefaultMachineSetReplicas is the default number of replicas of a machineset
 	// if MachineSet.Spec.Replicas field is set to nil
 	DefaultMachineSetReplicas = 0

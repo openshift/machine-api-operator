@@ -7,7 +7,7 @@ ifeq ($(NO_DOCKER), 1)
   IMAGE_BUILD_CMD = imagebuilder
   CGO_ENABLED = 1
 else
-  DOCKER_CMD := docker run --rm -v "$(PWD)":/go/src/github.com/openshift/cluster-api-actuator-pkg:Z -w /go/src/github.com/openshift/cluster-api-actuator-pkg openshift/origin-release:golang-1.10
+  DOCKER_CMD := docker run --rm -v "$(PWD)":/go/src/github.com/openshift/cluster-api-actuator-pkg:Z -w /go/src/github.com/openshift/cluster-api-actuator-pkg openshift/origin-release:golang-1.12
   IMAGE_BUILD_CMD = docker build
 endif
 
@@ -50,7 +50,10 @@ test-e2e: ## Run openshift specific e2e test
 	# Feature:Operator tests remove deployments. Thus loosing all the logs
 	# previously acquired.
 	hack/ci-integration.sh -ginkgo.v -ginkgo.noColor=true -ginkgo.focus "Feature:Operators"
-	hack/ci-integration.sh -ginkgo.v -ginkgo.noColor=true -ginkgo.skip "Feature:Operators"
+	hack/ci-integration.sh -ginkgo.v -ginkgo.noColor=true -ginkgo.skip "Feature:Operators|TechPreview"
+
+test-e2e-tech-preview:
+	hack/ci-integration.sh -ginkgo.v -ginkgo.noColor=true -ginkgo.focus "TechPreview"
 
 .PHONY: k8s-e2e
 k8s-e2e: ## Run k8s specific e2e test
@@ -59,7 +62,7 @@ k8s-e2e: ## Run k8s specific e2e test
 	# Feature:Operator tests remove deployments. Thus loosing all the logs
 	# previously acquired.
 	NAMESPACE=kube-system hack/ci-integration.sh -ginkgo.v -ginkgo.noColor=true -ginkgo.focus "Feature:Operators"
-	NAMESPACE=kube-system hack/ci-integration.sh -ginkgo.v -ginkgo.noColor=true -ginkgo.skip "Feature:Operators"
+	NAMESPACE=kube-system hack/ci-integration.sh -ginkgo.v -ginkgo.noColor=true -ginkgo.skip "Feature:Operators|TechPreview"
 
 .PHONY: help
 help:
