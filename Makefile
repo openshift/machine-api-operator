@@ -67,6 +67,11 @@ build-integration: ## Build integration test binary
 test-e2e: ## Run openshift specific e2e test
 	$(MAKE) -C ./vendor/github.com/openshift/cluster-api-actuator-pkg $@
 
+.PHONY: test-sec
+test-sec:
+	@which gosec 2> /dev/null >&1 || { echo "gosec must be installed to lint code";  exit 1; }
+	gosec -severity medium --confidence medium -quiet ./...
+
 .PHONY: deploy-kubemark
 deploy-kubemark:
 	kustomize build config | kubectl apply -f -
