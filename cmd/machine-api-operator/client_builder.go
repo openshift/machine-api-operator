@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/golang/glog"
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
+	mapiclientset "github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -24,18 +25,14 @@ func (cb *ClientBuilder) OpenshiftClientOrDie(name string) osclientset.Interface
 	return osclientset.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
 }
 
+// MachineClientOrDie returns the machine api client interface for machine api objects.
+func (cb *ClientBuilder) MachineClientOrDie(name string) mapiclientset.Interface {
+	return mapiclientset.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
+}
+
 // NewClientBuilder returns a *ClientBuilder with the given kubeconfig.
 func NewClientBuilder(kubeconfig string) (*ClientBuilder, error) {
-	var config *rest.Config
-	var err error
-
-	if kubeconfig != "" {
-		glog.V(4).Infof("Loading kube client config from path %q", kubeconfig)
-		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
-	} else {
-		glog.V(4).Infof("Using in-cluster kube client config")
-		config, err = rest.InClusterConfig()
-	}
+	config, err := getRestConfig(kubeconfig)
 	if err != nil {
 		return nil, err
 	}
@@ -43,4 +40,17 @@ func NewClientBuilder(kubeconfig string) (*ClientBuilder, error) {
 	return &ClientBuilder{
 		config: config,
 	}, nil
+}
+
+func getRestConfig(kubeconfig string) (*rest.Config, error) {
+	var config *rest.Config
+	var err error
+	if kubeconfig != "" {
+		glog.V(4).Infof("Loading kube client config from path %q", kubeconfig)
+		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+	} else {
+		glog.V(4).Infof("Using in-cluster kube client config")
+		config, err = rest.InClusterConfig()
+	}
+	return config, err
 }
