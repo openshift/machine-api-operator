@@ -384,11 +384,25 @@
 
 [[projects]]
   branch = "openshift-4.2-cluster-api-0.1.0"
-  digest = "1:efca7e07cbca01b615c1f9057da17b10ea6b7e43e263226a3ef04eebe16f34cf"
+  digest = "1:1fd0478928373af6be747a9191b2f60179ded98f612d33200fbd7521aea5f4df"
   name = "github.com/openshift/cluster-api"
   packages = [
+    "pkg/apis/cluster/common",
+    "pkg/apis/cluster/v1alpha1",
     "pkg/apis/machine/common",
     "pkg/apis/machine/v1beta1",
+    "pkg/client/clientset_generated/clientset",
+    "pkg/client/clientset_generated/clientset/scheme",
+    "pkg/client/clientset_generated/clientset/typed/cluster/v1alpha1",
+    "pkg/client/clientset_generated/clientset/typed/machine/v1beta1",
+    "pkg/client/informers_generated/externalversions",
+    "pkg/client/informers_generated/externalversions/cluster",
+    "pkg/client/informers_generated/externalversions/cluster/v1alpha1",
+    "pkg/client/informers_generated/externalversions/internalinterfaces",
+    "pkg/client/informers_generated/externalversions/machine",
+    "pkg/client/informers_generated/externalversions/machine/v1beta1",
+    "pkg/client/listers_generated/cluster/v1alpha1",
+    "pkg/client/listers_generated/machine/v1beta1",
   ]
   pruneopts = "NUT"
   revision = "e911af77e9a33cfb45f82ba9778876d715cdb4ea"
@@ -1208,10 +1222,15 @@
     "github.com/openshift/client-go/config/informers/externalversions/config/v1",
     "github.com/openshift/client-go/config/listers/config/v1",
     "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1",
+    "github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset",
+    "github.com/openshift/cluster-api/pkg/client/informers_generated/externalversions",
+    "github.com/openshift/cluster-api/pkg/client/informers_generated/externalversions/machine/v1beta1",
+    "github.com/openshift/cluster-api/pkg/client/listers_generated/machine/v1beta1",
     "github.com/openshift/cluster-autoscaler-operator/pkg/apis",
     "github.com/openshift/cluster-version-operator/lib/resourceapply",
     "github.com/openshift/cluster-version-operator/lib/resourcemerge",
     "github.com/operator-framework/operator-sdk/version",
+    "github.com/prometheus/client_golang/prometheus",
     "github.com/spf13/cobra",
     "github.com/stretchr/testify/assert",
     "k8s.io/api/apps/v1",
