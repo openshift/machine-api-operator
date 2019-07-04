@@ -3,6 +3,7 @@ package util
 import (
 	"fmt"
 	"io/ioutil"
+	"path/filepath"
 	"strings"
 )
 
@@ -11,7 +12,7 @@ const ServiceAccountNamespaceFile = "/var/run/secrets/kubernetes.io/serviceaccou
 
 // GetNamespace returns the namespace of the pod where the code is running
 func GetNamespace(namespaceFile string) (string, error) {
-	data, err := ioutil.ReadFile(namespaceFile)
+	data, err := ioutil.ReadFile(filepath.Clean(namespaceFile))
 	if err != nil {
 		return "", fmt.Errorf("failed to determine namespace from %s: %v", namespaceFile, err)
 	}
