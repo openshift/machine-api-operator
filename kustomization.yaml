@@ -11,6 +11,10 @@ resources:
 # Pulled from https://github.com/openshift/cluster-version-operator/blob/master/install/0000_00_cluster-version-operator_01_clusteroperator.crd.yaml
 # and updated (delete depricated clusteroperators.operatorstatus.openshift.io CRD)
 - config/0000_00_cluster-version-operator_01_clusteroperator.crd.yaml
+# Install prometheus CRDs expected by mao/cao
+# https://github.com/coreos/prometheus-operator/tree/ca400fdc3edd0af0df896a338eca270e115b74d7/example/prometheus-operator-crd
+- config/servicemonitor.crd.yaml
+- config/prometheusrule.crd.yaml
 # Install feature gate CRD reguired by mao (so it can enable/disable features)
 # Pulled from https://raw.githubusercontent.com/openshift/cluster-config-operator/master/manifests/0000_05_config-operator_01_featuregate.crd.yaml
 - config/0000_05_config-operator_01_featuregate.crd.yaml
