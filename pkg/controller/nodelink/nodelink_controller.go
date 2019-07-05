@@ -8,6 +8,7 @@ import (
 	mapiv1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -38,6 +39,7 @@ type ReconcileNodeLink struct {
 	// and emulate Client.List.MatchingField behaviour
 	listNodesByFieldFunc    func(key, value string) ([]corev1.Node, error)
 	listMachinesByFieldFunc func(key, value string) ([]mapiv1beta1.Machine, error)
+	nodeReadinessCache      map[string]bool
 }
 
 // Add creates a new Nodelink Controller and adds it to the Manager. The Manager will set fields on the Controller
@@ -146,6 +148,7 @@ func newReconciler(mgr manager.Manager) (*ReconcileNodeLink, error) {
 	r := ReconcileNodeLink{
 		client: mgr.GetClient(),
 	}
+	r.nodeReadinessCache = make(map[string]bool)
 
 	// This is useful for unit testing so we can mock cache IndexField
 	// and emulate Client.List.MatchingField behaviour
@@ -210,6 +213,15 @@ func (r *ReconcileNodeLink) Reconcile(request reconcile.Request) (reconcile.Resu
 		return reconcile.Result{}, nil
 	}
 
+	if err := r.updateNodeRef(machine, node); err != nil {
+		return reconcile.Result{}, fmt.Errorf("error updating nodeRef for machine %q and node %q: %v", machine.GetName(), node.GetName(), err)
+	}
+
+	if !node.DeletionTimestamp.IsZero() {
+		klog.Infof("Node %q is being deleted", node.GetName())
+		return reconcile.Result{}, nil
+	}
+
 	modNode := node.DeepCopy()
 	if modNode.Annotations == nil {
 		modNode.Annotations = map[string]string{}
@@ -234,8 +246,44 @@ func (r *ReconcileNodeLink) Reconcile(request reconcile.Request) (reconcile.Resu
 		}
 	}
 
-	// TODO(alberto): bring nodeRef logic here and drop cluster-api node controller
 	return reconcile.Result{}, nil
+}
+
+// updateNodeRef set the given node as nodeRef in the machine status
+func (r *ReconcileNodeLink) updateNodeRef(machine *mapiv1beta1.Machine, node *corev1.Node) error {
+	now := metav1.Now()
+	machine.Status.LastUpdated = &now
+
+	if !node.DeletionTimestamp.IsZero() {
+		machine.Status.NodeRef = nil
+		if err := r.client.Status().Update(context.Background(), machine); err != nil {
+			return fmt.Errorf("error updating machine %q: %v", machine.GetName(), err)
+		}
+		delete(r.nodeReadinessCache, node.GetName())
+		return nil
+	}
+
+	nodeReady := isNodeReady(node)
+	// skip update if cached and no change in readiness.
+	if cachedReady, ok := r.nodeReadinessCache[node.GetName()]; ok &&
+		cachedReady == nodeReady {
+		return nil
+	}
+
+	// if the nodeReadiness has changed the machine is updated so
+	// watchers can take action, e.g machine controller
+	machine.Status.NodeRef = &corev1.ObjectReference{
+		Kind: "Node",
+		Name: node.GetName(),
+		UID:  node.GetUID(),
+	}
+	if err := r.client.Status().Update(context.Background(), machine); err != nil {
+		return fmt.Errorf("error updating machine %q: %v", machine.GetName(), err)
+	}
+	r.nodeReadinessCache[node.GetName()] = nodeReady
+
+	klog.Infof("Successfully updated nodeRef for machine %q and node %q", machine.GetName(), node.GetName())
+	return nil
 }
 
 // nodeRequestFromMachine returns a reconcile.request for the node backed by the received machine
@@ -473,4 +521,14 @@ func (r *ReconcileNodeLink) listMachinesByField(key, value string) ([]mapiv1beta
 		return nil, fmt.Errorf("failed getting node list: %v", err)
 	}
 	return machineList.Items, nil
+}
+
+// isNodeReady returns true if a node is ready; false otherwise.
+func isNodeReady(node *corev1.Node) bool {
+	for _, c := range node.Status.Conditions {
+		if c.Type == corev1.NodeReady {
+			return c.Status == corev1.ConditionTrue
+		}
+	}
+	return false
 }
