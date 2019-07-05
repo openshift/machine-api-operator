@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"path/filepath"
 
 	configv1 "github.com/openshift/api/config/v1"
 )
@@ -48,7 +49,7 @@ func getProviderFromInfrastructure(infra *configv1.Infrastructure) (configv1.Pla
 }
 
 func getImagesFromJSONFile(filePath string) (*Images, error) {
-	data, err := ioutil.ReadFile(filePath)
+	data, err := ioutil.ReadFile(filepath.Clean(filePath))
 	if err != nil {
 		return nil, err
 	}
