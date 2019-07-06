@@ -1,11 +1,7 @@
 package operator
 
 import (
-	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"os"
-	"path/filepath"
 	"testing"
 	"time"
 
@@ -127,25 +123,6 @@ func TestOperatorSync_NoOp(t *testing.T) {
 			expectedNoop: true,
 		},
 	}
-
-	tempDir, err := ioutil.TempDir("", "TestOperatorSync")
-	if err != nil {
-		t.Fatalf("could not create the temp dir: %v", err)
-	}
-	defer os.RemoveAll(tempDir)
-
-	images := Images{
-		MachineAPIOperator: "test-mao",
-	}
-	imagesAsJSON, err := json.Marshal(images)
-	if err != nil {
-		t.Fatalf("failed to marshal images: %v", err)
-	}
-	imagesFilePath := filepath.Join(tempDir, "test-images.json")
-	if err := ioutil.WriteFile(imagesFilePath, imagesAsJSON, 0666); err != nil {
-		t.Fatalf("could not write the images file: %v", err)
-	}
-
 	for _, tc := range cases {
 		t.Run(string(tc.platform), func(t *testing.T) {
 			infra := &v1.Infrastructure{
@@ -158,15 +135,10 @@ func TestOperatorSync_NoOp(t *testing.T) {
 			}
 
 			stopCh := make(<-chan struct{})
-			optr := newFakeOperator(nil, []runtime.Object{infra}, stopCh)
-			optr.imagesFile = imagesFilePath
+			optr := newFakeOperator(nil, []runtime.Object{newFeatureGate(v1.TechPreviewNoUpgrade), infra}, stopCh)
+			go optr.Run(2, stopCh)
 
-			err = optr.sync("test-key")
-			if !assert.NoError(t, err, "unexpected sync failure") {
-				t.Fatal()
-			}
-
-			err = wait.PollImmediate(1*time.Second, 5*time.Second, func() (bool, error) {
+			err := wait.PollImmediate(1*time.Second, 5*time.Second, func() (bool, error) {
 				_, err := optr.deployLister.Deployments(targetNamespace).Get(deploymentName)
 				if err != nil {
 					t.Logf("Failed to get %q deployment: %v", deploymentName, err)
