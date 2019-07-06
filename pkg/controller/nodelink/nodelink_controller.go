@@ -25,6 +25,7 @@ const (
 	machineProviderIDIndex = "machineProviderIDIndex"
 	nodeInternalIPIndex    = "nodeInternalIPIndex"
 	nodeProviderIDIndex    = "nodeProviderIDIndex"
+	machineNodeNameIndex   = "machineNodeNameIndex"
 )
 
 // blank assignment to verify that ReconcileNodeLink implements reconcile.Reconciler
@@ -114,6 +115,20 @@ func indexMachineByInternalIP(object runtime.Object) []string {
 	return keys
 }
 
+func indexMachineByNodeName(object runtime.Object) []string {
+	machine, ok := object.(*mapiv1beta1.Machine)
+	if !ok {
+		klog.Warningf("Expected a machine for indexing field, got: %T", object)
+		return nil
+	}
+
+	if machine.Status.NodeRef != nil {
+		return []string{machine.Status.NodeRef.Name}
+	}
+
+	return nil
+}
+
 // newReconciler returns a new reconcile.Reconciler
 func newReconciler(mgr manager.Manager) (*ReconcileNodeLink, error) {
 	// set convenient indexers
@@ -141,6 +156,13 @@ func newReconciler(mgr manager.Manager) (*ReconcileNodeLink, error) {
 	if err := mgr.GetCache().IndexField(&mapiv1beta1.Machine{},
 		machineInternalIPIndex,
 		indexMachineByInternalIP,
+	); err != nil {
+		return nil, fmt.Errorf("error setting index fields: %v", err)
+	}
+
+	if err := mgr.GetCache().IndexField(&mapiv1beta1.Machine{},
+		machineNodeNameIndex,
+		indexMachineByNodeName,
 	); err != nil {
 		return nil, fmt.Errorf("error setting index fields: %v", err)
 	}
@@ -191,15 +213,17 @@ func (r *ReconcileNodeLink) Reconcile(request reconcile.Request) (reconcile.Resu
 	node := &corev1.Node{}
 	err := r.client.Get(context.TODO(), request.NamespacedName, node)
 	if err != nil {
+		klog.Infof("error reason: %v", errors.ReasonForError(err))
 		if errors.IsNotFound(err) {
-			// Request object not found, could have been deleted after reconcile request.
-			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
-			// Return and don't requeue
-			return reconcile.Result{}, nil
+			// Node already has got deleted. To trigger the node deletion handling, creating a local node object
+			node.Name = request.NamespacedName.Name
+			time := metav1.Now()
+			node.DeletionTimestamp = &time
+		} else {
+			// Error reading the object - requeue the request.
+			klog.Errorf("Error getting node: %v", err)
+			return reconcile.Result{}, fmt.Errorf("error getting node: %v", err)
 		}
-		// Error reading the object - requeue the request.
-		klog.Errorf("Error getting node: %v", err)
-		return reconcile.Result{}, fmt.Errorf("error getting node: %v", err)
 	}
 
 	machine, err := r.findMachineFromNode(node)
@@ -417,7 +441,16 @@ func (r *ReconcileNodeLink) findMachineFromNode(node *corev1.Node) (*mapiv1beta1
 
 	machine, err = r.findMachineFromNodeByIP(node)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find node from machine %q by internal IP: %v", machine.GetName(), err)
+		return nil, fmt.Errorf("failed to find machine from node by internal IP: %v", err)
+	}
+
+	if machine != nil {
+		return machine, nil
+	}
+
+	machine, err = r.findMachineFromNodeByName(node)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find machine from node %q by node name: %v", node.GetName(), err)
 	}
 	return machine, nil
 }
@@ -476,6 +509,25 @@ func (r *ReconcileNodeLink) findMachineFromNodeByIP(node *corev1.Node) (*mapiv1b
 	}
 
 	klog.V(3).Infof("Matching machine not found for node %q with internal IP %q", node.GetName(), nodeInternalAddress)
+	return nil, nil
+}
+
+func (r *ReconcileNodeLink) findMachineFromNodeByName(node *corev1.Node) (*mapiv1beta1.Machine, error) {
+	klog.V(3).Infof("Finding machine from node %q by node name", node.GetName())
+
+	machines, err := r.listMachinesByFieldFunc(machineNodeNameIndex, node.Name)
+	if err != nil {
+		return nil, fmt.Errorf("failed getting node list: %v", err)
+	}
+
+	if len(machines) > 1 {
+		return nil, fmt.Errorf("failed getting machine: expected 1 machine, got %v", len(machines))
+	}
+
+	if len(machines) > 0 {
+		klog.V(3).Infof("Found machine %q for node %q", machines[0].GetName(), node.GetName())
+		return machines[0].DeepCopy(), nil
+	}
 	return nil, nil
 }
 
