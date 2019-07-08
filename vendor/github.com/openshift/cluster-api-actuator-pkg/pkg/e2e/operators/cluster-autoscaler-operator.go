@@ -13,7 +13,7 @@ var _ = g.Describe("[Feature:Operators] Cluster autoscaler operator deployment s
 		var err error
 		client, err := e2e.LoadClient()
 		o.Expect(err).NotTo(o.HaveOccurred())
-		o.Expect(isDeploymentAvailable(client, "cluster-autoscaler-operator")).To(o.BeTrue())
+		o.Expect(e2e.IsDeploymentAvailable(client, "cluster-autoscaler-operator")).To(o.BeTrue())
 	})
 })
 

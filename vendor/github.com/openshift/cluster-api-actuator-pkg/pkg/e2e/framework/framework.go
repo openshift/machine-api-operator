@@ -17,9 +17,11 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apiextensionsclientset "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -164,7 +166,9 @@ func DefaultSSHConfig() (*SSHConfig, error) {
 func NewFrameworkFromConfig(config *rest.Config, sshConfig *SSHConfig) (*Framework, error) {
 	f := &Framework{
 		RestConfig: config,
-		SSH:        sshConfig,
+
+		SSH: sshConfig,
+
 		MachineControllerImage:  machineControllerImage,
 		MachineManagerImage:     machineManagerImage,
 		NodelinkControllerImage: nodelinkControllerImage,
@@ -424,6 +428,24 @@ func LoadClient() (runtimeclient.Client, error) {
 		return nil, fmt.Errorf("error creating client: %v", err.Error())
 	}
 	return runtimeclient.New(config, runtimeclient.Options{})
+}
+
+func LoadRestClient() (*rest.RESTClient, error) {
+	config, err := LoadConfig()
+	if err != nil {
+		return nil, fmt.Errorf("error creating client: %v", err.Error())
+	}
+	configShallowCopy := *config
+	gv := corev1.SchemeGroupVersion
+	configShallowCopy.GroupVersion = &gv
+	configShallowCopy.APIPath = "/api"
+	configShallowCopy.NegotiatedSerializer = serializer.DirectCodecFactory{CodecFactory: scheme.Codecs}
+
+	rc, err := rest.RESTClientFor(&configShallowCopy)
+	if err != nil {
+		return nil, fmt.Errorf("unable to build rest client: %v", err)
+	}
+	return rc, nil
 }
 
 func LoadClientset() (*kubernetes.Clientset, error) {
