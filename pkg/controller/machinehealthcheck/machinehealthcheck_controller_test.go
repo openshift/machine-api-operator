@@ -1,11 +1,13 @@
 package machinehealthcheck
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"testing"
 	"time"
 
+	configv1 "github.com/openshift/api/config/v1"
 	mapiv1alpha1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
@@ -32,6 +34,7 @@ func init() {
 	// Add types to scheme
 	mapiv1alpha1.AddToScheme(scheme.Scheme)
 	healthcheckingv1alpha1.AddToScheme(scheme.Scheme)
+	configv1.AddToScheme(scheme.Scheme)
 }
 
 func TestHasMatchingLabels(t *testing.T) {
@@ -170,6 +173,7 @@ func testReconcile(t *testing.T, remediationWaitTime time.Duration, initObjects 
 	machineWithoutNodeRef.Status.NodeRef = nil
 
 	machineHealthCheck := maotesting.NewMachineHealthCheck("machineHealthCheck")
+	infra := maotesting.NewInfrastructure(configv1.AWSPlatformType)
 
 	testsCases := []struct {
 		machine  *mapiv1alpha1.Machine
@@ -233,6 +237,7 @@ func testReconcile(t *testing.T, remediationWaitTime time.Duration, initObjects 
 		objects := []runtime.Object{}
 		objects = append(objects, initObjects...)
 		objects = append(objects, machineHealthCheck)
+		objects = append(objects, infra)
 		if tc.machine != nil {
 			objects = append(objects, tc.machine)
 		}
@@ -325,5 +330,46 @@ func TestUnhealthyForTooLong(t *testing.T) {
 		if got := unhealthyForTooLong(&tc.node.Status.Conditions[0], time.Minute); got != tc.expected {
 			t.Errorf("Test case: %s. Expected: %t, got: %t", tc.node.Name, tc.expected, got)
 		}
+	}
+}
+
+func TestRemediationOnBareMetalProvider(t *testing.T) {
+	nodeUnhealthyForTooLong := maotesting.NewNode("nodeUnhealthyForTooLong", false)
+	nodeUnhealthyForTooLong.Annotations = map[string]string{
+		machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "machineUnhealthyForTooLong"),
+	}
+	machineUnhealthyForTooLong := maotesting.NewMachine("machineUnhealthyForTooLong", nodeUnhealthyForTooLong.Name)
+
+	machineHealthCheck := maotesting.NewMachineHealthCheck("machineHealthCheck")
+
+	infra := maotesting.NewInfrastructure(configv1.BareMetalPlatformType)
+
+	r := newFakeReconciler(nodeUnhealthyForTooLong, machineUnhealthyForTooLong, machineHealthCheck, infra)
+	r.platform = configv1.BareMetalPlatformType
+
+	request := reconcile.Request{
+		NamespacedName: types.NamespacedName{
+			Namespace: "",
+			Name:      nodeUnhealthyForTooLong.Name,
+		},
+	}
+	result, err := r.Reconcile(request)
+	if err != nil {
+		t.Errorf("Expected: no error, got: %v", err)
+	}
+
+	expectedResult := reconcile.Result{}
+	if expectedResult != result {
+		t.Errorf("Expected: result %v, got: %v", expectedResult, result)
+	}
+
+	node := &corev1.Node{}
+	err = r.client.Get(context.TODO(), request.NamespacedName, node)
+	if err != nil {
+		t.Errorf("Expected: no error, got: %v", err)
+	}
+
+	if _, ok := node.Annotations[machineRebootAnnotationKey]; !ok {
+		t.Errorf("Expected: node to have reboot annotion %s, got: %v", machineRebootAnnotationKey, node.Annotations)
 	}
 }

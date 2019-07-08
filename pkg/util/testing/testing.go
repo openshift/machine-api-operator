@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	configv1 "github.com/openshift/api/config/v1"
 	mapiv1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
 
@@ -152,6 +153,18 @@ func NewUnhealthyConditionsConfigMap(name string, data string) *corev1.ConfigMap
 		},
 		Data: map[string]string{
 			"conditions": data,
+		},
+	}
+}
+
+// NewInfrastructure returns new infrastructure object
+func NewInfrastructure(platform configv1.PlatformType) *configv1.Infrastructure {
+	return &configv1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster",
+		},
+		Status: configv1.InfrastructureStatus{
+			Platform: platform,
 		},
 	}
 }
