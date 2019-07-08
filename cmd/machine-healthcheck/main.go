@@ -4,6 +4,7 @@ import (
 	"flag"
 	"runtime"
 
+	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/machine-api-operator/pkg/controller/disruption"
 	"github.com/openshift/machine-api-operator/pkg/controller/machinehealthcheck"
 
@@ -55,6 +56,9 @@ func main() {
 		glog.Fatal(err)
 	}
 	if err := mapiv1.AddToScheme(mgr.GetScheme()); err != nil {
+		glog.Fatal(err)
+	}
+	if err := configv1.AddToScheme(mgr.GetScheme()); err != nil {
 		glog.Fatal(err)
 	}
 

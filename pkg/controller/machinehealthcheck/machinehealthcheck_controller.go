@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	configv1 "github.com/openshift/api/config/v1"
 	mapiv1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
 	"github.com/openshift/machine-api-operator/pkg/util"
@@ -29,8 +30,9 @@ import (
 )
 
 const (
-	machineAnnotationKey = "machine.openshift.io/machine"
-	ownerControllerKind  = "MachineSet"
+	machineAnnotationKey       = "machine.openshift.io/machine"
+	machineRebootAnnotationKey = "healthchecking.openshift.io/machine-remediation-reboot"
+	ownerControllerKind        = "MachineSet"
 )
 
 // Add creates a new MachineHealthCheck Controller and adds it to the Manager. The Manager will set fields on the Controller
@@ -45,18 +47,23 @@ func Add(mgr manager.Manager) error {
 
 // newReconciler returns a new reconcile.Reconciler
 func newReconciler(mgr manager.Manager) (reconcile.Reconciler, error) {
-	r := &ReconcileMachineHealthCheck{
-		client: mgr.GetClient(),
-		scheme: mgr.GetScheme(),
-	}
-
+	c := mgr.GetClient()
 	ns, err := util.GetNamespace(util.ServiceAccountNamespaceFile)
 	if err != nil {
-		return r, err
+		return nil, err
 	}
 
-	r.namespace = ns
-	return r, nil
+	infra, err := getClusterInfrastructure(c)
+	if err != nil {
+		return nil, err
+	}
+
+	return &ReconcileMachineHealthCheck{
+		client:    mgr.GetClient(),
+		scheme:    mgr.GetScheme(),
+		namespace: ns,
+		platform:  infra.Status.Platform,
+	}, nil
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
@@ -78,6 +85,7 @@ type ReconcileMachineHealthCheck struct {
 	client    client.Client
 	scheme    *runtime.Scheme
 	namespace string
+	platform  configv1.PlatformType
 }
 
 // Reconcile reads that state of the cluster for MachineHealthCheck, machine and nodes objects and makes changes based on the state read
@@ -167,7 +175,8 @@ func getMachineHealthCheckListOptions() *client.ListOptions {
 
 func remediate(r *ReconcileMachineHealthCheck, machine *mapiv1.Machine) (reconcile.Result, error) {
 	glog.Infof("Initialising remediation logic for machine %s", machine.Name)
-	if isMaster(*machine, r.client) {
+
+	if isMaster(*machine, r.client) && !isBareMetalProvider(r.platform) {
 		glog.Infof("The machine %s is a master node, skipping remediation", machine.Name)
 		return reconcile.Result{}, nil
 	}
@@ -213,6 +222,24 @@ func remediate(r *ReconcileMachineHealthCheck, machine *mapiv1.Machine) (reconci
 
 		// apply remediation logic, if at least one condition last more than specified timeout
 		if unhealthyForTooLong(nodeCondition, conditionTimeout) {
+			if isBareMetalProvider(r.platform) {
+				// we already have reboot annotation on the node, stop reconcile
+				if _, ok := node.Annotations[machineRebootAnnotationKey]; ok {
+					return reconcile.Result{}, nil
+				}
+
+				if node.Annotations == nil {
+					node.Annotations = map[string]string{}
+				}
+
+				glog.Infof("Baremetal machine %s has been unhealthy for too long, adding reboot annotation", machine.Name)
+				node.Annotations[machineRebootAnnotationKey] = ""
+				if err := r.client.Update(context.TODO(), node); err != nil {
+					return reconcile.Result{}, err
+				}
+				return reconcile.Result{}, nil
+			}
+
 			glog.Infof("machine %s has been unhealthy for too long, deleting", machine.Name)
 			if err := r.client.Delete(context.TODO(), machine); err != nil {
 				glog.Errorf("failed to delete machine %s, requeuing referenced node", machine.Name)
@@ -351,4 +378,20 @@ func isMaster(machine mapiv1.Machine, client client.Client) bool {
 		}
 	}
 	return false
+}
+
+func getClusterInfrastructure(c client.Client) (*configv1.Infrastructure, error) {
+	infra := &configv1.Infrastructure{}
+	key := types.NamespacedName{
+		Namespace: metav1.NamespaceNone,
+		Name:      "cluster",
+	}
+	if err := c.Get(context.TODO(), key, infra); err != nil {
+		return nil, err
+	}
+	return infra, nil
+}
+
+func isBareMetalProvider(platform configv1.PlatformType) bool {
+	return platform == configv1.BareMetalPlatformType
 }
