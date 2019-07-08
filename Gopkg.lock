@@ -384,40 +384,14 @@
 
 [[projects]]
   branch = "openshift-4.2-cluster-api-0.1.0"
-  digest = "1:be78df4305eaed74b43e04325aca4aebd8e8c244d2ea6ac52deb066f64190329"
+  digest = "1:efca7e07cbca01b615c1f9057da17b10ea6b7e43e263226a3ef04eebe16f34cf"
   name = "github.com/openshift/cluster-api"
   packages = [
-    "pkg/apis/cluster/common",
-    "pkg/apis/cluster/v1alpha1",
     "pkg/apis/machine/common",
     "pkg/apis/machine/v1beta1",
-    "pkg/client/clientset_generated/clientset",
-    "pkg/client/clientset_generated/clientset/scheme",
-    "pkg/client/clientset_generated/clientset/typed/cluster/v1alpha1",
-    "pkg/client/clientset_generated/clientset/typed/machine/v1beta1",
-    "pkg/controller/node",
-    "pkg/controller/noderefutil",
-    "pkg/util",
   ]
   pruneopts = "NUT"
   revision = "e911af77e9a33cfb45f82ba9778876d715cdb4ea"
-
-[[projects]]
-  branch = "master"
-  digest = "1:36f79d74591f3d0de15f2adb8abfa7b2f3ff61eb7269ff898d818546d6acdc09"
-  name = "github.com/openshift/cluster-api-actuator-pkg"
-  packages = [
-    "pkg/e2e",
-    "pkg/e2e/autoscaler",
-    "pkg/e2e/framework",
-    "pkg/e2e/infra",
-    "pkg/e2e/machinehealthcheck",
-    "pkg/e2e/operators",
-    "pkg/manifests",
-    "pkg/types",
-  ]
-  pruneopts = ""
-  revision = "7b4382f95e0462d3d1aa6603facb953f2c0df23f"
 
 [[projects]]
   branch = "master"
@@ -441,14 +415,6 @@
   ]
   pruneopts = "NUT"
   revision = "08cac1c02538c279d9aac094d42cf8788dc4e45c"
-
-[[projects]]
-  branch = "master"
-  digest = "1:fb1baca237786871362ee17ee7d8d3bbda8345adc517b387e00b34467080dca7"
-  name = "github.com/openshift/library-go"
-  packages = ["pkg/config/clusteroperator/v1helpers"]
-  pruneopts = "NUT"
-  revision = "67ba562464684b95438c9dc80acedf74c701ced6"
 
 [[projects]]
   branch = "master"
@@ -577,18 +543,9 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:5b1e3560b10bebafefcafa45db8cb121bfa1994b1503997b8b46631c2540e79a"
+  digest = "1:058e9504b9a79bfe86092974d05bb3298d2aa0c312d266d43148de289a5065d9"
   name = "golang.org/x/crypto"
-  packages = [
-    "curve25519",
-    "ed25519",
-    "ed25519/internal/edwards25519",
-    "internal/chacha20",
-    "internal/subtle",
-    "poly1305",
-    "ssh",
-    "ssh/terminal",
-  ]
+  packages = ["ssh/terminal"]
   pruneopts = "NUT"
   revision = "8dd112bcdc25174059e45e07517d9fc663123347"
 
@@ -626,10 +583,9 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:fe90275b2037b2af8597456a2adf1d74ad7eea33a67a696307761c867aaeaebf"
+  digest = "1:9b53d8b2e255062cf6ef81b3326a41c54776678aa083de3a3ac4b51ecfa8f2ab"
   name = "golang.org/x/sys"
   packages = [
-    "cpu",
     "unix",
     "windows",
   ]
@@ -800,12 +756,11 @@
   version = "kubernetes-1.14.0"
 
 [[projects]]
-  digest = "1:29bef713ea74cfa939854f6c91f283fd4d8417dc43a5f682ef109540099ae0bf"
+  digest = "1:5372bc2e6fcb598860d10c8cfcb78a5aef06177b85365d13375bd78724a0a3dc"
   name = "k8s.io/apiextensions-apiserver"
   packages = [
     "pkg/apis/apiextensions",
     "pkg/apis/apiextensions/v1beta1",
-    "pkg/client/clientset/clientset",
     "pkg/client/clientset/clientset/scheme",
     "pkg/client/clientset/clientset/typed/apiextensions/v1beta1",
     "pkg/client/listers/apiextensions/v1beta1",
@@ -816,7 +771,7 @@
   version = "kubernetes-1.14.0"
 
 [[projects]]
-  digest = "1:1af636a12c60cb32955ebe095454670339e034d0efe498350783bdf99c8df7aa"
+  digest = "1:a2a09e3dd1f3f8bca33c8555a9da3ce1fe5b9c5c01788a9647e11aa66167c59a"
   name = "k8s.io/apimachinery"
   packages = [
     "pkg/api/equality",
@@ -852,7 +807,6 @@
     "pkg/util/mergepatch",
     "pkg/util/naming",
     "pkg/util/net",
-    "pkg/util/rand",
     "pkg/util/runtime",
     "pkg/util/sets",
     "pkg/util/strategicpatch",
@@ -872,7 +826,7 @@
   version = "kubernetes-1.14.0"
 
 [[projects]]
-  digest = "1:57af21c43666f52c5e3c853233c41b6904563f81e93fca00d8ecf9a076132b9c"
+  digest = "1:988e2f8e906c10a8d113e5b9e89f427f4bf5515e6f0fcf84faa2ff60638e085e"
   name = "k8s.io/client-go"
   packages = [
     "discovery",
@@ -1045,14 +999,6 @@
     "rest",
     "rest/watch",
     "restmapper",
-    "scale",
-    "scale/scheme",
-    "scale/scheme/appsint",
-    "scale/scheme/appsv1beta1",
-    "scale/scheme/appsv1beta2",
-    "scale/scheme/autoscalingv1",
-    "scale/scheme/extensionsint",
-    "scale/scheme/extensionsv1beta1",
     "testing",
     "third_party/forked/golang/template",
     "tools/auth",
@@ -1261,11 +1207,6 @@
     "github.com/openshift/client-go/config/informers/externalversions",
     "github.com/openshift/client-go/config/informers/externalversions/config/v1",
     "github.com/openshift/client-go/config/listers/config/v1",
-    "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e",
-    "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/autoscaler",
-    "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/infra",
-    "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/machinehealthcheck",
-    "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/operators",
     "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1",
     "github.com/openshift/cluster-autoscaler-operator/pkg/apis",
     "github.com/openshift/cluster-version-operator/lib/resourceapply",

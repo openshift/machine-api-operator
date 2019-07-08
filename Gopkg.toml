@@ -7,21 +7,11 @@ required = [
   "k8s.io/code-generator/cmd/lister-gen",
   "k8s.io/code-generator/cmd/informer-gen",
   "k8s.io/gengo/args",
-  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e",
-  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/autoscaler",
-  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/infra",
-  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/operators",
-  "github.com/openshift/cluster-api-actuator-pkg/pkg/e2e/machinehealthcheck",
   "github.com/openshift/cluster-autoscaler-operator/pkg/apis",
   "github.com/onsi/ginkgo",
   "github.com/onsi/gomega",
   "sigs.k8s.io/controller-tools/cmd/controller-gen", # for crd/rbac generation
 ]
-
-# To override the revision="commit_id" constraint from the cluster-api-actuator-pkg
-# for github.com/openshift/machine-api-operator
-[[override]]
-  name = "github.com/openshift/machine-api-operator"
 
 [[override]]
   name = "k8s.io/utils"
@@ -46,10 +36,6 @@ required = [
   name = "k8s.io/kube-aggregator"
   version = "kubernetes-1.14.0"
   source = "github.com/openshift/kubernetes-kube-aggregator"
-
-[[override]]
-  name = "github.com/openshift/cluster-api-actuator-pkg"
-  branch = "master"
 
 [[override]]
   name = "github.com/openshift/client-go"
@@ -105,9 +91,3 @@ required = [
     name = "k8s.io/code-generator"
     unused-packages = false
     non-go = false
-
-  [[prune.project]]
-    name = "github.com/openshift/cluster-api-actuator-pkg"
-    unused-packages = false
-    non-go = false
-    go-tests = false

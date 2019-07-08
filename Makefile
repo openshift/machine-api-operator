@@ -64,8 +64,12 @@ build-integration: ## Build integration test binary
 	$(DOCKER_CMD) go build $(GOGCFLAGS) -o bin/integration github.com/openshift/machine-api-operator/test/integration
 
 .PHONY: test-e2e
-test-e2e: ## Run openshift specific e2e test
-	$(MAKE) -C ./vendor/github.com/openshift/cluster-api-actuator-pkg $@
+test-e2e: ## Run openshift specific e2e tests
+	./hack/e2e.sh test-e2e
+
+.PHONY: test-e2e-tech-preview
+test-e2e-tech-preview: ## Run openshift specific e2e tech preview tests
+	./hack/e2e.sh test-e2e-tech-preview
 
 .PHONY: test-sec
 test-sec:
