@@ -3,7 +3,6 @@ package disruption
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"time"
 
 	"github.com/golang/glog"
@@ -11,6 +10,7 @@ import (
 	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
 	"github.com/openshift/machine-api-operator/pkg/util"
 	machineutil "github.com/openshift/machine-api-operator/pkg/util/machines"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 
 	"k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -324,7 +324,7 @@ func (r *ReconcileMachineDisruption) updateMachineDisruptionBudgetStatus(
 		mdb.Status.DesiredHealthy == desiredHealthy &&
 		mdb.Status.ExpectedMachines == expectedCount &&
 		mdb.Status.MachineDisruptionsAllowed == disruptionsAllowed &&
-		reflect.DeepEqual(mdb.Status.DisruptedMachines, disruptedMachines) &&
+		apiequality.Semantic.DeepEqual(mdb.Status.DisruptedMachines, disruptedMachines) &&
 		mdb.Status.ObservedGeneration == mdb.Generation {
 		return nil
 	}
