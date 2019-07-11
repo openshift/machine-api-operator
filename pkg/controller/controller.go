@@ -5,9 +5,9 @@ import (
 )
 
 // AddToManager adds all Controllers to the Manager
-func AddToManager(m manager.Manager, fnList []func(manager.Manager) error) error {
+func AddToManager(m manager.Manager, opts manager.Options, fnList ...func(manager.Manager, manager.Options) error) error {
 	for _, f := range fnList {
-		if err := f(m); err != nil {
+		if err := f(m, opts); err != nil {
 			return err
 		}
 	}

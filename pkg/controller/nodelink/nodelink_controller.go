@@ -44,7 +44,7 @@ type ReconcileNodeLink struct {
 
 // Add creates a new Nodelink Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and Start it when the Manager is Started.
-func Add(mgr manager.Manager) error {
+func Add(mgr manager.Manager, opts manager.Options) error {
 	reconciler, err := newReconciler(mgr)
 	if err != nil {
 		return fmt.Errorf("error building reconciler: %v", err)

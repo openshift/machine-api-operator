@@ -58,13 +58,8 @@ func main() {
 		glog.Fatal(err)
 	}
 
-	AddToHealthCheckingManagerFuncs := []func(manager.Manager) error{
-		machinehealthcheck.Add,
-		disruption.Add,
-	}
-
 	// Setup all Controllers
-	if err := controller.AddToManager(mgr, AddToHealthCheckingManagerFuncs); err != nil {
+	if err := controller.AddToManager(mgr, opts, machinehealthcheck.Add, disruption.Add); err != nil {
 		glog.Fatal(err)
 	}
 

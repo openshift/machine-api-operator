@@ -9,7 +9,6 @@ import (
 	"github.com/golang/glog"
 	mapiv1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
-	"github.com/openshift/machine-api-operator/pkg/util"
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
 
 	corev1 "k8s.io/api/core/v1"
@@ -35,28 +34,17 @@ const (
 
 // Add creates a new MachineHealthCheck Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and start it when the Manager is started.
-func Add(mgr manager.Manager) error {
-	r, err := newReconciler(mgr)
-	if err != nil {
-		return err
-	}
-	return add(mgr, r)
+func Add(mgr manager.Manager, opts manager.Options) error {
+	return add(mgr, newReconciler(mgr, opts))
 }
 
 // newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager) (reconcile.Reconciler, error) {
-	r := &ReconcileMachineHealthCheck{
-		client: mgr.GetClient(),
-		scheme: mgr.GetScheme(),
+func newReconciler(mgr manager.Manager, opts manager.Options) reconcile.Reconciler {
+	return &ReconcileMachineHealthCheck{
+		client:    mgr.GetClient(),
+		scheme:    mgr.GetScheme(),
+		namespace: opts.Namespace,
 	}
-
-	ns, err := util.GetNamespace(util.ServiceAccountNamespaceFile)
-	if err != nil {
-		return r, err
-	}
-
-	r.namespace = ns
-	return r, nil
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
