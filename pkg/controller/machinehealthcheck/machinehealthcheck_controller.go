@@ -29,8 +29,10 @@ import (
 )
 
 const (
-	machineAnnotationKey = "machine.openshift.io/machine"
-	ownerControllerKind  = "MachineSet"
+	machineAnnotationKey       = "machine.openshift.io/machine"
+	machineRebootAnnotationKey = "healthchecking.openshift.io/machine-remediation-reboot"
+	ownerControllerKind        = "MachineSet"
+	remediationStrategyReboot  = healthcheckingv1alpha1.RemediationStrategyType("reboot")
 )
 
 // Add creates a new MachineHealthCheck Controller and adds it to the Manager. The Manager will set fields on the Controller
@@ -144,7 +146,7 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 	for _, hc := range allMachineHealthChecks.Items {
 		if hasMatchingLabels(&hc, machine) {
 			glog.V(4).Infof("Machine %s has a matching machineHealthCheck: %s", machineKey, hc.Name)
-			return remediate(r, machine)
+			return remediate(r, hc.Spec.RemediationStrategy, machine)
 		}
 	}
 
@@ -165,12 +167,8 @@ func getMachineHealthCheckListOptions() *client.ListOptions {
 	}
 }
 
-func remediate(r *ReconcileMachineHealthCheck, machine *mapiv1.Machine) (reconcile.Result, error) {
+func remediate(r *ReconcileMachineHealthCheck, remediationStrategy healthcheckingv1alpha1.RemediationStrategyType, machine *mapiv1.Machine) (reconcile.Result, error) {
 	glog.Infof("Initialising remediation logic for machine %s", machine.Name)
-	if isMaster(*machine, r.client) {
-		glog.Infof("The machine %s is a master node, skipping remediation", machine.Name)
-		return reconcile.Result{}, nil
-	}
 	if !hasMachineSetOwner(*machine) {
 		glog.Infof("Machine %s has no machineSet controller owner, skipping remediation", machine.Name)
 		return reconcile.Result{}, nil
@@ -212,13 +210,23 @@ func remediate(r *ReconcileMachineHealthCheck, machine *mapiv1.Machine) (reconci
 		}
 
 		// apply remediation logic, if at least one condition last more than specified timeout
+		// specific remediation logic goes here
 		if unhealthyForTooLong(nodeCondition, conditionTimeout) {
-			glog.Infof("machine %s has been unhealthy for too long, deleting", machine.Name)
-			if err := r.client.Delete(context.TODO(), machine); err != nil {
-				glog.Errorf("failed to delete machine %s, requeuing referenced node", machine.Name)
-				return reconcile.Result{}, err
+			switch remediationStrategy {
+			case remediationStrategyReboot:
+				return r.remediationStrategyReboot(machine, node)
+			default:
+				if isMaster(*machine, r.client) {
+					glog.Infof("The machine %s is a master node, skipping remediation", machine.Name)
+					return reconcile.Result{}, nil
+				}
+				glog.Infof("Machine %s has been unhealthy for too long, deleting", machine.Name)
+				if err := r.client.Delete(context.TODO(), machine); err != nil {
+					glog.Errorf("Failed to delete machine %s, requeuing referenced node", machine.Name)
+					return reconcile.Result{}, err
+				}
+				return reconcile.Result{}, nil
 			}
-			return reconcile.Result{}, nil
 		}
 
 		now := time.Now()
@@ -249,6 +257,24 @@ func remediate(r *ReconcileMachineHealthCheck, machine *mapiv1.Machine) (reconci
 	}
 
 	glog.Infof("No remediaton action was taken. Machine %s with node %v is healthy", machine.Name, node.Name)
+	return reconcile.Result{}, nil
+}
+
+func (r *ReconcileMachineHealthCheck) remediationStrategyReboot(machine *mapiv1.Machine, node *corev1.Node) (reconcile.Result, error) {
+	// we already have reboot annotation on the node, stop reconcile
+	if _, ok := node.Annotations[machineRebootAnnotationKey]; ok {
+		return reconcile.Result{}, nil
+	}
+
+	if node.Annotations == nil {
+		node.Annotations = map[string]string{}
+	}
+
+	glog.Infof("Machine %s has been unhealthy for too long, adding reboot annotation", machine.Name)
+	node.Annotations[machineRebootAnnotationKey] = ""
+	if err := r.client.Update(context.TODO(), node); err != nil {
+		return reconcile.Result{}, err
+	}
 	return reconcile.Result{}, nil
 }
 

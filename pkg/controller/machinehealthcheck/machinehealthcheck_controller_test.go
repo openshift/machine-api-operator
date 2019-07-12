@@ -1,6 +1,7 @@
 package machinehealthcheck
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"testing"
@@ -10,7 +11,6 @@ import (
 	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
 	maotesting "github.com/openshift/machine-api-operator/pkg/util/testing"
-
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -171,11 +171,28 @@ func testReconcile(t *testing.T, remediationWaitTime time.Duration, initObjects 
 
 	machineHealthCheck := maotesting.NewMachineHealthCheck("machineHealthCheck")
 
+	// remediationReboot
+	nodeUnhealthyForTooLong := maotesting.NewNode("nodeUnhealthyForTooLong", false)
+	nodeUnhealthyForTooLong.Annotations = map[string]string{
+		machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "machineUnhealthyForTooLong"),
+	}
+	machineUnhealthyForTooLong := maotesting.NewMachine("machineUnhealthyForTooLong", nodeUnhealthyForTooLong.Name)
+
 	testsCases := []struct {
-		machine  *mapiv1alpha1.Machine
-		node     *corev1.Node
-		expected expectedReconcile
+		machine             *mapiv1alpha1.Machine
+		node                *corev1.Node
+		remediationStrategy healthcheckingv1alpha1.RemediationStrategyType
+		expected            expectedReconcile
 	}{
+		{
+			machine: machineUnhealthyForTooLong,
+			node:    nodeUnhealthyForTooLong,
+			expected: expectedReconcile{
+				result: reconcile.Result{},
+				error:  false,
+			},
+			remediationStrategy: remediationStrategyReboot,
+		},
 		{
 			machine: machineWithNodeHealthy,
 			node:    nodeHealthy,
@@ -230,6 +247,7 @@ func testReconcile(t *testing.T, remediationWaitTime time.Duration, initObjects 
 	}
 
 	for _, tc := range testsCases {
+		machineHealthCheck.Spec.RemediationStrategy = tc.remediationStrategy
 		objects := []runtime.Object{}
 		objects = append(objects, initObjects...)
 		objects = append(objects, machineHealthCheck)
@@ -263,6 +281,16 @@ func testReconcile(t *testing.T, remediationWaitTime time.Duration, initObjects 
 				}
 			} else {
 				t.Errorf("Test case: %s. Expected: %v, got: %v", tc.node.Name, tc.expected.result, result)
+			}
+		}
+		if tc.remediationStrategy == remediationStrategyReboot {
+			node := &corev1.Node{}
+			if err := r.client.Get(context.TODO(), request.NamespacedName, node); err != nil {
+				t.Errorf("Expected: no error, got: %v", err)
+			}
+
+			if _, ok := node.Annotations[machineRebootAnnotationKey]; !ok {
+				t.Errorf("Expected: node to have reboot annotion %s, got: %v", machineRebootAnnotationKey, node.Annotations)
 			}
 		}
 	}
@@ -325,5 +353,34 @@ func TestUnhealthyForTooLong(t *testing.T) {
 		if got := unhealthyForTooLong(&tc.node.Status.Conditions[0], time.Minute); got != tc.expected {
 			t.Errorf("Test case: %s. Expected: %t, got: %t", tc.node.Name, tc.expected, got)
 		}
+	}
+}
+
+func TestApplyRemediationReboot(t *testing.T) {
+	nodeUnhealthyForTooLong := maotesting.NewNode("nodeUnhealthyForTooLong", false)
+	nodeUnhealthyForTooLong.Annotations = map[string]string{
+		machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "machineUnhealthyForTooLong"),
+	}
+	machineUnhealthyForTooLong := maotesting.NewMachine("machineUnhealthyForTooLong", nodeUnhealthyForTooLong.Name)
+	machineHealthCheck := maotesting.NewMachineHealthCheck("machineHealthCheck")
+	request := reconcile.Request{
+		NamespacedName: types.NamespacedName{
+			Namespace: "",
+			Name:      nodeUnhealthyForTooLong.Name,
+		},
+	}
+	r := newFakeReconciler(nodeUnhealthyForTooLong, machineUnhealthyForTooLong, machineHealthCheck)
+	_, err := r.remediationStrategyReboot(machineUnhealthyForTooLong, nodeUnhealthyForTooLong)
+	if err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+
+	node := &corev1.Node{}
+	if err := r.client.Get(context.TODO(), request.NamespacedName, node); err != nil {
+		t.Errorf("Expected: no error, got: %v", err)
+	}
+
+	if _, ok := node.Annotations[machineRebootAnnotationKey]; !ok {
+		t.Errorf("Expected: node to have reboot annotion %s, got: %v", machineRebootAnnotationKey, node.Annotations)
 	}
 }
