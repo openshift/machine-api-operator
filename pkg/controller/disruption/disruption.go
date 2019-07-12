@@ -8,7 +8,6 @@ import (
 	"github.com/golang/glog"
 	mapiv1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
-	"github.com/openshift/machine-api-operator/pkg/util"
 	machineutil "github.com/openshift/machine-api-operator/pkg/util/machines"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 
@@ -40,29 +39,18 @@ const DeletionTimeout = 2 * time.Minute
 
 // Add creates a new MachineDisruption Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and start it when the Manager is started.
-func Add(mgr manager.Manager) error {
-	r, err := newReconciler(mgr)
-	if err != nil {
-		return err
-	}
+func Add(mgr manager.Manager, opts manager.Options) error {
+	r := newReconciler(mgr, opts)
 	return add(mgr, r, r.machineToMachineDisruptionBudget)
 }
 
 // newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager) (*ReconcileMachineDisruption, error) {
-	r := &ReconcileMachineDisruption{
+func newReconciler(mgr manager.Manager, opts manager.Options) *ReconcileMachineDisruption {
+	return &ReconcileMachineDisruption{
 		client:   mgr.GetClient(),
 		scheme:   mgr.GetScheme(),
 		recorder: mgr.GetEventRecorderFor("machine-disruption-controller"),
 	}
-
-	ns, err := util.GetNamespace(util.ServiceAccountNamespaceFile)
-	if err != nil {
-		return r, err
-	}
-
-	r.namespace = ns
-	return r, nil
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
@@ -86,10 +74,9 @@ var _ reconcile.Reconciler = &ReconcileMachineDisruption{}
 type ReconcileMachineDisruption struct {
 	// This client, initialized using mgr.Client() above, is a split client
 	// that reads objects from the cache and writes to the apiserver
-	client    client.Client
-	recorder  record.EventRecorder
-	scheme    *runtime.Scheme
-	namespace string
+	client   client.Client
+	recorder record.EventRecorder
+	scheme   *runtime.Scheme
 }
 
 // Reconcile reads that state of the cluster for MachineDisruptionBudget and machine objects and makes changes based on labels under

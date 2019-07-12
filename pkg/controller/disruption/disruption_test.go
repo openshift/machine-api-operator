@@ -31,10 +31,9 @@ func init() {
 func newFakeReconciler(recorder record.EventRecorder, initObjects ...runtime.Object) *ReconcileMachineDisruption {
 	fakeClient := fake.NewFakeClient(initObjects...)
 	return &ReconcileMachineDisruption{
-		client:    fakeClient,
-		recorder:  recorder,
-		scheme:    scheme.Scheme,
-		namespace: maotesting.Namespace,
+		client:   fakeClient,
+		recorder: recorder,
+		scheme:   scheme.Scheme,
 	}
 }
 

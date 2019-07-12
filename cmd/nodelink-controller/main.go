@@ -54,11 +54,8 @@ func main() {
 		klog.Fatal(err)
 	}
 
-	AddToNodeLinkManagerFuncs := []func(manager.Manager) error{
-		nodelink.Add,
-	}
 	// Setup all Controllers
-	if err := controller.AddToManager(mgr, AddToNodeLinkManagerFuncs); err != nil {
+	if err := controller.AddToManager(mgr, opts, nodelink.Add); err != nil {
 		klog.Fatal(err)
 	}
 
