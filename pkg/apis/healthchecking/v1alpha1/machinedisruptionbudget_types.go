@@ -44,7 +44,7 @@ type MachineDisruptionBudgetStatus struct {
 	// If everything goes smooth this map should be empty for the most of the time.
 	// Large number of entries in the map may indicate problems with machines deletions.
 	// +optional
-	DisruptedMachines map[string]metav1.Time `json:"DisruptedMachines,omitempty" protobuf:"bytes,2,rep,name=DisruptedMachines"`
+	DisruptedMachines map[string]metav1.Time `json:"disruptedMachines,omitempty" protobuf:"bytes,2,rep,name=DisruptedMachines"`
 
 	// Number of machines disruptions that are currently allowed.
 	MachineDisruptionsAllowed int32 `json:"disruptionsAllowed" protobuf:"varint,3,opt,name=disruptionsAllowed"`
@@ -63,7 +63,7 @@ type MachineDisruptionBudgetStatus struct {
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // MachineDisruptionBudget is an object to define the max disruption that a collection of machines can experience
-// kubebuilder:subresource:status
+// +kubebuilder:subresource:status
 // +kubebuilder:resource:shortName=mdb;mdbs
 // +kubebuilder:printcolumn:name="Healthy",type="integer",JSONPath=".status.currentHealthy",description="The number of healthy machines"
 // +kubebuilder:printcolumn:name="Total",type="integer",JSONPath=".status.expectedMachines",description="The total number of machines"
