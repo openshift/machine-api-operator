@@ -40,7 +40,6 @@ spec:
               description: Label selector to match machines whose health will be exercised
               type: object
           required:
-          - remediationStrategy
           - selector
           type: object
         status:

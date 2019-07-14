@@ -7,6 +7,7 @@ import (
 // ConfigMapNodeUnhealthyConditions contains the name of the unhealthy conditions config map
 const ConfigMapNodeUnhealthyConditions = "node-unhealthy-conditions"
 
+// RemediationStrategyType contains remediation strategy type
 type RemediationStrategyType string
 
 // +genclient
@@ -40,7 +41,8 @@ type MachineHealthCheckList struct {
 type MachineHealthCheckSpec struct {
 	// RemediationStrategy to use in case of problem detection
 	// default is machine deletion
-	RemediationStrategy RemediationStrategyType `json:"remediationStrategy"`
+	// +optional
+	RemediationStrategy *RemediationStrategyType `json:"remediationStrategy,omitempty"`
 	// Label selector to match machines whose health will be exercised
 	Selector metav1.LabelSelector `json:"selector"`
 }
