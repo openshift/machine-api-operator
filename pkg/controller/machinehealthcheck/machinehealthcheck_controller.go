@@ -172,7 +172,7 @@ func remediate(r *ReconcileMachineHealthCheck, remediationStrategy healthcheckin
 		return reconcile.Result{}, err
 	}
 
-	cmUnhealtyConditions, err := getUnhealthyConditionsConfigMap(r)
+	cmUnhealtyConditions, err := conditions.GetUnhealthyConditionsConfigMap(r.client, r.namespace)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -264,34 +264,6 @@ func (r *ReconcileMachineHealthCheck) remediationStrategyReboot(machine *mapiv1.
 		return reconcile.Result{}, err
 	}
 	return reconcile.Result{}, nil
-}
-
-func getUnhealthyConditionsConfigMap(r *ReconcileMachineHealthCheck) (*corev1.ConfigMap, error) {
-	cmUnhealtyConditions := &corev1.ConfigMap{}
-	cmKey := types.NamespacedName{
-		Name:      healthcheckingv1alpha1.ConfigMapNodeUnhealthyConditions,
-		Namespace: r.namespace,
-	}
-	err := r.client.Get(context.TODO(), cmKey, cmUnhealtyConditions)
-	if err != nil {
-		// Error reading the object - requeue the request
-		if !errors.IsNotFound(err) {
-			return nil, err
-		}
-
-		// creates dummy config map with default values if it does not exist
-		cmUnhealtyConditions, err = conditions.CreateDummyUnhealthyConditionsConfigMap()
-		if err != nil {
-			return nil, err
-		}
-		glog.Infof(
-			"ConfigMap %s not found under the namespace %s, fallback to default values: %s",
-			healthcheckingv1alpha1.ConfigMapNodeUnhealthyConditions,
-			r.namespace,
-			cmUnhealtyConditions.Data["conditions"],
-		)
-	}
-	return cmUnhealtyConditions, nil
 }
 
 func isConditionsStatusesEqual(cond *corev1.NodeCondition, unhealthyCond *conditions.UnhealthyCondition) bool {

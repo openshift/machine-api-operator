@@ -410,7 +410,7 @@ func TestCountHealthyMachines(t *testing.T) {
 	disruptedMachineAfterTimeout := maotesting.NewMachine("disruptedMachineAfterTimeout", healthyNode.Name)
 
 	r := newFakeReconciler(nil, healthyNode, unhealthyNode)
-	healthyMachinesCount := r.countHealthyMachines(
+	healthyMachinesCount, err := r.countHealthyMachines(
 		[]mapiv1.Machine{
 			*healthyMachine,
 			*deletedMachine,
@@ -424,6 +424,9 @@ func TestCountHealthyMachines(t *testing.T) {
 		},
 		currentTime.Time,
 	)
+	if err != nil {
+		t.Errorf("Expected no errors, got: %v", err)
+	}
 
 	expectedHealthyMachinesCount := int32(2)
 	if healthyMachinesCount != expectedHealthyMachinesCount {

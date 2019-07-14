@@ -11,7 +11,7 @@ import (
 	machineutil "github.com/openshift/machine-api-operator/pkg/util/machines"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -124,7 +124,12 @@ func (r *ReconcileMachineDisruption) reconcile(mdb *healthcheckingv1alpha1.Machi
 
 	currentTime := time.Now()
 	disruptedMachines, recheckTime := r.buildDisruptedMachineMap(machines, mdb, currentTime)
-	currentHealthy := r.countHealthyMachines(machines, disruptedMachines, currentTime)
+
+	currentHealthy, err := r.countHealthyMachines(machines, disruptedMachines, currentTime)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
+
 	err = r.updateMachineDisruptionBudgetStatus(mdb, currentHealthy, desiredHealthy, expectedCount, disruptedMachines)
 	if err != nil {
 		return reconcile.Result{}, err
@@ -274,7 +279,9 @@ func (r *ReconcileMachineDisruption) getMachineDeploymentFinder(machine *mapiv1.
 	return &controllerAndScale{machineDeployment.UID, *(machineDeployment.Spec.Replicas)}
 }
 
-func (r *ReconcileMachineDisruption) countHealthyMachines(machines []mapiv1.Machine, disruptedMachines map[string]metav1.Time, currentTime time.Time) (currentHealthy int32) {
+func (r *ReconcileMachineDisruption) countHealthyMachines(machines []mapiv1.Machine, disruptedMachines map[string]metav1.Time, currentTime time.Time) (int32, error) {
+	var currentHealthy int32
+
 	for _, machine := range machines {
 		// Machine is being deleted.
 		if machine.DeletionTimestamp != nil {
@@ -284,11 +291,16 @@ func (r *ReconcileMachineDisruption) countHealthyMachines(machines []mapiv1.Mach
 		if disruptionTime, found := disruptedMachines[machine.Name]; found && disruptionTime.Time.Add(DeletionTimeout).After(currentTime) {
 			continue
 		}
-		if machineutil.IsMachineHealthy(r.client, &machine) {
+
+		healthy, err := machineutil.IsMachineHealthy(r.client, &machine)
+		if err != nil {
+			return currentHealthy, err
+		}
+		if healthy {
 			currentHealthy++
 		}
 	}
-	return
+	return currentHealthy, nil
 }
 
 func (r *ReconcileMachineDisruption) updateMachineDisruptionBudgetStatus(

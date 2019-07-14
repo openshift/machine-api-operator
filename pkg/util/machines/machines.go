@@ -17,31 +17,34 @@ import (
 )
 
 // IsMachineHealthy returns true if the the machine is running and machine node is healthy
-func IsMachineHealthy(c client.Client, machine *mapiv1.Machine) bool {
+func IsMachineHealthy(c client.Client, machine *mapiv1.Machine) (bool, error) {
 	if machine.Status.NodeRef == nil {
-		glog.Infof("machine %s does not have NodeRef", machine.Name)
-		return false
+		return false, fmt.Errorf("Machine %s does not have node reference", machine.Name)
 	}
 
 	node := &v1.Node{}
 	key := client.ObjectKey{Namespace: metav1.NamespaceNone, Name: machine.Status.NodeRef.Name}
 	err := c.Get(context.TODO(), key, node)
 	if err != nil {
-		glog.Errorf("failed to fetch node for machine %s", machine.Name)
-		return false
+		return false, err
 	}
 
-	readyCond := conditions.GetNodeCondition(node, v1.NodeReady)
-	if readyCond == nil {
-		glog.Infof("node %s does have 'Ready' condition", machine.Name)
-		return false
+	cmUnhealtyConditions, err := conditions.GetUnhealthyConditionsConfigMap(c, machine.Namespace)
+	if err != nil {
+		return false, err
 	}
 
-	if readyCond.Status != v1.ConditionTrue {
-		glog.Infof("node %s does have has 'Ready' condition with the status %s", machine.Name, readyCond.Status)
-		return false
+	nodeUnhealthyConditions, err := conditions.GetNodeUnhealthyConditions(node, cmUnhealtyConditions)
+	if err != nil {
+		return false, err
 	}
-	return true
+
+	if len(nodeUnhealthyConditions) > 0 {
+		glog.Infof("Machine %q unhealthy because of conditions: %v", machine.Name, nodeUnhealthyConditions)
+		return false, nil
+	}
+
+	return true, nil
 }
 
 // GetMachineMachineDisruptionBudgets returns list of machine disruption budgets that suit for the machine
