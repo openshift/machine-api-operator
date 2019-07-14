@@ -11,7 +11,7 @@ import (
 	machineutil "github.com/openshift/machine-api-operator/pkg/util/machines"
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 
-	"k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -120,12 +120,12 @@ func (r *ReconcileMachineDisruption) reconcile(mdb *healthcheckingv1alpha1.Machi
 		r.recorder.Eventf(mdb, v1.EventTypeNormal, "NoMachines", "No matching machines found")
 	}
 
-	expectedCount, desiredHealthy := r.getExpectedMachineCount(mdb, machines)
+	total, desiredHealthy := r.getTotalAndDesiredMachinesCount(mdb, machines)
 
 	currentTime := time.Now()
 	disruptedMachines, recheckTime := r.buildDisruptedMachineMap(machines, mdb, currentTime)
 	currentHealthy := r.countHealthyMachines(machines, disruptedMachines, currentTime)
-	err = r.updateMachineDisruptionBudgetStatus(mdb, currentHealthy, desiredHealthy, expectedCount, disruptedMachines)
+	err = r.updateMachineDisruptionBudgetStatus(mdb, currentHealthy, desiredHealthy, total, disruptedMachines)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -137,21 +137,23 @@ func (r *ReconcileMachineDisruption) reconcile(mdb *healthcheckingv1alpha1.Machi
 	return reconcile.Result{}, nil
 }
 
-func (r *ReconcileMachineDisruption) getExpectedMachineCount(mdb *healthcheckingv1alpha1.MachineDisruptionBudget, machines []mapiv1.Machine) (expectedCount, desiredHealthy int32) {
+func (r *ReconcileMachineDisruption) getTotalAndDesiredMachinesCount(mdb *healthcheckingv1alpha1.MachineDisruptionBudget, machines []mapiv1.Machine) (total, desiredHealthy int32) {
 	if mdb.Spec.MaxUnavailable != nil {
-		expectedCount = r.getExpectedScale(mdb, machines)
-		desiredHealthy = expectedCount - int32(*mdb.Spec.MaxUnavailable)
+		total = r.getTotalMachinesCount(mdb, machines)
+		desiredHealthy = total - int32(*mdb.Spec.MaxUnavailable)
 		if desiredHealthy < 0 {
 			desiredHealthy = 0
 		}
 	} else if mdb.Spec.MinAvailable != nil {
 		desiredHealthy = *mdb.Spec.MinAvailable
-		expectedCount = int32(len(machines))
+		total = int32(len(machines))
 	}
 	return
 }
 
-func (r *ReconcileMachineDisruption) getExpectedScale(mdb *healthcheckingv1alpha1.MachineDisruptionBudget, machines []mapiv1.Machine) int32 {
+// getTotalMachinesCount returns total number of machines that monitored by the MDB, if the machine has owner controller,
+// it will get number of desired replicas from the controller and add it to the total number.
+func (r *ReconcileMachineDisruption) getTotalMachinesCount(mdb *healthcheckingv1alpha1.MachineDisruptionBudget, machines []mapiv1.Machine) int32 {
 	// When the user specifies a fraction of machines that must be available, we
 	// use as the fraction's denominator
 	// SUM_{all c in C} scale(c)
@@ -182,11 +184,11 @@ func (r *ReconcileMachineDisruption) getExpectedScale(mdb *healthcheckingv1alpha
 	}
 
 	// 2. Sum up all relevant machine scales to get the expected number
-	var expectedCount int32
+	var total int32
 	for _, count := range controllerScale {
-		expectedCount += count
+		total += count
 	}
-	return expectedCount
+	return total
 }
 
 type controllerAndScale struct {
@@ -295,7 +297,7 @@ func (r *ReconcileMachineDisruption) updateMachineDisruptionBudgetStatus(
 	mdb *healthcheckingv1alpha1.MachineDisruptionBudget,
 	currentHealthy,
 	desiredHealthy,
-	expectedCount int32,
+	total int32,
 	disruptedMachines map[string]metav1.Time) error {
 
 	// We require expectedCount to be > 0 so that MDBs which currently match no
@@ -303,13 +305,13 @@ func (r *ReconcileMachineDisruption) updateMachineDisruptionBudgetStatus(
 	// has not updated their status yet.  This isn't the only race, but it's a
 	// common one that's easy to detect.
 	disruptionsAllowed := currentHealthy - desiredHealthy
-	if expectedCount <= 0 || disruptionsAllowed <= 0 {
+	if total <= 0 || disruptionsAllowed <= 0 {
 		disruptionsAllowed = 0
 	}
 
 	if mdb.Status.CurrentHealthy == currentHealthy &&
 		mdb.Status.DesiredHealthy == desiredHealthy &&
-		mdb.Status.ExpectedMachines == expectedCount &&
+		mdb.Status.Total == total &&
 		mdb.Status.MachineDisruptionsAllowed == disruptionsAllowed &&
 		apiequality.Semantic.DeepEqual(mdb.Status.DisruptedMachines, disruptedMachines) &&
 		mdb.Status.ObservedGeneration == mdb.Generation {
@@ -320,7 +322,7 @@ func (r *ReconcileMachineDisruption) updateMachineDisruptionBudgetStatus(
 	newMdb.Status = healthcheckingv1alpha1.MachineDisruptionBudgetStatus{
 		CurrentHealthy:            currentHealthy,
 		DesiredHealthy:            desiredHealthy,
-		ExpectedMachines:          expectedCount,
+		Total:                     total,
 		MachineDisruptionsAllowed: disruptionsAllowed,
 		DisruptedMachines:         disruptedMachines,
 		ObservedGeneration:        mdb.Generation,

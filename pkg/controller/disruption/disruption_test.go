@@ -96,11 +96,11 @@ func newMachineDeployment(name string, size int32) *mapiv1.MachineDeployment {
 }
 
 type expectedMachineCount struct {
-	count   int32
+	total   int32
 	healthy int32
 }
 
-func TestGetExpectedMachineCount(t *testing.T) {
+func TestGetTotalMachineCount(t *testing.T) {
 	mdbMinAvailable := maotesting.NewMinAvailableMachineDisruptionBudget(1)
 	mdbMaxUnavailable := maotesting.NewMaxUnavailableMachineDisruptionBudget(1)
 
@@ -132,7 +132,7 @@ func TestGetExpectedMachineCount(t *testing.T) {
 			mdb:      mdbMinAvailable,
 			machines: []mapiv1.Machine{*machine},
 			expected: &expectedMachineCount{
-				count:   1,
+				total:   1,
 				healthy: 1,
 			},
 		},
@@ -141,7 +141,7 @@ func TestGetExpectedMachineCount(t *testing.T) {
 			mdb:      mdbMinAvailable,
 			machines: []mapiv1.Machine{*machineControlledByMachineSet},
 			expected: &expectedMachineCount{
-				count:   1,
+				total:   1,
 				healthy: 1,
 			},
 		},
@@ -150,7 +150,7 @@ func TestGetExpectedMachineCount(t *testing.T) {
 			mdb:      mdbMinAvailable,
 			machines: []mapiv1.Machine{*machineControlledByMachineDeployment},
 			expected: &expectedMachineCount{
-				count:   1,
+				total:   1,
 				healthy: 1,
 			},
 		},
@@ -162,7 +162,7 @@ func TestGetExpectedMachineCount(t *testing.T) {
 				*machineControlledByMachineDeployment,
 			},
 			expected: &expectedMachineCount{
-				count:   2,
+				total:   2,
 				healthy: 1,
 			},
 		},
@@ -171,7 +171,7 @@ func TestGetExpectedMachineCount(t *testing.T) {
 			mdb:      mdbMaxUnavailable,
 			machines: []mapiv1.Machine{*machine},
 			expected: &expectedMachineCount{
-				count:   1,
+				total:   1,
 				healthy: 0,
 			},
 		},
@@ -180,7 +180,7 @@ func TestGetExpectedMachineCount(t *testing.T) {
 			mdb:      mdbMaxUnavailable,
 			machines: []mapiv1.Machine{*machineControlledByMachineSet},
 			expected: &expectedMachineCount{
-				count:   3,
+				total:   3,
 				healthy: 2,
 			},
 		},
@@ -189,7 +189,7 @@ func TestGetExpectedMachineCount(t *testing.T) {
 			mdb:      mdbMaxUnavailable,
 			machines: []mapiv1.Machine{*machineControlledByMachineDeployment},
 			expected: &expectedMachineCount{
-				count:   4,
+				total:   4,
 				healthy: 3,
 			},
 		},
@@ -201,7 +201,7 @@ func TestGetExpectedMachineCount(t *testing.T) {
 				*machineControlledByMachineDeployment,
 			},
 			expected: &expectedMachineCount{
-				count:   7,
+				total:   7,
 				healthy: 6,
 			},
 		},
@@ -214,9 +214,9 @@ func TestGetExpectedMachineCount(t *testing.T) {
 		machineDeployment,
 	)
 	for _, tc := range testsCases {
-		expectedCount, desiredHealthy := r.getExpectedMachineCount(tc.mdb, tc.machines)
-		if expectedCount != tc.expected.count {
-			t.Errorf("Test case: %v. Expected count: %v, got: %v", tc.testName, tc.expected.count, expectedCount)
+		total, desiredHealthy := r.getTotalAndDesiredMachinesCount(tc.mdb, tc.machines)
+		if total != tc.expected.total {
+			t.Errorf("Test case: %v. Expected count: %v, got: %v", tc.testName, tc.expected.total, total)
 		}
 
 		if desiredHealthy != tc.expected.healthy {

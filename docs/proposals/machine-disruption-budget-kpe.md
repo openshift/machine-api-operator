@@ -72,7 +72,7 @@ spec:
 ```yaml
 status:
   # total number of machines with the labels that correspond to the label selector
-  ExpectedMachines: 5
+  total: 5
   # currently number of healthy machines
   currentHealthy: 3
   # desired number of healthy machines

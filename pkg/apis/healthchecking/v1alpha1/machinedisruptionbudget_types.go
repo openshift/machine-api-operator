@@ -56,7 +56,7 @@ type MachineDisruptionBudgetStatus struct {
 	DesiredHealthy int32 `json:"desiredHealthy" protobuf:"varint,5,opt,name=desiredHealthy"`
 
 	// total number of machines counted by this disruption budget
-	ExpectedMachines int32 `json:"expectedMachines" protobuf:"varint,6,opt,name=expectedMachines"`
+	Total int32 `json:"total" protobuf:"varint,6,opt,name=total"`
 }
 
 // +genclient
@@ -66,7 +66,7 @@ type MachineDisruptionBudgetStatus struct {
 // kubebuilder:subresource:status
 // +kubebuilder:resource:shortName=mdb;mdbs
 // +kubebuilder:printcolumn:name="Healthy",type="integer",JSONPath=".status.currentHealthy",description="The number of healthy machines"
-// +kubebuilder:printcolumn:name="Total",type="integer",JSONPath=".status.expectedMachines",description="The total number of machines"
+// +kubebuilder:printcolumn:name="Total",type="integer",JSONPath=".status.total",description="The total number of machines"
 // +kubebuilder:printcolumn:name="Desired",type="integer",JSONPath=".status.desiredHealthy",description="The desired number of healthy machines"
 type MachineDisruptionBudget struct {
 	metav1.TypeMeta `json:",inline"`

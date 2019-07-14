@@ -11,7 +11,7 @@ spec:
     description: The number of healthy machines
     name: Healthy
     type: integer
-  - JSONPath: .status.expectedMachines
+  - JSONPath: .status.total
     description: The total number of machines
     name: Total
     type: integer
@@ -93,21 +93,21 @@ spec:
               description: Number of machines disruptions that are currently allowed.
               format: int32
               type: integer
-            expectedMachines:
-              description: total number of machines counted by this disruption budget
-              format: int32
-              type: integer
             observedGeneration:
               description: Most recent generation observed when updating this MDB
                 status. MachineDisruptionsAllowed and other status information is
                 valid only if observedGeneration equals to MDB's object generation.
               format: int64
               type: integer
+            total:
+              description: total number of machines counted by this disruption budget
+              format: int32
+              type: integer
           required:
           - disruptionsAllowed
           - currentHealthy
           - desiredHealthy
-          - expectedMachines
+          - total
           type: object
   version: v1alpha1
 status:
