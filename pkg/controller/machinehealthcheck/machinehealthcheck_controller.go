@@ -28,10 +28,11 @@ import (
 )
 
 const (
-	machineAnnotationKey       = "machine.openshift.io/machine"
-	machineRebootAnnotationKey = "healthchecking.openshift.io/machine-remediation-reboot"
-	ownerControllerKind        = "MachineSet"
-	remediationStrategyReboot  = healthcheckingv1alpha1.RemediationStrategyType("reboot")
+	machineAnnotationKey           = "machine.openshift.io/machine"
+	machineRebootAnnotationKey     = "healthchecking.openshift.io/machine-remediation-reboot"
+	ownerControllerKind            = "MachineSet"
+	remediationStrategyReboot      = healthcheckingv1alpha1.RemediationStrategyType("reboot")
+	disableRemediationAnotationKey = "healthchecking.openshift.io/disabled"
 )
 
 // Add creates a new MachineHealthCheck Controller and adds it to the Manager. The Manager will set fields on the Controller
@@ -132,6 +133,12 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 	}
 
 	for _, hc := range allMachineHealthChecks.Items {
+		if hasMachineRemediationDisabled(machine) {
+			glog.Infof("Machine %s has a matching %s annotation set to <true>, remediation is skipped.",
+				machineKey, disableRemediationAnotationKey)
+			continue
+		}
+
 		if hasMatchingLabels(&hc, machine) {
 			glog.V(4).Infof("Machine %s has a matching machineHealthCheck: %s", machineKey, hc.Name)
 			return remediate(r, hc.Spec.RemediationStrategy, machine)
@@ -328,6 +335,11 @@ func hasMachineSetOwner(machine mapiv1.Machine) bool {
 		}
 	}
 	return false
+}
+
+func hasMachineRemediationDisabled(machine mapiv1.Machine) bool {
+	skipRemediation := machine.GetAnnotations()[disableRemediationAnotationKey] == "true"
+	return skipRemediation
 }
 
 func hasMatchingLabels(machineHealthCheck *healthcheckingv1alpha1.MachineHealthCheck, machine *mapiv1.Machine) bool {

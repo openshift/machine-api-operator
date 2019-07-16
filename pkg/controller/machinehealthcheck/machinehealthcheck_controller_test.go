@@ -332,6 +332,32 @@ func TestHasMachineSetOwner(t *testing.T) {
 
 }
 
+func TestHasMachineRemediationDisabled(t *testing.T) {
+	machineWithRemediationDisabled := maotesting.NewMachine("machineWithRemediationDisabled", "node")
+	machineWithRemediationEnabled := maotesting.NewMachine("machineWithRemediationEnabled", "node")
+	machineWithRemediationDisabled.Annotations[disableRemediationAnotationKey] = "true"
+
+	testsCases := []struct {
+		machine  *mapiv1alpha1.Machine
+		expected bool
+	}{
+		{
+			machine:  machineWithRemediationDisabled,
+			expected: true,
+		},
+		{
+			machine:  machineWithRemediationEnabled,
+			expected: false,
+		},
+	}
+
+	for _, tc := range testsCases {
+		if got := hasMachineRemediationDisabled(*tc.machine); got != tc.expected {
+			t.Errorf("Test case: Machine %s. Expected: %t, got: %t", tc.machine.Name, tc.expected, got)
+		}
+	}
+}
+
 func TestUnhealthyForTooLong(t *testing.T) {
 	nodeUnhealthyForTooLong := maotesting.NewNode("nodeUnhealthyForTooLong", false)
 	nodeRecentlyUnhealthy := maotesting.NewNode("nodeRecentlyUnhealthy", false)
