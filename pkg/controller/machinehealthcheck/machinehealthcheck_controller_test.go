@@ -247,7 +247,7 @@ func testReconcile(t *testing.T, remediationWaitTime time.Duration, initObjects 
 	}
 
 	for _, tc := range testsCases {
-		machineHealthCheck.Spec.RemediationStrategy = tc.remediationStrategy
+		machineHealthCheck.Spec.RemediationStrategy = &tc.remediationStrategy
 		objects := []runtime.Object{}
 		objects = append(objects, initObjects...)
 		objects = append(objects, machineHealthCheck)

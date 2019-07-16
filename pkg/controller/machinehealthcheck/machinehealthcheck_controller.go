@@ -155,7 +155,7 @@ func getMachineHealthCheckListOptions() *client.ListOptions {
 	}
 }
 
-func remediate(r *ReconcileMachineHealthCheck, remediationStrategy healthcheckingv1alpha1.RemediationStrategyType, machine *mapiv1.Machine) (reconcile.Result, error) {
+func remediate(r *ReconcileMachineHealthCheck, remediationStrategy *healthcheckingv1alpha1.RemediationStrategyType, machine *mapiv1.Machine) (reconcile.Result, error) {
 	glog.Infof("Initialising remediation logic for machine %s", machine.Name)
 	if !hasMachineSetOwner(*machine) {
 		glog.Infof("Machine %s has no machineSet controller owner, skipping remediation", machine.Name)
@@ -200,10 +200,9 @@ func remediate(r *ReconcileMachineHealthCheck, remediationStrategy healthcheckin
 		// apply remediation logic, if at least one condition last more than specified timeout
 		// specific remediation logic goes here
 		if unhealthyForTooLong(nodeCondition, conditionTimeout) {
-			switch remediationStrategy {
-			case remediationStrategyReboot:
+			if remediationStrategy != nil && *remediationStrategy == remediationStrategyReboot {
 				return r.remediationStrategyReboot(machine, node)
-			default:
+			} else {
 				if isMaster(*machine, r.client) {
 					glog.Infof("The machine %s is a master node, skipping remediation", machine.Name)
 					return reconcile.Result{}, nil
