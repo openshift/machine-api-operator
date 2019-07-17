@@ -157,6 +157,7 @@ rules:
 
   - apiGroups:
       - extensions
+      - apps
     resources:
       - daemonsets
     verbs:
