@@ -3,19 +3,31 @@ package main
 import (
 	"context"
 	"flag"
+	"fmt"
+	"net/http"
+	"os"
+	"strconv"
 
 	"github.com/golang/glog"
 	osconfigv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/machine-api-operator/pkg/metrics"
 	"github.com/openshift/machine-api-operator/pkg/operator"
 	"github.com/openshift/machine-api-operator/pkg/version"
 	"github.com/spf13/cobra"
 
+	"github.com/prometheus/client_golang/prometheus"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	coreclientsetv1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/record"
+)
+
+const (
+	// defaultMetricsPort is the default port to expose metrics.
+	defaultMetricsPort = 8080
 )
 
 var (
@@ -66,6 +78,8 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 				startControllers(ctrlCtx)
 				ctrlCtx.KubeNamespacedInformerFactory.Start(ctrlCtx.Stop)
 				ctrlCtx.ConfigInformerFactory.Start(ctrlCtx.Stop)
+				initMachineAPIInformers(ctrlCtx)
+				startMetricsCollectionAndServer(ctrlCtx)
 				close(ctrlCtx.InformersStarted)
 
 				select {}
@@ -76,6 +90,18 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 		},
 	})
 	panic("unreachable")
+}
+
+func initMachineAPIInformers(ctx *ControllerContext) {
+	mInformer := ctx.MachineInformerFactory.Machine().V1beta1().Machines().Informer()
+	msInformer := ctx.MachineInformerFactory.Machine().V1beta1().MachineSets().Informer()
+	ctx.MachineInformerFactory.Start(ctx.Stop)
+	if !cache.WaitForCacheSync(ctx.Stop,
+		mInformer.HasSynced,
+		msInformer.HasSynced) {
+		glog.Fatal("Failed to sync caches for Machine api informers")
+	}
+	glog.Info("Synced up machine api informer caches")
 }
 
 func initRecorder(kubeClient kubernetes.Interface) record.EventRecorder {
@@ -100,4 +126,36 @@ func startControllers(ctx *ControllerContext) {
 		ctx.ClientBuilder.OpenshiftClientOrDie(componentName),
 		recorder,
 	).Run(2, ctx.Stop)
+}
+
+func startMetricsCollectionAndServer(ctx *ControllerContext) {
+	machineInformer := ctx.MachineInformerFactory.Machine().V1beta1().Machines()
+	machinesetInformer := ctx.MachineInformerFactory.Machine().V1beta1().MachineSets()
+	machineMetricsCollector := metrics.NewMachineCollector(
+		machineInformer,
+		machinesetInformer,
+		componentNamespace)
+	prometheus.MustRegister(machineMetricsCollector)
+	metricsPort := defaultMetricsPort
+	if port, ok := os.LookupEnv("METRICS_PORT"); ok {
+		v, err := strconv.Atoi(port)
+		if err != nil {
+			glog.Fatalf("Error parsing METRICS_PORT (%q) environment variable: %v", port, err)
+		}
+		metricsPort = v
+	}
+	glog.V(4).Info("Starting server to serve prometheus metrics")
+	go startHTTPMetricServer(fmt.Sprintf(":%d", metricsPort))
+}
+
+func startHTTPMetricServer(metricsPort string) {
+	mux := http.NewServeMux()
+	//TODO(vikasc): Use promhttp package for handler. This is Deprecated
+	mux.Handle("/metrics", prometheus.Handler())
+
+	server := &http.Server{
+		Addr:    metricsPort,
+		Handler: mux,
+	}
+	glog.Fatal(server.ListenAndServe())
 }

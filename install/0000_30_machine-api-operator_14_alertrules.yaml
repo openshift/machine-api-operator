@@ -1,0 +1,20 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    prometheus: k8s
+    role: alert-rules
+  name: machineapioperator-rules
+  namespace: openshift-machine-api
+spec:
+  groups:
+    - name: general.rules
+      rules:
+        - alert: MachineWithoutValidNode
+          expr: |
+             (mapi_machine_created unless on(node) kube_node_info) > 0
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            message: "machine {{ $labels.name }} does not have valid node reference"
