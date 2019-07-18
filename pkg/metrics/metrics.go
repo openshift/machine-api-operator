@@ -11,32 +11,32 @@ import (
 
 var (
 	// MachineCountDesc is a metric about machine object count in the cluster
-	MachineCountDesc = prometheus.NewDesc("mapi_machine_items_count", "Count of machine objects currently at the apiserver", nil, nil)
+	MachineCountDesc = prometheus.NewDesc("mapi_machine_items", "Count of machine objects currently at the apiserver", nil, nil)
 	// MachineSetCountDesc Count of machineset object count at the apiserver
-	MachineSetCountDesc = prometheus.NewDesc("mapi_machineset_items_count", "Count of machinesets at the apiserver", nil, nil)
+	MachineSetCountDesc = prometheus.NewDesc("mapi_machineset_items", "Count of machinesets at the apiserver", nil, nil)
 	// MachineInfoDesc is a metric about machine object info in the cluster
-	MachineInfoDesc = prometheus.NewDesc("mapi_machine_created", "Timestamp of the mapi managed Machine creation time", []string{"name", "namespace", "spec_provider_id", "node", "api_version"}, nil)
+	MachineInfoDesc = prometheus.NewDesc("mapi_machine_created_timestamp_seconds", "Timestamp of the mapi managed Machine creation time", []string{"name", "namespace", "spec_provider_id", "node", "api_version"}, nil)
 	// MachineSetInfoDesc is a metric about machine object info in the cluster
-	MachineSetInfoDesc = prometheus.NewDesc("mapi_machineset_created", "Timestamp of the mapi managed Machineset creation time", []string{"name", "namespace", "api_version"}, nil)
+	MachineSetInfoDesc = prometheus.NewDesc("mapi_machineset_created_timestamp_seconds", "Timestamp of the mapi managed Machineset creation time", []string{"name", "namespace", "api_version"}, nil)
 
 	// MachineSetStatusAvailableReplicasDesc is the information of the Machineset's status for available replicas.
-	MachineSetStatusAvailableReplicasDesc = prometheus.NewDesc("mapi_machine_set_status_available_replicas", "Information of the mapi managed Machineset's status for available replicas", []string{"name", "namespace"}, nil)
+	MachineSetStatusAvailableReplicasDesc = prometheus.NewDesc("mapi_machine_set_status_replicas_available", "Information of the mapi managed Machineset's status for available replicas", []string{"name", "namespace"}, nil)
 
 	// MachineSetStatusReadyReplicasDesc is the information of the Machineset's status for ready replicas.
-	MachineSetStatusReadyReplicasDesc = prometheus.NewDesc("mapi_machine_set_status_ready_replicas", "Information of the mapi managed Machineset's status for ready replicas", []string{"name", "namespace"}, nil)
+	MachineSetStatusReadyReplicasDesc = prometheus.NewDesc("mapi_machine_set_status_replicas_ready", "Information of the mapi managed Machineset's status for ready replicas", []string{"name", "namespace"}, nil)
 
 	// MachineSetStatusReplicasDesc is the information of the Machineset's status for replicas.
 	MachineSetStatusReplicasDesc = prometheus.NewDesc("mapi_machine_set_status_replicas", "Information of the mapi managed Machineset's status for replicas", []string{"name", "namespace"}, nil)
 
-	// ScrapeFailedCounter is a Prometheus metric, which counts errors during metrics collection.
-	ScrapeFailedCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Name: "mapi_scrape_failure_total",
-		Help: "Total count of scrape failures.",
+	// MachineCollectorUp is a Prometheus metric, which reports reflects successful collection and reporting of all the metrics
+	MachineCollectorUp = prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Name: "mapi_mao_collector_up",
+		Help: "Machine API Operator metrics are being collected and reported successfully",
 	}, []string{"kind"})
 )
 
 func init() {
-	prometheus.MustRegister(ScrapeFailedCounter)
+	prometheus.MustRegister(MachineCollectorUp)
 }
 
 // MachineCollector is implementing prometheus.Collector interface.
@@ -70,9 +70,10 @@ func (mc MachineCollector) Describe(ch chan<- *prometheus.Desc) {
 func (mc MachineCollector) collectMachineMetrics(ch chan<- prometheus.Metric) {
 	machineList, err := mc.listMachines()
 	if err != nil {
-		ScrapeFailedCounter.With(prometheus.Labels{"kind": "Machine-count", "reason": err.Error()}).Inc()
+		MachineCollectorUp.With(prometheus.Labels{"kind": "mapi_machine_items"}).Set(float64(0))
 		return
 	}
+	MachineCollectorUp.With(prometheus.Labels{"kind": "mapi_machine_items"}).Set(float64(1))
 
 	for _, machine := range machineList {
 		mMeta := machine.ObjectMeta
@@ -100,9 +101,10 @@ func (mc MachineCollector) collectMachineMetrics(ch chan<- prometheus.Metric) {
 func (mc MachineCollector) collectMachineSetMetrics(ch chan<- prometheus.Metric) {
 	machineSetList, err := mc.listMachineSets()
 	if err != nil {
-		ScrapeFailedCounter.With(prometheus.Labels{"kind": "Machineset-count"}).Inc()
+		MachineCollectorUp.With(prometheus.Labels{"kind": "mapi_machineset_items"}).Set(float64(0))
 		return
 	}
+	MachineCollectorUp.With(prometheus.Labels{"kind": "mapi_machineset_items"}).Set(float64(1))
 	ch <- prometheus.MustNewConstMetric(MachineSetCountDesc, prometheus.GaugeValue, float64(len(machineSetList)))
 
 	for _, machineSet := range machineSetList {
