@@ -645,3 +645,97 @@ func TestReconcile(t *testing.T) {
 		}
 	}
 }
+
+func TestRepeatCheckAndDecrement(t *testing.T) {
+	node := maotesting.NewNode("node", true)
+	machine := maotesting.NewMachine("machine", node.Name)
+	machineWithoutLabels := maotesting.NewMachine("machineWithoutLabels", node.Name)
+	machineWithoutLabels.Labels = map[string]string{}
+
+	mdbObserverGeneration := maotesting.NewMinAvailableMachineDisruptionBudget(1)
+	mdbObserverGeneration.Generation = 2
+	mdbObserverGeneration.Status.ObservedGeneration = 1
+
+	mdbDisruptionAllowedZero := maotesting.NewMinAvailableMachineDisruptionBudget(1)
+	mdbDisruptionAllowedZero.Status.MachineDisruptionsAllowed = 0
+
+	mdbDisruptionAllowedLessThanZero := maotesting.NewMinAvailableMachineDisruptionBudget(1)
+	mdbDisruptionAllowedLessThanZero.Status.MachineDisruptionsAllowed = -1
+
+	mdb1 := maotesting.NewMinAvailableMachineDisruptionBudget(1)
+	mdb1.Name = "mdb1"
+	mdb1.Status.MachineDisruptionsAllowed = 1
+
+	mdb2 := maotesting.NewMinAvailableMachineDisruptionBudget(1)
+	mdb1.Name = "mdb2"
+	mdb2.Status.MachineDisruptionsAllowed = 1
+
+	testsCases := []struct {
+		testName string
+		machine  *mapiv1.Machine
+		mdbs     []*healthcheckingv1alpha1.MachineDisruptionBudget
+		error    bool
+	}{
+		{
+			testName: "With the machine without labels",
+			machine:  machineWithoutLabels,
+			mdbs:     []*healthcheckingv1alpha1.MachineDisruptionBudget{mdb1},
+			error:    true,
+		},
+		{
+			testName: "Without MDB",
+			machine:  machine,
+			mdbs:     []*healthcheckingv1alpha1.MachineDisruptionBudget{},
+			error:    false,
+		},
+		{
+			testName: "With two MDB's",
+			machine:  machine,
+			mdbs:     []*healthcheckingv1alpha1.MachineDisruptionBudget{mdb1, mdb2},
+			error:    true,
+		},
+		{
+			testName: "With the MDB that has wrong observedGeneration",
+			machine:  machine,
+			mdbs:     []*healthcheckingv1alpha1.MachineDisruptionBudget{mdbObserverGeneration},
+			error:    true,
+		},
+		{
+			testName: "With the MDB with zero DisruptionAllowed",
+			machine:  machine,
+			mdbs:     []*healthcheckingv1alpha1.MachineDisruptionBudget{mdbDisruptionAllowedZero},
+			error:    true,
+		},
+		{
+			testName: "With the MDB with less than zero DisruptionAllowed",
+			machine:  machine,
+			mdbs:     []*healthcheckingv1alpha1.MachineDisruptionBudget{mdbDisruptionAllowedLessThanZero},
+			error:    true,
+		},
+		{
+			testName: "With the correct MDB",
+			machine:  machine,
+			mdbs:     []*healthcheckingv1alpha1.MachineDisruptionBudget{mdb1},
+			error:    false,
+		},
+	}
+
+	for _, tc := range testsCases {
+		objects := []runtime.Object{}
+		objects = append(objects, tc.machine)
+
+		for _, mdb := range tc.mdbs {
+			objects = append(objects, mdb)
+		}
+
+		r := newFakeReconciler(nil, objects...)
+		err := RetryDecrementMachineDisruptionsAllowed(r.client, tc.machine)
+		if tc.error != (err != nil) {
+			var errorExpectation string
+			if !tc.error {
+				errorExpectation = "no"
+			}
+			t.Errorf("Test case: %s. Expected: %s error, got: %v", tc.testName, errorExpectation, err)
+		}
+	}
+}

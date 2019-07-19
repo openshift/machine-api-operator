@@ -11,6 +11,7 @@ import (
 	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
 	maotesting "github.com/openshift/machine-api-operator/pkg/util/testing"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"

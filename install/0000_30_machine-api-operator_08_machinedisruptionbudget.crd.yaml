@@ -27,6 +27,8 @@ spec:
     - mdb
     - mdbs
   scope: Namespaced
+  subresources:
+    status: {}
   validation:
     openAPIV3Schema:
       properties:
@@ -67,7 +69,15 @@ spec:
         status:
           description: Most recently observed status of the MachineDisruptionBudget.
           properties:
-            DisruptedMachines:
+            currentHealthy:
+              description: current number of healthy machines
+              format: int32
+              type: integer
+            desiredHealthy:
+              description: minimum desired number of healthy machines
+              format: int32
+              type: integer
+            disruptedMachines:
               description: DisruptedMachines contains information about machines whose
                 deletion was processed by the API server but has not yet been observed
                 by the MachineDisruptionBudget controller. A machine will be in this
@@ -81,14 +91,6 @@ spec:
                 goes smooth this map should be empty for the most of the time. Large
                 number of entries in the map may indicate problems with machines deletions.
               type: object
-            currentHealthy:
-              description: current number of healthy machines
-              format: int32
-              type: integer
-            desiredHealthy:
-              description: minimum desired number of healthy machines
-              format: int32
-              type: integer
             disruptionsAllowed:
               description: Number of machines disruptions that are currently allowed.
               format: int32
