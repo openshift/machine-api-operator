@@ -22,11 +22,7 @@ import (
 )
 
 const (
-	namespace         = "openshift-machine-api"
-	badConditionsData = `items:
-- name: Ready 
-  timeout: 60s
-  status: Unknown`
+	namespace = "openshift-machine-api"
 )
 
 func init() {
@@ -130,7 +126,7 @@ type expectedReconcile struct {
 	error  bool
 }
 
-func testReconcile(t *testing.T, remediationWaitTime time.Duration, initObjects ...runtime.Object) {
+func TestReconcileWithUnhealthyConditions(t *testing.T) {
 	// healthy node
 	nodeHealthy := maotesting.NewNode("healthy", true)
 	nodeHealthy.Annotations = map[string]string{
@@ -208,7 +204,7 @@ func testReconcile(t *testing.T, remediationWaitTime time.Duration, initObjects 
 			expected: expectedReconcile{
 				result: reconcile.Result{
 					Requeue:      true,
-					RequeueAfter: remediationWaitTime,
+					RequeueAfter: time.Minute,
 				},
 				error: false,
 			},
@@ -250,7 +246,6 @@ func testReconcile(t *testing.T, remediationWaitTime time.Duration, initObjects 
 	for _, tc := range testsCases {
 		machineHealthCheck.Spec.RemediationStrategy = &tc.remediationStrategy
 		objects := []runtime.Object{}
-		objects = append(objects, initObjects...)
 		objects = append(objects, machineHealthCheck)
 		if tc.machine != nil {
 			objects = append(objects, tc.machine)
@@ -295,15 +290,6 @@ func testReconcile(t *testing.T, remediationWaitTime time.Duration, initObjects 
 			}
 		}
 	}
-}
-
-func TestReconcileWithoutUnhealthyConditionsConfigMap(t *testing.T) {
-	testReconcile(t, 5*time.Minute)
-}
-
-func TestReconcileWithUnhealthyConditionsConfigMap(t *testing.T) {
-	cmBadConditions := maotesting.NewUnhealthyConditionsConfigMap(healthcheckingv1alpha1.ConfigMapNodeUnhealthyConditions, badConditionsData)
-	testReconcile(t, 1*time.Minute, cmBadConditions)
 }
 
 func TestHasMachineSetOwner(t *testing.T) {
