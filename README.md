@@ -67,8 +67,8 @@ $ make nodelink-controller
      machine.openshift.io/cluster-api-machineset: cluster-worker-us-east-1a
      ```
 
-  1. Define a `MachineHealthCheck` manifest that will be watching all machines
-     of the machinset based on its match labels:
+  1. Define a `MachineHealthCheck` manifest with a list of node unhealthy conditions
+     that will be watching all machines of the machinset based on its match labels:
      ```yaml
      apiVersion: healthchecking.openshift.io/v1alpha1
      kind: MachineHealthCheck
@@ -82,7 +82,18 @@ $ make nodelink-controller
            machine.openshift.io/cluster-api-machine-role: worker
            machine.openshift.io/cluster-api-machine-type: worker
            machine.openshift.io/cluster-api-machineset: cluster-worker-us-east-1a
+       unhealthyNodeConditions:
+       - name: Ready
+         status: Unknown
+         timeout: 300s
+       - name: Ready
+         status: "False"
+         timeout: 300s
      ```
+
+     Be aware, the list of unhealthy node conditions is always empty.
+     Please, make sure there is at least one condition specified.
+     Otherwise, node machine will get re-mediated.
 
   1. By default, the machine health check controller recognize only `NotReady` condition and will remove
      unhealthy machine after 5 minutes. If you want to customize unhealthy conditions you can create `node-unhealthy-conditions` config map, for example:
