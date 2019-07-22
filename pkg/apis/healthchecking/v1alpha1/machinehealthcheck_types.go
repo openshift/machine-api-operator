@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -37,14 +38,25 @@ type MachineHealthCheckList struct {
 	Items           []MachineHealthCheck `json:"items"`
 }
 
+// UnhealthyNodeCondition defines a condition under which a node is considered unhealthy
+type UnhealthyNodeCondition struct {
+	Name    corev1.NodeConditionType `json:"name"`
+	Status  corev1.ConditionStatus   `json:"status"`
+	Timeout metav1.Duration          `json:"timeout"`
+}
+
 // MachineHealthCheckSpec defines the desired state of MachineHealthCheck
 type MachineHealthCheckSpec struct {
 	// RemediationStrategy to use in case of problem detection
 	// default is machine deletion
 	// +optional
 	RemediationStrategy *RemediationStrategyType `json:"remediationStrategy,omitempty"`
+
 	// Label selector to match machines whose health will be exercised
 	Selector metav1.LabelSelector `json:"selector"`
+
+	// List of conditions under which a machine is considered unhealthy
+	UnhealthyNodeConditions []UnhealthyNodeCondition `json:"unhealthyNodeConditions"`
 }
 
 // MachineHealthCheckStatus defines the observed state of MachineHealthCheck
