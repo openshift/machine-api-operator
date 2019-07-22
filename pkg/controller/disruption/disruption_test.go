@@ -1,6 +1,7 @@
 package disruption
 
 import (
+	"context"
 	"reflect"
 	"strings"
 	"testing"
@@ -19,6 +20,8 @@ import (
 
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func init() {
@@ -738,4 +741,28 @@ func TestRepeatCheckAndDecrement(t *testing.T) {
 			t.Errorf("Test case: %s. Expected: %s error, got: %v", tc.testName, errorExpectation, err)
 		}
 	}
+}
+
+func TestRetryDecrementMachineDisruptionsAllowedOverTheSameMachine(t *testing.T) {
+	node := maotesting.NewNode("node", true)
+	machine := maotesting.NewMachine("machine", node.Name)
+
+	mdb := maotesting.NewMinAvailableMachineDisruptionBudget(1)
+	mdb.Status.MachineDisruptionsAllowed = 2
+
+	fakeClient := fake.NewFakeClient(mdb)
+
+	newMdb := &healthcheckingv1alpha1.MachineDisruptionBudget{}
+
+	// disruption is allowed
+	assert.NoError(t, RetryDecrementMachineDisruptionsAllowed(fakeClient, machine))
+	assert.NoError(t, fakeClient.Get(context.TODO(), types.NamespacedName{Namespace: mdb.Namespace, Name: mdb.Name}, newMdb))
+	assert.Equal(t, int32(1), newMdb.Status.MachineDisruptionsAllowed)
+	assert.Contains(t, newMdb.Status.DisruptedMachines, machine.Name)
+
+	// MachineDisruptionsAllowed is not decrement twice for the same machine
+	assert.NoError(t, RetryDecrementMachineDisruptionsAllowed(fakeClient, machine))
+	assert.NoError(t, fakeClient.Get(context.TODO(), types.NamespacedName{Namespace: mdb.Namespace, Name: mdb.Name}, newMdb))
+	assert.Equal(t, int32(1), newMdb.Status.MachineDisruptionsAllowed)
+	assert.Contains(t, newMdb.Status.DisruptedMachines, machine.Name)
 }
