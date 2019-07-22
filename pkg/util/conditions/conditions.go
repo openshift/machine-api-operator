@@ -1,8 +1,6 @@
 package conditions
 
 import (
-	"github.com/ghodss/yaml"
-
 	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -17,18 +15,6 @@ func GetNodeCondition(node *corev1.Node, conditionType corev1.NodeConditionType)
 	return nil
 }
 
-// UnhealthyConditions contains a list of UnhealthyCondition
-type UnhealthyConditions struct {
-	Items []UnhealthyCondition `json:"items"`
-}
-
-// UnhealthyCondition is the representation of unhealthy conditions under the config map
-type UnhealthyCondition struct {
-	Name    corev1.NodeConditionType `json:"name"`
-	Status  corev1.ConditionStatus   `json:"status"`
-	Timeout string                   `json:"timeout"`
-}
-
 // GetNodeUnhealthyConditions returns node unhealthy conditions
 func GetNodeUnhealthyConditions(node *corev1.Node, unhealthyConditions []healthcheckingv1alpha1.UnhealthyNodeCondition) []healthcheckingv1alpha1.UnhealthyNodeCondition {
 	conditions := []healthcheckingv1alpha1.UnhealthyNodeCondition{}
@@ -39,27 +25,4 @@ func GetNodeUnhealthyConditions(node *corev1.Node, unhealthyConditions []healthc
 		}
 	}
 	return conditions
-}
-
-// CreateDummyUnhealthyConditionsConfigMap creates dummy config map with default unhealthy conditions
-func CreateDummyUnhealthyConditionsConfigMap() (*corev1.ConfigMap, error) {
-	unhealthyConditions := &UnhealthyConditions{
-		Items: []UnhealthyCondition{
-			{
-				Name:    "Ready",
-				Status:  "Unknown",
-				Timeout: "300s",
-			},
-			{
-				Name:    "Ready",
-				Status:  "False",
-				Timeout: "300s",
-			},
-		},
-	}
-	conditionsData, err := yaml.Marshal(unhealthyConditions)
-	if err != nil {
-		return nil, err
-	}
-	return &corev1.ConfigMap{Data: map[string]string{"conditions": string(conditionsData)}}, nil
 }
