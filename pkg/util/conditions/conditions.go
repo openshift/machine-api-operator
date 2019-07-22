@@ -1,11 +1,9 @@
 package conditions
 
 import (
-	"fmt"
-
 	"github.com/ghodss/yaml"
-	"github.com/golang/glog"
 
+	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -32,27 +30,15 @@ type UnhealthyCondition struct {
 }
 
 // GetNodeUnhealthyConditions returns node unhealthy conditions
-func GetNodeUnhealthyConditions(node *corev1.Node, cmUnealthyConditions *corev1.ConfigMap) ([]UnhealthyCondition, error) {
-	data, ok := cmUnealthyConditions.Data["conditions"]
-	if !ok {
-		return nil, fmt.Errorf("can not find \"conditions\" under the configmap")
-	}
-
-	var unealthyConditions UnhealthyConditions
-	err := yaml.Unmarshal([]byte(data), &unealthyConditions)
-	if err != nil {
-		glog.Errorf("failed to umarshal: %v", err)
-		return nil, err
-	}
-
-	conditions := []UnhealthyCondition{}
-	for _, c := range unealthyConditions.Items {
+func GetNodeUnhealthyConditions(node *corev1.Node, unhealthyConditions []healthcheckingv1alpha1.UnhealthyNodeCondition) []healthcheckingv1alpha1.UnhealthyNodeCondition {
+	conditions := []healthcheckingv1alpha1.UnhealthyNodeCondition{}
+	for _, c := range unhealthyConditions {
 		cond := GetNodeCondition(node, c.Name)
 		if cond != nil && cond.Status == c.Status {
 			conditions = append(conditions, c)
 		}
 	}
-	return conditions, nil
+	return conditions
 }
 
 // CreateDummyUnhealthyConditionsConfigMap creates dummy config map with default unhealthy conditions

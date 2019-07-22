@@ -134,7 +134,7 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 	for _, hc := range allMachineHealthChecks.Items {
 		if hasMatchingLabels(&hc, machine) {
 			glog.V(4).Infof("Machine %s has a matching machineHealthCheck: %s", machineKey, hc.Name)
-			return remediate(r, hc.Spec.RemediationStrategy, machine)
+			return remediate(r, &hc, machine)
 		}
 	}
 
@@ -155,7 +155,7 @@ func getMachineHealthCheckListOptions() *client.ListOptions {
 	}
 }
 
-func remediate(r *ReconcileMachineHealthCheck, remediationStrategy *healthcheckingv1alpha1.RemediationStrategyType, machine *mapiv1.Machine) (reconcile.Result, error) {
+func remediate(r *ReconcileMachineHealthCheck, machineHealthCheck *healthcheckingv1alpha1.MachineHealthCheck, machine *mapiv1.Machine) (reconcile.Result, error) {
 	glog.Infof("Initialising remediation logic for machine %s", machine.Name)
 	if !hasMachineSetOwner(*machine) {
 		glog.Infof("Machine %s has no machineSet controller owner, skipping remediation", machine.Name)
@@ -172,34 +172,19 @@ func remediate(r *ReconcileMachineHealthCheck, remediationStrategy *healthchecki
 		return reconcile.Result{}, err
 	}
 
-	cmUnhealtyConditions, err := getUnhealthyConditionsConfigMap(r)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-
-	nodeUnhealthyConditions, err := conditions.GetNodeUnhealthyConditions(node, cmUnhealtyConditions)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-
 	var result *reconcile.Result
 	var minimalConditionTimeout time.Duration
 	minimalConditionTimeout = 0
-	for _, c := range nodeUnhealthyConditions {
+	for _, c := range conditions.GetNodeUnhealthyConditions(node, machineHealthCheck.Spec.UnhealthyNodeConditions) {
 		nodeCondition := conditions.GetNodeCondition(node, c.Name)
 		// skip when current node condition is different from the one reported in the config map
 		if nodeCondition == nil || !isConditionsStatusesEqual(nodeCondition, &c) {
 			continue
 		}
 
-		conditionTimeout, err := time.ParseDuration(c.Timeout)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-
 		// apply remediation logic, if at least one condition last more than specified timeout
 		// specific remediation logic goes here
-		if unhealthyForTooLong(nodeCondition, conditionTimeout) {
+		if unhealthyForTooLong(nodeCondition, c.Timeout.Duration) {
 			// do not fail immediatlty, but try again if the method fails because of the update conflict
 			if err = disruption.RetryDecrementMachineDisruptionsAllowed(r.client, machine); err != nil {
 				// if the error appears here it means that machine healthcheck operation restricted by machine
@@ -208,7 +193,7 @@ func remediate(r *ReconcileMachineHealthCheck, remediationStrategy *healthchecki
 				return reconcile.Result{Requeue: true, RequeueAfter: time.Minute}, nil
 			}
 
-			if remediationStrategy != nil && *remediationStrategy == remediationStrategyReboot {
+			if machineHealthCheck.Spec.RemediationStrategy != nil && *machineHealthCheck.Spec.RemediationStrategy == remediationStrategyReboot {
 				return r.remediationStrategyReboot(machine, node)
 			}
 			if isMaster(*machine, r.client) {
@@ -230,14 +215,14 @@ func remediate(r *ReconcileMachineHealthCheck, remediationStrategy *healthchecki
 			machine.Name,
 			node.Name,
 			nodeCondition.Type,
-			c.Timeout,
+			c.Timeout.Duration,
 			durationUnhealthy.String(),
 		)
 
 		// calculate the duration until the node will be unhealthy for too long
 		// and re-queue after with this timeout, add one second just to be sure
 		// that we will not enter this loop again before the node unhealthy for too long
-		unhealthyTooLongTimeout := conditionTimeout - durationUnhealthy + time.Second
+		unhealthyTooLongTimeout := c.Timeout.Duration - durationUnhealthy + time.Second
 		// be sure that we will use timeout with the minimal value for the reconcile.Result
 		if minimalConditionTimeout == 0 || minimalConditionTimeout > unhealthyTooLongTimeout {
 			minimalConditionTimeout = unhealthyTooLongTimeout
@@ -300,7 +285,7 @@ func getUnhealthyConditionsConfigMap(r *ReconcileMachineHealthCheck) (*corev1.Co
 	return cmUnhealtyConditions, nil
 }
 
-func isConditionsStatusesEqual(cond *corev1.NodeCondition, unhealthyCond *conditions.UnhealthyCondition) bool {
+func isConditionsStatusesEqual(cond *corev1.NodeCondition, unhealthyCond *healthcheckingv1alpha1.UnhealthyNodeCondition) bool {
 	return cond.Status == unhealthyCond.Status
 }
 
