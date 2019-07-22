@@ -134,7 +134,7 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 	for _, hc := range allMachineHealthChecks.Items {
 		if hasMatchingLabels(&hc, machine) {
 			glog.V(4).Infof("Machine %s has a matching machineHealthCheck: %s", machineKey, hc.Name)
-			return remediate(r, &hc, machine)
+			return r.remediate(&hc, machine)
 		}
 	}
 
@@ -155,7 +155,7 @@ func getMachineHealthCheckListOptions() *client.ListOptions {
 	}
 }
 
-func remediate(r *ReconcileMachineHealthCheck, machineHealthCheck *healthcheckingv1alpha1.MachineHealthCheck, machine *mapiv1.Machine) (reconcile.Result, error) {
+func (r *ReconcileMachineHealthCheck) remediate(machineHealthCheck *healthcheckingv1alpha1.MachineHealthCheck, machine *mapiv1.Machine) (reconcile.Result, error) {
 	glog.Infof("Initialising remediation logic for machine %s", machine.Name)
 	if !hasMachineSetOwner(*machine) {
 		glog.Infof("Machine %s has no machineSet controller owner, skipping remediation", machine.Name)
@@ -175,16 +175,16 @@ func remediate(r *ReconcileMachineHealthCheck, machineHealthCheck *healthcheckin
 	var result *reconcile.Result
 	var minimalConditionTimeout time.Duration
 	minimalConditionTimeout = 0
-	for _, c := range conditions.GetNodeUnhealthyConditions(node, machineHealthCheck.Spec.UnhealthyNodeConditions) {
-		nodeCondition := conditions.GetNodeCondition(node, c.Name)
+	for _, condition := range conditions.GetNodeUnhealthyConditions(node, machineHealthCheck.Spec.UnhealthyNodeConditions) {
+		nodeCondition := conditions.GetNodeCondition(node, condition.Name)
 		// skip when current node condition is different from the one reported in the config map
-		if nodeCondition == nil || !isConditionsStatusesEqual(nodeCondition, &c) {
+		if nodeCondition == nil || !isConditionsStatusesEqual(nodeCondition, &condition) {
 			continue
 		}
 
 		// apply remediation logic, if at least one condition last more than specified timeout
 		// specific remediation logic goes here
-		if unhealthyForTooLong(nodeCondition, c.Timeout.Duration) {
+		if unhealthyForTooLong(nodeCondition, condition.Timeout.Duration) {
 			// do not fail immediatlty, but try again if the method fails because of the update conflict
 			if err = disruption.RetryDecrementMachineDisruptionsAllowed(r.client, machine); err != nil {
 				// if the error appears here it means that machine healthcheck operation restricted by machine
@@ -215,14 +215,14 @@ func remediate(r *ReconcileMachineHealthCheck, machineHealthCheck *healthcheckin
 			machine.Name,
 			node.Name,
 			nodeCondition.Type,
-			c.Timeout.Duration,
+			condition.Timeout.Duration,
 			durationUnhealthy.String(),
 		)
 
 		// calculate the duration until the node will be unhealthy for too long
 		// and re-queue after with this timeout, add one second just to be sure
 		// that we will not enter this loop again before the node unhealthy for too long
-		unhealthyTooLongTimeout := c.Timeout.Duration - durationUnhealthy + time.Second
+		unhealthyTooLongTimeout := condition.Timeout.Duration - durationUnhealthy + time.Second
 		// be sure that we will use timeout with the minimal value for the reconcile.Result
 		if minimalConditionTimeout == 0 || minimalConditionTimeout > unhealthyTooLongTimeout {
 			minimalConditionTimeout = unhealthyTooLongTimeout
