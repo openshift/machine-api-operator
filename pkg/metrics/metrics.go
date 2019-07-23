@@ -79,15 +79,19 @@ func (mc MachineCollector) collectMachineMetrics(ch chan<- prometheus.Metric) {
 		typeMeta := machine.TypeMeta
 		mSpec := machine.Spec
 		providerid := ""
+		nodeName := ""
 		if mSpec.ProviderID != nil {
 			providerid = *mSpec.ProviderID
+		}
+		if machine.Status.NodeRef != nil {
+			nodeName = machine.Status.NodeRef.Name
 		}
 
 		ch <- prometheus.MustNewConstMetric(
 			MachineInfoDesc,
 			prometheus.GaugeValue,
 			float64(mMeta.GetCreationTimestamp().Time.Unix()),
-			mMeta.Name, mMeta.Namespace, providerid, machine.Status.NodeRef.Name, typeMeta.APIVersion,
+			mMeta.Name, mMeta.Namespace, providerid, nodeName, typeMeta.APIVersion,
 		)
 	}
 
