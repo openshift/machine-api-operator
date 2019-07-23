@@ -482,10 +482,16 @@ func isMachineDisruptionAllowed(mdb *healthcheckingv1alpha1.MachineDisruptionBud
 }
 
 func decrementMachineDisruptionsAllowed(c client.Client, machineName string, mdb *healthcheckingv1alpha1.MachineDisruptionBudget) error {
-	mdb.Status.MachineDisruptionsAllowed--
 	if mdb.Status.DisruptedMachines == nil {
 		mdb.Status.DisruptedMachines = make(map[string]metav1.Time)
 	}
+
+	if _, exists := mdb.Status.DisruptedMachines[machineName]; exists {
+		return nil
+	}
+
+	mdb.Status.MachineDisruptionsAllowed--
+
 	// MachineHealthCheck controller needs to inform the MDB controller that it is about to remediate a machine
 	// so it should not consider it as available in calculations when updating MachineDisruptions allowed.
 	// If the machine is not remediated within a reasonable time limit MDB controller will assume that it won't
