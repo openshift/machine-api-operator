@@ -53,6 +53,7 @@ spec:
                 one can prevent all voluntary deletions by specifying 0. This is a
                 mutually exclusive setting with "minAvailable".
               format: int32
+              minimum: 0
               type: integer
             minAvailable:
               description: An deletion of the machine is allowed if at least "minAvailable"
@@ -60,6 +61,7 @@ spec:
                 deletion. So for example you can prevent all voluntary deletions by
                 specifying all available nodes.
               format: int32
+              minimum: 0
               type: integer
             selector:
               description: Label query over machines whose deletions are managed by

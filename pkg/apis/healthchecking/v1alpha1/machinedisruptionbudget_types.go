@@ -10,6 +10,7 @@ type MachineDisruptionBudgetSpec struct {
 	// "selector" will still be available after the deletion.
 	// So for example you can prevent all voluntary deletions by specifying all available nodes.
 	// +optional
+	// +kubebuilder:validation:Minimum=0
 	MinAvailable *int32 `json:"minAvailable,omitempty" protobuf:"bytes,1,opt,name=minAvailable"`
 
 	// Label query over machines whose deletions are managed by the disruption
@@ -22,6 +23,7 @@ type MachineDisruptionBudgetSpec struct {
 	// For example, one can prevent all voluntary deletions by specifying 0.
 	// This is a mutually exclusive setting with "minAvailable".
 	// +optional
+	// +kubebuilder:validation:Minimum=0
 	MaxUnavailable *int32 `json:"maxUnavailable,omitempty" protobuf:"bytes,3,opt,name=maxUnavailable"`
 }
 
