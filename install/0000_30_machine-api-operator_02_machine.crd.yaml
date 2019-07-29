@@ -27,6 +27,10 @@ spec:
     description: Zone associated with machine
     name: Zone
     type: string
+  - JSONPath: .status.nodeRef.name
+    description: Node associated with machine
+    name: Node
+    type: string
   - JSONPath: .metadata.creationTimestamp
     description: Machine age
     name: Age
