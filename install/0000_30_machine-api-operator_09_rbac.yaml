@@ -124,8 +124,18 @@ rules:
     verbs:
       - create
 
+# TODO(vikasc): Remove extensions/daemonsets permissions once all controllers have bumped kubernetes-drain
   - apiGroups:
       - extensions
+    resources:
+      - daemonsets
+    verbs:
+      - get
+      - list
+      - watch
+
+  - apiGroups:
+      - apps
     resources:
       - daemonsets
     verbs:
