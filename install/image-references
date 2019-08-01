@@ -30,3 +30,27 @@ spec:
     from:
       kind: DockerImage
       name: quay.io/openshift/origin-gcp-machine-controllers:v4.0.0
+  - name: baremetal-operator
+    from:
+      kind: DockerImage
+      name: quay.io/openshift/origin-baremetal-operator:v4.2.0
+  - name: ironic-image
+    from:
+      kind: DockerImage
+      name: quay.io/openshift/origin-ironic-image:v4.2.0
+  - name: ironic-inspector-image
+    from:
+      kind: DockerImage
+      name: quay.io/openshift/origin-ironic-inspector-image:v4.2.0
+  - name: ironic-ipa-downloader
+    from:
+      kind: DockerImage
+      name: quay.io/openshift/origin-ironic-ipa-downloader:v4.2.0
+  - name: ironic-rhcos-downloader
+    from:
+      kind: DockerImage
+      name: quay.io/openshift/origin-ironic-rhcos-downloader:v4.2.0
+  - name: ironic-static-ip-manager
+    from:
+      kind: DockerImage
+      name: quay.io/openshift/origin-ironic-static-ip-manager:v4.2.0
