@@ -200,7 +200,14 @@ kind: ClusterRole
 metadata:
   name: machine-api-operator
 rules:
-
+  - apiGroups: ["authentication.k8s.io"]
+    resources:
+      - tokenreviews
+    verbs: ["create"]
+  - apiGroups: ["authorization.k8s.io"]
+    resources:
+      - subjectaccessreviews
+    verbs: ["create"]
   - apiGroups:
       - config.openshift.io
     resources:
@@ -319,6 +326,12 @@ metadata:
   name: prometheus-k8s-machine-api-operator
   namespace: openshift-machine-api
 rules:
+  - apiGroups:
+      - ""
+    resources:
+      - namespace/metrics
+    verbs:
+      - get
   - apiGroups:
       - ""
     resources:

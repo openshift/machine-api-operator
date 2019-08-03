@@ -26,8 +26,9 @@ resources:
 - install/0000_30_machine-api-operator_07_machinehealthcheck.crd.yaml
 - install/0000_30_machine-api-operator_08_machinedisruptionbudget.crd.yaml
 - install/0000_30_machine-api-operator_09_rbac.yaml
+- install/0000_30_machine-api-operator_10_kube-rbac-proxy-config.yaml
 - install/0000_30_machine-api-operator_10_service.yaml
-- install/0000_30_machine-api-operator_11_deployment.yaml
+- config/machine-api-operator-deployment.yaml
 - install/0000_30_machine-api-operator_12_clusteroperator.yaml
 
 
