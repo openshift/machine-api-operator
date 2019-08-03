@@ -145,7 +145,7 @@ func startMetricsCollectionAndServer(ctx *ControllerContext) {
 		metricsPort = v
 	}
 	glog.V(4).Info("Starting server to serve prometheus metrics")
-	go startHTTPMetricServer(fmt.Sprintf(":%d", metricsPort))
+	go startHTTPMetricServer(fmt.Sprintf("localhost:%d", metricsPort))
 }
 
 func startHTTPMetricServer(metricsPort string) {
