@@ -159,6 +159,7 @@ func TestOperatorSync_NoOp(t *testing.T) {
 				v1.OperatorAvailable:   v1.ConditionTrue,
 				v1.OperatorProgressing: v1.ConditionFalse,
 				v1.OperatorDegraded:    v1.ConditionFalse,
+				v1.OperatorUpgradeable: v1.ConditionTrue,
 			}
 			for _, c := range o.Status.Conditions {
 				assert.Equal(t, expectedConditions[c.Type], c.Status, fmt.Sprintf("unexpected clusteroperator condition %s status", c.Type))

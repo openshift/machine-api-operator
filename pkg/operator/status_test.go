@@ -7,6 +7,7 @@ import (
 
 	osconfigv1 "github.com/openshift/api/config/v1"
 	fakeconfigclientset "github.com/openshift/client-go/config/clientset/versioned/fake"
+	cvoresourcemerge "github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
@@ -36,7 +37,7 @@ func TestOperatorStatusProgressing(t *testing.T) {
 	type tCase struct {
 		currentVersion        []osconfigv1.OperandVersion
 		desiredVersion        []osconfigv1.OperandVersion
-		expectedStatus        osconfigv1.ConditionStatus
+		expectedConditions    []osconfigv1.ClusterOperatorStatusCondition
 		transitionTimeUpdated bool
 	}
 	tCases := []tCase{
@@ -53,7 +54,12 @@ func TestOperatorStatusProgressing(t *testing.T) {
 					Version: "1.0",
 				},
 			},
-			expectedStatus: osconfigv1.ConditionFalse,
+			expectedConditions: []osconfigv1.ClusterOperatorStatusCondition{
+				newClusterOperatorStatusCondition(osconfigv1.OperatorProgressing, osconfigv1.ConditionFalse, string(ReasonSyncing), ""),
+				newClusterOperatorStatusCondition(osconfigv1.OperatorAvailable, osconfigv1.ConditionTrue, "", ""),
+				newClusterOperatorStatusCondition(osconfigv1.OperatorDegraded, osconfigv1.ConditionFalse, "", ""),
+				operatorUpgradeable,
+			},
 		},
 		{
 			currentVersion: []osconfigv1.OperandVersion{
@@ -68,7 +74,12 @@ func TestOperatorStatusProgressing(t *testing.T) {
 					Version: "2.0",
 				},
 			},
-			expectedStatus: osconfigv1.ConditionTrue,
+			expectedConditions: []osconfigv1.ClusterOperatorStatusCondition{
+				newClusterOperatorStatusCondition(osconfigv1.OperatorProgressing, osconfigv1.ConditionTrue, string(ReasonSyncing), ""),
+				newClusterOperatorStatusCondition(osconfigv1.OperatorAvailable, osconfigv1.ConditionTrue, "", ""),
+				newClusterOperatorStatusCondition(osconfigv1.OperatorDegraded, osconfigv1.ConditionFalse, "", ""),
+				operatorUpgradeable,
+			},
 		},
 	}
 
@@ -81,27 +92,48 @@ func TestOperatorStatusProgressing(t *testing.T) {
 		optr.osClient = fakeconfigclientset.NewSimpleClientset(co)
 		startTime := metav1.Now()
 		optr.statusProgressing()
-		o, _ := optr.osClient.ConfigV1().ClusterOperators().Get(clusterOperatorName, metav1.GetOptions{})
+		gotCO, _ := optr.osClient.ConfigV1().ClusterOperators().Get(clusterOperatorName, metav1.GetOptions{})
 		var condition osconfigv1.ClusterOperatorStatusCondition
-		for _, coCondition := range o.Status.Conditions {
+		for _, coCondition := range gotCO.Status.Conditions {
 			assert.True(t, startTime.Before(&coCondition.LastTransitionTime), "test-case %v expected LastTransitionTime for the status condition to be updated", i)
 			if coCondition.Type == osconfigv1.OperatorProgressing {
 				condition = coCondition
 				break
 			}
 		}
-		assert.Equal(t, tc.expectedStatus, condition.Status, "test-case %v expected condition %v to be %v, but got %v", i, condition.Type, tc.expectedStatus, condition.Status)
+
+		for _, expectedCondition := range tc.expectedConditions {
+			ok := cvoresourcemerge.IsOperatorStatusConditionPresentAndEqual(
+				gotCO.Status.Conditions, expectedCondition.Type, expectedCondition.Status,
+			)
+			if !ok {
+				t.Errorf("wrong status for condition. Expected: %v, got: %v",
+					expectedCondition,
+					cvoresourcemerge.FindOperatorStatusCondition(gotCO.Status.Conditions, expectedCondition.Type))
+			}
+		}
+
 		optr.statusProgressing()
-		o, _ = optr.osClient.ConfigV1().ClusterOperators().Get(clusterOperatorName, metav1.GetOptions{})
+		gotCO, _ = optr.osClient.ConfigV1().ClusterOperators().Get(clusterOperatorName, metav1.GetOptions{})
 		var conditionAfterAnotherSync osconfigv1.ClusterOperatorStatusCondition
-		for _, coCondition := range o.Status.Conditions {
+		for _, coCondition := range gotCO.Status.Conditions {
 			if coCondition.Type == osconfigv1.OperatorProgressing {
 				conditionAfterAnotherSync = coCondition
 				break
 			}
 		}
-		assert.Equal(t, condition.Status, conditionAfterAnotherSync.Status, "condition state is expected to be same")
 		assert.True(t, condition.LastTransitionTime.Equal(&conditionAfterAnotherSync.LastTransitionTime), "test-case %v expected LastTransitionTime not to be updated if condition state is same", i)
+
+		for _, expectedCondition := range tc.expectedConditions {
+			ok := cvoresourcemerge.IsOperatorStatusConditionPresentAndEqual(
+				gotCO.Status.Conditions, expectedCondition.Type, expectedCondition.Status,
+			)
+			if !ok {
+				t.Errorf("wrong status for condition. Expected: %v, got: %v",
+					expectedCondition,
+					cvoresourcemerge.FindOperatorStatusCondition(gotCO.Status.Conditions, expectedCondition.Type))
+			}
+		}
 	}
 }
 
