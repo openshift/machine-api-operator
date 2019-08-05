@@ -34,14 +34,14 @@ spec:
     from:
       kind: DockerImage
       name: quay.io/openshift/origin-baremetal-operator:v4.2.0
-  - name: ironic-image
+  - name: ironic
     from:
       kind: DockerImage
-      name: quay.io/openshift/origin-ironic-image:v4.2.0
-  - name: ironic-inspector-image
+      name: quay.io/openshift/origin-ironic:v4.2.0
+  - name: ironic-inspector
     from:
       kind: DockerImage
-      name: quay.io/openshift/origin-ironic-inspector-image:v4.2.0
+      name: quay.io/openshift/origin-ironic-inspector:v4.2.0
   - name: ironic-ipa-downloader
     from:
       kind: DockerImage
