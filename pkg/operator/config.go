@@ -20,14 +20,24 @@ type Provider string
 
 // OperatorConfig contains configuration for MAO
 type OperatorConfig struct {
-	TargetNamespace string `json:"targetNamespace"`
-	Controllers     Controllers
+	TargetNamespace      string `json:"targetNamespace"`
+	Controllers          Controllers
+	BaremetalControllers BaremetalControllers
 }
 
 type Controllers struct {
 	Provider           string
 	NodeLink           string
 	MachineHealthCheck string
+}
+
+type BaremetalControllers struct {
+	BaremetalOperator     string
+	Ironic                string
+	IronicInspector       string
+	IronicIpaDownloader   string
+	IronicRhcosDownloader string
+	IronicStaticIpManager string
 }
 
 // Images allows build systems to inject images for MAO components
@@ -39,6 +49,13 @@ type Images struct {
 	ClusterAPIControllerBareMetal string `json:"clusterAPIControllerBareMetal"`
 	ClusterAPIControllerAzure     string `json:"clusterAPIControllerAzure"`
 	ClusterAPIControllerGCP       string `json:"clusterAPIControllerGCP"`
+	// Images required for the metal3 pod
+	BaremetalOperator        string `json:"baremetalOperator"`
+	BaremetalIronic          string `json:"baremetalIronic"`
+	BaremetalIronicInspector string `json:"baremetalIronicInspector"`
+	BaremetalIpaDownloader   string `json:"baremetalIpaDownloader"`
+	BaremetalRhcosDownloader string `json:"baremetalRhcosDownloader"`
+	BaremetalStaticIpManager string `json:"baremetalStaticIpManager"`
 }
 
 func getProviderFromInfrastructure(infra *configv1.Infrastructure) (configv1.PlatformType, error) {
@@ -79,6 +96,21 @@ func getProviderControllerFromImages(platform configv1.PlatformType, images Imag
 		return clusterAPIControllerKubemark, nil
 	default:
 		return clusterAPIControllerNoOp, nil
+	}
+}
+
+// This function returns images required to bring up the Baremetal Pod.
+func newBaremetalControllers(images Images, usingBareMetal bool) BaremetalControllers {
+	if !usingBareMetal {
+		return BaremetalControllers{}
+	}
+	return BaremetalControllers{
+		BaremetalOperator:     images.BaremetalOperator,
+		Ironic:                images.BaremetalIronic,
+		IronicInspector:       images.BaremetalIronicInspector,
+		IronicIpaDownloader:   images.BaremetalIpaDownloader,
+		IronicRhcosDownloader: images.BaremetalRhcosDownloader,
+		IronicStaticIpManager: images.BaremetalStaticIpManager,
 	}
 }
 

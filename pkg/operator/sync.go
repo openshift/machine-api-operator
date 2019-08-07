@@ -34,17 +34,31 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 				// return the outer error.
 				glog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
 			}
-			glog.Errorf("Error syncing cluster api controller: %v", err)
+			glog.Errorf("Error syncing machine-api-controller: %v", err)
 			return err
 		}
-		glog.V(3).Info("Synced up all components")
+		glog.V(3).Info("Synced up all machine-api-controller components")
+	}
+
+	// In addition, if the Provider is BareMetal, then bring up
+	// the baremetal-operator pod
+	if config.BaremetalControllers.BaremetalOperator != "" {
+		if err := optr.syncBaremetalControllers(config); err != nil {
+			if err := optr.statusDegraded(err.Error()); err != nil {
+				// Just log the error here.  We still want to
+				// return the outer error.
+				glog.Errorf("Error syncing BaremetalOperatorStatus: %v", err)
+			}
+			glog.Errorf("Error syncing metal3-controller: %v", err)
+			return err
+		}
+		glog.V(3).Info("Synced up all metal3 components")
 	}
 
 	if err := optr.statusAvailable(); err != nil {
 		glog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
 		return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
 	}
-
 	return nil
 }
 
@@ -76,6 +90,19 @@ func (optr *Operator) syncClusterAPIController(config *OperatorConfig) error {
 	if updated {
 		return optr.waitForDeploymentRollout(controller)
 	}
+	return nil
+}
+
+func (optr *Operator) syncBaremetalControllers(config *OperatorConfig) error {
+	metal3Deployment := newMetal3Deployment(config)
+	_, updated, err := resourceapply.ApplyDeployment(optr.kubeClient.AppsV1(), metal3Deployment)
+	if err != nil {
+		return err
+	}
+	if updated {
+		return optr.waitForDeploymentRollout(metal3Deployment)
+	}
+
 	return nil
 }
 

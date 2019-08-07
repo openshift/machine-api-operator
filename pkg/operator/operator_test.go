@@ -38,6 +38,8 @@ func newFeatureGate(featureSet v1.FeatureSet) *v1.FeatureGate {
 }
 
 func newOperatorConfig() *OperatorConfig {
+	baremetalControllers := BaremetalControllers{}
+
 	return &OperatorConfig{
 		targetNamespace,
 		Controllers{
@@ -45,6 +47,7 @@ func newOperatorConfig() *OperatorConfig {
 			"docker.io/openshift/origin-machine-api-operator:v4.0.0",
 			"docker.io/openshift/origin-machine-api-operator:v4.0.0",
 		},
+		baremetalControllers,
 	}
 }
 
@@ -107,6 +110,10 @@ func TestOperatorSync_NoOp(t *testing.T) {
 			expectedNoop: false,
 		},
 		{
+			platform:     v1.GCPPlatformType,
+			expectedNoop: false,
+		},
+		{
 			platform:     kubemarkPlatform,
 			expectedNoop: false,
 		},
@@ -123,6 +130,7 @@ func TestOperatorSync_NoOp(t *testing.T) {
 			expectedNoop: true,
 		},
 	}
+
 	for _, tc := range cases {
 		t.Run(string(tc.platform), func(t *testing.T) {
 			infra := &v1.Infrastructure{

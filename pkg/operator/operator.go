@@ -206,6 +206,9 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 		return nil, err
 	}
 
+	usingBareMetal := provider == osconfigv1.BareMetalPlatformType
+	baremetalControllers := newBaremetalControllers(*images, usingBareMetal)
+
 	machineAPIOperatorImage, err := getMachineAPIOperatorFromImages(*images)
 	if err != nil {
 		return nil, err
@@ -218,5 +221,6 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 			NodeLink:           machineAPIOperatorImage,
 			MachineHealthCheck: machineAPIOperatorImage,
 		},
+		BaremetalControllers: baremetalControllers,
 	}, nil
 }

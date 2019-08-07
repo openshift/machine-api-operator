@@ -15,6 +15,12 @@ var (
 	expectedBareMetalImage          = "quay.io/openshift/origin-baremetal-machine-controllers:v4.0.0"
 	expectedAzureImage              = "quay.io/openshift/origin-azure-machine-controllers:v4.0.0"
 	expectedGCPImage                = "quay.io/openshift/origin-gcp-machine-controllers:v4.0.0"
+	expectedBaremetalOperator       = "quay.io/openshift/origin-baremetal-operator:v4.2.0"
+	expectedIronic                  = "quay.io/openshift/origin-ironic-image:v4.2.0"
+	expectedIronicInspector         = "quay.io/openshift/origin-ironic-inspector-image:v4.2.0"
+	expectedIronicIpaDownloader     = "quay.io/openshift/origin-ironic-ipa-downloader:v4.2.0"
+	expectedIronicRhcosDownloader   = "quay.io/openshift/origin-ironic-rhcos-downloader:v4.2.0"
+	expectedIronicStaticIpManager   = "quay.io/openshift/origin-ironic-static-ip-manager:v4.2.0"
 )
 
 func TestGetProviderFromInfrastructure(t *testing.T) {
@@ -118,7 +124,7 @@ func TestGetImagesFromJSONFile(t *testing.T) {
 		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedAzureImage, img.ClusterAPIControllerAzure)
 	}
 	if img.ClusterAPIControllerGCP != expectedGCPImage {
-		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedAzureImage, img.ClusterAPIControllerAzure)
+		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedGCPImage, img.ClusterAPIControllerGCP)
 	}
 }
 
@@ -194,5 +200,24 @@ func TestGetMachineAPIOperatorFromImages(t *testing.T) {
 	}
 	if res != expectedMachineAPIOperatorImage {
 		t.Errorf("failed getMachineAPIOperatorFromImages. Expected: %s, got: %s", expectedMachineAPIOperatorImage, res)
+	}
+}
+
+func TestGetBaremetalControllers(t *testing.T) {
+	imagesJSONFile := "fixtures/images.json"
+	img, err := getImagesFromJSONFile(imagesJSONFile)
+	if err != nil {
+		t.Errorf("failed getImagesFromJSONFile, %v", err)
+	}
+
+	baremetalControllers := newBaremetalControllers(*img, true)
+
+	if baremetalControllers.BaremetalOperator != expectedBaremetalOperator ||
+		baremetalControllers.Ironic != expectedIronic ||
+		baremetalControllers.IronicInspector != expectedIronicInspector ||
+		baremetalControllers.IronicIpaDownloader != expectedIronicIpaDownloader ||
+		baremetalControllers.IronicRhcosDownloader != expectedIronicRhcosDownloader ||
+		baremetalControllers.IronicStaticIpManager != expectedIronicStaticIpManager {
+		t.Errorf("failed getAdditionalProviderImages. One or more BaremetalController images do not match the expected images.")
 	}
 }
