@@ -3,6 +3,7 @@ package machinehealthcheck
 import (
 	"context"
 	golangerrors "errors"
+	"fmt"
 	"time"
 
 	"github.com/golang/glog"
@@ -37,11 +38,12 @@ const (
 // Add creates a new MachineHealthCheck Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and start it when the Manager is started.
 func Add(mgr manager.Manager, opts manager.Options) error {
-	return add(mgr, newReconciler(mgr, opts))
+	r := newReconciler(mgr, opts)
+	return add(mgr, r, r.nodeRequestsFromMachineHealthCheck)
 }
 
 // newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager, opts manager.Options) reconcile.Reconciler {
+func newReconciler(mgr manager.Manager, opts manager.Options) *ReconcileMachineHealthCheck {
 	return &ReconcileMachineHealthCheck{
 		client:    mgr.GetClient(),
 		scheme:    mgr.GetScheme(),
@@ -50,12 +52,21 @@ func newReconciler(mgr manager.Manager, opts manager.Options) reconcile.Reconcil
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
-func add(mgr manager.Manager, r reconcile.Reconciler) error {
+func add(mgr manager.Manager, r reconcile.Reconciler, mapFn handler.ToRequestsFunc) error {
 	// Create a new controller
 	c, err := controller.New("machinehealthcheck-controller", mgr, controller.Options{Reconciler: r})
 	if err != nil {
 		return err
 	}
+
+	// Watch MachineHealthChecks and enqueue reconcile.Request for the backed nodes.
+	// This is useful to trigger remediation when a machineHealCheck is created against
+	// a node which is already unhealthy and is not able to receive status updates.
+	err = c.Watch(&source.Kind{Type: &healthcheckingv1alpha1.MachineHealthCheck{}}, &handler.EnqueueRequestsFromMapFunc{ToRequests: mapFn})
+	if err != nil {
+		return err
+	}
+
 	return c.Watch(&source.Kind{Type: &corev1.Node{}}, &handler.EnqueueRequestForObject{})
 }
 
@@ -140,6 +151,78 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 
 	glog.Infof("Machine %s has no MachineHealthCheck associated", machineName)
 	return reconcile.Result{}, nil
+}
+
+func (r *ReconcileMachineHealthCheck) nodeRequestsFromMachineHealthCheck(o handler.MapObject) []reconcile.Request {
+	glog.V(3).Infof("Watched machineHealthCheck event, finding nodes to reconcile.Request...")
+	mhc := &healthcheckingv1alpha1.MachineHealthCheck{}
+	if err := r.client.Get(
+		context.Background(),
+		client.ObjectKey{
+			Namespace: o.Meta.GetNamespace(),
+			Name:      o.Meta.GetName(),
+		},
+		mhc,
+	); err != nil {
+		glog.Errorf("No-op: Unable to retrieve mhc %s/%s from store: %v", o.Meta.GetNamespace(), o.Meta.GetName(), err)
+		return []reconcile.Request{}
+	}
+
+	if mhc.DeletionTimestamp != nil {
+		glog.V(3).Infof("No-op: mhc %q is being deleted", o.Meta.GetName())
+		return []reconcile.Request{}
+	}
+
+	// get nodes covered by then mhc
+	nodeNames, err := r.getNodeNamesForMHC(*mhc)
+	if err != nil {
+		glog.Errorf("No-op: failed to get nodes for mhc %q", o.Meta.GetName())
+		return []reconcile.Request{}
+	}
+	if nodeNames != nil {
+		var requests []reconcile.Request
+		for _, nodeName := range nodeNames {
+			// convert to namespacedName to satisfy type Request struct
+			nodeNamespacedName := client.ObjectKey{
+				Name: string(nodeName),
+			}
+			requests = append(requests, reconcile.Request{NamespacedName: nodeNamespacedName})
+		}
+		return requests
+	}
+	return []reconcile.Request{}
+}
+
+func (r *ReconcileMachineHealthCheck) getNodeNamesForMHC(mhc healthcheckingv1alpha1.MachineHealthCheck) ([]types.NodeName, error) {
+	machineList := &mapiv1.MachineList{}
+	selector, err := metav1.LabelSelectorAsSelector(&mhc.Spec.Selector)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build selector")
+	}
+	options := client.ListOptions{
+		LabelSelector: selector,
+	}
+
+	if err := r.client.List(context.Background(),
+		machineList,
+		client.UseListOptions(options.InNamespace(mhc.GetNamespace()))); err != nil {
+		return nil, fmt.Errorf("failed to list machines: %v", err)
+	}
+
+	if len(machineList.Items) < 1 {
+		return nil, nil
+	}
+
+	var nodeNames []types.NodeName
+	for _, machine := range machineList.Items {
+		if machine.Status.NodeRef != nil {
+			nodeNames = append(nodeNames, types.NodeName(machine.Status.NodeRef.Name))
+		}
+	}
+	if len(nodeNames) < 1 {
+		return nil, nil
+	}
+	return nodeNames, nil
 }
 
 // This is set so the fake client can be used for unit test. See:
