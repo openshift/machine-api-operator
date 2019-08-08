@@ -18,3 +18,25 @@ spec:
             severity: critical
           annotations:
             message: "machine {{ $labels.name }} does not have valid node reference"
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  labels:
+    prometheus: k8s
+    role: alert-rules
+  name: machineapioperator-rules
+  namespace: openshift-machine-api
+spec:
+  groups:
+    - name: general.rules
+      rules:
+        - alert: MachineMAOMetricsDown
+          expr: |
+             mapi_mao_collector_up == 0
+          for: 3m
+          labels:
+            severity: critical
+          annotations:
+            message: "machine api MAO metric {{ $labels.kind }} is not being reported"
