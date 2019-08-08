@@ -30,6 +30,15 @@ const (
 	clusterOperatorName = "machine-api"
 )
 
+var (
+	// This is to be compliant with
+	// https://github.com/openshift/cluster-version-operator/blob/b57ee63baf65f7cb6e95a8b2b304d88629cfe3c0/docs/dev/clusteroperator.md#what-should-an-operator-report-with-clusteroperator-custom-resource
+	// When known hazardous states for upgrades are determined
+	// specific "Upgradeable=False" status can be added with messages for how admins
+	// can resolve it.
+	operatorUpgradeable = newClusterOperatorStatusCondition(osconfigv1.OperatorUpgradeable, osconfigv1.ConditionTrue, "", "")
+)
+
 // statusProgressing sets the Progressing condition to True, with the given
 // reason and message, and sets both the Available and Degraded conditions to
 // False.
@@ -64,6 +73,7 @@ func (optr *Operator) statusProgressing() error {
 		newClusterOperatorStatusCondition(osconfigv1.OperatorProgressing, isProgressing, string(ReasonSyncing), message),
 		newClusterOperatorStatusCondition(osconfigv1.OperatorAvailable, osconfigv1.ConditionTrue, "", ""),
 		newClusterOperatorStatusCondition(osconfigv1.OperatorDegraded, osconfigv1.ConditionFalse, "", ""),
+		operatorUpgradeable,
 	}
 
 	return optr.syncStatus(co, conds)
@@ -77,6 +87,7 @@ func (optr *Operator) statusAvailable() error {
 			fmt.Sprintf("Cluster Machine API Operator is available at %s", optr.printOperandVersions())),
 		newClusterOperatorStatusCondition(osconfigv1.OperatorProgressing, osconfigv1.ConditionFalse, "", ""),
 		newClusterOperatorStatusCondition(osconfigv1.OperatorDegraded, osconfigv1.ConditionFalse, "", ""),
+		operatorUpgradeable,
 	}
 
 	co, err := optr.getOrCreateClusterOperator()
@@ -114,6 +125,7 @@ func (optr *Operator) statusDegraded(error string) error {
 			string(ReasonSyncFailed), message),
 		newClusterOperatorStatusCondition(osconfigv1.OperatorProgressing, osconfigv1.ConditionFalse, "", ""),
 		newClusterOperatorStatusCondition(osconfigv1.OperatorAvailable, osconfigv1.ConditionTrue, "", ""),
+		operatorUpgradeable,
 	}
 
 	co, err := optr.getOrCreateClusterOperator()
