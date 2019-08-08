@@ -384,7 +384,7 @@
 
 [[projects]]
   branch = "openshift-4.2-cluster-api-0.1.0"
-  digest = "1:1fd0478928373af6be747a9191b2f60179ded98f612d33200fbd7521aea5f4df"
+  digest = "1:2ccd67b04d2483877ff0c4bdf59a3e7124de72dde98a7391bdfea314f420316f"
   name = "github.com/openshift/cluster-api"
   packages = [
     "pkg/apis/cluster/common",
@@ -405,7 +405,7 @@
     "pkg/client/listers_generated/machine/v1beta1",
   ]
   pruneopts = "NUT"
-  revision = "e911af77e9a33cfb45f82ba9778876d715cdb4ea"
+  revision = "f8de78af80fcecf1fd69e35005b591dc9e1df61a"
 
 [[projects]]
   branch = "master"
@@ -1266,6 +1266,7 @@
     "k8s.io/client-go/tools/leaderelection/resourcelock",
     "k8s.io/client-go/tools/record",
     "k8s.io/client-go/util/flowcontrol",
+    "k8s.io/client-go/util/retry",
     "k8s.io/client-go/util/workqueue",
     "k8s.io/code-generator/cmd/client-gen",
     "k8s.io/code-generator/cmd/conversion-gen",
