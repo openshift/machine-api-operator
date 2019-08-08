@@ -8,9 +8,20 @@ import (
 )
 
 var baremetalConfigmap = "metal3-config"
+var sharedVolume = "metal3-shared"
+
+var volumes = []corev1.Volume{
+	{
+		Name: sharedVolume,
+		VolumeSource: corev1.VolumeSource{
+			EmptyDir: &corev1.EmptyDirVolumeSource{},
+		},
+	},
+}
+
 var volumeMounts = []corev1.VolumeMount{
 	{
-		Name:      "metal3-shared",
+		Name:      sharedVolume,
 		MountPath: "/shared",
 	},
 }
@@ -103,6 +114,7 @@ func newMetal3PodTemplateSpec(config *OperatorConfig) *corev1.PodTemplateSpec {
 			},
 		},
 		Spec: corev1.PodSpec{
+			Volumes:           volumes,
 			InitContainers:    initContainers,
 			Containers:        containers,
 			PriorityClassName: "system-node-critical",
