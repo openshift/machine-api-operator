@@ -122,7 +122,7 @@ func newMetal3PodTemplateSpec(config *OperatorConfig) *corev1.PodTemplateSpec {
 			SecurityContext: &corev1.PodSecurityContext{
 				RunAsNonRoot: pointer.BoolPtr(false),
 			},
-			ServiceAccountName: "metal3-controller",
+			ServiceAccountName: "machine-api-controllers",
 			Tolerations:        tolerations,
 		},
 	}
