@@ -117,6 +117,7 @@ func newMetal3PodTemplateSpec(config *OperatorConfig) *corev1.PodTemplateSpec {
 			Volumes:           volumes,
 			InitContainers:    initContainers,
 			Containers:        containers,
+			HostNetwork:       true,
 			PriorityClassName: "system-node-critical",
 			NodeSelector:      map[string]string{"node-role.kubernetes.io/master": ""},
 			SecurityContext: &corev1.PodSecurityContext{
