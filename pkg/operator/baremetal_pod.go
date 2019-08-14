@@ -377,7 +377,7 @@ func createContainerMetal3StaticIpManager(config *OperatorConfig) corev1.Contain
 	container := corev1.Container{
 		Name:            "metal3-static-ip-manager",
 		Image:           config.BaremetalControllers.IronicStaticIpManager,
-		Command:         []string{"/bin/refresh-static-ip"},
+		Command:         []string{"/refresh-static-ip"},
 		ImagePullPolicy: "Always",
 		SecurityContext: &corev1.SecurityContext{
 			Privileged: pointer.BoolPtr(true),
