@@ -232,7 +232,6 @@ func newMetal3Containers(config *OperatorConfig) []corev1.Container {
 	containers = append(containers, createContainerMetal3Httpd(config))
 	containers = append(containers, createContainerMetal3IronicConductor(config))
 	containers = append(containers, createContainerMetal3IronicApi(config))
-	containers = append(containers, createContainerMetal3IronicExporter(config))
 	containers = append(containers, createContainerMetal3IronicInspector(config))
 	containers = append(containers, createContainerMetal3StaticIpManager(config))
 	return containers
@@ -325,26 +324,6 @@ func createContainerMetal3IronicApi(config *OperatorConfig) corev1.Container {
 			Privileged: pointer.BoolPtr(true),
 		},
 		Command:      []string{"/bin/runironic-api"},
-		VolumeMounts: volumeMounts,
-		Env: []corev1.EnvVar{
-			setMariadbPassword(),
-			setEnvVar("HTTP_PORT", "http_port"),
-			setEnvVar("PROVISIONING_INTERFACE", "provisioning_interface"),
-		},
-	}
-	return container
-}
-
-func createContainerMetal3IronicExporter(config *OperatorConfig) corev1.Container {
-
-	container := corev1.Container{
-		Name:            "metal3-ironic-exporter",
-		Image:           config.BaremetalControllers.Ironic,
-		ImagePullPolicy: "Always",
-		SecurityContext: &corev1.SecurityContext{
-			Privileged: pointer.BoolPtr(true),
-		},
-		Command:      []string{"/bin/runironic-exporter"},
 		VolumeMounts: volumeMounts,
 		Env: []corev1.EnvVar{
 			setMariadbPassword(),
