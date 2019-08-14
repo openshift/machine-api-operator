@@ -14,8 +14,8 @@ data:
       "clusterAPIControllerAzure": "quay.io/openshift/origin-azure-machine-controllers:v4.0.0",
       "clusterAPIControllerGCP": "quay.io/openshift/origin-gcp-machine-controllers:v4.0.0",
       "baremetalOperator": "quay.io/openshift/origin-baremetal-operator:v4.2.0",
-      "baremetalIronic": "quay.io/openshift/origin-ironic-image:v4.2.0",
-      "baremetalIronicInspector": "quay.io/openshift/origin-ironic-inspector-image:v4.2.0",
+      "baremetalIronic": "quay.io/openshift/origin-ironic:v4.2.0",
+      "baremetalIronicInspector": "quay.io/openshift/origin-ironic-inspector:v4.2.0",
       "baremetalIpaDownloader": "quay.io/openshift/origin-ironic-ipa-downloader:v4.2.0",
       "baremetalRhcosDownloader": "quay.io/openshift/origin-ironic-rhcos-downloader:v4.2.0",
       "baremetalStaticIpManager": "quay.io/openshift/origin-ironic-static-ip-manager:v4.2.0"
