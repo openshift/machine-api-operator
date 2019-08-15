@@ -186,54 +186,53 @@ func createInitContainerStaticIpSet(config *OperatorConfig) corev1.Container {
 }
 
 func newMetal3Containers(config *OperatorConfig) []corev1.Container {
-	//Starting off with the metal3-baremetal-operator container
-	containers := []corev1.Container{
-		{
-			Name:  "metal3-baremetal-operator",
-			Image: config.BaremetalControllers.BaremetalOperator,
-			Ports: []corev1.ContainerPort{
-				{
-					Name:          "metrics",
-					ContainerPort: 60000,
-				},
-			},
-			Command:         []string{"/baremetal-operator"},
-			ImagePullPolicy: "Always",
-			Env: []corev1.EnvVar{
-				{
-					Name: "WATCH_NAMESPACE",
-					ValueFrom: &corev1.EnvVarSource{
-						FieldRef: &corev1.ObjectFieldSelector{
-							FieldPath: "metadata.namespace",
-						},
-					},
-				},
-				{
-					Name: "POD_NAME",
-					ValueFrom: &corev1.EnvVarSource{
-						FieldRef: &corev1.ObjectFieldSelector{
-							FieldPath: "metadata.name",
-						},
-					},
-				},
-				{
-					Name:  "OPERATOR_NAME",
-					Value: "baremetal-operator",
-				},
-				setEnvVar("DEPLOY_KERNEL_URL", "deploy_kernel_url"),
-				setEnvVar("DEPLOY_RAMDISK_URL", "deploy_ramdisk_url"),
-				setEnvVar("IRONIC_ENDPOINT", "ironic_endpoint"),
-				setEnvVar("IRONIC_INSPECTOR_ENDPOINT", "ironic_inspector_endpoint"),
+	containers := []corev1.Container{}
+	bmoContainer := corev1.Container{
+		Name:  "metal3-baremetal-operator",
+		Image: config.BaremetalControllers.BaremetalOperator,
+		Ports: []corev1.ContainerPort{
+			{
+				Name:          "metrics",
+				ContainerPort: 60000,
 			},
 		},
+		Command:         []string{"/baremetal-operator"},
+		ImagePullPolicy: "Always",
+		Env: []corev1.EnvVar{
+			{
+				Name: "WATCH_NAMESPACE",
+				ValueFrom: &corev1.EnvVarSource{
+					FieldRef: &corev1.ObjectFieldSelector{
+						FieldPath: "metadata.namespace",
+					},
+				},
+			},
+			{
+				Name: "POD_NAME",
+				ValueFrom: &corev1.EnvVarSource{
+					FieldRef: &corev1.ObjectFieldSelector{
+						FieldPath: "metadata.name",
+					},
+				},
+			},
+			{
+				Name:  "OPERATOR_NAME",
+				Value: "baremetal-operator",
+			},
+			setEnvVar("DEPLOY_KERNEL_URL", "deploy_kernel_url"),
+			setEnvVar("DEPLOY_RAMDISK_URL", "deploy_ramdisk_url"),
+			setEnvVar("IRONIC_ENDPOINT", "ironic_endpoint"),
+			setEnvVar("IRONIC_INSPECTOR_ENDPOINT", "ironic_inspector_endpoint"),
+		},
 	}
+	containers = append(containers, createContainerMetal3StaticIpManager(config))
 	containers = append(containers, createContainerMetal3Dnsmasq(config))
 	containers = append(containers, createContainerMetal3Mariadb(config))
 	containers = append(containers, createContainerMetal3Httpd(config))
 	containers = append(containers, createContainerMetal3IronicConductor(config))
 	containers = append(containers, createContainerMetal3IronicApi(config))
 	containers = append(containers, createContainerMetal3IronicInspector(config))
-	containers = append(containers, createContainerMetal3StaticIpManager(config))
+	containers = append(containers, bmoContainer)
 	return containers
 }
 
