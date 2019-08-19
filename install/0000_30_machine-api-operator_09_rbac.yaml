@@ -55,6 +55,8 @@ rules:
       - list
       - watch
       - create
+      - update
+      - patch
 
   - apiGroups:
       - ""
