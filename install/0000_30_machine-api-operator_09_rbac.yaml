@@ -83,6 +83,8 @@ rules:
       - metal3.io
     resources:
       - baremetalhosts
+      - baremetalhosts/status
+      - baremetalhosts/finalizers
     verbs:
       - get
       - list
