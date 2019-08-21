@@ -57,6 +57,7 @@ rules:
       - create
       - update
       - patch
+      - delete
 
   - apiGroups:
       - ""
@@ -69,7 +70,7 @@ rules:
       - patch
 
   - apiGroups:
-      - metalkube.org
+      - metal3.io
     resources:
       - baremetalhosts
     verbs:
@@ -82,16 +83,10 @@ rules:
   - apiGroups:
       - metal3.io
     resources:
-      - baremetalhosts
       - baremetalhosts/status
       - baremetalhosts/finalizers
     verbs:
-      - get
-      - list
-      - watch
       - update
-      - patch
-
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
