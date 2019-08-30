@@ -417,7 +417,7 @@ func (r *ReconcileNodeLink) findMachineFromNode(node *corev1.Node) (*mapiv1beta1
 
 	machine, err = r.findMachineFromNodeByIP(node)
 	if err != nil {
-		return nil, fmt.Errorf("failed to find node from machine %q by internal IP: %v", machine.GetName(), err)
+		return nil, fmt.Errorf("failed to find machine from node %q by internal IP: %v", node.GetName(), err)
 	}
 	return machine, nil
 }

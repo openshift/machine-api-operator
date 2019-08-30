@@ -2,8 +2,10 @@ package nodelink
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -768,5 +770,38 @@ func TestUpdateNodeRef(t *testing.T) {
 		if !reflect.DeepEqual(got.Status.NodeRef, tc.nodeRef) {
 			t.Errorf("Expected: %v, got: %v", tc.nodeRef, got.Status.NodeRef)
 		}
+	}
+}
+
+func TestFindMachineFromNodeDoesNotPanicBZ1747246(t *testing.T) {
+	testMachine := machine("matchingInternalIP", "test", []corev1.NodeAddress{
+		{
+			Type:    corev1.NodeInternalIP,
+			Address: "matchingInternalIP",
+		},
+	}, nil)
+
+	testNode := node("matchingInternalIP", "", []corev1.NodeAddress{
+		{
+			Type:    corev1.NodeInternalIP,
+			Address: "matchingInternalIP",
+		},
+	}, nil)
+
+	// In BZ #1747246 we experienced a panic with a nil pointer
+	// dereference when formatting the error message. This test is
+	// to ensure we don't regress having fixed it by deliberately
+	// failing in listMachinesByFieldFunc().
+	r := newFakeReconciler(fake.NewFakeClientWithScheme(scheme.Scheme, testMachine, testNode), testMachine, testNode)
+
+	// Intercept to force a known failure.
+	errmsg := "BZ#1747246"
+	r.listMachinesByFieldFunc = func(key, value string) ([]mapiv1beta1.Machine, error) {
+		return nil, errors.New(errmsg)
+	}
+
+	_, err := r.findMachineFromNode(testNode)
+	if err == nil || !strings.Contains(err.Error(), errmsg) {
+		t.Errorf("expected error to contain %q, got %v", errmsg, err)
 	}
 }
