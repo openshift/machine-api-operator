@@ -185,6 +185,18 @@ func (optr *Operator) getOrCreateClusterOperator() (*osconfigv1.ClusterOperator,
 			Resource: "namespaces",
 			Name:     optr.namespace,
 		},
+		{
+			Group:     "machine.openshift.io",
+			Resource:  "machines",
+			Name:      "",
+			Namespace: optr.namespace,
+		},
+		{
+			Group:     "machine.openshift.io",
+			Resource:  "machinesets",
+			Name:      "",
+			Namespace: optr.namespace,
+		},
 	}
 	if !equality.Semantic.DeepEqual(co.Status.RelatedObjects, relatedObjects) {
 		co.Status.RelatedObjects = relatedObjects
