@@ -177,6 +177,12 @@ func TestGetOrCreateClusterOperator(t *testing.T) {
 							Name:      "",
 							Namespace: namespace,
 						},
+						{
+							Group:     "metal3.io",
+							Resource:  "baremetalhosts",
+							Name:      "",
+							Namespace: namespace,
+						},
 					},
 				},
 			},
@@ -210,6 +216,12 @@ func TestGetOrCreateClusterOperator(t *testing.T) {
 						{
 							Group:     "machine.openshift.io",
 							Resource:  "machinesets",
+							Name:      "",
+							Namespace: namespace,
+						},
+						{
+							Group:     "metal3.io",
+							Resource:  "baremetalhosts",
 							Name:      "",
 							Namespace: namespace,
 						},

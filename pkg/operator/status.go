@@ -197,6 +197,12 @@ func (optr *Operator) getOrCreateClusterOperator() (*osconfigv1.ClusterOperator,
 			Name:      "",
 			Namespace: optr.namespace,
 		},
+		{
+			Group:     "metal3.io",
+			Resource:  "baremetalhosts",
+			Name:      "",
+			Namespace: optr.namespace,
+		},
 	}
 	if !equality.Semantic.DeepEqual(co.Status.RelatedObjects, relatedObjects) {
 		co.Status.RelatedObjects = relatedObjects
