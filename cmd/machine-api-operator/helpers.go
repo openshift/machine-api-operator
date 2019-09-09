@@ -23,7 +23,7 @@ const (
 	// RetryPeriod is the default duration for the leader electrion retrial.
 	RetryPeriod = 30 * time.Second
 
-	minResyncPeriod = 10 * time.Minute
+	minResyncPeriod = 20 * time.Minute
 )
 
 func resyncPeriod() func() time.Duration {

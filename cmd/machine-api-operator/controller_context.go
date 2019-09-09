@@ -1,11 +1,8 @@
 package main
 
 import (
-	"time"
-
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions"
 	machineinformersv1beta1 "github.com/openshift/cluster-api/pkg/client/informers_generated/externalversions"
-
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/informers"
 )
@@ -23,8 +20,6 @@ type ControllerContext struct {
 	Stop <-chan struct{}
 
 	InformersStarted chan struct{}
-
-	ResyncPeriod func() time.Duration
 }
 
 // CreateControllerContext creates the ControllerContext with the ClientBuilder.
@@ -45,6 +40,5 @@ func CreateControllerContext(cb *ClientBuilder, stop <-chan struct{}, targetName
 
 		Stop:             stop,
 		InformersStarted: make(chan struct{}),
-		ResyncPeriod:     resyncPeriod(),
 	}
 }
