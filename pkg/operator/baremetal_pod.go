@@ -4,6 +4,7 @@ import (
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/pointer"
 )
 
@@ -329,6 +330,10 @@ func createContainerMetal3IronicApi(config *OperatorConfig) corev1.Container {
 			setMariadbPassword(),
 			setEnvVar("HTTP_PORT", "http_port"),
 			setEnvVar("PROVISIONING_INTERFACE", "provisioning_interface"),
+		},
+		LivenessProbe: &corev1.Probe{
+			Handler:             corev1.Handler{HTTPGet: &corev1.HTTPGetAction{Port: intstr.FromInt(6385)}},
+			InitialDelaySeconds: 10,
 		},
 	}
 	return container
