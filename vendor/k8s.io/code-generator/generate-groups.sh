@@ -24,15 +24,12 @@ set -o pipefail
 if [ "$#" -lt 4 ] || [ "${1}" == "--help" ]; then
   cat <<EOF
 Usage: $(basename "$0") <generators> <output-package> <apis-package> <groups-versions> ...
-
   <generators>        the generators comma separated to run (deepcopy,defaulter,client,lister,informer) or "all".
   <output-package>    the output package name (e.g. github.com/example/project/pkg/generated).
   <apis-package>      the external types dir (e.g. github.com/example/api or github.com/example/project/pkg/apis).
   <groups-versions>   the groups and their versions in the format "groupA:v1,v2 groupB:v1 groupC:v2", relative
                       to <api-package>.
   ...                 arbitrary flags passed to all generator binaries.
-
-
 Examples:
   $(basename "$0") all             github.com/example/project/pkg/client github.com/example/project/pkg/apis "foo:v1 bar:v1alpha1,v1beta1"
   $(basename "$0") deepcopy,client github.com/example/project/pkg/client github.com/example/project/pkg/apis "foo:v1 bar:v1alpha1,v1beta1"
