@@ -4,6 +4,14 @@ VERSION     ?= $(shell git describe --always --abbrev=7)
 MUTABLE_TAG ?= latest
 IMAGE        = $(REGISTRY)machine-api-operator
 
+# Enable go modules and vendoring
+# https://github.com/golang/go/wiki/Modules#how-to-install-and-activate-module-support
+# https://github.com/golang/go/wiki/Modules#how-do-i-use-vendoring-with-modules-is-vendoring-going-away
+GO111MODULE = on
+export GO111MODULE
+GOFLAGS ?= -mod=vendor
+export GOFLAGS
+
 ifeq ($(DBG),1)
 GOGCFLAGS ?= -gcflags=all="-N -l"
 endif
@@ -16,9 +24,15 @@ ifeq ($(NO_DOCKER), 1)
   DOCKER_CMD =
   IMAGE_BUILD_CMD = imagebuilder
 else
-  DOCKER_CMD := docker run --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z -w /go/src/github.com/openshift/machine-api-operator golang:1.12
+  DOCKER_CMD := docker run --env GO111MODULE=$(GO111MODULE) --env GOFLAGS=$(GOFLAGS) --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z -w /go/src/github.com/openshift/machine-api-operator golang:1.12
   IMAGE_BUILD_CMD = docker build
 endif
+
+.PHONY: vendor
+vendor:
+	go mod tidy
+	go mod vendor
+	go mod verify
 
 .PHONY: check
 check: lint fmt vet verify-codegen check-pkg test ## Run code validations
@@ -85,7 +99,7 @@ deploy-kubemark:
 .PHONY: test
 test: ## Run tests
 	@echo -e "\033[32mTesting...\033[0m"
-	$(DOCKER_CMD) go test ./...
+	$(DOCKER_CMD) go test ./pkg/... ./cmd/...
 
 .PHONY: image
 image: ## Build docker image
