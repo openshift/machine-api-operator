@@ -1,3 +1,4 @@
+---
 apiVersion: apps/v1beta2
 kind: Deployment
 metadata:
@@ -23,8 +24,6 @@ spec:
         args:
         - "--secure-listen-address=0.0.0.0:8443"
         - "--upstream=http://localhost:8080/"
-        - "--tls-cert-file=/etc/tls/private/tls.crt"
-        - "--tls-private-key-file=/etc/tls/private/tls.key"
         - "--config-file=/etc/kube-rbac-proxy/config-file.yaml"
         - "--logtostderr=true"
         - "--v=10"
@@ -34,8 +33,6 @@ spec:
         volumeMounts:
         - name: config
           mountPath: /etc/kube-rbac-proxy
-        - mountPath: /etc/tls/private
-          name: machine-api-operator-tls
       - name: machine-api-operator
         image: docker.io/openshift/origin-machine-api-operator:v4.0.0
         command:
@@ -85,7 +82,4 @@ spec:
           name: kube-rbac-proxy
       - name: images
         configMap:
-                name: machine-api-operator-images
-      - name: machine-api-operator-tls
-        secret:
-          secretName: machine-api-operator-tls
+          name: machine-api-operator-images
