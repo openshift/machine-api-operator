@@ -14,6 +14,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# This is a snapshot of https://github.com/kubernetes/code-generator/blob/50b561225d70b3eb79a1faafd3dfe7b1a62cbe73/generate-groups.sh
+
 set -o errexit
 set -o nounset
 set -o pipefail

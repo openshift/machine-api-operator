@@ -25,9 +25,14 @@ CODEGEN_PKG=${CODEGEN_PKG:-$(cd "${SCRIPT_ROOT}"; ls -d -1 ./vendor/k8s.io/code-
 # --output-base    because this script should also be able to run inside the vendor dir of
 #                  k8s.io/kubernetes. The output-base is needed for the generators to output into the vendor dir
 #                  instead of the $GOPATH directly. For normal projects this can be dropped.
+
+# go modules do not bring this file so we create a runtime symbolic link from our copy.
+cp "${SCRIPT_ROOT}"/hack/generate-groups.sh "${CODEGEN_PKG}"/generate-groups.sh
 "${CODEGEN_PKG}"/generate-groups.sh "deepcopy,client" \
   github.com/openshift/machine-api-operator/pkg/generated \
   github.com/openshift/machine-api-operator/pkg/apis \
   healthchecking:v1alpha1 \
   --output-base "$(dirname "${BASH_SOURCE[0]}")/../../../.." \
   --go-header-file "${SCRIPT_ROOT}"/hack/boilerplate.go.txt
+
+rm -f "${CODEGEN_PKG}"/generate-groups.sh
