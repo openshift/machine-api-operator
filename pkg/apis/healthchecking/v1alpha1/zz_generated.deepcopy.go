@@ -57,7 +57,7 @@ func (in *MachineDisruptionBudget) DeepCopyObject() runtime.Object {
 func (in *MachineDisruptionBudgetList) DeepCopyInto(out *MachineDisruptionBudgetList) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
-	out.ListMeta = in.ListMeta
+	in.ListMeta.DeepCopyInto(&out.ListMeta)
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
 		*out = make([]MachineDisruptionBudget, len(*in))
@@ -172,7 +172,7 @@ func (in *MachineHealthCheck) DeepCopyObject() runtime.Object {
 func (in *MachineHealthCheckList) DeepCopyInto(out *MachineHealthCheckList) {
 	*out = *in
 	out.TypeMeta = in.TypeMeta
-	out.ListMeta = in.ListMeta
+	in.ListMeta.DeepCopyInto(&out.ListMeta)
 	if in.Items != nil {
 		in, out := &in.Items, &out.Items
 		*out = make([]MachineHealthCheck, len(*in))
