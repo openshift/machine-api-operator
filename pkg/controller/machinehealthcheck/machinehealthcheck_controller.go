@@ -201,11 +201,12 @@ func (r *ReconcileMachineHealthCheck) getNodeNamesForMHC(mhc healthcheckingv1alp
 	}
 	options := client.ListOptions{
 		LabelSelector: selector,
+		Namespace:     mhc.GetNamespace(),
 	}
 
 	if err := r.client.List(context.Background(),
 		machineList,
-		client.UseListOptions(options.InNamespace(mhc.GetNamespace()))); err != nil {
+		&options); err != nil {
 		return nil, fmt.Errorf("failed to list machines: %v", err)
 	}
 

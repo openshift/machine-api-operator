@@ -1,9 +1,9 @@
+
+---
 apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   creationTimestamp: null
-  labels:
-    controller-tools.k8s.io: "1.0"
   name: machinesets.machine.openshift.io
 spec:
   additionalPrinterColumns:
@@ -30,8 +30,10 @@ spec:
   group: machine.openshift.io
   names:
     kind: MachineSet
+    listKind: MachineSetList
     plural: machinesets
-  scope: Namespaced
+    singular: machineset
+  scope: ""
   subresources:
     scale:
       labelSelectorPath: .status.labelSelector
@@ -40,20 +42,24 @@ spec:
     status: {}
   validation:
     openAPIV3Schema:
+      description: / [MachineSet] MachineSet ensures that a specified number of machines
+        replicas are running at any given time.
       properties:
         apiVersion:
           description: 'APIVersion defines the versioned schema of this representation
             of an object. Servers should convert recognized schemas to the latest
-            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#resources'
+            internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
           type: string
         kind:
           description: 'Kind is a string value representing the REST resource this
             object represents. Servers may infer this from the endpoint the client
-            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#types-kinds'
+            submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
           type: string
         metadata:
           type: object
         spec:
+          description: / [MachineSetSpec] MachineSetSpec defines the desired state
+            of MachineSet
           properties:
             deletePolicy:
               description: DeletePolicy defines the policy used to identify nodes
@@ -81,6 +87,46 @@ spec:
                 the replica count. Label keys and values that must match in order
                 to be controlled by this MachineSet. It must match the machine template''s
                 labels. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors'
+              properties:
+                matchExpressions:
+                  description: matchExpressions is a list of label selector requirements.
+                    The requirements are ANDed.
+                  items:
+                    description: A label selector requirement is a selector that contains
+                      values, a key, and an operator that relates the key and values.
+                    properties:
+                      key:
+                        description: key is the label key that the selector applies
+                          to.
+                        type: string
+                      operator:
+                        description: operator represents a key's relationship to a
+                          set of values. Valid operators are In, NotIn, Exists and
+                          DoesNotExist.
+                        type: string
+                      values:
+                        description: values is an array of string values. If the operator
+                          is In or NotIn, the values array must be non-empty. If the
+                          operator is Exists or DoesNotExist, the values array must
+                          be empty. This array is replaced during a strategic merge
+                          patch.
+                        items:
+                          type: string
+                        type: array
+                    required:
+                    - key
+                    - operator
+                    type: object
+                  type: array
+                matchLabels:
+                  additionalProperties:
+                    type: string
+                  description: matchLabels is a map of {key,value} pairs. A single
+                    {key,value} in the matchLabels map is equivalent to an element
+                    of matchExpressions, whose key field is "key", the operator is
+                    "In", and the values array contains only "value". The requirements
+                    are ANDed.
+                  type: object
               type: object
             template:
               description: Template is the object that describes the machine that
@@ -137,16 +183,40 @@ spec:
                         manually remove the taint the machine controller will put
                         it back) but not have the machine controller remove any taints
                       items:
+                        description: The node this Taint is attached to has the "effect"
+                          on any pod that does not tolerate the Taint.
+                        properties:
+                          effect:
+                            description: Required. The effect of the taint on pods
+                              that do not tolerate the taint. Valid effects are NoSchedule,
+                              PreferNoSchedule and NoExecute.
+                            type: string
+                          key:
+                            description: Required. The taint key to be applied to
+                              a node.
+                            type: string
+                          timeAdded:
+                            description: TimeAdded represents the time at which the
+                              taint was added. It is only written for NoExecute taints.
+                            format: date-time
+                            type: string
+                          value:
+                            description: Required. The taint value corresponding to
+                              the taint key.
+                            type: string
+                        required:
+                        - effect
+                        - key
                         type: object
                       type: array
-                  required:
-                  - providerSpec
                   type: object
               type: object
           required:
           - selector
           type: object
         status:
+          description: / [MachineSetStatus] MachineSetStatus defines the observed
+            state of MachineSet
           properties:
             availableReplicas:
               description: The number of available replicas (ready for at least minReadySeconds)
@@ -156,11 +226,11 @@ spec:
             errorMessage:
               type: string
             errorReason:
-              description: In the event that there is a terminal problem reconciling
+              description: "In the event that there is a terminal problem reconciling
                 the replicas, both ErrorReason and ErrorMessage will be set. ErrorReason
                 will be populated with a succinct value suitable for machine interpretation,
                 while ErrorMessage will contain a more verbose string suitable for
-                logging and human consumption.  These fields should not be set for
+                logging and human consumption. \n These fields should not be set for
                 transitive errors that a controller faces that are expected to be
                 fixed automatically over time (like service outages), but instead
                 indicate that something is fundamentally wrong with the MachineTemplate's
@@ -168,9 +238,9 @@ spec:
                 intervention is required. Examples of terminal errors would be invalid
                 combinations of settings in the spec, values that are unsupported
                 by the machine controller, or the responsible machine controller itself
-                being critically misconfigured.  Any transient errors that occur during
-                the reconciliation of Machines can be added as events to the MachineSet
-                object and/or logged in the controller's output.
+                being critically misconfigured. \n Any transient errors that occur
+                during the reconciliation of Machines can be added as events to the
+                MachineSet object and/or logged in the controller's output."
               type: string
             fullyLabeledReplicas:
               description: The number of replicas that have labels matching the labels
@@ -194,7 +264,12 @@ spec:
           required:
           - replicas
           type: object
+      type: object
   version: v1beta1
+  versions:
+  - name: v1beta1
+    served: true
+    storage: true
 status:
   acceptedNames:
     kind: ""
