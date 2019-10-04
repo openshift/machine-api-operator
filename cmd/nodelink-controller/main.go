@@ -36,7 +36,10 @@ func main() {
 		klog.Fatal(err)
 	}
 
-	opts := manager.Options{}
+	opts := manager.Options{
+		// Disable metrics serving
+		MetricsBindAddress: "0",
+	}
 	if *watchNamespace != "" {
 		opts.Namespace = *watchNamespace
 		klog.Infof("Watching machine-api objects only in namespace %q for reconciliation.", opts.Namespace)
