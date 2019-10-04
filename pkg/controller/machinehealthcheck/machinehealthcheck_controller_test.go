@@ -103,7 +103,7 @@ func TestGetNodeCondition(t *testing.T) {
 		{
 			node: maotesting.NewNode("doesNotHaveCondition", true),
 			condition: &corev1.NodeCondition{
-				Type:   corev1.NodeDiskPressure,
+				Type:   corev1.NodeOutOfDisk,
 				Status: corev1.ConditionTrue,
 			},
 			expected: nil,

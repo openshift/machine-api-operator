@@ -84,7 +84,7 @@ func (c *fakeClient) Get(ctx context.Context, key client.ObjectKey, obj runtime.
 	return err
 }
 
-func (c *fakeClient) List(ctx context.Context, obj runtime.Object, opts ...client.ListOption) error {
+func (c *fakeClient) List(ctx context.Context, obj runtime.Object, opts ...client.ListOptionFunc) error {
 	gvk, err := apiutil.GVKForObject(obj, c.scheme)
 	if err != nil {
 		return err
@@ -131,7 +131,7 @@ func (c *fakeClient) List(ctx context.Context, obj runtime.Object, opts ...clien
 	return nil
 }
 
-func (c *fakeClient) Create(ctx context.Context, obj runtime.Object, opts ...client.CreateOption) error {
+func (c *fakeClient) Create(ctx context.Context, obj runtime.Object, opts ...client.CreateOptionFunc) error {
 	createOptions := &client.CreateOptions{}
 	createOptions.ApplyOptions(opts)
 
@@ -152,7 +152,7 @@ func (c *fakeClient) Create(ctx context.Context, obj runtime.Object, opts ...cli
 	return c.tracker.Create(gvr, obj, accessor.GetNamespace())
 }
 
-func (c *fakeClient) Delete(ctx context.Context, obj runtime.Object, opts ...client.DeleteOption) error {
+func (c *fakeClient) Delete(ctx context.Context, obj runtime.Object, opts ...client.DeleteOptionFunc) error {
 	gvr, err := getGVRFromObject(obj, c.scheme)
 	if err != nil {
 		return err
@@ -161,50 +161,11 @@ func (c *fakeClient) Delete(ctx context.Context, obj runtime.Object, opts ...cli
 	if err != nil {
 		return err
 	}
-	delOptions := client.DeleteOptions{}
-	delOptions.ApplyOptions(opts)
-
 	//TODO: implement propagation
 	return c.tracker.Delete(gvr, accessor.GetNamespace(), accessor.GetName())
 }
 
-func (c *fakeClient) DeleteAllOf(ctx context.Context, obj runtime.Object, opts ...client.DeleteAllOfOption) error {
-	gvk, err := apiutil.GVKForObject(obj, scheme.Scheme)
-	if err != nil {
-		return err
-	}
-
-	dcOptions := client.DeleteAllOfOptions{}
-	dcOptions.ApplyOptions(opts)
-
-	gvr, _ := meta.UnsafeGuessKindToResource(gvk)
-	o, err := c.tracker.List(gvr, gvk, dcOptions.Namespace)
-	if err != nil {
-		return err
-	}
-
-	objs, err := meta.ExtractList(o)
-	if err != nil {
-		return err
-	}
-	filteredObjs, err := objectutil.FilterWithLabels(objs, dcOptions.LabelSelector)
-	if err != nil {
-		return err
-	}
-	for _, o := range filteredObjs {
-		accessor, err := meta.Accessor(o)
-		if err != nil {
-			return err
-		}
-		err = c.tracker.Delete(gvr, accessor.GetNamespace(), accessor.GetName())
-		if err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
-func (c *fakeClient) Update(ctx context.Context, obj runtime.Object, opts ...client.UpdateOption) error {
+func (c *fakeClient) Update(ctx context.Context, obj runtime.Object, opts ...client.UpdateOptionFunc) error {
 	updateOptions := &client.UpdateOptions{}
 	updateOptions.ApplyOptions(opts)
 
@@ -225,7 +186,7 @@ func (c *fakeClient) Update(ctx context.Context, obj runtime.Object, opts ...cli
 	return c.tracker.Update(gvr, obj, accessor.GetNamespace())
 }
 
-func (c *fakeClient) Patch(ctx context.Context, obj runtime.Object, patch client.Patch, opts ...client.PatchOption) error {
+func (c *fakeClient) Patch(ctx context.Context, obj runtime.Object, patch client.Patch, opts ...client.PatchOptionFunc) error {
 	patchOptions := &client.PatchOptions{}
 	patchOptions.ApplyOptions(opts)
 
@@ -283,13 +244,13 @@ type fakeStatusWriter struct {
 	client *fakeClient
 }
 
-func (sw *fakeStatusWriter) Update(ctx context.Context, obj runtime.Object, opts ...client.UpdateOption) error {
+func (sw *fakeStatusWriter) Update(ctx context.Context, obj runtime.Object, opts ...client.UpdateOptionFunc) error {
 	// TODO(droot): This results in full update of the obj (spec + status). Need
 	// a way to update status field only.
 	return sw.client.Update(ctx, obj, opts...)
 }
 
-func (sw *fakeStatusWriter) Patch(ctx context.Context, obj runtime.Object, patch client.Patch, opts ...client.PatchOption) error {
+func (sw *fakeStatusWriter) Patch(ctx context.Context, obj runtime.Object, patch client.Patch, opts ...client.PatchOptionFunc) error {
 	// TODO(droot): This results in full update of the obj (spec + status). Need
 	// a way to update status field only.
 	return sw.client.Patch(ctx, obj, patch, opts...)

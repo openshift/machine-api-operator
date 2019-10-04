@@ -30,7 +30,7 @@ type typedClient struct {
 }
 
 // Create implements client.Client
-func (c *typedClient) Create(ctx context.Context, obj runtime.Object, opts ...CreateOption) error {
+func (c *typedClient) Create(ctx context.Context, obj runtime.Object, opts ...CreateOptionFunc) error {
 	o, err := c.cache.getObjMeta(obj)
 	if err != nil {
 		return err
@@ -49,7 +49,7 @@ func (c *typedClient) Create(ctx context.Context, obj runtime.Object, opts ...Cr
 }
 
 // Update implements client.Client
-func (c *typedClient) Update(ctx context.Context, obj runtime.Object, opts ...UpdateOption) error {
+func (c *typedClient) Update(ctx context.Context, obj runtime.Object, opts ...UpdateOptionFunc) error {
 	o, err := c.cache.getObjMeta(obj)
 	if err != nil {
 		return err
@@ -69,47 +69,25 @@ func (c *typedClient) Update(ctx context.Context, obj runtime.Object, opts ...Up
 }
 
 // Delete implements client.Client
-func (c *typedClient) Delete(ctx context.Context, obj runtime.Object, opts ...DeleteOption) error {
+func (c *typedClient) Delete(ctx context.Context, obj runtime.Object, opts ...DeleteOptionFunc) error {
 	o, err := c.cache.getObjMeta(obj)
 	if err != nil {
 		return err
 	}
 
 	deleteOpts := DeleteOptions{}
-	deleteOpts.ApplyOptions(opts)
-
 	return o.Delete().
 		NamespaceIfScoped(o.GetNamespace(), o.isNamespaced()).
 		Resource(o.resource()).
 		Name(o.GetName()).
-		Body(deleteOpts.AsDeleteOptions()).
-		Context(ctx).
-		Do().
-		Error()
-}
-
-// DeleteAllOf implements client.Client
-func (c *typedClient) DeleteAllOf(ctx context.Context, obj runtime.Object, opts ...DeleteAllOfOption) error {
-	o, err := c.cache.getObjMeta(obj)
-	if err != nil {
-		return err
-	}
-
-	deleteAllOfOpts := DeleteAllOfOptions{}
-	deleteAllOfOpts.ApplyOptions(opts)
-
-	return o.Delete().
-		NamespaceIfScoped(deleteAllOfOpts.ListOptions.Namespace, o.isNamespaced()).
-		Resource(o.resource()).
-		VersionedParams(deleteAllOfOpts.AsListOptions(), c.paramCodec).
-		Body(deleteAllOfOpts.AsDeleteOptions()).
+		Body(deleteOpts.ApplyOptions(opts).AsDeleteOptions()).
 		Context(ctx).
 		Do().
 		Error()
 }
 
 // Patch implements client.Client
-func (c *typedClient) Patch(ctx context.Context, obj runtime.Object, patch Patch, opts ...PatchOption) error {
+func (c *typedClient) Patch(ctx context.Context, obj runtime.Object, patch Patch, opts ...PatchOptionFunc) error {
 	o, err := c.cache.getObjMeta(obj)
 	if err != nil {
 		return err
@@ -146,7 +124,7 @@ func (c *typedClient) Get(ctx context.Context, key ObjectKey, obj runtime.Object
 }
 
 // List implements client.Client
-func (c *typedClient) List(ctx context.Context, obj runtime.Object, opts ...ListOption) error {
+func (c *typedClient) List(ctx context.Context, obj runtime.Object, opts ...ListOptionFunc) error {
 	r, err := c.cache.getResource(obj)
 	if err != nil {
 		return err
@@ -163,7 +141,7 @@ func (c *typedClient) List(ctx context.Context, obj runtime.Object, opts ...List
 }
 
 // UpdateStatus used by StatusWriter to write status.
-func (c *typedClient) UpdateStatus(ctx context.Context, obj runtime.Object, opts ...UpdateOption) error {
+func (c *typedClient) UpdateStatus(ctx context.Context, obj runtime.Object, opts ...UpdateOptionFunc) error {
 	o, err := c.cache.getObjMeta(obj)
 	if err != nil {
 		return err
@@ -185,7 +163,7 @@ func (c *typedClient) UpdateStatus(ctx context.Context, obj runtime.Object, opts
 }
 
 // PatchStatus used by StatusWriter to write status.
-func (c *typedClient) PatchStatus(ctx context.Context, obj runtime.Object, patch Patch, opts ...PatchOption) error {
+func (c *typedClient) PatchStatus(ctx context.Context, obj runtime.Object, patch Patch, opts ...PatchOptionFunc) error {
 	o, err := c.cache.getObjMeta(obj)
 	if err != nil {
 		return err

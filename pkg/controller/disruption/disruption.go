@@ -394,7 +394,7 @@ func (r *ReconcileMachineDisruption) getMachinesForMachineDisruptionBudget(mdb *
 		Namespace:     mdb.Namespace,
 		LabelSelector: sel,
 	}
-	err = r.client.List(context.TODO(), machines, listOptions)
+	err = r.client.List(context.TODO(), machines, client.UseListOptions(listOptions))
 	if err != nil {
 		return nil, err
 	}
