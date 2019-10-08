@@ -10,7 +10,7 @@ require (
 	github.com/imdario/mergo v0.3.7 // indirect
 	github.com/openshift/api v3.9.1-0.20190517100836-d5b34b957e91+incompatible
 	github.com/openshift/client-go v0.0.0-20190617165122-8892c0adc000
-	github.com/openshift/cluster-api v0.0.0-20191003080455-24cfb34ea1f9
+	github.com/openshift/cluster-api v0.0.0-20191007125355-b2c5ded524d4
 	github.com/openshift/cluster-version-operator v3.11.1-0.20190629164025-08cac1c02538+incompatible
 	github.com/operator-framework/operator-sdk v0.5.1-0.20190301204940-c2efe6f74e7b
 	github.com/prometheus/client_golang v1.0.0
