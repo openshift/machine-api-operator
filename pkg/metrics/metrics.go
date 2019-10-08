@@ -15,7 +15,7 @@ var (
 	// MachineSetCountDesc Count of machineset object count at the apiserver
 	MachineSetCountDesc = prometheus.NewDesc("mapi_machineset_items", "Count of machinesets at the apiserver", nil, nil)
 	// MachineInfoDesc is a metric about machine object info in the cluster
-	MachineInfoDesc = prometheus.NewDesc("mapi_machine_created_timestamp_seconds", "Timestamp of the mapi managed Machine creation time", []string{"name", "namespace", "spec_provider_id", "node", "api_version"}, nil)
+	MachineInfoDesc = prometheus.NewDesc("mapi_machine_created_timestamp_seconds", "Timestamp of the mapi managed Machine creation time", []string{"name", "namespace", "spec_provider_id", "node", "api_version", "phase"}, nil)
 	// MachineSetInfoDesc is a metric about machine object info in the cluster
 	MachineSetInfoDesc = prometheus.NewDesc("mapi_machineset_created_timestamp_seconds", "Timestamp of the mapi managed Machineset creation time", []string{"name", "namespace", "api_version"}, nil)
 
@@ -76,14 +76,7 @@ func (mc MachineCollector) collectMachineMetrics(ch chan<- prometheus.Metric) {
 	MachineCollectorUp.With(prometheus.Labels{"kind": "mapi_machine_items"}).Set(float64(1))
 
 	for _, machine := range machineList {
-		mMeta := machine.ObjectMeta
-		typeMeta := machine.TypeMeta
-		mSpec := machine.Spec
-		providerid := ""
 		nodeName := ""
-		if mSpec.ProviderID != nil {
-			providerid = *mSpec.ProviderID
-		}
 		if machine.Status.NodeRef != nil {
 			nodeName = machine.Status.NodeRef.Name
 		}
@@ -91,14 +84,25 @@ func (mc MachineCollector) collectMachineMetrics(ch chan<- prometheus.Metric) {
 		ch <- prometheus.MustNewConstMetric(
 			MachineInfoDesc,
 			prometheus.GaugeValue,
-			float64(mMeta.GetCreationTimestamp().Time.Unix()),
-			mMeta.Name, mMeta.Namespace, providerid, nodeName, typeMeta.APIVersion,
+			float64(machine.ObjectMeta.GetCreationTimestamp().Time.Unix()),
+			machine.ObjectMeta.Name,
+			machine.ObjectMeta.Namespace,
+			stringPointerDeref(machine.Spec.ProviderID),
+			nodeName,
+			machine.TypeMeta.APIVersion,
+			stringPointerDeref(machine.Status.Phase),
 		)
 	}
 
 	ch <- prometheus.MustNewConstMetric(MachineCountDesc, prometheus.GaugeValue, float64(len(machineList)))
 	glog.V(4).Infof("collectmachineMetrics exit")
+}
 
+func stringPointerDeref(stringPointer *string) string {
+	if stringPointer != nil {
+		return *stringPointer
+	}
+	return ""
 }
 
 // collectMachineSetMetrics is method to collect machineSet related metrics.
