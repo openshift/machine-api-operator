@@ -18,6 +18,16 @@ spec:
             severity: critical
           annotations:
             message: "machine {{ $labels.name }} does not have valid node reference"
+    - name: machine-with-no-running-phase
+      rules:
+        - alert: MachineWithNoRunningPhase
+          expr: |
+            (mapi_machine_created_timestamp_seconds{phase!="Running"}) > 0
+          for: 10m
+          labels:
+            severity: critical
+          annotations:
+            message: "machine {{ $labels.name }} is in {{ $labels.phase }} phase"
     - name: machine-api-operator-metrics-collector-up
       rules:
         - alert: MachineAPIOperatorMetricsCollectionFailing
