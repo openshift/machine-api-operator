@@ -12,7 +12,7 @@ spec:
       rules:
         - alert: MachineWithoutValidNode
           expr: |
-             (mapi_machine_created unless on(node) kube_node_info) > 0
+             (mapi_machine_created_timestamp_seconds unless on(node) kube_node_info) > 0
           for: 10m
           labels:
             severity: critical
