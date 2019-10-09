@@ -305,11 +305,6 @@ func TestReconcileWithoutUnhealthyConditionsConfigMap(t *testing.T) {
 	testReconcile(t, 5*time.Minute)
 }
 
-func TestReconcileWithUnhealthyConditionsConfigMap(t *testing.T) {
-	cmBadConditions := maotesting.NewUnhealthyConditionsConfigMap(healthcheckingv1alpha1.ConfigMapNodeUnhealthyConditions, badConditionsData)
-	testReconcile(t, 1*time.Minute, cmBadConditions)
-}
-
 func TestHasMachineSetOwner(t *testing.T) {
 	machineWithMachineSet := maotesting.NewMachine("machineWithMachineSet", "node")
 	machineWithNoMachineSet := maotesting.NewMachine("machineWithNoMachineSet", "node")

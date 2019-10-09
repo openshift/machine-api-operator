@@ -145,7 +145,7 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 	for _, hc := range allMachineHealthChecks.Items {
 		if hasMatchingLabels(&hc, machine) {
 			glog.V(4).Infof("Machine %s has a matching machineHealthCheck: %s", machineKey, hc.Name)
-			return remediate(r, hc.Spec.RemediationStrategy, machine)
+			return remediate(r, &hc, machine)
 		}
 	}
 
@@ -239,7 +239,7 @@ func getMachineHealthCheckListOptions() *client.ListOptions {
 	}
 }
 
-func remediate(r *ReconcileMachineHealthCheck, remediationStrategy *healthcheckingv1alpha1.RemediationStrategyType, machine *mapiv1.Machine) (reconcile.Result, error) {
+func remediate(r *ReconcileMachineHealthCheck, mhc *healthcheckingv1alpha1.MachineHealthCheck, machine *mapiv1.Machine) (reconcile.Result, error) {
 	glog.Infof("Initialising remediation logic for machine %s", machine.Name)
 	if !hasMachineSetOwner(*machine) {
 		glog.Infof("Machine %s has no machineSet controller owner, skipping remediation", machine.Name)
@@ -256,23 +256,13 @@ func remediate(r *ReconcileMachineHealthCheck, remediationStrategy *healthchecki
 		return reconcile.Result{}, err
 	}
 
-	cmUnhealtyConditions, err := getUnhealthyConditionsConfigMap(r)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-
-	nodeUnhealthyConditions, err := conditions.GetNodeUnhealthyConditions(node, cmUnhealtyConditions)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-
 	var result *reconcile.Result
 	var minimalConditionTimeout time.Duration
 	minimalConditionTimeout = 0
-	for _, c := range nodeUnhealthyConditions {
-		nodeCondition := conditions.GetNodeCondition(node, c.Name)
+	for _, c := range mhc.Spec.UnhealthyConditions {
+		nodeCondition := conditions.GetNodeCondition(node, c.Type)
 		// skip when current node condition is different from the one reported in the config map
-		if nodeCondition == nil || !isConditionsStatusesEqual(nodeCondition, &c) {
+		if nodeCondition == nil || nodeCondition.Status != c.Status {
 			continue
 		}
 
@@ -291,6 +281,8 @@ func remediate(r *ReconcileMachineHealthCheck, remediationStrategy *healthchecki
 				glog.Warning(err)
 				return reconcile.Result{Requeue: true, RequeueAfter: time.Minute}, nil
 			}
+
+			remediationStrategy := mhc.Spec.RemediationStrategy
 
 			if remediationStrategy != nil && *remediationStrategy == remediationStrategyReboot {
 				return r.remediationStrategyReboot(machine, node)
@@ -354,38 +346,6 @@ func (r *ReconcileMachineHealthCheck) remediationStrategyReboot(machine *mapiv1.
 		return reconcile.Result{}, err
 	}
 	return reconcile.Result{}, nil
-}
-
-func getUnhealthyConditionsConfigMap(r *ReconcileMachineHealthCheck) (*corev1.ConfigMap, error) {
-	cmUnhealtyConditions := &corev1.ConfigMap{}
-	cmKey := types.NamespacedName{
-		Name:      healthcheckingv1alpha1.ConfigMapNodeUnhealthyConditions,
-		Namespace: r.namespace,
-	}
-	err := r.client.Get(context.TODO(), cmKey, cmUnhealtyConditions)
-	if err != nil {
-		// Error reading the object - requeue the request
-		if !errors.IsNotFound(err) {
-			return nil, err
-		}
-
-		// creates dummy config map with default values if it does not exist
-		cmUnhealtyConditions, err = conditions.CreateDummyUnhealthyConditionsConfigMap()
-		if err != nil {
-			return nil, err
-		}
-		glog.Infof(
-			"ConfigMap %s not found under the namespace %s, fallback to default values: %s",
-			healthcheckingv1alpha1.ConfigMapNodeUnhealthyConditions,
-			r.namespace,
-			cmUnhealtyConditions.Data["conditions"],
-		)
-	}
-	return cmUnhealtyConditions, nil
-}
-
-func isConditionsStatusesEqual(cond *corev1.NodeCondition, unhealthyCond *conditions.UnhealthyCondition) bool {
-	return cond.Status == unhealthyCond.Status
 }
 
 func getNodeFromMachine(machine mapiv1.Machine, client client.Client) (*corev1.Node, error) {

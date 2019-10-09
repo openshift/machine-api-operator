@@ -138,23 +138,19 @@ func NewMachineHealthCheck(name string) *healthcheckingv1alpha1.MachineHealthChe
 		},
 		Spec: healthcheckingv1alpha1.MachineHealthCheckSpec{
 			Selector: *NewSelectorFooBar(),
+			UnhealthyConditions: []healthcheckingv1alpha1.UnhealthyCondition{
+				{
+					Type:    "Ready",
+					Status:  "Unknown",
+					Timeout: "300s",
+				},
+				{
+					Type:    "Ready",
+					Status:  "False",
+					Timeout: "300s",
+				},
+			},
 		},
 		Status: healthcheckingv1alpha1.MachineHealthCheckStatus{},
-	}
-}
-
-// NewUnhealthyConditionsConfigMap returns new config map object with unhealthy conditions
-func NewUnhealthyConditionsConfigMap(name string, data string) *corev1.ConfigMap {
-	return &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: Namespace,
-		},
-		TypeMeta: metav1.TypeMeta{
-			Kind: "ConfigMap",
-		},
-		Data: map[string]string{
-			"conditions": data,
-		},
 	}
 }
