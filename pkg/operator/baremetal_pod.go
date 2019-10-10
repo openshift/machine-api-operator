@@ -1,18 +1,28 @@
 package operator
 
 import (
+	"math/rand"
+	"time"
+
+	"github.com/golang/glog"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	coreclientv1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/utils/pointer"
 )
 
-var baremetalConfigmap = "metal3-config"
-var sharedVolume = "metal3-shared"
+const (
+	baremetalConfigmap    = "metal3-config"
+	baremetalSharedVolume = "metal3-shared"
+	baremetalSecretName   = "metal3-mariadb-password"
+	baremetalSecretKey    = "password"
+)
 
 var volumes = []corev1.Volume{
 	{
-		Name: sharedVolume,
+		Name: baremetalSharedVolume,
 		VolumeSource: corev1.VolumeSource{
 			EmptyDir: &corev1.EmptyDirVolumeSource{},
 		},
@@ -21,7 +31,7 @@ var volumes = []corev1.Volume{
 
 var volumeMounts = []corev1.VolumeMount{
 	{
-		Name:      sharedVolume,
+		Name:      baremetalSharedVolume,
 		MountPath: "/shared",
 	},
 }
@@ -46,12 +56,46 @@ func setMariadbPassword() corev1.EnvVar {
 		ValueFrom: &corev1.EnvVarSource{
 			SecretKeyRef: &corev1.SecretKeySelector{
 				LocalObjectReference: corev1.LocalObjectReference{
-					Name: "mariadb-password",
+					Name: baremetalSecretName,
 				},
-				Key: "password",
+				Key: baremetalSecretKey,
 			},
 		},
 	}
+}
+
+func generateRandomPassword() string {
+	rand.Seed(time.Now().UnixNano())
+	chars := []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
+		"abcdefghijklmnopqrstuvwxyz" +
+		"0123456789")
+	length := 16
+	buf := make([]rune, length)
+	for i := range buf {
+		buf[i] = chars[rand.Intn(len(chars))]
+	}
+	return (string(buf))
+}
+
+func createMariadbPasswordSecret(client coreclientv1.SecretsGetter, config *OperatorConfig) error {
+	glog.V(3).Info("Checking if the Maridb password secret already exists")
+	_, err := client.Secrets(config.TargetNamespace).Get(baremetalSecretName, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		// Secret does not already exist. So, create one.
+		_, err := client.Secrets(config.TargetNamespace).Create(
+			&corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      baremetalSecretName,
+					Namespace: config.TargetNamespace,
+				},
+				StringData: map[string]string{
+					baremetalSecretKey: generateRandomPassword(),
+				},
+			},
+		)
+		return err
+	}
+	return err
 }
 
 func newMetal3Deployment(config *OperatorConfig) *appsv1.Deployment {
