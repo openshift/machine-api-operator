@@ -179,7 +179,7 @@ func newMetal3InitContainers(config *OperatorConfig) []corev1.Container {
 			Name:            "metal3-ipa-downloader",
 			Image:           config.BaremetalControllers.IronicIpaDownloader,
 			Command:         []string{"/usr/local/bin/get-resource.sh"},
-			ImagePullPolicy: "Always",
+			ImagePullPolicy: "IfNotPresent",
 			SecurityContext: &corev1.SecurityContext{
 				Privileged: pointer.BoolPtr(true),
 			},
@@ -199,7 +199,7 @@ func createInitContainerRhcosDownloader(config *OperatorConfig) corev1.Container
 		Name:            "metal3-rhcos-downloader",
 		Image:           config.BaremetalControllers.IronicRhcosDownloader,
 		Command:         []string{"/usr/local/bin/get-resource.sh"},
-		ImagePullPolicy: "Always",
+		ImagePullPolicy: "IfNotPresent",
 		SecurityContext: &corev1.SecurityContext{
 			Privileged: pointer.BoolPtr(true),
 		},
@@ -217,7 +217,7 @@ func createInitContainerStaticIpSet(config *OperatorConfig) corev1.Container {
 		Name:            "metal3-static-ip-set",
 		Image:           config.BaremetalControllers.IronicStaticIpManager,
 		Command:         []string{"/set-static-ip"},
-		ImagePullPolicy: "Always",
+		ImagePullPolicy: "IfNotPresent",
 		SecurityContext: &corev1.SecurityContext{
 			Privileged: pointer.BoolPtr(true),
 		},
@@ -242,7 +242,7 @@ func newMetal3Containers(config *OperatorConfig) []corev1.Container {
 				},
 			},
 			Command:         []string{"/baremetal-operator"},
-			ImagePullPolicy: "Always",
+			ImagePullPolicy: "IfNotPresent",
 			Env: []corev1.EnvVar{
 				{
 					Name: "WATCH_NAMESPACE",
@@ -286,7 +286,7 @@ func createContainerMetal3Dnsmasq(config *OperatorConfig) corev1.Container {
 	container := corev1.Container{
 		Name:            "metal3-dnsmasq",
 		Image:           config.BaremetalControllers.Ironic,
-		ImagePullPolicy: "Always",
+		ImagePullPolicy: "IfNotPresent",
 		SecurityContext: &corev1.SecurityContext{
 			Privileged: pointer.BoolPtr(true),
 		},
@@ -306,7 +306,7 @@ func createContainerMetal3Mariadb(config *OperatorConfig) corev1.Container {
 	container := corev1.Container{
 		Name:            "metal3-mariadb",
 		Image:           config.BaremetalControllers.Ironic,
-		ImagePullPolicy: "Always",
+		ImagePullPolicy: "IfNotPresent",
 		SecurityContext: &corev1.SecurityContext{
 			Privileged: pointer.BoolPtr(true),
 		},
@@ -324,7 +324,7 @@ func createContainerMetal3Httpd(config *OperatorConfig) corev1.Container {
 	container := corev1.Container{
 		Name:            "metal3-httpd",
 		Image:           config.BaremetalControllers.Ironic,
-		ImagePullPolicy: "Always",
+		ImagePullPolicy: "IfNotPresent",
 		SecurityContext: &corev1.SecurityContext{
 			Privileged: pointer.BoolPtr(true),
 		},
@@ -343,7 +343,7 @@ func createContainerMetal3IronicConductor(config *OperatorConfig) corev1.Contain
 	container := corev1.Container{
 		Name:            "metal3-ironic-conductor",
 		Image:           config.BaremetalControllers.Ironic,
-		ImagePullPolicy: "Always",
+		ImagePullPolicy: "IfNotPresent",
 		SecurityContext: &corev1.SecurityContext{
 			Privileged: pointer.BoolPtr(true),
 		},
@@ -363,7 +363,7 @@ func createContainerMetal3IronicApi(config *OperatorConfig) corev1.Container {
 	container := corev1.Container{
 		Name:            "metal3-ironic-api",
 		Image:           config.BaremetalControllers.Ironic,
-		ImagePullPolicy: "Always",
+		ImagePullPolicy: "IfNotPresent",
 		SecurityContext: &corev1.SecurityContext{
 			Privileged: pointer.BoolPtr(true),
 		},
@@ -383,7 +383,7 @@ func createContainerMetal3IronicInspector(config *OperatorConfig) corev1.Contain
 	container := corev1.Container{
 		Name:            "metal3-ironic-inspector",
 		Image:           config.BaremetalControllers.IronicInspector,
-		ImagePullPolicy: "Always",
+		ImagePullPolicy: "IfNotPresent",
 		SecurityContext: &corev1.SecurityContext{
 			Privileged: pointer.BoolPtr(true),
 		},
@@ -401,7 +401,7 @@ func createContainerMetal3StaticIpManager(config *OperatorConfig) corev1.Contain
 		Name:            "metal3-static-ip-manager",
 		Image:           config.BaremetalControllers.IronicStaticIpManager,
 		Command:         []string{"/refresh-static-ip"},
-		ImagePullPolicy: "Always",
+		ImagePullPolicy: "IfNotPresent",
 		SecurityContext: &corev1.SecurityContext{
 			Privileged: pointer.BoolPtr(true),
 		},
