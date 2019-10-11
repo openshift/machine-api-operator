@@ -24,13 +24,13 @@ resources:
 - install/0000_30_machine-api-operator_02_machine.crd.yaml
 - install/0000_30_machine-api-operator_03_machineset.crd.yaml
 - install/0000_30_machine-api-operator_07_machinehealthcheck.crd.yaml
+- install/0000_30_machine-api-operator_08_baremetalhost.crd.yaml
 - install/0000_30_machine-api-operator_08_machinedisruptionbudget.crd.yaml
 - install/0000_30_machine-api-operator_09_rbac.yaml
 - install/0000_30_machine-api-operator_10_kube-rbac-proxy-config.yaml
 - install/0000_30_machine-api-operator_10_service.yaml
 - config/machine-api-operator-deployment.yaml
 - install/0000_30_machine-api-operator_12_clusteroperator.yaml
-
 
 patches:
 - config/machine-api-operator-patch.yaml
