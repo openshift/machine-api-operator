@@ -1,6 +1,7 @@
 package v1alpha1
 
 import (
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -43,8 +44,39 @@ type MachineHealthCheckSpec struct {
 	// default is machine deletion
 	// +optional
 	RemediationStrategy *RemediationStrategyType `json:"remediationStrategy,omitempty"`
+
 	// Label selector to match machines whose health will be exercised
 	Selector metav1.LabelSelector `json:"selector"`
+
+	// UnhealthyConditions contains a list of the conditions that determine
+	// whether a node is considered unhealthy.  The conditions are combined in a
+	// logical OR, i.e. if any of the conditions is met, the node is unhealthy.
+	//
+	// +kubebuilder:validation:MinItems=1
+	UnhealthyConditions []UnhealthyCondition `json:"unhealthyConditions"`
+}
+
+// UnhealthyCondition represents a Node condition type and value with a timeout
+// specified as a duration.  When the named condition has been in the given
+// status for at least the timeout value, a node is considered unhealthy.
+type UnhealthyCondition struct {
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:MinLength=1
+	Type corev1.NodeConditionType `json:"type"`
+
+	// +kubebuilder:validation:Type=string
+	// +kubebuilder:validation:MinLength=1
+	Status corev1.ConditionStatus `json:"status"`
+
+	// It would be preferable for timeout to be a metav1.Duration, but there's
+	// no good way to validate the format here.  Invalid input would cause
+	// problems with marshaling, so it's better to just make it a string and
+	// handle the conversion in the controller.
+	//
+	// Intentional blank line to keep this out of the OpenAPI description...
+
+	// +kubebuilder:validation:MinLength=1
+	Timeout string `json:"timeout"`
 }
 
 // MachineHealthCheckStatus defines the observed state of MachineHealthCheck
