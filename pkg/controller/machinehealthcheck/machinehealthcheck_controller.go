@@ -2,24 +2,21 @@ package machinehealthcheck
 
 import (
 	"context"
-	golangerrors "errors"
 	"fmt"
 	"time"
 
 	"github.com/golang/glog"
 	mapiv1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
-	"github.com/openshift/machine-api-operator/pkg/controller/disruption"
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
-
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apimachineryerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	apimachineryutilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/client-go/tools/cache"
-
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -29,17 +26,22 @@ import (
 )
 
 const (
-	machineAnnotationKey       = "machine.openshift.io/machine"
-	machineRebootAnnotationKey = "healthchecking.openshift.io/machine-remediation-reboot"
-	ownerControllerKind        = "MachineSet"
-	remediationStrategyReboot  = healthcheckingv1alpha1.RemediationStrategyType("reboot")
+	machineAnnotationKey        = "machine.openshift.io/machine"
+	machineRebootAnnotationKey  = "healthchecking.openshift.io/machine-remediation-reboot"
+	ownerControllerKind         = "MachineSet"
+	nodeMasterLabel             = "node-role.kubernetes.io/master"
+	machineRoleLabel            = "machine.openshift.io/cluster-api-machine-role"
+	machineMasterRole           = "master"
+	machinePhaseFailed          = "Failed"
+	remediationStrategyReboot   = healthcheckingv1alpha1.RemediationStrategyType("reboot")
+	timeoutForMachineToHaveNode = 10 * time.Minute
 )
 
 // Add creates a new MachineHealthCheck Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and start it when the Manager is started.
 func Add(mgr manager.Manager, opts manager.Options) error {
 	r := newReconciler(mgr, opts)
-	return add(mgr, r, r.nodeRequestsFromMachineHealthCheck)
+	return add(mgr, r, r.mhcRequestsFromMachine, r.mhcRequestsFromNode)
 }
 
 // newReconciler returns a new reconcile.Reconciler
@@ -52,22 +54,23 @@ func newReconciler(mgr manager.Manager, opts manager.Options) *ReconcileMachineH
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
-func add(mgr manager.Manager, r reconcile.Reconciler, mapFn handler.ToRequestsFunc) error {
-	// Create a new controller
+func add(mgr manager.Manager, r reconcile.Reconciler, mapMachineToMHC, mapNodeToMHC handler.ToRequestsFunc) error {
 	c, err := controller.New("machinehealthcheck-controller", mgr, controller.Options{Reconciler: r})
 	if err != nil {
 		return err
 	}
 
-	// Watch MachineHealthChecks and enqueue reconcile.Request for the backed nodes.
-	// This is useful to trigger remediation when a machineHealCheck is created against
-	// a node which is already unhealthy and is not able to receive status updates.
-	err = c.Watch(&source.Kind{Type: &healthcheckingv1alpha1.MachineHealthCheck{}}, &handler.EnqueueRequestsFromMapFunc{ToRequests: mapFn})
+	err = c.Watch(&source.Kind{Type: &healthcheckingv1alpha1.MachineHealthCheck{}}, &handler.EnqueueRequestForObject{})
 	if err != nil {
 		return err
 	}
 
-	return c.Watch(&source.Kind{Type: &corev1.Node{}}, &handler.EnqueueRequestForObject{})
+	err = c.Watch(&source.Kind{Type: &mapiv1.Machine{}}, &handler.EnqueueRequestsFromMapFunc{ToRequests: mapMachineToMHC})
+	if err != nil {
+		return err
+	}
+
+	return c.Watch(&source.Kind{Type: &corev1.Node{}}, &handler.EnqueueRequestsFromMapFunc{ToRequests: mapNodeToMHC})
 }
 
 var _ reconcile.Reconciler = &ReconcileMachineHealthCheck{}
@@ -81,259 +84,232 @@ type ReconcileMachineHealthCheck struct {
 	namespace string
 }
 
-// Reconcile reads that state of the cluster for MachineHealthCheck, machine and nodes objects and makes changes based on the state read
-// and what is in the MachineHealthCheck.Spec
-// Note:
-// The Controller will requeue the Request to be processed again if the returned error is non-nil or
-// Result.Requeue is true, otherwise upon completion it will remove the work from the queue.
+type target struct {
+	Machine mapiv1.Machine
+	Node    *corev1.Node
+	MHC     healthcheckingv1alpha1.MachineHealthCheck
+}
+
+// Reconcile fetch all targets for a MachineHealthCheck request and does health checking for each of them
 func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	glog.Infof("Reconciling MachineHealthCheck triggered by %s/%s\n", request.Namespace, request.Name)
+	glog.Infof("Reconciling %s", request.String())
 
-	// Get node from request
-	node := &corev1.Node{}
-	err := r.client.Get(context.TODO(), request.NamespacedName, node)
-	glog.V(4).Infof("Reconciling, getting node %v", node.Name)
-	if err != nil {
-		if errors.IsNotFound(err) {
+	mhc := &healthcheckingv1alpha1.MachineHealthCheck{}
+	if err := r.client.Get(context.TODO(), request.NamespacedName, mhc); err != nil {
+		if apimachineryerrors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
-			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
-			// Return and don't requeue
 			return reconcile.Result{}, nil
 		}
-		// Error reading the object - requeue the request.
+		glog.Errorf("Reconciling %s: failed to get MHC: %v", request.String(), err)
 		return reconcile.Result{}, err
 	}
 
-	machineKey, ok := node.Annotations[machineAnnotationKey]
-	if !ok {
-		glog.Warningf("No machine annotation for node %s", node.Name)
-		return reconcile.Result{}, nil
-	}
-
-	glog.Infof("Node %s is annotated with machine %s", node.Name, machineKey)
-	machine := &mapiv1.Machine{}
-	namespace, machineName, err := cache.SplitMetaNamespaceKey(machineKey)
+	glog.V(3).Infof("Reconciling %s: finding targets", request.String())
+	targets, err := r.getTargetsFromMHC(*mhc)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
-	key := &types.NamespacedName{
-		Namespace: namespace,
-		Name:      machineName,
-	}
-	err = r.client.Get(context.TODO(), *key, machine)
-	if err != nil {
-		if errors.IsNotFound(err) {
-			glog.Warningf("machine %s not found", machineKey)
-			// Request object not found, could have been deleted after reconcile request.
-			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
-			// Return and don't requeue
-			return reconcile.Result{}, nil
+
+	// TODO: short circuit logic goes here:
+	// Count all unhealthy targets, compare with allowed API field and update status
+	var nextCheckTimes []time.Duration
+	var errList []error
+	for _, t := range targets {
+		glog.V(3).Infof("Reconciling %s: health checking", t.string())
+		unhealthy, nextCheck, err := t.isUnhealthy()
+		if err != nil {
+			glog.Errorf("Reconciling %s: error health checking: %v", t.string(), err)
+			errList = append(errList, err)
+			continue
 		}
-		// Error reading the object - requeue the request.
-		glog.Errorf("error getting machine %s. Error: %v. Requeuing...", machineKey, err)
-		return reconcile.Result{}, err
-	}
 
-	// If the current machine matches any existing MachineHealthCheck CRD
-	allMachineHealthChecks := &healthcheckingv1alpha1.MachineHealthCheckList{}
-	err = r.client.List(context.Background(), allMachineHealthChecks)
-	if err != nil {
-		glog.Errorf("failed to list MachineHealthChecks, %v", err)
-		return reconcile.Result{}, err
-	}
-
-	for _, hc := range allMachineHealthChecks.Items {
-		if hasMatchingLabels(&hc, machine) {
-			glog.V(4).Infof("Machine %s has a matching machineHealthCheck: %s", machineKey, hc.Name)
-			return remediate(r, &hc, machine)
+		if unhealthy {
+			glog.V(3).Infof("Reconciling %s: meet unhealthy criteria, triggers remediation", t.string())
+			if err := r.remediate(t); err != nil {
+				glog.Errorf("Reconciling %s: error remediating: %v", t.string(), err)
+				errList = append(errList, err)
+			}
+			continue
+		}
+		if nextCheck > 0 {
+			glog.V(3).Infof("Reconciling %s: is likely to go unhealthy in %v", t.string(), nextCheck)
+			nextCheckTimes = append(nextCheckTimes, nextCheck)
 		}
 	}
 
-	glog.Infof("Machine %s has no MachineHealthCheck associated", machineName)
+	if len(errList) > 0 {
+		requeueError := apimachineryutilerrors.NewAggregate(errList)
+		glog.V(3).Infof("Reconciling %s: there were errors, requeuing: %v", request.String(), requeueError)
+		return reconcile.Result{}, requeueError
+	}
+
+	if minNextCheck := minDuration(nextCheckTimes); minNextCheck > 0 {
+		glog.V(3).Infof("Reconciling %s: some targets might go unhealthy. Ensuring a requeue happens in %v", request.String(), minNextCheck)
+		return reconcile.Result{RequeueAfter: minNextCheck}, nil
+	}
+
+	glog.V(3).Infof("Reconciling %s: no targets meet unhealthy criteria", request.String())
 	return reconcile.Result{}, nil
 }
 
-func (r *ReconcileMachineHealthCheck) nodeRequestsFromMachineHealthCheck(o handler.MapObject) []reconcile.Request {
-	glog.V(3).Infof("Watched machineHealthCheck event, finding nodes to reconcile.Request...")
-	mhc := &healthcheckingv1alpha1.MachineHealthCheck{}
-	if err := r.client.Get(
-		context.Background(),
-		client.ObjectKey{
-			Namespace: o.Meta.GetNamespace(),
-			Name:      o.Meta.GetName(),
-		},
-		mhc,
-	); err != nil {
-		glog.Errorf("No-op: Unable to retrieve mhc %s/%s from store: %v", o.Meta.GetNamespace(), o.Meta.GetName(), err)
-		return []reconcile.Request{}
-	}
-
-	if mhc.DeletionTimestamp != nil {
-		glog.V(3).Infof("No-op: mhc %q is being deleted", o.Meta.GetName())
-		return []reconcile.Request{}
-	}
-
-	// get nodes covered by then mhc
-	nodeNames, err := r.getNodeNamesForMHC(*mhc)
+func (r *ReconcileMachineHealthCheck) getTargetsFromMHC(mhc healthcheckingv1alpha1.MachineHealthCheck) ([]target, error) {
+	machines, err := r.getMachinesFromMHC(mhc)
 	if err != nil {
-		glog.Errorf("No-op: failed to get nodes for mhc %q", o.Meta.GetName())
-		return []reconcile.Request{}
+		return nil, fmt.Errorf("error getting machines from MHC: %v", err)
 	}
-	if nodeNames != nil {
-		var requests []reconcile.Request
-		for _, nodeName := range nodeNames {
-			// convert to namespacedName to satisfy type Request struct
-			nodeNamespacedName := client.ObjectKey{
-				Name: string(nodeName),
-			}
-			requests = append(requests, reconcile.Request{NamespacedName: nodeNamespacedName})
+	if len(machines) == 0 {
+		return nil, nil
+	}
+
+	var targets []target
+	for k := range machines {
+		target := target{
+			MHC:     mhc,
+			Machine: machines[k],
 		}
-		return requests
+		node, err := r.getNodeFromMachine(machines[k])
+		if err != nil {
+			if !apimachineryerrors.IsNotFound(err) {
+				return nil, fmt.Errorf("error getting node: %v", err)
+			}
+			// a node with only a name represents a
+			// not found node in the target
+			node.Name = machines[k].Status.NodeRef.Name
+		}
+		target.Node = node
+		targets = append(targets, target)
 	}
-	return []reconcile.Request{}
+	return targets, nil
 }
 
-func (r *ReconcileMachineHealthCheck) getNodeNamesForMHC(mhc healthcheckingv1alpha1.MachineHealthCheck) ([]types.NodeName, error) {
-	machineList := &mapiv1.MachineList{}
+func (r *ReconcileMachineHealthCheck) getMachinesFromMHC(mhc healthcheckingv1alpha1.MachineHealthCheck) ([]mapiv1.Machine, error) {
 	selector, err := metav1.LabelSelectorAsSelector(&mhc.Spec.Selector)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build selector")
 	}
+
 	options := client.ListOptions{
 		LabelSelector: selector,
 		Namespace:     mhc.GetNamespace(),
 	}
-
-	if err := r.client.List(context.Background(),
-		machineList,
-		&options); err != nil {
+	machineList := &mapiv1.MachineList{}
+	if err := r.client.List(context.Background(), machineList, &options); err != nil {
 		return nil, fmt.Errorf("failed to list machines: %v", err)
 	}
-
-	if len(machineList.Items) < 1 {
-		return nil, nil
-	}
-
-	var nodeNames []types.NodeName
-	for _, machine := range machineList.Items {
-		if machine.Status.NodeRef != nil {
-			nodeNames = append(nodeNames, types.NodeName(machine.Status.NodeRef.Name))
-		}
-	}
-	if len(nodeNames) < 1 {
-		return nil, nil
-	}
-	return nodeNames, nil
+	return machineList.Items, nil
 }
 
-// This is set so the fake client can be used for unit test. See:
-// https://github.com/kubernetes-sigs/controller-runtime/issues/168
-func getMachineHealthCheckListOptions() *client.ListOptions {
-	return &client.ListOptions{
-		Raw: &metav1.ListOptions{
-			TypeMeta: metav1.TypeMeta{
-				APIVersion: "healthchecking.openshift.io/v1alpha1",
-				Kind:       "MachineHealthCheck",
-			},
-		},
+func (r *ReconcileMachineHealthCheck) getMachineFromNode(node corev1.Node) (*mapiv1.Machine, error) {
+	machineKey, ok := node.Annotations[machineAnnotationKey]
+	if !ok {
+		glog.V(4).Infof("no machine annotation for node %s", node.GetName())
+		return nil, nil
 	}
-}
+	glog.V(4).Infof("Node %s is annotated with machine %s", node.GetName(), machineKey)
 
-func remediate(r *ReconcileMachineHealthCheck, mhc *healthcheckingv1alpha1.MachineHealthCheck, machine *mapiv1.Machine) (reconcile.Result, error) {
-	glog.Infof("Initialising remediation logic for machine %s", machine.Name)
-	if !hasMachineSetOwner(*machine) {
-		glog.Infof("Machine %s has no machineSet controller owner, skipping remediation", machine.Name)
-		return reconcile.Result{}, nil
-	}
-
-	node, err := getNodeFromMachine(*machine, r.client)
+	namespace, machineName, err := cache.SplitMetaNamespaceKey(machineKey)
 	if err != nil {
-		if errors.IsNotFound(err) {
-			glog.Warningf("Node %s not found for machine %s", node.Name, machine.Name)
-			return reconcile.Result{}, nil
-		}
-		// Error reading the object - requeue the request.
-		return reconcile.Result{}, err
+		return nil, fmt.Errorf("machine name has wrong format %v", machineKey)
 	}
-
-	var result *reconcile.Result
-	var minimalConditionTimeout time.Duration
-	minimalConditionTimeout = 0
-	for _, c := range mhc.Spec.UnhealthyConditions {
-		nodeCondition := conditions.GetNodeCondition(node, c.Type)
-		// skip when current node condition is different from the one reported in the config map
-		if nodeCondition == nil || nodeCondition.Status != c.Status {
-			continue
-		}
-
-		conditionTimeout, err := time.ParseDuration(c.Timeout)
-		if err != nil {
-			return reconcile.Result{}, err
-		}
-
-		// apply remediation logic, if at least one condition last more than specified timeout
-		// specific remediation logic goes here
-		if unhealthyForTooLong(nodeCondition, conditionTimeout) {
-			// do not fail immediatlty, but try again if the method fails because of the update conflict
-			if err = disruption.RetryDecrementMachineDisruptionsAllowed(r.client, machine); err != nil {
-				// if the error appears here it means that machine healthcheck operation restricted by machine
-				// disruption budget, in this case we want to re-try after one minute
-				glog.Warning(err)
-				return reconcile.Result{Requeue: true, RequeueAfter: time.Minute}, nil
-			}
-
-			remediationStrategy := mhc.Spec.RemediationStrategy
-
-			if remediationStrategy != nil && *remediationStrategy == remediationStrategyReboot {
-				return r.remediationStrategyReboot(machine, node)
-			}
-			if isMaster(*machine, r.client) {
-				glog.Infof("The machine %s is a master node, skipping remediation", machine.Name)
-				return reconcile.Result{}, nil
-			}
-			glog.Infof("Machine %s has been unhealthy for too long, deleting", machine.Name)
-			if err := r.client.Delete(context.TODO(), machine); err != nil {
-				glog.Errorf("Failed to delete machine %s, requeuing referenced node", machine.Name)
-				return reconcile.Result{}, err
-			}
-			return reconcile.Result{}, nil
-		}
-
-		now := time.Now()
-		durationUnhealthy := now.Sub(nodeCondition.LastTransitionTime.Time)
-		glog.Warningf(
-			"Machine %s has unhealthy node %s with the condition %s and the timeout %s for %s. Requeuing...",
-			machine.Name,
-			node.Name,
-			nodeCondition.Type,
-			c.Timeout,
-			durationUnhealthy.String(),
-		)
-
-		// calculate the duration until the node will be unhealthy for too long
-		// and re-queue after with this timeout, add one second just to be sure
-		// that we will not enter this loop again before the node unhealthy for too long
-		unhealthyTooLongTimeout := conditionTimeout - durationUnhealthy + time.Second
-		// be sure that we will use timeout with the minimal value for the reconcile.Result
-		if minimalConditionTimeout == 0 || minimalConditionTimeout > unhealthyTooLongTimeout {
-			minimalConditionTimeout = unhealthyTooLongTimeout
-		}
-		result = &reconcile.Result{Requeue: true, RequeueAfter: minimalConditionTimeout}
+	machine := &mapiv1.Machine{}
+	if err = r.client.Get(
+		context.TODO(),
+		types.NamespacedName{
+			Namespace: namespace,
+			Name:      machineName,
+		},
+		machine,
+	); err != nil {
+		return nil, fmt.Errorf("error getting machine: %v", err)
 	}
-
-	// requeue
-	if result != nil {
-		return *result, nil
-	}
-
-	glog.Infof("No remediaton action was taken. Machine %s with node %v is healthy", machine.Name, node.Name)
-	return reconcile.Result{}, nil
+	return machine, nil
 }
 
-func (r *ReconcileMachineHealthCheck) remediationStrategyReboot(machine *mapiv1.Machine, node *corev1.Node) (reconcile.Result, error) {
+func (r *ReconcileMachineHealthCheck) mhcRequestsFromNode(o handler.MapObject) []reconcile.Request {
+	glog.V(4).Infof("Getting MHC requests from node %q", namespacedName(o.Meta).String())
+	node := &corev1.Node{}
+	if err := r.client.Get(context.Background(), namespacedName(o.Meta), node); err != nil {
+		glog.Errorf("No-op: Unable to retrieve node %q from store: %v", namespacedName(o.Meta).String(), err)
+		return nil
+	}
+	machine, err := r.getMachineFromNode(*node)
+	if machine == nil || err != nil {
+		glog.Errorf("No-op: Unable to retrieve machine from node %q: %v", namespacedName(node).String(), err)
+		return nil
+	}
+
+	mhcList := &healthcheckingv1alpha1.MachineHealthCheckList{}
+	if err := r.client.List(context.Background(), mhcList); err != nil {
+		glog.Errorf("No-op: Unable to list mhc: %v", err)
+		return nil
+	}
+
+	// get all MHCs which selectors match this machine
+	var requests []reconcile.Request
+	for k := range mhcList.Items {
+		if hasMatchingLabels(&mhcList.Items[k], machine) {
+			requests = append(requests, reconcile.Request{NamespacedName: namespacedName(&mhcList.Items[k])})
+		}
+	}
+	return requests
+}
+
+func (r *ReconcileMachineHealthCheck) mhcRequestsFromMachine(o handler.MapObject) []reconcile.Request {
+	glog.V(4).Infof("Getting MHC requests from machine %q", namespacedName(o.Meta).String())
+	machine := &mapiv1.Machine{}
+	if err := r.client.Get(context.Background(),
+		client.ObjectKey{
+			Namespace: o.Meta.GetNamespace(),
+			Name:      o.Meta.GetName(),
+		},
+		machine,
+	); err != nil {
+		glog.Errorf("No-op: Unable to retrieve machine %q from store: %v", namespacedName(o.Meta).String(), err)
+		return nil
+	}
+
+	mhcList := &healthcheckingv1alpha1.MachineHealthCheckList{}
+	if err := r.client.List(context.Background(), mhcList); err != nil {
+		glog.Errorf("No-op: Unable to list mhc: %v", err)
+		return nil
+	}
+
+	var requests []reconcile.Request
+	for k := range mhcList.Items {
+		if hasMatchingLabels(&mhcList.Items[k], machine) {
+			requests = append(requests, reconcile.Request{NamespacedName: namespacedName(&mhcList.Items[k])})
+		}
+	}
+	return requests
+}
+
+func (r *ReconcileMachineHealthCheck) remediate(t target) error {
+	glog.Infof(" %s: start remediation logic", t.string())
+	if !t.hasMachineSetOwner() {
+		glog.Infof("%s: no machineSet controller owner, skipping remediation", t.string())
+		return nil
+	}
+
+	remediationStrategy := t.MHC.Spec.RemediationStrategy
+	if remediationStrategy != nil && *remediationStrategy == remediationStrategyReboot {
+		return r.remediationStrategyReboot(&t.Machine, t.Node)
+	}
+	if t.isMaster() {
+		glog.Infof("%s: master node, skipping remediation", t.string())
+		return nil
+	}
+
+	glog.Infof("%s: deleting", t.string())
+	if err := r.client.Delete(context.TODO(), &t.Machine); err != nil {
+		return fmt.Errorf("%s: failed to delete machine: %v", t.string(), err)
+	}
+	return nil
+}
+
+func (r *ReconcileMachineHealthCheck) remediationStrategyReboot(machine *mapiv1.Machine, node *corev1.Node) error {
 	// we already have reboot annotation on the node, stop reconcile
 	if _, ok := node.Annotations[machineRebootAnnotationKey]; ok {
-		return reconcile.Result{}, nil
+		return nil
 	}
 
 	if node.Annotations == nil {
@@ -343,41 +319,154 @@ func (r *ReconcileMachineHealthCheck) remediationStrategyReboot(machine *mapiv1.
 	glog.Infof("Machine %s has been unhealthy for too long, adding reboot annotation", machine.Name)
 	node.Annotations[machineRebootAnnotationKey] = ""
 	if err := r.client.Update(context.TODO(), node); err != nil {
-		return reconcile.Result{}, err
+		return err
 	}
-	return reconcile.Result{}, nil
+	return nil
 }
 
-func getNodeFromMachine(machine mapiv1.Machine, client client.Client) (*corev1.Node, error) {
+func (r *ReconcileMachineHealthCheck) getNodeFromMachine(machine mapiv1.Machine) (*corev1.Node, error) {
 	if machine.Status.NodeRef == nil {
-		glog.Errorf("node NodeRef not found in machine %s", machine.Name)
-		return nil, golangerrors.New("node NodeRef not found in machine")
+		return nil, nil
 	}
+
 	node := &corev1.Node{}
 	nodeKey := types.NamespacedName{
 		Namespace: machine.Status.NodeRef.Namespace,
 		Name:      machine.Status.NodeRef.Name,
 	}
-	err := client.Get(context.TODO(), nodeKey, node)
+	err := r.client.Get(context.TODO(), nodeKey, node)
 	return node, err
 }
 
-func unhealthyForTooLong(nodeCondition *corev1.NodeCondition, timeout time.Duration) bool {
-	now := time.Now()
-	if nodeCondition.LastTransitionTime.Add(timeout).Before(now) {
+func (t *target) string() string {
+	return fmt.Sprintf("%s/%s/%s/%s",
+		t.MHC.GetNamespace(),
+		t.MHC.GetName(),
+		t.Machine.GetName(),
+		t.nodeName(),
+	)
+}
+
+func (t *target) nodeName() string {
+	if t.Node != nil {
+		return t.Node.GetName()
+	}
+	return ""
+}
+
+func (t *target) isMaster() bool {
+	if t.Node != nil {
+		if labels.Set(t.Node.Labels).Has(nodeMasterLabel) {
+			return true
+		}
+	}
+
+	// if the node is not found we fallback to check the machine
+	if labels.Set(t.Machine.Labels).Get(machineRoleLabel) == machineMasterRole {
 		return true
 	}
+
 	return false
 }
 
-func hasMachineSetOwner(machine mapiv1.Machine) bool {
-	ownerRefs := machine.ObjectMeta.GetOwnerReferences()
+func (t *target) isUnhealthy() (bool, time.Duration, error) {
+	var nextCheckTimes []time.Duration
+	now := time.Now()
+
+	// machine has failed
+	if derefStringPointer(t.Machine.Status.Phase) == machinePhaseFailed {
+		glog.V(3).Infof("%s: unhealthy: machine phase is %q", t.string(), machinePhaseFailed)
+		return true, time.Duration(0), nil
+	}
+
+	// the node has not been set yet
+	if t.Node == nil {
+		// status not updated yet
+		if t.Machine.Status.LastUpdated == nil {
+			return false, timeoutForMachineToHaveNode, nil
+		}
+		if t.Machine.Status.LastUpdated.Add(timeoutForMachineToHaveNode).Before(now) {
+			glog.V(3).Infof("%s: unhealthy: machine has no node after %v", t.string(), timeoutForMachineToHaveNode)
+			return true, time.Duration(0), nil
+		}
+		durationUnhealthy := now.Sub(t.Machine.Status.LastUpdated.Time)
+		nextCheck := timeoutForMachineToHaveNode - durationUnhealthy + time.Second
+		return false, nextCheck, nil
+	}
+
+	// the node does not exist
+	if t.Node != nil && t.Node.UID == "" {
+		return true, time.Duration(0), nil
+	}
+
+	// check conditions
+	for _, c := range t.MHC.Spec.UnhealthyConditions {
+		now := time.Now()
+		nodeCondition := conditions.GetNodeCondition(t.Node, c.Type)
+
+		timeout, err := time.ParseDuration(c.Timeout)
+		if err != nil {
+			return false, time.Duration(0), fmt.Errorf("error parsing duration: %v", err)
+		}
+
+		// Skip when current node condition is different from the one reported
+		// in the MachineHealthCheck.
+		if nodeCondition == nil || nodeCondition.Status != c.Status {
+			continue
+		}
+
+		// If the condition has been in the unhealthy state for longer than the
+		// timeout, return true with no requeue time.
+		if nodeCondition.LastTransitionTime.Add(timeout).Before(now) {
+			glog.V(3).Infof("%s: unhealthy: condition %v in state %v longer than %v", t.string(), c.Type, c.Status, c.Timeout)
+			return true, time.Duration(0), nil
+		}
+
+		durationUnhealthy := now.Sub(nodeCondition.LastTransitionTime.Time)
+		nextCheck := timeout - durationUnhealthy + time.Second
+		if nextCheck > 0 {
+			nextCheckTimes = append(nextCheckTimes, nextCheck)
+		}
+	}
+	return false, minDuration(nextCheckTimes), nil
+}
+
+func (t *target) hasMachineSetOwner() bool {
+	ownerRefs := t.Machine.ObjectMeta.GetOwnerReferences()
 	for _, or := range ownerRefs {
 		if or.Kind == ownerControllerKind {
 			return true
 		}
 	}
 	return false
+}
+
+func derefStringPointer(stringPointer *string) string {
+	if stringPointer != nil {
+		return *stringPointer
+	}
+	return ""
+}
+
+func minDuration(durations []time.Duration) time.Duration {
+	if len(durations) == 0 {
+		return time.Duration(0)
+	}
+
+	minDuration := time.Duration(1 * time.Hour)
+	for _, nc := range durations {
+		if nc < minDuration {
+			minDuration = nc
+		}
+	}
+	return minDuration
+}
+
+func namespacedName(obj metav1.Object) types.NamespacedName {
+	return types.NamespacedName{
+		Namespace: obj.GetNamespace(),
+		Name:      obj.GetName(),
+	}
 }
 
 func hasMatchingLabels(machineHealthCheck *healthcheckingv1alpha1.MachineHealthCheck, machine *mapiv1.Machine) bool {
@@ -388,31 +477,12 @@ func hasMatchingLabels(machineHealthCheck *healthcheckingv1alpha1.MachineHealthC
 	}
 	// If a deployment with a nil or empty selector creeps in, it should match nothing, not everything.
 	if selector.Empty() {
-		glog.V(2).Infof("%v machineHealthCheck has empty selector", machineHealthCheck.Name)
+		glog.V(2).Infof("%q machineHealthCheck has empty selector", machineHealthCheck.GetName())
 		return false
 	}
 	if !selector.Matches(labels.Set(machine.Labels)) {
-		glog.V(4).Infof("%v machine has mismatched labels", machine.Name)
+		glog.V(4).Infof("%q machine has mismatched labels for MHC %q", machine.GetName(), machineHealthCheck.GetName())
 		return false
 	}
 	return true
-}
-
-func isMaster(machine mapiv1.Machine, client client.Client) bool {
-	masterLabels := []string{
-		"node-role.kubernetes.io/master",
-	}
-
-	node, err := getNodeFromMachine(machine, client)
-	if err != nil {
-		glog.Warningf("Couldn't get node for machine %s", machine.Name)
-		return false
-	}
-	nodeLabels := labels.Set(node.Labels)
-	for _, masterLabel := range masterLabels {
-		if nodeLabels.Has(masterLabel) {
-			return true
-		}
-	}
-	return false
 }
