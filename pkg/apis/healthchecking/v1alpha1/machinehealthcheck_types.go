@@ -3,6 +3,7 @@ package v1alpha1
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
 // ConfigMapNodeUnhealthyConditions contains the name of the unhealthy conditions config map
@@ -54,6 +55,11 @@ type MachineHealthCheckSpec struct {
 	//
 	// +kubebuilder:validation:MinItems=1
 	UnhealthyConditions []UnhealthyCondition `json:"unhealthyConditions"`
+
+	// Any farther remediation is only allowed if at most "MaxUnhealthy" machines selected by
+	// "selector" are not healthy.
+	// +optional
+	MaxUnhealthy *intstr.IntOrString `json:"maxUnhealthy,omitempty"`
 }
 
 // UnhealthyCondition represents a Node condition type and value with a timeout
@@ -81,5 +87,11 @@ type UnhealthyCondition struct {
 
 // MachineHealthCheckStatus defines the observed state of MachineHealthCheck
 type MachineHealthCheckStatus struct {
-	// TODO(alberto)
+	// total number of machines counted by this machine health check
+	// +kubebuilder:validation:Minimum=0
+	ExpectedMachines int `json:"expectedMachines"`
+
+	// total number of machines counted by this machine health check
+	// +kubebuilder:validation:Minimum=0
+	CurrentHealthy int `json:"currentHealthy" protobuf:"varint,4,opt,name=currentHealthy"`
 }

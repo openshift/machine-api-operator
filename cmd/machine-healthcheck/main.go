@@ -4,7 +4,6 @@ import (
 	"flag"
 	"runtime"
 
-	"github.com/openshift/machine-api-operator/pkg/controller/disruption"
 	"github.com/openshift/machine-api-operator/pkg/controller/machinehealthcheck"
 
 	"k8s.io/klog"
@@ -62,7 +61,7 @@ func main() {
 	}
 
 	// Setup all Controllers
-	if err := controller.AddToManager(mgr, opts, machinehealthcheck.Add, disruption.Add); err != nil {
+	if err := controller.AddToManager(mgr, opts, machinehealthcheck.Add); err != nil {
 		glog.Fatal(err)
 	}
 
