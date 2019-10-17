@@ -28,15 +28,16 @@ import (
 )
 
 const (
-	machineAnnotationKey        = "machine.openshift.io/machine"
-	machineRebootAnnotationKey  = "healthchecking.openshift.io/machine-remediation-reboot"
-	ownerControllerKind         = "MachineSet"
-	nodeMasterLabel             = "node-role.kubernetes.io/master"
-	machineRoleLabel            = "machine.openshift.io/cluster-api-machine-role"
-	machineMasterRole           = "master"
-	machinePhaseFailed          = "Failed"
-	remediationStrategyReboot   = healthcheckingv1alpha1.RemediationStrategyType("reboot")
-	timeoutForMachineToHaveNode = 10 * time.Minute
+	machineAnnotationKey          = "machine.openshift.io/machine"
+	machineRebootAnnotationKey    = "healthchecking.openshift.io/machine-remediation-reboot"
+	ownerControllerKind           = "MachineSet"
+	nodeMasterLabel               = "node-role.kubernetes.io/master"
+	machineRoleLabel              = "machine.openshift.io/cluster-api-machine-role"
+	machineMasterRole             = "master"
+	machinePhaseFailed            = "Failed"
+	remediationStrategyAnnotation = "healthchecking.openshift.io/strategy"
+	remediationStrategyReboot     = healthcheckingv1alpha1.RemediationStrategyType("reboot")
+	timeoutForMachineToHaveNode   = 10 * time.Minute
 )
 
 // Add creates a new MachineHealthCheck Controller and adds it to the Manager. The Manager will set fields on the Controller
@@ -360,9 +361,11 @@ func (t *target) remediate(r *ReconcileMachineHealthCheck) error {
 		return nil
 	}
 
-	remediationStrategy := t.MHC.Spec.RemediationStrategy
-	if remediationStrategy != nil && *remediationStrategy == remediationStrategyReboot {
-		return t.remediationStrategyReboot(r)
+	remediationStrategy, ok := t.MHC.Annotations[remediationStrategyAnnotation]
+	if ok {
+		if healthcheckingv1alpha1.RemediationStrategyType(remediationStrategy) == remediationStrategyReboot {
+			return t.remediationStrategyReboot(r)
+		}
 	}
 	if t.isMaster() {
 		glog.Infof("%s: master node, skipping remediation", t.string())

@@ -43,10 +43,6 @@ spec:
               - type: integer
               description: Any farther remediation is only allowed if at most "MaxUnhealthy"
                 machines selected by "selector" are not healthy.
-            remediationStrategy:
-              description: RemediationStrategy to use in case of problem detection
-                default is machine deletion
-              type: string
             selector:
               description: Label selector to match machines whose health will be exercised
               properties:
