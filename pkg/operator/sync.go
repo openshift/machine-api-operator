@@ -253,16 +253,13 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 			Args:      args,
 			Resources: resources,
 		},
-	}
-	// add machine-health-check controller container if it exists and enabled under feature gates
-	if enabled, ok := features[FeatureGateMachineHealthCheck]; ok && enabled {
-		containers = append(containers, corev1.Container{
+		{
 			Name:      "machine-healthcheck-controller",
 			Image:     config.Controllers.MachineHealthCheck,
 			Command:   []string{"/machine-healthcheck"},
 			Args:      args,
 			Resources: resources,
-		})
+		},
 	}
 	return containers
 }
