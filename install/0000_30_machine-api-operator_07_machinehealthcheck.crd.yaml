@@ -37,6 +37,12 @@ spec:
         spec:
           description: Specification of machine health check policy
           properties:
+            maxUnhealthy:
+              anyOf:
+              - type: string
+              - type: integer
+              description: Any farther remediation is only allowed if at most "MaxUnhealthy"
+                machines selected by "selector" are not healthy.
             remediationStrategy:
               description: RemediationStrategy to use in case of problem detection
                 default is machine deletion
@@ -117,6 +123,20 @@ spec:
           type: object
         status:
           description: Most recently observed status of MachineHealthCheck resource
+          properties:
+            currentHealthy:
+              description: total number of machines counted by this machine health
+                check
+              minimum: 0
+              type: integer
+            expectedMachines:
+              description: total number of machines counted by this machine health
+                check
+              minimum: 0
+              type: integer
+          required:
+          - currentHealthy
+          - expectedMachines
           type: object
       type: object
   version: v1alpha1

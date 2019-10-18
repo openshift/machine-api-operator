@@ -7,24 +7,21 @@ import (
 	"testing"
 	"time"
 
-	"k8s.io/apimachinery/pkg/api/errors"
-
-	"k8s.io/apimachinery/pkg/api/equality"
-
-	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
-
 	mapiv1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
 	maotesting "github.com/openshift/machine-api-operator/pkg/util/testing"
-
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
@@ -341,7 +338,12 @@ func TestApplyRemediationReboot(t *testing.T) {
 		},
 	}
 	r := newFakeReconciler(nodeUnhealthyForTooLong, machineUnhealthyForTooLong, machineHealthCheck)
-	if err := r.remediationStrategyReboot(machineUnhealthyForTooLong, nodeUnhealthyForTooLong); err != nil {
+	target := target{
+		Node:    nodeUnhealthyForTooLong,
+		Machine: *machineUnhealthyForTooLong,
+		MHC:     healthcheckingv1alpha1.MachineHealthCheck{},
+	}
+	if err := target.remediationStrategyReboot(r); err != nil {
 		t.Fatalf("unexpected error %v", err)
 	}
 
@@ -1248,15 +1250,15 @@ func TestGetNodeFromMachine(t *testing.T) {
 	}
 }
 
-func TestIUnhealthy(t *testing.T) {
+func TestNeedsRemediation(t *testing.T) {
 	knownDate := metav1.Time{Time: time.Date(1985, 06, 03, 0, 0, 0, 0, time.Local)}
 	machineFailed := machinePhaseFailed
 	testCases := []struct {
-		testCase          string
-		target            *target
-		expectedUnhealthy bool
-		expectedNextCheck time.Duration
-		expectedError     bool
+		testCase                 string
+		target                   *target
+		expectedNeedsRemediation bool
+		expectedNextCheck        time.Duration
+		expectedError            bool
 	}{
 		{
 			testCase: "healthy: does not met conditions criteria",
@@ -1315,9 +1317,9 @@ func TestIUnhealthy(t *testing.T) {
 					Status: healthcheckingv1alpha1.MachineHealthCheckStatus{},
 				},
 			},
-			expectedUnhealthy: false,
-			expectedNextCheck: time.Duration(0),
-			expectedError:     false,
+			expectedNeedsRemediation: false,
+			expectedNextCheck:        time.Duration(0),
+			expectedError:            false,
 		},
 		{
 			testCase: "unhealthy: node does not exist",
@@ -1354,9 +1356,9 @@ func TestIUnhealthy(t *testing.T) {
 					Status: healthcheckingv1alpha1.MachineHealthCheckStatus{},
 				},
 			},
-			expectedUnhealthy: true,
-			expectedNextCheck: time.Duration(0),
-			expectedError:     false,
+			expectedNeedsRemediation: true,
+			expectedNextCheck:        time.Duration(0),
+			expectedError:            false,
 		},
 		{
 			testCase: "unhealthy: nodeRef nil longer than timeout",
@@ -1406,9 +1408,9 @@ func TestIUnhealthy(t *testing.T) {
 					Status: healthcheckingv1alpha1.MachineHealthCheckStatus{},
 				},
 			},
-			expectedUnhealthy: true,
-			expectedNextCheck: time.Duration(0),
-			expectedError:     false,
+			expectedNeedsRemediation: true,
+			expectedNextCheck:        time.Duration(0),
+			expectedError:            false,
 		},
 		{
 			testCase: "unhealthy: meet conditions criteria",
@@ -1480,9 +1482,9 @@ func TestIUnhealthy(t *testing.T) {
 					Status: healthcheckingv1alpha1.MachineHealthCheckStatus{},
 				},
 			},
-			expectedUnhealthy: true,
-			expectedNextCheck: time.Duration(0),
-			expectedError:     false,
+			expectedNeedsRemediation: true,
+			expectedNextCheck:        time.Duration(0),
+			expectedError:            false,
 		},
 		{
 			testCase: "unhealthy: machine phase failed",
@@ -1532,9 +1534,9 @@ func TestIUnhealthy(t *testing.T) {
 					Status: healthcheckingv1alpha1.MachineHealthCheckStatus{},
 				},
 			},
-			expectedUnhealthy: true,
-			expectedNextCheck: time.Duration(0),
-			expectedError:     false,
+			expectedNeedsRemediation: true,
+			expectedNextCheck:        time.Duration(0),
+			expectedError:            false,
 		},
 		{
 			testCase: "healthy: meet conditions criteria but timeout",
@@ -1606,9 +1608,9 @@ func TestIUnhealthy(t *testing.T) {
 					Status: healthcheckingv1alpha1.MachineHealthCheckStatus{},
 				},
 			},
-			expectedUnhealthy: false,
-			expectedNextCheck: time.Duration(1 * time.Minute), // 300-200 rounded
-			expectedError:     false,
+			expectedNeedsRemediation: false,
+			expectedNextCheck:        time.Duration(1 * time.Minute), // 300-200 rounded
+			expectedError:            false,
 		},
 		{
 			testCase: "error bad conditions timeout",
@@ -1680,17 +1682,17 @@ func TestIUnhealthy(t *testing.T) {
 					Status: healthcheckingv1alpha1.MachineHealthCheckStatus{},
 				},
 			},
-			expectedUnhealthy: false,
-			expectedNextCheck: time.Duration(0),
-			expectedError:     true,
+			expectedNeedsRemediation: false,
+			expectedNextCheck:        time.Duration(0),
+			expectedError:            true,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
-			unhealthy, nextCheck, err := tc.target.isUnhealthy()
-			if unhealthy != tc.expectedUnhealthy {
-				t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, unhealthy, tc.expectedUnhealthy)
+			needsRemediation, nextCheck, err := tc.target.needsRemediation()
+			if needsRemediation != tc.expectedNeedsRemediation {
+				t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, needsRemediation, tc.expectedNeedsRemediation)
 			}
 			if tc.expectedNextCheck == time.Duration(0) {
 				if nextCheck != tc.expectedNextCheck {
@@ -1977,7 +1979,7 @@ func TestRemediate(t *testing.T) {
 			var objects []runtime.Object
 			objects = append(objects, runtime.Object(&tc.target.Machine))
 			r := newFakeReconciler(objects...)
-			if err := r.remediate(*tc.target); (err != nil) != tc.expectedError {
+			if err := tc.target.remediate(r); (err != nil) != tc.expectedError {
 				t.Errorf("Case: %v. Got: %v, expected error: %v", tc.testCase, err, tc.expectedError)
 			}
 			machine := &mapiv1beta1.Machine{}
@@ -1995,6 +1997,517 @@ func TestRemediate(t *testing.T) {
 				if !equality.Semantic.DeepEqual(*machine, tc.target.Machine) {
 					t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, *machine, tc.target.Machine)
 				}
+			}
+		})
+	}
+}
+
+func TestReconcileStatus(t *testing.T) {
+	testCases := []struct {
+		testCase       string
+		mhc            *healthcheckingv1alpha1.MachineHealthCheck
+		totalTargets   int
+		currentHealthy int
+	}{
+		{
+			testCase: "status gets new values",
+			mhc: &healthcheckingv1alpha1.MachineHealthCheck{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: namespace,
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind: "MachineHealthCheck",
+				},
+				Spec: healthcheckingv1alpha1.MachineHealthCheckSpec{
+					Selector: metav1.LabelSelector{},
+				},
+				Status: healthcheckingv1alpha1.MachineHealthCheckStatus{},
+			},
+			totalTargets:   10,
+			currentHealthy: 5,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.testCase, func(t *testing.T) {
+			var objects []runtime.Object
+			objects = append(objects, runtime.Object(tc.mhc))
+			r := newFakeReconciler(objects...)
+
+			if err := r.reconcileStatus(tc.mhc, tc.totalTargets, tc.currentHealthy); err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+			mhc := &healthcheckingv1alpha1.MachineHealthCheck{}
+			if err := r.client.Get(context.TODO(), namespacedName(tc.mhc), mhc); err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+			if mhc.Status.ExpectedMachines != tc.totalTargets {
+				t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, mhc.Status.ExpectedMachines, tc.totalTargets)
+			}
+			if mhc.Status.CurrentHealthy != tc.currentHealthy {
+				t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, mhc.Status.CurrentHealthy, tc.currentHealthy)
+			}
+		})
+	}
+}
+
+func TestHealthCheckTargets(t *testing.T) {
+	now := time.Now()
+	testCases := []struct {
+		testCase               string
+		targets                []target
+		currentHealthy         int
+		needRemediationTargets []target
+		nextCheckTimesLen      int
+		errList                []error
+	}{
+		{
+			testCase: "one healthy, one unhealthy",
+			targets: []target{
+				{
+					Machine: mapiv1beta1.Machine{
+						TypeMeta: metav1.TypeMeta{Kind: "Machine"},
+						ObjectMeta: metav1.ObjectMeta{
+							Annotations:     make(map[string]string),
+							Name:            "machine",
+							Namespace:       namespace,
+							Labels:          map[string]string{"foo": "bar"},
+							OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
+						},
+						Spec:   mapiv1beta1.MachineSpec{},
+						Status: mapiv1beta1.MachineStatus{},
+					},
+					Node: &corev1.Node{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "node",
+							Namespace: metav1.NamespaceNone,
+							Annotations: map[string]string{
+								machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "machine"),
+							},
+							Labels: map[string]string{},
+							UID:    "uid",
+						},
+						TypeMeta: metav1.TypeMeta{
+							Kind: "Node",
+						},
+						Status: corev1.NodeStatus{
+							Conditions: []corev1.NodeCondition{
+								{
+									Type:               corev1.NodeReady,
+									Status:             corev1.ConditionTrue,
+									LastTransitionTime: metav1.Time{},
+								},
+							},
+						},
+					},
+					MHC: healthcheckingv1alpha1.MachineHealthCheck{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "test",
+							Namespace: namespace,
+						},
+						TypeMeta: metav1.TypeMeta{
+							Kind: "MachineHealthCheck",
+						},
+						Spec: healthcheckingv1alpha1.MachineHealthCheckSpec{
+							Selector: metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"foo": "bar",
+								},
+							},
+							UnhealthyConditions: []healthcheckingv1alpha1.UnhealthyCondition{
+								{
+									Type:    "Ready",
+									Status:  "Unknown",
+									Timeout: "300s",
+								},
+								{
+									Type:    "Ready",
+									Status:  "False",
+									Timeout: "300s",
+								},
+							},
+						},
+						Status: healthcheckingv1alpha1.MachineHealthCheckStatus{},
+					},
+				},
+				{
+					Machine: mapiv1beta1.Machine{
+						TypeMeta: metav1.TypeMeta{Kind: "Machine"},
+						ObjectMeta: metav1.ObjectMeta{
+							Annotations:     make(map[string]string),
+							Name:            "machine",
+							Namespace:       namespace,
+							Labels:          map[string]string{"foo": "bar"},
+							OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
+						},
+						Spec:   mapiv1beta1.MachineSpec{},
+						Status: mapiv1beta1.MachineStatus{},
+					},
+					Node: &corev1.Node{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "node",
+							Namespace: metav1.NamespaceNone,
+							Annotations: map[string]string{
+								machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "machine"),
+							},
+							Labels: map[string]string{},
+							UID:    "uid",
+						},
+						TypeMeta: metav1.TypeMeta{
+							Kind: "Node",
+						},
+						Status: corev1.NodeStatus{
+							Conditions: []corev1.NodeCondition{
+								{
+									Type:               corev1.NodeReady,
+									Status:             corev1.ConditionFalse,
+									LastTransitionTime: metav1.Time{Time: now.Add(time.Duration(-400) * time.Second)},
+								},
+							},
+						},
+					},
+					MHC: healthcheckingv1alpha1.MachineHealthCheck{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "test",
+							Namespace: namespace,
+						},
+						TypeMeta: metav1.TypeMeta{
+							Kind: "MachineHealthCheck",
+						},
+						Spec: healthcheckingv1alpha1.MachineHealthCheckSpec{
+							Selector: metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"foo": "bar",
+								},
+							},
+							UnhealthyConditions: []healthcheckingv1alpha1.UnhealthyCondition{
+								{
+									Type:    "Ready",
+									Status:  "Unknown",
+									Timeout: "300s",
+								},
+								{
+									Type:    "Ready",
+									Status:  "False",
+									Timeout: "300s",
+								},
+							},
+						},
+						Status: healthcheckingv1alpha1.MachineHealthCheckStatus{},
+					},
+				},
+			},
+			currentHealthy: 1,
+			needRemediationTargets: []target{
+				{
+					Machine: mapiv1beta1.Machine{
+						TypeMeta: metav1.TypeMeta{Kind: "Machine"},
+						ObjectMeta: metav1.ObjectMeta{
+							Annotations:     make(map[string]string),
+							Name:            "machine",
+							Namespace:       namespace,
+							Labels:          map[string]string{"foo": "bar"},
+							OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
+						},
+						Spec:   mapiv1beta1.MachineSpec{},
+						Status: mapiv1beta1.MachineStatus{},
+					},
+					Node: &corev1.Node{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "node",
+							Namespace: metav1.NamespaceNone,
+							Annotations: map[string]string{
+								machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "machine"),
+							},
+							Labels: map[string]string{},
+							UID:    "uid",
+						},
+						TypeMeta: metav1.TypeMeta{
+							Kind: "Node",
+						},
+						Status: corev1.NodeStatus{
+							Conditions: []corev1.NodeCondition{
+								{
+									Type:               corev1.NodeReady,
+									Status:             corev1.ConditionFalse,
+									LastTransitionTime: metav1.Time{Time: now.Add(time.Duration(-400) * time.Second)},
+								},
+							},
+						},
+					},
+					MHC: healthcheckingv1alpha1.MachineHealthCheck{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "test",
+							Namespace: namespace,
+						},
+						TypeMeta: metav1.TypeMeta{
+							Kind: "MachineHealthCheck",
+						},
+						Spec: healthcheckingv1alpha1.MachineHealthCheckSpec{
+							Selector: metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"foo": "bar",
+								},
+							},
+							UnhealthyConditions: []healthcheckingv1alpha1.UnhealthyCondition{
+								{
+									Type:    "Ready",
+									Status:  "Unknown",
+									Timeout: "300s",
+								},
+								{
+									Type:    "Ready",
+									Status:  "False",
+									Timeout: "300s",
+								},
+							},
+						},
+						Status: healthcheckingv1alpha1.MachineHealthCheckStatus{},
+					},
+				},
+			},
+			nextCheckTimesLen: 0,
+			errList:           []error{},
+		},
+		{
+			testCase: "two checkTimes",
+			targets: []target{
+				{
+					Machine: mapiv1beta1.Machine{
+						TypeMeta: metav1.TypeMeta{Kind: "Machine"},
+						ObjectMeta: metav1.ObjectMeta{
+							Annotations:     make(map[string]string),
+							Name:            "machine",
+							Namespace:       namespace,
+							Labels:          map[string]string{"foo": "bar"},
+							OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
+						},
+						Spec: mapiv1beta1.MachineSpec{},
+						Status: mapiv1beta1.MachineStatus{
+							LastUpdated: &metav1.Time{Time: now.Add(time.Duration(-timeoutForMachineToHaveNode) + 1*time.Minute)},
+						},
+					},
+					Node: nil,
+					MHC: healthcheckingv1alpha1.MachineHealthCheck{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "test",
+							Namespace: namespace,
+						},
+						TypeMeta: metav1.TypeMeta{
+							Kind: "MachineHealthCheck",
+						},
+						Spec: healthcheckingv1alpha1.MachineHealthCheckSpec{
+							Selector: metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"foo": "bar",
+								},
+							},
+							UnhealthyConditions: []healthcheckingv1alpha1.UnhealthyCondition{
+								{
+									Type:    "Ready",
+									Status:  "Unknown",
+									Timeout: "300s",
+								},
+								{
+									Type:    "Ready",
+									Status:  "False",
+									Timeout: "300s",
+								},
+							},
+						},
+						Status: healthcheckingv1alpha1.MachineHealthCheckStatus{},
+					},
+				},
+				{
+					Machine: mapiv1beta1.Machine{
+						TypeMeta: metav1.TypeMeta{Kind: "Machine"},
+						ObjectMeta: metav1.ObjectMeta{
+							Annotations:     make(map[string]string),
+							Name:            "machine",
+							Namespace:       namespace,
+							Labels:          map[string]string{"foo": "bar"},
+							OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
+						},
+						Spec:   mapiv1beta1.MachineSpec{},
+						Status: mapiv1beta1.MachineStatus{},
+					},
+					Node: &corev1.Node{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "node",
+							Namespace: metav1.NamespaceNone,
+							Annotations: map[string]string{
+								machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "machine"),
+							},
+							Labels: map[string]string{},
+							UID:    "uid",
+						},
+						TypeMeta: metav1.TypeMeta{
+							Kind: "Node",
+						},
+						Status: corev1.NodeStatus{
+							Conditions: []corev1.NodeCondition{
+								{
+									Type:               corev1.NodeReady,
+									Status:             corev1.ConditionFalse,
+									LastTransitionTime: metav1.Time{Time: now.Add(time.Duration(-200) * time.Second)},
+								},
+							},
+						},
+					},
+					MHC: healthcheckingv1alpha1.MachineHealthCheck{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "test",
+							Namespace: namespace,
+						},
+						TypeMeta: metav1.TypeMeta{
+							Kind: "MachineHealthCheck",
+						},
+						Spec: healthcheckingv1alpha1.MachineHealthCheckSpec{
+							Selector: metav1.LabelSelector{
+								MatchLabels: map[string]string{
+									"foo": "bar",
+								},
+							},
+							UnhealthyConditions: []healthcheckingv1alpha1.UnhealthyCondition{
+								{
+									Type:    "Ready",
+									Status:  "Unknown",
+									Timeout: "300s",
+								},
+								{
+									Type:    "Ready",
+									Status:  "False",
+									Timeout: "300s",
+								},
+							},
+						},
+						Status: healthcheckingv1alpha1.MachineHealthCheckStatus{},
+					},
+				},
+			},
+			currentHealthy:    0,
+			nextCheckTimesLen: 2,
+			errList:           []error{},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.testCase, func(t *testing.T) {
+			currentHealhty, needRemediationTargets, nextCheckTimes, errList := healthCheckTargets(tc.targets)
+			if currentHealhty != tc.currentHealthy {
+				t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, currentHealhty, tc.currentHealthy)
+			}
+			if !equality.Semantic.DeepEqual(needRemediationTargets, tc.needRemediationTargets) {
+				t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, needRemediationTargets, tc.needRemediationTargets)
+			}
+			if len(nextCheckTimes) != tc.nextCheckTimesLen {
+				t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, len(nextCheckTimes), tc.nextCheckTimesLen)
+			}
+			if !equality.Semantic.DeepEqual(errList, tc.errList) {
+				t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, errList, tc.errList)
+			}
+		})
+	}
+}
+
+func TestIsAllowedRemediation(t *testing.T) {
+	// short circuit if ever more than 2 out of 5 go unhealthy
+	maxUnhealthyInt := intstr.FromInt(2)
+	maxUnhealthyString := intstr.FromString("40%")
+
+	testCases := []struct {
+		testCase string
+		mhc      *healthcheckingv1alpha1.MachineHealthCheck
+		expected bool
+	}{
+		{
+			testCase: "not above maxUnhealthy",
+			mhc: &healthcheckingv1alpha1.MachineHealthCheck{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: namespace,
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind: "MachineHealthCheck",
+				},
+				Spec: healthcheckingv1alpha1.MachineHealthCheckSpec{
+					Selector:     metav1.LabelSelector{},
+					MaxUnhealthy: &maxUnhealthyInt,
+				},
+				Status: healthcheckingv1alpha1.MachineHealthCheckStatus{
+					ExpectedMachines: 5,
+					CurrentHealthy:   3,
+				},
+			},
+			expected: true,
+		},
+		{
+			testCase: "above maxUnhealthy",
+			mhc: &healthcheckingv1alpha1.MachineHealthCheck{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: namespace,
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind: "MachineHealthCheck",
+				},
+				Spec: healthcheckingv1alpha1.MachineHealthCheckSpec{
+					Selector:     metav1.LabelSelector{},
+					MaxUnhealthy: &maxUnhealthyInt,
+				},
+				Status: healthcheckingv1alpha1.MachineHealthCheckStatus{
+					ExpectedMachines: 5,
+					CurrentHealthy:   2,
+				},
+			},
+			expected: false,
+		},
+		{
+			testCase: "not above maxUnhealthy (percentange)",
+			mhc: &healthcheckingv1alpha1.MachineHealthCheck{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: namespace,
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind: "MachineHealthCheck",
+				},
+				Spec: healthcheckingv1alpha1.MachineHealthCheckSpec{
+					Selector:     metav1.LabelSelector{},
+					MaxUnhealthy: &maxUnhealthyString,
+				},
+				Status: healthcheckingv1alpha1.MachineHealthCheckStatus{
+					ExpectedMachines: 5,
+					CurrentHealthy:   3,
+				},
+			},
+			expected: true,
+		},
+		{
+			testCase: "above maxUnhealthy (percentange)",
+			mhc: &healthcheckingv1alpha1.MachineHealthCheck{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: namespace,
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind: "MachineHealthCheck",
+				},
+				Spec: healthcheckingv1alpha1.MachineHealthCheckSpec{
+					Selector:     metav1.LabelSelector{},
+					MaxUnhealthy: &maxUnhealthyString,
+				},
+				Status: healthcheckingv1alpha1.MachineHealthCheckStatus{
+					ExpectedMachines: 5,
+					CurrentHealthy:   2,
+				},
+			},
+			expected: false,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.testCase, func(t *testing.T) {
+			if got := isAllowedRemediation(tc.mhc); got != tc.expected {
+				t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, got, tc.expected)
 			}
 		})
 	}
