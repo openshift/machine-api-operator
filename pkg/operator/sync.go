@@ -90,7 +90,8 @@ func (optr *Operator) syncClusterAPIController(config OperatorConfig) error {
 }
 
 func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment) error {
-	return wait.Poll(deploymentRolloutPollInterval, deploymentRolloutTimeout, func() (bool, error) {
+	var lastError error
+	err := wait.Poll(deploymentRolloutPollInterval, deploymentRolloutTimeout, func() (bool, error) {
 		d, err := optr.deployLister.Deployments(resource.Namespace).Get(resource.Name)
 		if apierrors.IsNotFound(err) {
 			return false, nil
@@ -98,18 +99,26 @@ func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment) erro
 		if err != nil {
 			// Do not return error here, as we could be updating the API Server itself, in which case we
 			// want to continue waiting.
-			glog.Errorf("Error getting Deployment %q during rollout: %v", resource.Name, err)
+			lastError = fmt.Errorf("getting Deployment %s during rollout: %v", resource.Name, err)
+			glog.Error(lastError)
 			return false, nil
 		}
 
 		if d.DeletionTimestamp != nil {
-			return false, fmt.Errorf("deployment %q is being deleted", resource.Name)
+			lastError = nil
+			return false, fmt.Errorf("deployment %s is being deleted", resource.Name)
 		}
 
 		if d.Generation <= d.Status.ObservedGeneration && d.Status.UpdatedReplicas == d.Status.Replicas && d.Status.UnavailableReplicas == 0 {
+			lastError = nil
 			return true, nil
 		}
-		glog.V(4).Infof("Deployment %q is not ready. status: (replicas: %d, updated: %d, ready: %d, unavailable: %d)", d.Name, d.Status.Replicas, d.Status.UpdatedReplicas, d.Status.ReadyReplicas, d.Status.UnavailableReplicas)
+		lastError = fmt.Errorf("deployment %s is not ready. status: (replicas: %d, updated: %d, ready: %d, unavailable: %d)", d.Name, d.Status.Replicas, d.Status.UpdatedReplicas, d.Status.ReadyReplicas, d.Status.UnavailableReplicas)
+		glog.V(4).Info(lastError)
 		return false, nil
 	})
+	if lastError != nil {
+		return lastError
+	}
+	return err
 }
