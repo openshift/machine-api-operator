@@ -6,9 +6,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-// ConfigMapNodeUnhealthyConditions contains the name of the unhealthy conditions config map
-const ConfigMapNodeUnhealthyConditions = "node-unhealthy-conditions"
-
 // RemediationStrategyType contains remediation strategy type
 type RemediationStrategyType string
 
@@ -41,11 +38,6 @@ type MachineHealthCheckList struct {
 
 // MachineHealthCheckSpec defines the desired state of MachineHealthCheck
 type MachineHealthCheckSpec struct {
-	// RemediationStrategy to use in case of problem detection
-	// default is machine deletion
-	// +optional
-	RemediationStrategy *RemediationStrategyType `json:"remediationStrategy,omitempty"`
-
 	// Label selector to match machines whose health will be exercised
 	Selector metav1.LabelSelector `json:"selector"`
 
