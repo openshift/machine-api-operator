@@ -106,6 +106,9 @@ func newMetal3Deployment(config *OperatorConfig) *appsv1.Deployment {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "metal3",
 			Namespace: config.TargetNamespace,
+			Annotations: map[string]string{
+				maoOwnedAnnotation: "",
+			},
 			Labels: map[string]string{
 				"api":     "clusterapi",
 				"k8s-app": "controller",
