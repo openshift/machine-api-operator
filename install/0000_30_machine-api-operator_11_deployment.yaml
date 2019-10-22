@@ -1,4 +1,4 @@
-apiVersion: apps/v1beta2
+apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: machine-api-operator
@@ -31,6 +31,7 @@ spec:
         ports:
         - containerPort: 8443
           name: https
+          protocol: TCP
         volumeMounts:
         - name: config
           mountPath: /etc/kube-rbac-proxy
@@ -51,6 +52,7 @@ spec:
         - name: COMPONENT_NAMESPACE
           valueFrom:
             fieldRef:
+              apiVersion: v1
               fieldPath: metadata.namespace
         - name: METRICS_PORT
           value: "8080"
@@ -83,9 +85,12 @@ spec:
       - name: config
         configMap:
           name: kube-rbac-proxy
+          defaultMode: 420
       - name: images
         configMap:
-                name: machine-api-operator-images
+          defaultMode: 420
+          name: machine-api-operator-images
       - name: machine-api-operator-tls
         secret:
+          defaultMode: 420
           secretName: machine-api-operator-tls
