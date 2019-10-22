@@ -125,7 +125,7 @@ func startControllers(ctx *ControllerContext) {
 		ctx.ClientBuilder.KubeClientOrDie(componentName),
 		ctx.ClientBuilder.OpenshiftClientOrDie(componentName),
 		recorder,
-	).Run(2, ctx.Stop)
+	).Run(1, ctx.Stop)
 }
 
 func startMetricsCollectionAndServer(ctx *ControllerContext) {
