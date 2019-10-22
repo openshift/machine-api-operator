@@ -170,11 +170,11 @@ func isAllowedRemediation(mhc *healthcheckingv1alpha1.MachineHealthCheck) bool {
 	}
 	maxUnhealthy, err := intstr.GetValueFromIntOrPercent(mhc.Spec.MaxUnhealthy, mhc.Status.ExpectedMachines, false)
 	if err != nil {
-		glog.Errorf("%s: error decoding maxUnavailable, remediation won't be allowed: %v", namespacedName(mhc), err)
+		glog.Errorf("%s: error decoding maxUnhealthy, remediation won't be allowed: %v", namespacedName(mhc), err)
 		return false
 	}
 
-	// if noHealthy are above MaxUnavailable we short circuit any farther remediation
+	// if noHealthy are above maxUnhealthy we short circuit any farther remediation
 	noHealthy := mhc.Status.ExpectedMachines - mhc.Status.CurrentHealthy
 	return (maxUnhealthy - noHealthy) >= 0
 }
