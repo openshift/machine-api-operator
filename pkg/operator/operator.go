@@ -28,7 +28,8 @@ const (
 	// a machineconfig pool is going to be requeued:
 	//
 	// 5ms, 10ms, 20ms, 40ms, 80ms, 160ms, 320ms, 640ms, 1.3s, 2.6s, 5.1s, 10.2s, 20.4s, 41s, 82s
-	maxRetries = 15
+	maxRetries         = 15
+	maoOwnedAnnotation = "machine.openshift.io/owned"
 )
 
 // Operator defines machine api operator.
@@ -88,7 +89,7 @@ func New(
 		operandVersions: operandVersions,
 	}
 
-	deployInformer.Informer().AddEventHandler(optr.eventHandler())
+	deployInformer.Informer().AddEventHandler(optr.eventHandlerDeployments())
 	featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
 
 	optr.config = config
@@ -125,13 +126,72 @@ func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 	<-stopCh
 }
 
+func logResource(obj interface{}) {
+	metaObj, okObject := obj.(metav1.Object)
+	if !okObject {
+		glog.Errorf("Error assigning type to interface when logging")
+	}
+	glog.V(4).Infof("Resource type: %T", obj)
+	glog.V(4).Infof("Resource: %v", metaObj.GetSelfLink())
+}
+
 func (optr *Operator) eventHandler() cache.ResourceEventHandler {
 	workQueueKey := fmt.Sprintf("%s/%s", optr.namespace, optr.name)
 	return cache.ResourceEventHandlerFuncs{
-		AddFunc:    func(obj interface{}) { optr.queue.Add(workQueueKey) },
-		UpdateFunc: func(old, new interface{}) { optr.queue.Add(workQueueKey) },
-		DeleteFunc: func(obj interface{}) { optr.queue.Add(workQueueKey) },
+		AddFunc: func(obj interface{}) {
+			glog.V(4).Infof("Event: Add")
+			logResource(obj)
+			optr.queue.Add(workQueueKey)
+		},
+		UpdateFunc: func(old, new interface{}) {
+			glog.V(4).Infof("Event: Update")
+			logResource(old)
+			optr.queue.Add(workQueueKey)
+		},
+		DeleteFunc: func(obj interface{}) {
+			glog.V(4).Infof("Event: Delete")
+			logResource(obj)
+			optr.queue.Add(workQueueKey)
+		},
 	}
+}
+
+// on deployments we only reconcile on update/delete events if its owned by mao
+func (optr *Operator) eventHandlerDeployments() cache.ResourceEventHandler {
+	workQueueKey := fmt.Sprintf("%s/%s", optr.namespace, optr.name)
+	return cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			glog.V(4).Infof("Event: Add")
+			logResource(obj)
+			optr.queue.Add(workQueueKey)
+		},
+		UpdateFunc: func(old, new interface{}) {
+			glog.V(4).Infof("Event: Update")
+			logResource(old)
+			if owned, err := isOwned(old); !owned || err != nil {
+				return
+			}
+			optr.queue.Add(workQueueKey)
+		},
+		DeleteFunc: func(obj interface{}) {
+			glog.V(4).Infof("Event: Delete")
+			logResource(obj)
+			if owned, err := isOwned(obj); !owned || err != nil {
+				return
+			}
+			optr.queue.Add(workQueueKey)
+		},
+	}
+}
+
+func isOwned(obj interface{}) (bool, error) {
+	metaObj, okObject := obj.(metav1.Object)
+	if !okObject {
+		glog.Errorf("Error assigning metav1.Object type to object: %T", obj)
+		return false, fmt.Errorf("error assigning metav1.Object type to object: %T", obj)
+	}
+	_, ok := metaObj.GetAnnotations()[maoOwnedAnnotation]
+	return ok, nil
 }
 
 func (optr *Operator) worker() {

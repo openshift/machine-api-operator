@@ -5,6 +5,11 @@ import (
 	"testing"
 	"time"
 
+	openshiftv1 "github.com/openshift/api/config/v1"
+	fakeos "github.com/openshift/client-go/config/clientset/versioned/fake"
+	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions"
+	"github.com/stretchr/testify/assert"
+	appsv1 "k8s.io/api/apps/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -12,11 +17,6 @@ import (
 	fakekube "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
-
-	v1 "github.com/openshift/api/config/v1"
-	fakeos "github.com/openshift/client-go/config/clientset/versioned/fake"
-	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions"
-	"github.com/stretchr/testify/assert"
 )
 
 const (
@@ -25,12 +25,12 @@ const (
 	hcControllerName = "machine-healthcheck-controller"
 )
 
-func newFeatureGate(featureSet v1.FeatureSet) *v1.FeatureGate {
-	return &v1.FeatureGate{
+func newFeatureGate(featureSet openshiftv1.FeatureSet) *openshiftv1.FeatureGate {
+	return &openshiftv1.FeatureGate{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: MachineAPIFeatureGateName,
 		},
-		Spec: v1.FeatureGateSpec{
+		Spec: openshiftv1.FeatureGateSpec{
 			FeatureSet: featureSet,
 		},
 	}
@@ -75,7 +75,7 @@ func newFakeOperator(kubeObjects []runtime.Object, osObjects []runtime.Object, s
 	kubeNamespacedSharedInformer.Start(stopCh)
 
 	optr.syncHandler = optr.sync
-	deployInformer.Informer().AddEventHandler(optr.eventHandler())
+	deployInformer.Informer().AddEventHandler(optr.eventHandlerDeployments())
 	featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
 
 	return optr
@@ -85,31 +85,31 @@ func newFakeOperator(kubeObjects []runtime.Object, osObjects []runtime.Object, s
 // for platforms that are no-ops.
 func TestOperatorSync_NoOp(t *testing.T) {
 	cases := []struct {
-		platform     v1.PlatformType
+		platform     openshiftv1.PlatformType
 		expectedNoop bool
 	}{
 		{
-			platform:     v1.AWSPlatformType,
+			platform:     openshiftv1.AWSPlatformType,
 			expectedNoop: false,
 		},
 		{
-			platform:     v1.LibvirtPlatformType,
+			platform:     openshiftv1.LibvirtPlatformType,
 			expectedNoop: false,
 		},
 		{
-			platform:     v1.OpenStackPlatformType,
+			platform:     openshiftv1.OpenStackPlatformType,
 			expectedNoop: false,
 		},
 		{
-			platform:     v1.AzurePlatformType,
+			platform:     openshiftv1.AzurePlatformType,
 			expectedNoop: false,
 		},
 		{
-			platform:     v1.BareMetalPlatformType,
+			platform:     openshiftv1.BareMetalPlatformType,
 			expectedNoop: false,
 		},
 		{
-			platform:     v1.GCPPlatformType,
+			platform:     openshiftv1.GCPPlatformType,
 			expectedNoop: false,
 		},
 		{
@@ -117,11 +117,11 @@ func TestOperatorSync_NoOp(t *testing.T) {
 			expectedNoop: false,
 		},
 		{
-			platform:     v1.VSpherePlatformType,
+			platform:     openshiftv1.VSpherePlatformType,
 			expectedNoop: true,
 		},
 		{
-			platform:     v1.NonePlatformType,
+			platform:     openshiftv1.NonePlatformType,
 			expectedNoop: true,
 		},
 		{
@@ -132,17 +132,17 @@ func TestOperatorSync_NoOp(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(string(tc.platform), func(t *testing.T) {
-			infra := &v1.Infrastructure{
+			infra := &openshiftv1.Infrastructure{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "cluster",
 				},
-				Status: v1.InfrastructureStatus{
+				Status: openshiftv1.InfrastructureStatus{
 					Platform: tc.platform,
 				},
 			}
 
 			stopCh := make(<-chan struct{})
-			optr := newFakeOperator(nil, []runtime.Object{newFeatureGate(v1.TechPreviewNoUpgrade), infra}, stopCh)
+			optr := newFakeOperator(nil, []runtime.Object{newFeatureGate(openshiftv1.TechPreviewNoUpgrade), infra}, stopCh)
 			go optr.Run(2, stopCh)
 
 			err := wait.PollImmediate(1*time.Second, 5*time.Second, func() (bool, error) {
@@ -162,14 +162,63 @@ func TestOperatorSync_NoOp(t *testing.T) {
 			if !assert.NoError(t, err, "failed to get clusteroperator") {
 				t.Fatal()
 			}
-			expectedConditions := map[v1.ClusterStatusConditionType]v1.ConditionStatus{
-				v1.OperatorAvailable:   v1.ConditionTrue,
-				v1.OperatorProgressing: v1.ConditionFalse,
-				v1.OperatorDegraded:    v1.ConditionFalse,
-				v1.OperatorUpgradeable: v1.ConditionTrue,
+			expectedConditions := map[openshiftv1.ClusterStatusConditionType]openshiftv1.ConditionStatus{
+				openshiftv1.OperatorAvailable:   openshiftv1.ConditionTrue,
+				openshiftv1.OperatorProgressing: openshiftv1.ConditionFalse,
+				openshiftv1.OperatorDegraded:    openshiftv1.ConditionFalse,
+				openshiftv1.OperatorUpgradeable: openshiftv1.ConditionTrue,
 			}
 			for _, c := range o.Status.Conditions {
 				assert.Equal(t, expectedConditions[c.Type], c.Status, fmt.Sprintf("unexpected clusteroperator condition %s status", c.Type))
+			}
+		})
+	}
+}
+
+func TestIsOwned(t *testing.T) {
+	testCases := []struct {
+		testCase      string
+		obj           interface{}
+		expected      bool
+		expectedError bool
+	}{
+		{
+			testCase: "with maoOwnedAnnotation returns true",
+			obj: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						maoOwnedAnnotation: "",
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			testCase: "with no maoOwnedAnnotation returns false",
+			obj: &appsv1.Deployment{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"any": "",
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			testCase:      "bad type object returns error",
+			obj:           "bad object",
+			expected:      false,
+			expectedError: true,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(string(tc.testCase), func(t *testing.T) {
+			got, err := isOwned(tc.obj)
+			if got != tc.expected {
+				t.Errorf("Expected: %v, got: %v", tc.expected, got)
+			}
+			if tc.expectedError != (err != nil) {
+				t.Errorf("ExpectedError: %v, got: %v", tc.expectedError, err)
 			}
 		})
 	}

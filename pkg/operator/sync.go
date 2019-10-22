@@ -154,6 +154,9 @@ func newDeployment(config *OperatorConfig, features map[string]bool) *appsv1.Dep
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "machine-api-controllers",
 			Namespace: config.TargetNamespace,
+			Annotations: map[string]string{
+				maoOwnedAnnotation: "",
+			},
 			Labels: map[string]string{
 				"api":     "clusterapi",
 				"k8s-app": "controller",
