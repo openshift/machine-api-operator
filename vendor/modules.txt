@@ -10,8 +10,6 @@ github.com/davecgh/go-spew/spew
 github.com/evanphx/json-patch
 # github.com/fatih/color v1.7.0
 github.com/fatih/color
-# github.com/ghodss/yaml v1.0.0
-github.com/ghodss/yaml
 # github.com/go-logr/logr v0.1.0
 github.com/go-logr/logr
 # github.com/gobuffalo/flect v0.1.5
@@ -160,6 +158,9 @@ golang.org/x/tools/go/internal/gcimporter
 golang.org/x/tools/internal/fastwalk
 golang.org/x/tools/go/ast/astutil
 golang.org/x/tools/internal/module
+# golang.org/x/xerrors v0.0.0-20190717185122-a985d3407aa7
+golang.org/x/xerrors
+golang.org/x/xerrors/internal
 # gomodules.xyz/jsonpatch/v2 v2.0.1
 gomodules.xyz/jsonpatch/v2
 # gonum.org/v1/gonum v0.0.0-20190915125329-975d99cd20a9
@@ -258,21 +259,21 @@ k8s.io/apimachinery/pkg/apis/meta/v1
 k8s.io/apimachinery/pkg/runtime
 k8s.io/apimachinery/pkg/runtime/schema
 k8s.io/apimachinery/pkg/util/uuid
+k8s.io/apimachinery/pkg/util/intstr
 k8s.io/apimachinery/pkg/api/equality
 k8s.io/apimachinery/pkg/api/errors
 k8s.io/apimachinery/pkg/types
 k8s.io/apimachinery/pkg/util/wait
 k8s.io/apimachinery/pkg/labels
+k8s.io/apimachinery/pkg/util/errors
 k8s.io/apimachinery/pkg/runtime/serializer
 k8s.io/apimachinery/pkg/util/runtime
 k8s.io/apimachinery/pkg/watch
 k8s.io/apimachinery/pkg/api/resource
-k8s.io/apimachinery/pkg/util/intstr
 k8s.io/apimachinery/pkg/conversion
 k8s.io/apimachinery/pkg/fields
 k8s.io/apimachinery/pkg/selection
 k8s.io/apimachinery/pkg/conversion/queryparams
-k8s.io/apimachinery/pkg/util/errors
 k8s.io/apimachinery/pkg/util/json
 k8s.io/apimachinery/pkg/util/naming
 k8s.io/apimachinery/pkg/util/sets
@@ -561,7 +562,7 @@ k8s.io/utils/pointer
 k8s.io/utils/buffer
 k8s.io/utils/trace
 k8s.io/utils/integer
-# sigs.k8s.io/controller-runtime v0.2.0-beta.2 => github.com/enxebre/controller-runtime v0.2.0-beta.1.0.20190930160522-58015f7fc885
+# sigs.k8s.io/controller-runtime v0.2.0-beta.2 => sigs.k8s.io/controller-runtime v0.3.1-0.20191016212439-2df793d02076
 sigs.k8s.io/controller-runtime/pkg/client/config
 sigs.k8s.io/controller-runtime/pkg/manager
 sigs.k8s.io/controller-runtime/pkg/runtime/signals
@@ -574,6 +575,7 @@ sigs.k8s.io/controller-runtime/pkg/scheme
 sigs.k8s.io/controller-runtime/pkg/internal/log
 sigs.k8s.io/controller-runtime/pkg/cache
 sigs.k8s.io/controller-runtime/pkg/client/apiutil
+sigs.k8s.io/controller-runtime/pkg/healthz
 sigs.k8s.io/controller-runtime/pkg/internal/recorder
 sigs.k8s.io/controller-runtime/pkg/leaderelection
 sigs.k8s.io/controller-runtime/pkg/metrics

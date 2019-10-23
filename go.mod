@@ -4,7 +4,6 @@ go 1.12
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/ghodss/yaml v1.0.0
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/groupcache v0.0.0-20190129154638-5b532d6fd5ef // indirect
 	github.com/imdario/mergo v0.3.7 // indirect
@@ -58,5 +57,4 @@ replace k8s.io/client-go => github.com/openshift/kubernetes-client-go v0.0.0-201
 
 replace k8s.io/kube-aggregator => github.com/openshift/kubernetes-kube-aggregator v0.0.0-20190918161219-8c8f079fddc3
 
-// https://github.com/kubernetes-sigs/controller-runtime/pull/618
-replace sigs.k8s.io/controller-runtime => github.com/enxebre/controller-runtime v0.2.0-beta.1.0.20190930160522-58015f7fc885
+replace sigs.k8s.io/controller-runtime => sigs.k8s.io/controller-runtime v0.3.1-0.20191016212439-2df793d02076
