@@ -4,11 +4,10 @@ go 1.12
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/ghodss/yaml v1.0.0
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/groupcache v0.0.0-20190129154638-5b532d6fd5ef // indirect
 	github.com/imdario/mergo v0.3.7 // indirect
-	github.com/openshift/api v3.9.1-0.20190517100836-d5b34b957e91+incompatible
+	github.com/openshift/api v3.9.0+incompatible // indirect
 	github.com/openshift/client-go v0.0.0-20190617165122-8892c0adc000
 	github.com/openshift/cluster-api v0.0.0-20191007125355-b2c5ded524d4
 	github.com/openshift/cluster-version-operator v3.11.1-0.20190629164025-08cac1c02538+incompatible
