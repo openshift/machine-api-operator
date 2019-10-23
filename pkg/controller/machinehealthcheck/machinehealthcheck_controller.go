@@ -113,15 +113,16 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 	if err != nil {
 		return reconcile.Result{}, err
 	}
-	totalTargets := len(targets)
 
 	// health check all targets and reconcile mhc status
-	currentHealthy, needRemediationTargets, nextCheckTimes, errList := healthCheckTargets(targets)
-	if err := r.reconcileStatus(mhc, totalTargets, currentHealthy); err != nil {
+	currentHealthyTargets, needRemediationTargets, nextCheckTimes, errList := healthCheckTargets(targets)
+	if err := r.reconcileStatus(mhc, targets, currentHealthyTargets); err != nil {
 		glog.Errorf("Reconciling %s: error patching status: %v", request.String(), err)
 		return reconcile.Result{}, err
 	}
 
+	totalTargets := len(targets)
+	currentHealthy := len(currentHealthyTargets)
 	// check MHC current health against MaxUnhealthy
 	if !isAllowedRemediation(mhc) {
 		glog.Warningf("Reconciling %s: total targets: %v,  maxUnhealthy: %v, unhealthy: %v. Short-circuiting remediation",
@@ -179,10 +180,27 @@ func isAllowedRemediation(mhc *healthcheckingv1alpha1.MachineHealthCheck) bool {
 	return (maxUnhealthy - noHealthy) >= 0
 }
 
-func (r *ReconcileMachineHealthCheck) reconcileStatus(mhc *healthcheckingv1alpha1.MachineHealthCheck, targets, currentHealthy int) error {
+func (r *ReconcileMachineHealthCheck) reconcileStatus(mhc *healthcheckingv1alpha1.MachineHealthCheck, targets, currentHealthyTargets []target) error {
+	var targetedMachines []healthcheckingv1alpha1.TargetedMachine
+	for _, t := range targets {
+		healthy := healthcheckingv1alpha1.MachineHealthyFalse
+		for _, healthyTarget := range currentHealthyTargets {
+			// TODO:make sure this check is sufficient
+			if t.Machine.Name == healthyTarget.Machine.Name {
+				healthy = healthcheckingv1alpha1.MachineHealthyTrue
+				break
+			}
+		}
+
+		targetedMachines = append(targetedMachines, healthcheckingv1alpha1.TargetedMachine{
+			Name:    t.Machine.Name,
+			Healthy: healthy,
+		})
+	}
 	baseToPatch := client.MergeFrom(mhc.DeepCopy())
-	mhc.Status.ExpectedMachines = targets
-	mhc.Status.CurrentHealthy = currentHealthy
+	mhc.Status.ExpectedMachines = len(targets)
+	mhc.Status.CurrentHealthy = len(currentHealthyTargets)
+	mhc.Status.TargetedMachines = targetedMachines
 	if err := r.client.Status().Patch(context.Background(), mhc, baseToPatch); err != nil {
 		return err
 	}
@@ -191,11 +209,11 @@ func (r *ReconcileMachineHealthCheck) reconcileStatus(mhc *healthcheckingv1alpha
 
 // healthCheckTargets health checks a slice of targets
 // and gives a data to measure the average health
-func healthCheckTargets(targets []target) (int, []target, []time.Duration, []error) {
+func healthCheckTargets(targets []target) ([]target, []target, []time.Duration, []error) {
 	var nextCheckTimes []time.Duration
 	var errList []error
 	var needRemediationTargets []target
-	var currentHealthy int
+	var currentHealthyTargets []target
 	for _, t := range targets {
 		glog.V(3).Infof("Reconciling %s: health checking", t.string())
 		needsRemediation, nextCheck, err := t.needsRemediation()
@@ -217,10 +235,10 @@ func healthCheckTargets(targets []target) (int, []target, []time.Duration, []err
 		}
 
 		if t.Machine.DeletionTimestamp == nil {
-			currentHealthy++
+			currentHealthyTargets = append(currentHealthyTargets, t)
 		}
 	}
-	return currentHealthy, needRemediationTargets, nextCheckTimes, errList
+	return currentHealthyTargets, needRemediationTargets, nextCheckTimes, errList
 }
 
 func (r *ReconcileMachineHealthCheck) getTargetsFromMHC(mhc healthcheckingv1alpha1.MachineHealthCheck) ([]target, error) {

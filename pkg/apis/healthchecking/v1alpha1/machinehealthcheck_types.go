@@ -9,6 +9,17 @@ import (
 // RemediationStrategyType contains remediation strategy type
 type RemediationStrategyType string
 
+// MachineHealthy indicates if the machine is healthy or unhealthy
+type MachineHealthy string
+
+const (
+	// MachineHealthyTrue indicates when the machine is healthy
+	MachineHealthyTrue MachineHealthy = "True"
+
+	// MachineHealthyFalse indicates when the machine is unhealthy
+	MachineHealthyFalse MachineHealthy = "False"
+)
+
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
@@ -86,4 +97,16 @@ type MachineHealthCheckStatus struct {
 	// total number of machines counted by this machine health check
 	// +kubebuilder:validation:Minimum=0
 	CurrentHealthy int `json:"currentHealthy" protobuf:"varint,4,opt,name=currentHealthy"`
+
+	// List of machines descriptions observed by MachineHealthCheck object
+	TargetedMachines []TargetedMachine `json:"targetedMachines,omitempty"`
+}
+
+// TargetedMachine defines machines observed by the machine health check object
+type TargetedMachine struct {
+	// Machine name
+	Name string `json:"name"`
+
+	// Indicate health of the machine
+	Healthy MachineHealthy `json:"healthy"`
 }
