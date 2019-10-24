@@ -25,8 +25,8 @@ GOPATH=$dir ${cwd}/bin/controller-gen crd \
 popd
 
 echo "Coping generated CRDs"
-cp $dir/src/github.com/openshift/machine-api-operator/config/crds/healthchecking.openshift.io_machinehealthchecks.yaml install/0000_30_machine-api-operator_07_machinehealthcheck.crd.yaml
-cp $dir/src/github.com/openshift/machine-api-operator/config/crds/healthchecking.openshift.io_machinedisruptionbudgets.yaml install/0000_30_machine-api-operator_08_machinedisruptionbudget.crd.yaml
+cp $dir/src/github.com/openshift/machine-api-operator/config/crds/machine.openshift.io_machinehealthchecks.yaml install/0000_30_machine-api-operator_07_machinehealthcheck.crd.yaml
+cp $dir/src/github.com/openshift/machine-api-operator/config/crds/machine.openshift.io_machinedisruptionbudgets.yaml install/0000_30_machine-api-operator_08_machinedisruptionbudget.crd.yaml
 cp $dir/src/github.com/openshift/machine-api-operator/config/crds/machine.openshift.io_machinesets.yaml install/0000_30_machine-api-operator_03_machineset.crd.yaml
 cp $dir/src/github.com/openshift/machine-api-operator/config/crds/machine.openshift.io_machines.yaml install/0000_30_machine-api-operator_02_machine.crd.yaml
 
