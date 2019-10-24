@@ -4,7 +4,6 @@ go 1.12
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/ghodss/yaml v1.0.0
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/groupcache v0.0.0-20190129154638-5b532d6fd5ef // indirect
 	github.com/imdario/mergo v0.3.7 // indirect
@@ -23,18 +22,17 @@ require (
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4 // indirect
 	gonum.org/v1/gonum v0.0.0-20190915125329-975d99cd20a9 // indirect
 	google.golang.org/appengine v1.6.1 // indirect
-	k8s.io/api v0.0.0-20190918155943-95b840bb6a1f
+	k8s.io/api v0.0.0-20190918195907-bd6ac527cfd2
+	k8s.io/apiextensions-apiserver v0.0.0-20190918201827-3de75813f604 // indirect
 	k8s.io/apimachinery v0.0.0-20190913080033-27d36303b655
 	k8s.io/client-go v11.0.1-0.20190409021438-1a26190bd76a+incompatible
 	k8s.io/code-generator v0.0.0-20190912054826-cd179ad6a269
 	k8s.io/klog v0.4.0
 	k8s.io/kube-aggregator v0.0.0-20190404125450-f5e124c822d6 // indirect
 	k8s.io/utils v0.0.0-20190801114015-581e00157fb1
-	sigs.k8s.io/controller-runtime v0.2.0-beta.2
+	sigs.k8s.io/controller-runtime v0.3.1-0.20191016212439-2df793d02076
 	sigs.k8s.io/controller-tools v0.2.2-0.20190919191502-76a25b63325a
 )
-
-replace gopkg.in/fsnotify.v1 v1.4.7 => github.com/fsnotify/fsnotify v1.4.7
 
 replace github.com/prometheus/client_golang => github.com/prometheus/client_golang v0.9.2
 
@@ -57,6 +55,3 @@ replace k8s.io/apimachinery => github.com/openshift/kubernetes-apimachinery v0.0
 replace k8s.io/client-go => github.com/openshift/kubernetes-client-go v0.0.0-20190918160344-1fbdaa4c8d90
 
 replace k8s.io/kube-aggregator => github.com/openshift/kubernetes-kube-aggregator v0.0.0-20190918161219-8c8f079fddc3
-
-// https://github.com/kubernetes-sigs/controller-runtime/pull/618
-replace sigs.k8s.io/controller-runtime => github.com/enxebre/controller-runtime v0.2.0-beta.1.0.20190930160522-58015f7fc885
