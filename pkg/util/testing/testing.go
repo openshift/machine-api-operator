@@ -5,8 +5,8 @@ import (
 	"time"
 
 	mapiv1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
-	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
-
+	mhcv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
+	mhcv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
@@ -40,14 +40,14 @@ func NewSelectorFooBar() *metav1.LabelSelector {
 }
 
 // NewMinAvailableMachineDisruptionBudget returns new MachineDisruptionBudget with min available parameter
-func NewMinAvailableMachineDisruptionBudget(minAvailable int32) *healthcheckingv1alpha1.MachineDisruptionBudget {
-	return &healthcheckingv1alpha1.MachineDisruptionBudget{
+func NewMinAvailableMachineDisruptionBudget(minAvailable int32) *mhcv1alpha1.MachineDisruptionBudget {
+	return &mhcv1alpha1.MachineDisruptionBudget{
 		TypeMeta: metav1.TypeMeta{Kind: "MachineDisruptionBudget"},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foobar",
 			Namespace: Namespace,
 		},
-		Spec: healthcheckingv1alpha1.MachineDisruptionBudgetSpec{
+		Spec: mhcv1alpha1.MachineDisruptionBudgetSpec{
 			MinAvailable: &minAvailable,
 			Selector:     NewSelectorFooBar(),
 		},
@@ -55,14 +55,14 @@ func NewMinAvailableMachineDisruptionBudget(minAvailable int32) *healthcheckingv
 }
 
 // NewMaxUnavailableMachineDisruptionBudget returns new MachineDisruptionBudget with max unavailable parameter
-func NewMaxUnavailableMachineDisruptionBudget(maxUnavailable int32) *healthcheckingv1alpha1.MachineDisruptionBudget {
-	return &healthcheckingv1alpha1.MachineDisruptionBudget{
+func NewMaxUnavailableMachineDisruptionBudget(maxUnavailable int32) *mhcv1alpha1.MachineDisruptionBudget {
+	return &mhcv1alpha1.MachineDisruptionBudget{
 		TypeMeta: metav1.TypeMeta{Kind: "MachineDisruptionBudget"},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foobar",
 			Namespace: Namespace,
 		},
-		Spec: healthcheckingv1alpha1.MachineDisruptionBudgetSpec{
+		Spec: mhcv1alpha1.MachineDisruptionBudgetSpec{
 			MaxUnavailable: &maxUnavailable,
 			Selector:       NewSelectorFooBar(),
 		},
@@ -127,8 +127,8 @@ func NewMachine(name string, nodeName string) *mapiv1.Machine {
 }
 
 // NewMachineHealthCheck returns new MachineHealthCheck object that can be used for testing
-func NewMachineHealthCheck(name string) *healthcheckingv1alpha1.MachineHealthCheck {
-	return &healthcheckingv1alpha1.MachineHealthCheck{
+func NewMachineHealthCheck(name string) *mhcv1beta1.MachineHealthCheck {
+	return &mhcv1beta1.MachineHealthCheck{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: Namespace,
@@ -136,9 +136,9 @@ func NewMachineHealthCheck(name string) *healthcheckingv1alpha1.MachineHealthChe
 		TypeMeta: metav1.TypeMeta{
 			Kind: "MachineHealthCheck",
 		},
-		Spec: healthcheckingv1alpha1.MachineHealthCheckSpec{
+		Spec: mhcv1beta1.MachineHealthCheckSpec{
 			Selector: *NewSelectorFooBar(),
-			UnhealthyConditions: []healthcheckingv1alpha1.UnhealthyCondition{
+			UnhealthyConditions: []mhcv1beta1.UnhealthyCondition{
 				{
 					Type:    "Ready",
 					Status:  "Unknown",
@@ -151,6 +151,6 @@ func NewMachineHealthCheck(name string) *healthcheckingv1alpha1.MachineHealthChe
 				},
 			},
 		},
-		Status: healthcheckingv1alpha1.MachineHealthCheckStatus{},
+		Status: mhcv1beta1.MachineHealthCheckStatus{},
 	}
 }
