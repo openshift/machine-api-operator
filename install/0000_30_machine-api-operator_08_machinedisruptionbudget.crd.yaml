@@ -4,7 +4,7 @@ apiVersion: apiextensions.k8s.io/v1beta1
 kind: CustomResourceDefinition
 metadata:
   creationTimestamp: null
-  name: machinedisruptionbudgets.healthchecking.openshift.io
+  name: machinedisruptionbudgets.machine.openshift.io
 spec:
   additionalPrinterColumns:
   - JSONPath: .status.currentHealthy
@@ -19,7 +19,7 @@ spec:
     description: The desired number of healthy machines
     name: Desired
     type: integer
-  group: healthchecking.openshift.io
+  group: machine.openshift.io
   names:
     kind: MachineDisruptionBudget
     listKind: MachineDisruptionBudgetList

@@ -19,7 +19,7 @@
 package fake
 
 import (
-	v1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
+	v1beta1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -30,29 +30,29 @@ import (
 
 // FakeMachineHealthChecks implements MachineHealthCheckInterface
 type FakeMachineHealthChecks struct {
-	Fake *FakeHealthcheckingV1alpha1
+	Fake *FakeMachineV1beta1
 	ns   string
 }
 
-var machinehealthchecksResource = schema.GroupVersionResource{Group: "healthchecking.openshift.io", Version: "v1alpha1", Resource: "machinehealthchecks"}
+var machinehealthchecksResource = schema.GroupVersionResource{Group: "machine.openshift.io", Version: "v1beta1", Resource: "machinehealthchecks"}
 
-var machinehealthchecksKind = schema.GroupVersionKind{Group: "healthchecking.openshift.io", Version: "v1alpha1", Kind: "MachineHealthCheck"}
+var machinehealthchecksKind = schema.GroupVersionKind{Group: "machine.openshift.io", Version: "v1beta1", Kind: "MachineHealthCheck"}
 
 // Get takes name of the machineHealthCheck, and returns the corresponding machineHealthCheck object, and an error if there is any.
-func (c *FakeMachineHealthChecks) Get(name string, options v1.GetOptions) (result *v1alpha1.MachineHealthCheck, err error) {
+func (c *FakeMachineHealthChecks) Get(name string, options v1.GetOptions) (result *v1beta1.MachineHealthCheck, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(machinehealthchecksResource, c.ns, name), &v1alpha1.MachineHealthCheck{})
+		Invokes(testing.NewGetAction(machinehealthchecksResource, c.ns, name), &v1beta1.MachineHealthCheck{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.MachineHealthCheck), err
+	return obj.(*v1beta1.MachineHealthCheck), err
 }
 
 // List takes label and field selectors, and returns the list of MachineHealthChecks that match those selectors.
-func (c *FakeMachineHealthChecks) List(opts v1.ListOptions) (result *v1alpha1.MachineHealthCheckList, err error) {
+func (c *FakeMachineHealthChecks) List(opts v1.ListOptions) (result *v1beta1.MachineHealthCheckList, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(machinehealthchecksResource, machinehealthchecksKind, c.ns, opts), &v1alpha1.MachineHealthCheckList{})
+		Invokes(testing.NewListAction(machinehealthchecksResource, machinehealthchecksKind, c.ns, opts), &v1beta1.MachineHealthCheckList{})
 
 	if obj == nil {
 		return nil, err
@@ -62,8 +62,8 @@ func (c *FakeMachineHealthChecks) List(opts v1.ListOptions) (result *v1alpha1.Ma
 	if label == nil {
 		label = labels.Everything()
 	}
-	list := &v1alpha1.MachineHealthCheckList{ListMeta: obj.(*v1alpha1.MachineHealthCheckList).ListMeta}
-	for _, item := range obj.(*v1alpha1.MachineHealthCheckList).Items {
+	list := &v1beta1.MachineHealthCheckList{ListMeta: obj.(*v1beta1.MachineHealthCheckList).ListMeta}
+	for _, item := range obj.(*v1beta1.MachineHealthCheckList).Items {
 		if label.Matches(labels.Set(item.Labels)) {
 			list.Items = append(list.Items, item)
 		}
@@ -79,43 +79,43 @@ func (c *FakeMachineHealthChecks) Watch(opts v1.ListOptions) (watch.Interface, e
 }
 
 // Create takes the representation of a machineHealthCheck and creates it.  Returns the server's representation of the machineHealthCheck, and an error, if there is any.
-func (c *FakeMachineHealthChecks) Create(machineHealthCheck *v1alpha1.MachineHealthCheck) (result *v1alpha1.MachineHealthCheck, err error) {
+func (c *FakeMachineHealthChecks) Create(machineHealthCheck *v1beta1.MachineHealthCheck) (result *v1beta1.MachineHealthCheck, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(machinehealthchecksResource, c.ns, machineHealthCheck), &v1alpha1.MachineHealthCheck{})
+		Invokes(testing.NewCreateAction(machinehealthchecksResource, c.ns, machineHealthCheck), &v1beta1.MachineHealthCheck{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.MachineHealthCheck), err
+	return obj.(*v1beta1.MachineHealthCheck), err
 }
 
 // Update takes the representation of a machineHealthCheck and updates it. Returns the server's representation of the machineHealthCheck, and an error, if there is any.
-func (c *FakeMachineHealthChecks) Update(machineHealthCheck *v1alpha1.MachineHealthCheck) (result *v1alpha1.MachineHealthCheck, err error) {
+func (c *FakeMachineHealthChecks) Update(machineHealthCheck *v1beta1.MachineHealthCheck) (result *v1beta1.MachineHealthCheck, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(machinehealthchecksResource, c.ns, machineHealthCheck), &v1alpha1.MachineHealthCheck{})
+		Invokes(testing.NewUpdateAction(machinehealthchecksResource, c.ns, machineHealthCheck), &v1beta1.MachineHealthCheck{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.MachineHealthCheck), err
+	return obj.(*v1beta1.MachineHealthCheck), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeMachineHealthChecks) UpdateStatus(machineHealthCheck *v1alpha1.MachineHealthCheck) (*v1alpha1.MachineHealthCheck, error) {
+func (c *FakeMachineHealthChecks) UpdateStatus(machineHealthCheck *v1beta1.MachineHealthCheck) (*v1beta1.MachineHealthCheck, error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(machinehealthchecksResource, "status", c.ns, machineHealthCheck), &v1alpha1.MachineHealthCheck{})
+		Invokes(testing.NewUpdateSubresourceAction(machinehealthchecksResource, "status", c.ns, machineHealthCheck), &v1beta1.MachineHealthCheck{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.MachineHealthCheck), err
+	return obj.(*v1beta1.MachineHealthCheck), err
 }
 
 // Delete takes name of the machineHealthCheck and deletes it. Returns an error if one occurs.
 func (c *FakeMachineHealthChecks) Delete(name string, options *v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewDeleteAction(machinehealthchecksResource, c.ns, name), &v1alpha1.MachineHealthCheck{})
+		Invokes(testing.NewDeleteAction(machinehealthchecksResource, c.ns, name), &v1beta1.MachineHealthCheck{})
 
 	return err
 }
@@ -124,17 +124,17 @@ func (c *FakeMachineHealthChecks) Delete(name string, options *v1.DeleteOptions)
 func (c *FakeMachineHealthChecks) DeleteCollection(options *v1.DeleteOptions, listOptions v1.ListOptions) error {
 	action := testing.NewDeleteCollectionAction(machinehealthchecksResource, c.ns, listOptions)
 
-	_, err := c.Fake.Invokes(action, &v1alpha1.MachineHealthCheckList{})
+	_, err := c.Fake.Invokes(action, &v1beta1.MachineHealthCheckList{})
 	return err
 }
 
 // Patch applies the patch and returns the patched machineHealthCheck.
-func (c *FakeMachineHealthChecks) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1alpha1.MachineHealthCheck, err error) {
+func (c *FakeMachineHealthChecks) Patch(name string, pt types.PatchType, data []byte, subresources ...string) (result *v1beta1.MachineHealthCheck, err error) {
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(machinehealthchecksResource, c.ns, name, pt, data, subresources...), &v1alpha1.MachineHealthCheck{})
+		Invokes(testing.NewPatchSubresourceAction(machinehealthchecksResource, c.ns, name, pt, data, subresources...), &v1beta1.MachineHealthCheck{})
 
 	if obj == nil {
 		return nil, err
 	}
-	return obj.(*v1alpha1.MachineHealthCheck), err
+	return obj.(*v1beta1.MachineHealthCheck), err
 }

@@ -30,13 +30,13 @@ import (
 
 // FakeMachineDisruptionBudgets implements MachineDisruptionBudgetInterface
 type FakeMachineDisruptionBudgets struct {
-	Fake *FakeHealthcheckingV1alpha1
+	Fake *FakeMachineV1alpha1
 	ns   string
 }
 
-var machinedisruptionbudgetsResource = schema.GroupVersionResource{Group: "healthchecking.openshift.io", Version: "v1alpha1", Resource: "machinedisruptionbudgets"}
+var machinedisruptionbudgetsResource = schema.GroupVersionResource{Group: "machine.openshift.io", Version: "v1alpha1", Resource: "machinedisruptionbudgets"}
 
-var machinedisruptionbudgetsKind = schema.GroupVersionKind{Group: "healthchecking.openshift.io", Version: "v1alpha1", Kind: "MachineDisruptionBudget"}
+var machinedisruptionbudgetsKind = schema.GroupVersionKind{Group: "machine.openshift.io", Version: "v1alpha1", Kind: "MachineDisruptionBudget"}
 
 // Get takes name of the machineDisruptionBudget, and returns the corresponding machineDisruptionBudget object, and an error if there is any.
 func (c *FakeMachineDisruptionBudgets) Get(name string, options v1.GetOptions) (result *v1alpha1.MachineDisruptionBudget, err error) {

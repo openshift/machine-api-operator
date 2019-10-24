@@ -56,7 +56,7 @@ type machineDisruptionBudgets struct {
 }
 
 // newMachineDisruptionBudgets returns a MachineDisruptionBudgets
-func newMachineDisruptionBudgets(c *HealthcheckingV1alpha1Client, namespace string) *machineDisruptionBudgets {
+func newMachineDisruptionBudgets(c *MachineV1alpha1Client, namespace string) *machineDisruptionBudgets {
 	return &machineDisruptionBudgets{
 		client: c.RESTClient(),
 		ns:     namespace,
