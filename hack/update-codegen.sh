@@ -31,7 +31,7 @@ cp "${SCRIPT_ROOT}"/hack/generate-groups.sh "${CODEGEN_PKG}"/generate-groups.sh
 "${CODEGEN_PKG}"/generate-groups.sh "deepcopy,client" \
   github.com/openshift/machine-api-operator/pkg/generated \
   github.com/openshift/machine-api-operator/pkg/apis \
-  healthchecking:v1alpha1 \
+  healthchecking:v1beta1,v1alpha1 \
   --output-base "$(dirname "${BASH_SOURCE[0]}")/../../../.." \
   --go-header-file "${SCRIPT_ROOT}"/hack/boilerplate.go.txt
 

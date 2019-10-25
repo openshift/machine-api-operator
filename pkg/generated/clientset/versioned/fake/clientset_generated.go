@@ -20,8 +20,10 @@ package fake
 
 import (
 	clientset "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
-	healthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned/typed/healthchecking/v1alpha1"
-	fakehealthcheckingv1alpha1 "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned/typed/healthchecking/v1alpha1/fake"
+	machinev1alpha1 "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned/typed/healthchecking/v1alpha1"
+	fakemachinev1alpha1 "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned/typed/healthchecking/v1alpha1/fake"
+	machinev1beta1 "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned/typed/healthchecking/v1beta1"
+	fakemachinev1beta1 "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned/typed/healthchecking/v1beta1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"
@@ -76,7 +78,12 @@ func (c *Clientset) Tracker() testing.ObjectTracker {
 
 var _ clientset.Interface = &Clientset{}
 
-// HealthcheckingV1alpha1 retrieves the HealthcheckingV1alpha1Client
-func (c *Clientset) HealthcheckingV1alpha1() healthcheckingv1alpha1.HealthcheckingV1alpha1Interface {
-	return &fakehealthcheckingv1alpha1.FakeHealthcheckingV1alpha1{Fake: &c.Fake}
+// MachineV1beta1 retrieves the MachineV1beta1Client
+func (c *Clientset) MachineV1beta1() machinev1beta1.MachineV1beta1Interface {
+	return &fakemachinev1beta1.FakeMachineV1beta1{Fake: &c.Fake}
+}
+
+// MachineV1alpha1 retrieves the MachineV1alpha1Client
+func (c *Clientset) MachineV1alpha1() machinev1alpha1.MachineV1alpha1Interface {
+	return &fakemachinev1alpha1.FakeMachineV1alpha1{Fake: &c.Fake}
 }

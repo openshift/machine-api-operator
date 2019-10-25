@@ -6,11 +6,9 @@ import (
 
 	"github.com/openshift/machine-api-operator/pkg/controller/machinehealthcheck"
 
-	"k8s.io/klog"
-
 	"github.com/golang/glog"
 	mapiv1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
-	"github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
+	"github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/controller"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
@@ -42,7 +40,7 @@ func main() {
 	}
 	if *watchNamespace != "" {
 		opts.Namespace = *watchNamespace
-		klog.Infof("Watching machine-api objects only in namespace %q for reconciliation.", opts.Namespace)
+		glog.Infof("Watching machine-api objects only in namespace %q for reconciliation.", opts.Namespace)
 	}
 	// Create a new Cmd to provide shared dependencies and start components
 	mgr, err := manager.New(cfg, opts)
@@ -53,7 +51,7 @@ func main() {
 	glog.Infof("Registering Components.")
 
 	// Setup Scheme for all resources
-	if err := v1alpha1.AddToScheme(mgr.GetScheme()); err != nil {
+	if err := v1beta1.AddToScheme(mgr.GetScheme()); err != nil {
 		glog.Fatal(err)
 	}
 	if err := mapiv1.AddToScheme(mgr.GetScheme()); err != nil {

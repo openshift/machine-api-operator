@@ -1,3 +1,3 @@
 package healthchecking
 
-const GroupName = "healthchecking.openshift.io"
+const GroupName = "machine.openshift.io"

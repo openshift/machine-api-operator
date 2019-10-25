@@ -1,9 +1,9 @@
 // NOTE: Boilerplate only.  Ignore this file.
 
-// Package v1alpha1 contains API Schema definitions for the healthchecking v1alpha1 API group
+// Package v1alpha1 contains API Schema definitions for the healthchecking v1beta1 API group
 // +k8s:deepcopy-gen=package,register
 // +groupName=machine.openshift.io
-package v1alpha1
+package v1beta1
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -14,7 +14,7 @@ import (
 )
 
 // SchemeGroupVersion is group version used to register these objects
-var SchemeGroupVersion = schema.GroupVersion{Group: healthchecking.GroupName, Version: "v1alpha1"}
+var SchemeGroupVersion = schema.GroupVersion{Group: healthchecking.GroupName, Version: "v1beta1"}
 
 // Kind takes an unqualified kind and returns back a Group qualified GroupKind
 func Kind(kind string) schema.GroupKind {
@@ -34,8 +34,8 @@ var (
 // Adds the list of known types to Scheme.
 func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
-		&MachineDisruptionBudget{},
-		&MachineDisruptionBudgetList{},
+		&MachineHealthCheck{},
+		&MachineHealthCheckList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil
