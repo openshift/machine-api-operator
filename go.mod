@@ -14,7 +14,7 @@ require (
 	github.com/imdario/mergo v0.3.8 // indirect
 	github.com/onsi/ginkgo v1.10.1 // indirect
 	github.com/onsi/gomega v1.7.0 // indirect
-	github.com/openshift/api v3.9.1-0.20190517100836-d5b34b957e91+incompatible
+	github.com/openshift/api v3.9.1-0.20191021111209-b216bf51f261+incompatible // indirect
 	github.com/openshift/client-go v0.0.0-20190617165122-8892c0adc000
 	github.com/openshift/cluster-version-operator v3.11.1-0.20190629164025-08cac1c02538+incompatible
 	github.com/operator-framework/operator-sdk v0.5.1-0.20190301204940-c2efe6f74e7b
