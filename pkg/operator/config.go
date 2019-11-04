@@ -49,6 +49,7 @@ type Images struct {
 	ClusterAPIControllerBareMetal string `json:"clusterAPIControllerBareMetal"`
 	ClusterAPIControllerAzure     string `json:"clusterAPIControllerAzure"`
 	ClusterAPIControllerGCP       string `json:"clusterAPIControllerGCP"`
+	ClusterAPIControllerOvirt     string `json:"clusterAPIControllerOvirt"`
 	// Images required for the metal3 pod
 	BaremetalOperator            string `json:"baremetalOperator"`
 	BaremetalIronic              string `json:"baremetalIronic"`
@@ -92,6 +93,8 @@ func getProviderControllerFromImages(platform configv1.PlatformType, images Imag
 		return images.ClusterAPIControllerGCP, nil
 	case configv1.BareMetalPlatformType:
 		return images.ClusterAPIControllerBareMetal, nil
+	case configv1.OvirtPlatformType:
+		return images.ClusterAPIControllerOvirt, nil
 	case kubemarkPlatform:
 		return clusterAPIControllerKubemark, nil
 	default:

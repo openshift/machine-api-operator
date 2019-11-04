@@ -21,6 +21,7 @@ var (
 	expectedIronicIpaDownloader       = "quay.io/openshift/origin-ironic-ipa-downloader:v4.2.0"
 	expectedIronicMachineOsDownloader = "quay.io/openshift/origin-ironic-machine-os-downloader:v4.3.0"
 	expectedIronicStaticIpManager     = "quay.io/openshift/origin-ironic-static-ip-manager:v4.2.0"
+	expectedOvirtImage                = "quay.io/openshift/origin-ovirt-machine-controllers"
 )
 
 func TestGetProviderFromInfrastructure(t *testing.T) {
@@ -90,6 +91,13 @@ func TestGetProviderFromInfrastructure(t *testing.T) {
 			},
 		},
 		expected: configv1.NonePlatformType,
+	}, {
+		infra: &configv1.Infrastructure{
+			Status: configv1.InfrastructureStatus{
+				Platform: configv1.OvirtPlatformType,
+			},
+		},
+		expected: configv1.OvirtPlatformType,
 	}}
 
 	for _, test := range tests {
@@ -125,6 +133,9 @@ func TestGetImagesFromJSONFile(t *testing.T) {
 	}
 	if img.ClusterAPIControllerGCP != expectedGCPImage {
 		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedGCPImage, img.ClusterAPIControllerGCP)
+	}
+	if img.ClusterAPIControllerOvirt != expectedOvirtImage {
+		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedOvirtImage, img.ClusterAPIControllerOvirt)
 	}
 }
 
@@ -167,6 +178,10 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 		{
 			provider:      configv1.NonePlatformType,
 			expectedImage: clusterAPIControllerNoOp,
+		},
+		{
+			provider:      configv1.OvirtPlatformType,
+			expectedImage: expectedOvirtImage,
 		},
 	}
 
