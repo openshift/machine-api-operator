@@ -2,6 +2,8 @@
 
 set -euo pipefail
 
+env
+
 GOPATH="$(mktemp -d)"
 export GOPATH
 
