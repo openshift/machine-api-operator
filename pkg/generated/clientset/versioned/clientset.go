@@ -21,7 +21,6 @@ package versioned
 import (
 	"fmt"
 
-	machinev1alpha1 "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned/typed/healthchecking/v1alpha1"
 	machinev1beta1 "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned/typed/healthchecking/v1beta1"
 	discovery "k8s.io/client-go/discovery"
 	rest "k8s.io/client-go/rest"
@@ -31,25 +30,18 @@ import (
 type Interface interface {
 	Discovery() discovery.DiscoveryInterface
 	MachineV1beta1() machinev1beta1.MachineV1beta1Interface
-	MachineV1alpha1() machinev1alpha1.MachineV1alpha1Interface
 }
 
 // Clientset contains the clients for groups. Each group has exactly one
 // version included in a Clientset.
 type Clientset struct {
 	*discovery.DiscoveryClient
-	machineV1beta1  *machinev1beta1.MachineV1beta1Client
-	machineV1alpha1 *machinev1alpha1.MachineV1alpha1Client
+	machineV1beta1 *machinev1beta1.MachineV1beta1Client
 }
 
 // MachineV1beta1 retrieves the MachineV1beta1Client
 func (c *Clientset) MachineV1beta1() machinev1beta1.MachineV1beta1Interface {
 	return c.machineV1beta1
-}
-
-// MachineV1alpha1 retrieves the MachineV1alpha1Client
-func (c *Clientset) MachineV1alpha1() machinev1alpha1.MachineV1alpha1Interface {
-	return c.machineV1alpha1
 }
 
 // Discovery retrieves the DiscoveryClient
@@ -77,10 +69,6 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 	if err != nil {
 		return nil, err
 	}
-	cs.machineV1alpha1, err = machinev1alpha1.NewForConfig(&configShallowCopy)
-	if err != nil {
-		return nil, err
-	}
 
 	cs.DiscoveryClient, err = discovery.NewDiscoveryClientForConfig(&configShallowCopy)
 	if err != nil {
@@ -94,7 +82,6 @@ func NewForConfig(c *rest.Config) (*Clientset, error) {
 func NewForConfigOrDie(c *rest.Config) *Clientset {
 	var cs Clientset
 	cs.machineV1beta1 = machinev1beta1.NewForConfigOrDie(c)
-	cs.machineV1alpha1 = machinev1alpha1.NewForConfigOrDie(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClientForConfigOrDie(c)
 	return &cs
@@ -104,7 +91,6 @@ func NewForConfigOrDie(c *rest.Config) *Clientset {
 func New(c rest.Interface) *Clientset {
 	var cs Clientset
 	cs.machineV1beta1 = machinev1beta1.New(c)
-	cs.machineV1alpha1 = machinev1alpha1.New(c)
 
 	cs.DiscoveryClient = discovery.NewDiscoveryClient(c)
 	return &cs
