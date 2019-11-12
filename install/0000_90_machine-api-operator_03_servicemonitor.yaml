@@ -5,6 +5,8 @@ metadata:
     k8s-app: machine-api-operator
   name: machine-api-operator
   namespace: openshift-machine-api
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
 spec:
   endpoints:
     - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
