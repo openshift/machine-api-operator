@@ -197,6 +197,22 @@ func (optr *Operator) getOrCreateClusterOperator() (*osconfigv1.ClusterOperator,
 			Name:      "",
 			Namespace: optr.namespace,
 		},
+		{
+			Group:     "rbac.authorization.k8s.io",
+			Resource:  "roles",
+			Name:      "",
+			Namespace: optr.namespace,
+		},
+		{
+			Group:    "rbac.authorization.k8s.io",
+			Resource: "clusterroles",
+			Name:     "machine-api-operator",
+		},
+		{
+			Group:    "rbac.authorization.k8s.io",
+			Resource: "clusterroles",
+			Name:     "machine-api-controllers",
+		},
 	}
 	if !equality.Semantic.DeepEqual(co.Status.RelatedObjects, relatedObjects) {
 		co.Status.RelatedObjects = relatedObjects
