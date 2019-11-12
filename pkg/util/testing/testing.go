@@ -5,7 +5,6 @@ import (
 	"time"
 
 	mapiv1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
-	mhcv1alpha1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1alpha1"
 	mhcv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,36 +36,6 @@ func NewSelector(labels map[string]string) *metav1.LabelSelector {
 // NewSelectorFooBar returns new foo:bar label selector
 func NewSelectorFooBar() *metav1.LabelSelector {
 	return NewSelector(FooBar())
-}
-
-// NewMinAvailableMachineDisruptionBudget returns new MachineDisruptionBudget with min available parameter
-func NewMinAvailableMachineDisruptionBudget(minAvailable int32) *mhcv1alpha1.MachineDisruptionBudget {
-	return &mhcv1alpha1.MachineDisruptionBudget{
-		TypeMeta: metav1.TypeMeta{Kind: "MachineDisruptionBudget"},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "foobar",
-			Namespace: Namespace,
-		},
-		Spec: mhcv1alpha1.MachineDisruptionBudgetSpec{
-			MinAvailable: &minAvailable,
-			Selector:     NewSelectorFooBar(),
-		},
-	}
-}
-
-// NewMaxUnavailableMachineDisruptionBudget returns new MachineDisruptionBudget with max unavailable parameter
-func NewMaxUnavailableMachineDisruptionBudget(maxUnavailable int32) *mhcv1alpha1.MachineDisruptionBudget {
-	return &mhcv1alpha1.MachineDisruptionBudget{
-		TypeMeta: metav1.TypeMeta{Kind: "MachineDisruptionBudget"},
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "foobar",
-			Namespace: Namespace,
-		},
-		Spec: mhcv1alpha1.MachineDisruptionBudgetSpec{
-			MaxUnavailable: &maxUnavailable,
-			Selector:       NewSelectorFooBar(),
-		},
-	}
 }
 
 // NewNode returns new node object that can be used for testing
