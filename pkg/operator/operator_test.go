@@ -25,17 +25,6 @@ const (
 	hcControllerName = "machine-healthcheck-controller"
 )
 
-func newFeatureGate(featureSet openshiftv1.FeatureSet) *openshiftv1.FeatureGate {
-	return &openshiftv1.FeatureGate{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: MachineAPIFeatureGateName,
-		},
-		Spec: openshiftv1.FeatureGateSpec{
-			FeatureSet: featureSet,
-		},
-	}
-}
-
 func newOperatorConfig() *OperatorConfig {
 	baremetalControllers := BaremetalControllers{}
 
@@ -142,7 +131,8 @@ func TestOperatorSync_NoOp(t *testing.T) {
 			}
 
 			stopCh := make(<-chan struct{})
-			optr := newFakeOperator(nil, []runtime.Object{newFeatureGate(openshiftv1.TechPreviewNoUpgrade), infra}, stopCh)
+			optr := newFakeOperator(nil, []runtime.Object{infra}, stopCh)
+			optr.queue.Add("trigger")
 			go optr.Run(2, stopCh)
 
 			err := wait.PollImmediate(1*time.Second, 5*time.Second, func() (bool, error) {
