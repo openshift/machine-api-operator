@@ -13,7 +13,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/pointer"
 
-	osev1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 )
 
@@ -63,26 +62,7 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 }
 
 func (optr *Operator) syncClusterAPIController(config *OperatorConfig) error {
-	// Fetch the Feature
-	featureGate, err := optr.featureGateLister.Get(MachineAPIFeatureGateName)
-
-	var featureSet osev1.FeatureSet
-	if err != nil {
-		if !apierrors.IsNotFound(err) {
-			return err
-		}
-		glog.V(2).Infof("Failed to find feature gate %q, will use default feature set", MachineAPIFeatureGateName)
-		featureSet = osev1.Default
-	} else {
-		featureSet = featureGate.Spec.FeatureSet
-	}
-
-	features, err := generateFeatureMap(featureSet)
-	if err != nil {
-		return err
-	}
-
-	controller := newDeployment(config, features)
+	controller := newDeployment(config, nil)
 	_, updated, err := resourceapply.ApplyDeployment(optr.kubeClient.AppsV1(), controller)
 	if err != nil {
 		return err
