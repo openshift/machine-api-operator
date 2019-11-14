@@ -729,60 +729,6 @@ func TestMHCRequestsFromNode(t *testing.T) {
 	}
 }
 
-func TestGetMachineFromNode(t *testing.T) {
-	machine := maotesting.NewMachine("fakeMachine", "node1")
-	machine2 := maotesting.NewMachine("badMachineKey", "node1")
-	machine3 := maotesting.NewMachine("notFoundMachine", "node1")
-	testCases := []struct {
-		testCase        string
-		machine         *mapiv1beta1.Machine
-		node            *corev1.Node
-		machineNotFound bool
-		expectedMachine *mapiv1beta1.Machine
-		expectedError   bool
-	}{
-		{
-			testCase:        "node has machine",
-			machine:         machine,
-			node:            maotesting.NewNode("node1", true),
-			expectedMachine: machine,
-		},
-		{
-			testCase:        "node has bad machine key",
-			machine:         machine2,
-			node:            maotesting.NewNode("node1", true),
-			expectedMachine: nil,
-			expectedError:   true,
-		},
-		{
-			testCase:        "machine not found",
-			machine:         machine3,
-			node:            maotesting.NewNode("node1", true),
-			machineNotFound: true,
-			expectedMachine: nil,
-			expectedError:   true,
-		},
-	}
-
-	for _, tc := range testCases {
-		var objects []runtime.Object
-		objects = append(objects, runtime.Object(tc.node))
-		if !tc.machineNotFound {
-			objects = append(objects, runtime.Object(tc.machine))
-		}
-
-		t.Run(tc.testCase, func(t *testing.T) {
-			got, err := newFakeReconciler(objects...).getMachineFromNode(*tc.node)
-			if !equality.Semantic.DeepEqual(got, tc.expectedMachine) {
-				t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, got, tc.expectedMachine)
-			}
-			if tc.expectedError != (err != nil) {
-				t.Errorf("Case: %v. Got: %v, expected error: %v", tc.testCase, err, tc.expectedError)
-			}
-		})
-	}
-}
-
 func TestGetMachinesFromMHC(t *testing.T) {
 	machines := []mapiv1beta1.Machine{
 		*maotesting.NewMachine("test1", "node1"),

@@ -18,7 +18,6 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	apimachineryutilerrors "k8s.io/apimachinery/pkg/util/errors"
-	"k8s.io/client-go/tools/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -38,22 +37,47 @@ const (
 	remediationStrategyAnnotation = "healthchecking.openshift.io/strategy"
 	remediationStrategyReboot     = mhcv1beta1.RemediationStrategyType("reboot")
 	timeoutForMachineToHaveNode   = 10 * time.Minute
+	machineNodeNameIndex          = "machineNodeNameIndex"
 )
 
 // Add creates a new MachineHealthCheck Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and start it when the Manager is started.
 func Add(mgr manager.Manager, opts manager.Options) error {
-	r := newReconciler(mgr, opts)
+	r, err := newReconciler(mgr, opts)
+	if err != nil {
+		return fmt.Errorf("error building reconciler: %v", err)
+	}
 	return add(mgr, r, r.mhcRequestsFromMachine, r.mhcRequestsFromNode)
 }
 
 // newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager, opts manager.Options) *ReconcileMachineHealthCheck {
+func newReconciler(mgr manager.Manager, opts manager.Options) (*ReconcileMachineHealthCheck, error) {
+	if err := mgr.GetCache().IndexField(&mapiv1.Machine{},
+		machineNodeNameIndex,
+		indexMachineByNodeName,
+	); err != nil {
+		return nil, fmt.Errorf("error setting index fields: %v", err)
+	}
+
 	return &ReconcileMachineHealthCheck{
 		client:    mgr.GetClient(),
 		scheme:    mgr.GetScheme(),
 		namespace: opts.Namespace,
+	}, nil
+}
+
+func indexMachineByNodeName(object runtime.Object) []string {
+	machine, ok := object.(*mapiv1.Machine)
+	if !ok {
+		glog.Warningf("Expected a machine for indexing field, got: %T", object)
+		return nil
 	}
+
+	if machine.Status.NodeRef != nil {
+		return []string{machine.Status.NodeRef.Name}
+	}
+
+	return nil
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
@@ -270,40 +294,34 @@ func (r *ReconcileMachineHealthCheck) getMachinesFromMHC(mhc mhcv1beta1.MachineH
 	return machineList.Items, nil
 }
 
-func (r *ReconcileMachineHealthCheck) getMachineFromNode(node corev1.Node) (*mapiv1.Machine, error) {
-	machineKey, ok := node.Annotations[machineAnnotationKey]
-	if !ok {
-		glog.V(4).Infof("no machine annotation for node %s", node.GetName())
-		return nil, nil
-	}
-	glog.V(4).Infof("Node %s is annotated with machine %s", node.GetName(), machineKey)
-
-	namespace, machineName, err := cache.SplitMetaNamespaceKey(machineKey)
-	if err != nil {
-		return nil, fmt.Errorf("machine name has wrong format %v", machineKey)
-	}
-	machine := &mapiv1.Machine{}
-	if err = r.client.Get(
+func (r *ReconcileMachineHealthCheck) getMachineFromNode(nodeName string) (*mapiv1.Machine, error) {
+	machineList := &mapiv1.MachineList{}
+	if err := r.client.List(
 		context.TODO(),
-		types.NamespacedName{
-			Namespace: namespace,
-			Name:      machineName,
-		},
-		machine,
+		machineList,
+		client.MatchingFields{machineNodeNameIndex: nodeName},
 	); err != nil {
-		return nil, fmt.Errorf("error getting machine: %v", err)
+		return nil, fmt.Errorf("failed getting machine list: %v", err)
 	}
-	return machine, nil
+	if len(machineList.Items) != 1 {
+		return nil, fmt.Errorf("expecting one machine for node %v, got: %v", nodeName, machineList.Items)
+	}
+	return &machineList.Items[0], nil
 }
 
 func (r *ReconcileMachineHealthCheck) mhcRequestsFromNode(o handler.MapObject) []reconcile.Request {
 	glog.V(4).Infof("Getting MHC requests from node %q", namespacedName(o.Meta).String())
 	node := &corev1.Node{}
 	if err := r.client.Get(context.Background(), namespacedName(o.Meta), node); err != nil {
-		glog.Errorf("No-op: Unable to retrieve node %q from store: %v", namespacedName(o.Meta).String(), err)
-		return nil
+		if apimachineryerrors.IsNotFound(err) {
+			node.Name = o.Meta.GetName()
+		} else {
+			glog.Errorf("No-op: Unable to retrieve node %q from store: %v", namespacedName(o.Meta).String(), err)
+			return nil
+		}
 	}
-	machine, err := r.getMachineFromNode(*node)
+
+	machine, err := r.getMachineFromNode(node.Name)
 	if machine == nil || err != nil {
 		glog.Errorf("No-op: Unable to retrieve machine from node %q: %v", namespacedName(node).String(), err)
 		return nil
