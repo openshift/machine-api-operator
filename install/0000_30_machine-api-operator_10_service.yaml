@@ -6,6 +6,7 @@ metadata:
   namespace: openshift-machine-api
   annotations:
     service.alpha.openshift.io/serving-cert-secret-name: machine-api-operator-tls
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
   labels:
     k8s-app: machine-api-operator
 spec:
