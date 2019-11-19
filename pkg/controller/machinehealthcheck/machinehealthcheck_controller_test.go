@@ -1997,6 +1997,35 @@ func TestReconcileStatus(t *testing.T) {
 
 func TestHealthCheckTargets(t *testing.T) {
 	now := time.Now()
+	mhc := mapiv1beta1.MachineHealthCheck{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: namespace,
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind: "MachineHealthCheck",
+		},
+		Spec: mapiv1beta1.MachineHealthCheckSpec{
+			Selector: metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"foo": "bar",
+				},
+			},
+			UnhealthyConditions: []mapiv1beta1.UnhealthyCondition{
+				{
+					Type:    "Ready",
+					Status:  "Unknown",
+					Timeout: "300s",
+				},
+				{
+					Type:    "Ready",
+					Status:  "False",
+					Timeout: "300s",
+				},
+			},
+		},
+		Status: mapiv1beta1.MachineHealthCheckStatus{},
+	}
 	testCases := []struct {
 		testCase               string
 		targets                []target
@@ -2044,35 +2073,7 @@ func TestHealthCheckTargets(t *testing.T) {
 							},
 						},
 					},
-					MHC: mapiv1beta1.MachineHealthCheck{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      "test",
-							Namespace: namespace,
-						},
-						TypeMeta: metav1.TypeMeta{
-							Kind: "MachineHealthCheck",
-						},
-						Spec: mapiv1beta1.MachineHealthCheckSpec{
-							Selector: metav1.LabelSelector{
-								MatchLabels: map[string]string{
-									"foo": "bar",
-								},
-							},
-							UnhealthyConditions: []mapiv1beta1.UnhealthyCondition{
-								{
-									Type:    "Ready",
-									Status:  "Unknown",
-									Timeout: "300s",
-								},
-								{
-									Type:    "Ready",
-									Status:  "False",
-									Timeout: "300s",
-								},
-							},
-						},
-						Status: mapiv1beta1.MachineHealthCheckStatus{},
-					},
+					MHC: mhc,
 				},
 				{
 					Machine: mapiv1beta1.Machine{
@@ -2110,35 +2111,7 @@ func TestHealthCheckTargets(t *testing.T) {
 							},
 						},
 					},
-					MHC: mapiv1beta1.MachineHealthCheck{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      "test",
-							Namespace: namespace,
-						},
-						TypeMeta: metav1.TypeMeta{
-							Kind: "MachineHealthCheck",
-						},
-						Spec: mapiv1beta1.MachineHealthCheckSpec{
-							Selector: metav1.LabelSelector{
-								MatchLabels: map[string]string{
-									"foo": "bar",
-								},
-							},
-							UnhealthyConditions: []mapiv1beta1.UnhealthyCondition{
-								{
-									Type:    "Ready",
-									Status:  "Unknown",
-									Timeout: "300s",
-								},
-								{
-									Type:    "Ready",
-									Status:  "False",
-									Timeout: "300s",
-								},
-							},
-						},
-						Status: mapiv1beta1.MachineHealthCheckStatus{},
-					},
+					MHC: mhc,
 				},
 			},
 			currentHealthy: 1,
@@ -2179,35 +2152,7 @@ func TestHealthCheckTargets(t *testing.T) {
 							},
 						},
 					},
-					MHC: mapiv1beta1.MachineHealthCheck{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      "test",
-							Namespace: namespace,
-						},
-						TypeMeta: metav1.TypeMeta{
-							Kind: "MachineHealthCheck",
-						},
-						Spec: mapiv1beta1.MachineHealthCheckSpec{
-							Selector: metav1.LabelSelector{
-								MatchLabels: map[string]string{
-									"foo": "bar",
-								},
-							},
-							UnhealthyConditions: []mapiv1beta1.UnhealthyCondition{
-								{
-									Type:    "Ready",
-									Status:  "Unknown",
-									Timeout: "300s",
-								},
-								{
-									Type:    "Ready",
-									Status:  "False",
-									Timeout: "300s",
-								},
-							},
-						},
-						Status: mapiv1beta1.MachineHealthCheckStatus{},
-					},
+					MHC: mhc,
 				},
 			},
 			nextCheckTimesLen: 0,
@@ -2232,35 +2177,7 @@ func TestHealthCheckTargets(t *testing.T) {
 						},
 					},
 					Node: nil,
-					MHC: mapiv1beta1.MachineHealthCheck{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      "test",
-							Namespace: namespace,
-						},
-						TypeMeta: metav1.TypeMeta{
-							Kind: "MachineHealthCheck",
-						},
-						Spec: mapiv1beta1.MachineHealthCheckSpec{
-							Selector: metav1.LabelSelector{
-								MatchLabels: map[string]string{
-									"foo": "bar",
-								},
-							},
-							UnhealthyConditions: []mapiv1beta1.UnhealthyCondition{
-								{
-									Type:    "Ready",
-									Status:  "Unknown",
-									Timeout: "300s",
-								},
-								{
-									Type:    "Ready",
-									Status:  "False",
-									Timeout: "300s",
-								},
-							},
-						},
-						Status: mapiv1beta1.MachineHealthCheckStatus{},
-					},
+					MHC:  mhc,
 				},
 				{
 					Machine: mapiv1beta1.Machine{
@@ -2298,39 +2215,137 @@ func TestHealthCheckTargets(t *testing.T) {
 							},
 						},
 					},
-					MHC: mapiv1beta1.MachineHealthCheck{
-						ObjectMeta: metav1.ObjectMeta{
-							Name:      "test",
-							Namespace: namespace,
-						},
-						TypeMeta: metav1.TypeMeta{
-							Kind: "MachineHealthCheck",
-						},
-						Spec: mapiv1beta1.MachineHealthCheckSpec{
-							Selector: metav1.LabelSelector{
-								MatchLabels: map[string]string{
-									"foo": "bar",
-								},
-							},
-							UnhealthyConditions: []mapiv1beta1.UnhealthyCondition{
-								{
-									Type:    "Ready",
-									Status:  "Unknown",
-									Timeout: "300s",
-								},
-								{
-									Type:    "Ready",
-									Status:  "False",
-									Timeout: "300s",
-								},
-							},
-						},
-						Status: mapiv1beta1.MachineHealthCheckStatus{},
-					},
+					MHC: mhc,
 				},
 			},
 			currentHealthy:    0,
 			nextCheckTimesLen: 2,
+			errList:           []error{},
+		},
+		{
+			testCase: "one unhealthy, one disabled",
+			targets: []target{
+				{
+					Machine: mapiv1beta1.Machine{
+						TypeMeta: metav1.TypeMeta{Kind: "Machine"},
+						ObjectMeta: metav1.ObjectMeta{
+							Annotations:     make(map[string]string),
+							Name:            "machine1",
+							Namespace:       namespace,
+							Labels:          map[string]string{"foo": "bar"},
+							OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
+						},
+						Spec:   mapiv1beta1.MachineSpec{},
+						Status: mapiv1beta1.MachineStatus{},
+					},
+					Node: &corev1.Node{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "node1",
+							Namespace: metav1.NamespaceNone,
+							Annotations: map[string]string{
+								machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "machine1"),
+							},
+							Labels: map[string]string{},
+							UID:    "uid",
+						},
+						TypeMeta: metav1.TypeMeta{
+							Kind: "Node",
+						},
+						Status: corev1.NodeStatus{
+							Conditions: []corev1.NodeCondition{
+								{
+									Type:               corev1.NodeReady,
+									Status:             corev1.ConditionFalse,
+									LastTransitionTime: metav1.Time{Time: now.Add(time.Duration(-400) * time.Second)},
+								},
+							},
+						},
+					},
+					MHC: mhc,
+				},
+				{
+					Machine: mapiv1beta1.Machine{
+						TypeMeta: metav1.TypeMeta{Kind: "Machine"},
+						ObjectMeta: metav1.ObjectMeta{
+							Annotations: map[string]string{
+								healthcheckingDisabledAnnotationKey: "true",
+							},
+							Name:            "machine2",
+							Namespace:       namespace,
+							Labels:          map[string]string{"foo": "bar"},
+							OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
+						},
+						Spec:   mapiv1beta1.MachineSpec{},
+						Status: mapiv1beta1.MachineStatus{},
+					},
+					Node: &corev1.Node{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "node2",
+							Namespace: metav1.NamespaceNone,
+							Annotations: map[string]string{
+								machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "machine2"),
+							},
+							Labels: map[string]string{},
+							UID:    "uid",
+						},
+						TypeMeta: metav1.TypeMeta{
+							Kind: "Node",
+						},
+						Status: corev1.NodeStatus{
+							Conditions: []corev1.NodeCondition{
+								{
+									Type:               corev1.NodeReady,
+									Status:             corev1.ConditionFalse,
+									LastTransitionTime: metav1.Time{Time: now.Add(time.Duration(-400) * time.Second)},
+								},
+							},
+						},
+					},
+					MHC: mhc,
+				},
+			},
+			currentHealthy: 0,
+			needRemediationTargets: []target{
+				{
+					Machine: mapiv1beta1.Machine{
+						TypeMeta: metav1.TypeMeta{Kind: "Machine"},
+						ObjectMeta: metav1.ObjectMeta{
+							Annotations:     make(map[string]string),
+							Name:            "machine1",
+							Namespace:       namespace,
+							Labels:          map[string]string{"foo": "bar"},
+							OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
+						},
+						Spec:   mapiv1beta1.MachineSpec{},
+						Status: mapiv1beta1.MachineStatus{},
+					},
+					Node: &corev1.Node{
+						ObjectMeta: metav1.ObjectMeta{
+							Name:      "node1",
+							Namespace: metav1.NamespaceNone,
+							Annotations: map[string]string{
+								machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "machine1"),
+							},
+							Labels: map[string]string{},
+							UID:    "uid",
+						},
+						TypeMeta: metav1.TypeMeta{
+							Kind: "Node",
+						},
+						Status: corev1.NodeStatus{
+							Conditions: []corev1.NodeCondition{
+								{
+									Type:               corev1.NodeReady,
+									Status:             corev1.ConditionFalse,
+									LastTransitionTime: metav1.Time{Time: now.Add(time.Duration(-400) * time.Second)},
+								},
+							},
+						},
+					},
+					MHC: mhc,
+				},
+			},
+			nextCheckTimesLen: 0,
 			errList:           []error{},
 		},
 	}

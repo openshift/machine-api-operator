@@ -26,17 +26,18 @@ import (
 )
 
 const (
-	machineAnnotationKey          = "machine.openshift.io/machine"
-	machineRebootAnnotationKey    = "healthchecking.openshift.io/machine-remediation-reboot"
-	ownerControllerKind           = "MachineSet"
-	nodeMasterLabel               = "node-role.kubernetes.io/master"
-	machineRoleLabel              = "machine.openshift.io/cluster-api-machine-role"
-	machineMasterRole             = "master"
-	machinePhaseFailed            = "Failed"
-	remediationStrategyAnnotation = "healthchecking.openshift.io/strategy"
-	remediationStrategyReboot     = mapiv1.RemediationStrategyType("reboot")
-	timeoutForMachineToHaveNode   = 10 * time.Minute
-	machineNodeNameIndex          = "machineNodeNameIndex"
+	machineAnnotationKey                = "machine.openshift.io/machine"
+	machineRebootAnnotationKey          = "healthchecking.openshift.io/machine-remediation-reboot"
+	ownerControllerKind                 = "MachineSet"
+	nodeMasterLabel                     = "node-role.kubernetes.io/master"
+	machineRoleLabel                    = "machine.openshift.io/cluster-api-machine-role"
+	machineMasterRole                   = "master"
+	machinePhaseFailed                  = "Failed"
+	remediationStrategyAnnotation       = "healthchecking.openshift.io/strategy"
+	remediationStrategyReboot           = mapiv1.RemediationStrategyType("reboot")
+	timeoutForMachineToHaveNode         = 10 * time.Minute
+	machineNodeNameIndex                = "machineNodeNameIndex"
+	healthcheckingDisabledAnnotationKey = "healthchecking.openshift.io/disabled"
 )
 
 // Add creates a new MachineHealthCheck Controller and adds it to the Manager. The Manager will set fields on the Controller
@@ -228,6 +229,14 @@ func healthCheckTargets(targets []target) (int, []target, []time.Duration, []err
 	var needRemediationTargets []target
 	var currentHealthy int
 	for _, t := range targets {
+		if t.hasHealthcheckingDisabled() {
+			glog.V(3).Infof(
+				"Reconciling %s: healthchecking disabled, machine object has annotation %v set to 'true'",
+				t.string(),
+				healthcheckingDisabledAnnotationKey,
+			)
+			continue
+		}
 		glog.V(3).Infof("Reconciling %s: health checking", t.string())
 		needsRemediation, nextCheck, err := t.needsRemediation()
 		if err != nil {
@@ -537,6 +546,11 @@ func (t *target) hasMachineSetOwner() bool {
 		}
 	}
 	return false
+}
+
+func (t *target) hasHealthcheckingDisabled() bool {
+	remediationDisabled, ok := t.Machine.Annotations[healthcheckingDisabledAnnotationKey]
+	return ok && remediationDisabled == "true"
 }
 
 func derefStringPointer(stringPointer *string) string {
