@@ -19,14 +19,16 @@
 package v1beta1
 
 import (
-	v1beta1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1beta1"
+	v1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned/scheme"
 	rest "k8s.io/client-go/rest"
 )
 
 type MachineV1beta1Interface interface {
 	RESTClient() rest.Interface
+	MachinesGetter
 	MachineHealthChecksGetter
+	MachineSetsGetter
 }
 
 // MachineV1beta1Client is used to interact with features provided by the machine.openshift.io group.
@@ -34,8 +36,16 @@ type MachineV1beta1Client struct {
 	restClient rest.Interface
 }
 
+func (c *MachineV1beta1Client) Machines(namespace string) MachineInterface {
+	return newMachines(c, namespace)
+}
+
 func (c *MachineV1beta1Client) MachineHealthChecks(namespace string) MachineHealthCheckInterface {
 	return newMachineHealthChecks(c, namespace)
+}
+
+func (c *MachineV1beta1Client) MachineSets(namespace string) MachineSetInterface {
+	return newMachineSets(c, namespace)
 }
 
 // NewForConfig creates a new MachineV1beta1Client for the given config.

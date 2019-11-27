@@ -7,8 +7,8 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/controller/machinehealthcheck"
 
 	"github.com/golang/glog"
-	mapiv1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
-	"github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1beta1"
+	"github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/controller"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"

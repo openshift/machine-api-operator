@@ -19,7 +19,7 @@
 package fake
 
 import (
-	machinev1beta1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1beta1"
+	machinev1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtime "k8s.io/apimachinery/pkg/runtime"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"

@@ -8,8 +8,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	"github.com/golang/glog"
-	mapiv1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
-	mhcv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1beta1"
+	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
 	corev1 "k8s.io/api/core/v1"
 	apimachineryerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -35,7 +34,7 @@ const (
 	machineMasterRole             = "master"
 	machinePhaseFailed            = "Failed"
 	remediationStrategyAnnotation = "healthchecking.openshift.io/strategy"
-	remediationStrategyReboot     = mhcv1beta1.RemediationStrategyType("reboot")
+	remediationStrategyReboot     = mapiv1.RemediationStrategyType("reboot")
 	timeoutForMachineToHaveNode   = 10 * time.Minute
 	machineNodeNameIndex          = "machineNodeNameIndex"
 )
@@ -87,7 +86,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler, mapMachineToMHC, mapNodeTo
 		return err
 	}
 
-	err = c.Watch(&source.Kind{Type: &mhcv1beta1.MachineHealthCheck{}}, &handler.EnqueueRequestForObject{})
+	err = c.Watch(&source.Kind{Type: &mapiv1.MachineHealthCheck{}}, &handler.EnqueueRequestForObject{})
 	if err != nil {
 		return err
 	}
@@ -114,14 +113,14 @@ type ReconcileMachineHealthCheck struct {
 type target struct {
 	Machine mapiv1.Machine
 	Node    *corev1.Node
-	MHC     mhcv1beta1.MachineHealthCheck
+	MHC     mapiv1.MachineHealthCheck
 }
 
 // Reconcile fetch all targets for a MachineHealthCheck request and does health checking for each of them
 func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	glog.Infof("Reconciling %s", request.String())
 
-	mhc := &mhcv1beta1.MachineHealthCheck{}
+	mhc := &mapiv1.MachineHealthCheck{}
 	if err := r.client.Get(context.TODO(), request.NamespacedName, mhc); err != nil {
 		if apimachineryerrors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
@@ -188,7 +187,7 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 	return reconcile.Result{}, nil
 }
 
-func isAllowedRemediation(mhc *mhcv1beta1.MachineHealthCheck) bool {
+func isAllowedRemediation(mhc *mapiv1.MachineHealthCheck) bool {
 	if mhc.Spec.MaxUnhealthy == nil {
 		return true
 	}
@@ -203,7 +202,7 @@ func isAllowedRemediation(mhc *mhcv1beta1.MachineHealthCheck) bool {
 	return (maxUnhealthy - noHealthy) >= 0
 }
 
-func (r *ReconcileMachineHealthCheck) reconcileStatus(mhc *mhcv1beta1.MachineHealthCheck, targets, currentHealthy int) error {
+func (r *ReconcileMachineHealthCheck) reconcileStatus(mhc *mapiv1.MachineHealthCheck, targets, currentHealthy int) error {
 	baseToPatch := client.MergeFrom(mhc.DeepCopy())
 	mhc.Status.ExpectedMachines = targets
 	mhc.Status.CurrentHealthy = currentHealthy
@@ -247,7 +246,7 @@ func healthCheckTargets(targets []target) (int, []target, []time.Duration, []err
 	return currentHealthy, needRemediationTargets, nextCheckTimes, errList
 }
 
-func (r *ReconcileMachineHealthCheck) getTargetsFromMHC(mhc mhcv1beta1.MachineHealthCheck) ([]target, error) {
+func (r *ReconcileMachineHealthCheck) getTargetsFromMHC(mhc mapiv1.MachineHealthCheck) ([]target, error) {
 	machines, err := r.getMachinesFromMHC(mhc)
 	if err != nil {
 		return nil, fmt.Errorf("error getting machines from MHC: %v", err)
@@ -277,7 +276,7 @@ func (r *ReconcileMachineHealthCheck) getTargetsFromMHC(mhc mhcv1beta1.MachineHe
 	return targets, nil
 }
 
-func (r *ReconcileMachineHealthCheck) getMachinesFromMHC(mhc mhcv1beta1.MachineHealthCheck) ([]mapiv1.Machine, error) {
+func (r *ReconcileMachineHealthCheck) getMachinesFromMHC(mhc mapiv1.MachineHealthCheck) ([]mapiv1.Machine, error) {
 	selector, err := metav1.LabelSelectorAsSelector(&mhc.Spec.Selector)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build selector")
@@ -327,7 +326,7 @@ func (r *ReconcileMachineHealthCheck) mhcRequestsFromNode(o handler.MapObject) [
 		return nil
 	}
 
-	mhcList := &mhcv1beta1.MachineHealthCheckList{}
+	mhcList := &mapiv1.MachineHealthCheckList{}
 	if err := r.client.List(context.Background(), mhcList); err != nil {
 		glog.Errorf("No-op: Unable to list mhc: %v", err)
 		return nil
@@ -357,7 +356,7 @@ func (r *ReconcileMachineHealthCheck) mhcRequestsFromMachine(o handler.MapObject
 		return nil
 	}
 
-	mhcList := &mhcv1beta1.MachineHealthCheckList{}
+	mhcList := &mapiv1.MachineHealthCheckList{}
 	if err := r.client.List(context.Background(), mhcList); err != nil {
 		glog.Errorf("No-op: Unable to list mhc: %v", err)
 		return nil
@@ -381,7 +380,7 @@ func (t *target) remediate(r *ReconcileMachineHealthCheck) error {
 
 	remediationStrategy, ok := t.MHC.Annotations[remediationStrategyAnnotation]
 	if ok {
-		if mhcv1beta1.RemediationStrategyType(remediationStrategy) == remediationStrategyReboot {
+		if mapiv1.RemediationStrategyType(remediationStrategy) == remediationStrategyReboot {
 			return t.remediationStrategyReboot(r)
 		}
 	}
@@ -567,7 +566,7 @@ func namespacedName(obj metav1.Object) types.NamespacedName {
 	}
 }
 
-func hasMatchingLabels(machineHealthCheck *mhcv1beta1.MachineHealthCheck, machine *mapiv1.Machine) bool {
+func hasMatchingLabels(machineHealthCheck *mapiv1.MachineHealthCheck, machine *mapiv1.Machine) bool {
 	selector, err := metav1.LabelSelectorAsSelector(&machineHealthCheck.Spec.Selector)
 	if err != nil {
 		glog.Warningf("unable to convert selector: %v", err)

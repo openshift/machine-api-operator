@@ -4,7 +4,7 @@ import (
 	"time"
 
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions"
-	machineinformersv1beta1 "github.com/openshift/cluster-api/pkg/client/informers_generated/externalversions"
+	machineinformersv1beta1 "github.com/openshift/machine-api-operator/pkg/generated/informers/externalversions"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/informers"

@@ -4,11 +4,9 @@ import (
 	"flag"
 	"runtime"
 
+	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/controller"
-
 	"github.com/openshift/machine-api-operator/pkg/controller/nodelink"
-
-	mapiv1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"

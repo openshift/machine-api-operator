@@ -21,7 +21,7 @@ package v1beta1
 import (
 	"time"
 
-	v1beta1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1beta1"
+	v1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	scheme "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned/scheme"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	types "k8s.io/apimachinery/pkg/types"

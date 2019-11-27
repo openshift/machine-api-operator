@@ -19,7 +19,7 @@
 package fake
 
 import (
-	v1beta1 "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned/typed/healthchecking/v1beta1"
+	v1beta1 "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned/typed/machine/v1beta1"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )
@@ -28,8 +28,16 @@ type FakeMachineV1beta1 struct {
 	*testing.Fake
 }
 
+func (c *FakeMachineV1beta1) Machines(namespace string) v1beta1.MachineInterface {
+	return &FakeMachines{c, namespace}
+}
+
 func (c *FakeMachineV1beta1) MachineHealthChecks(namespace string) v1beta1.MachineHealthCheckInterface {
 	return &FakeMachineHealthChecks{c, namespace}
+}
+
+func (c *FakeMachineV1beta1) MachineSets(namespace string) v1beta1.MachineSetInterface {
+	return &FakeMachineSets{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

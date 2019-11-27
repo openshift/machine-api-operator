@@ -18,4 +18,8 @@
 
 package v1beta1
 
+type MachineExpansion interface{}
+
 type MachineHealthCheckExpansion interface{}
+
+type MachineSetExpansion interface{}

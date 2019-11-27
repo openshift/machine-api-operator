@@ -10,7 +10,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 
-	"github.com/openshift/machine-api-operator/pkg/apis/healthchecking"
+	healthchecking "github.com/openshift/machine-api-operator/pkg/apis/machine"
 )
 
 // SchemeGroupVersion is group version used to register these objects
@@ -36,6 +36,10 @@ func addKnownTypes(scheme *runtime.Scheme) error {
 	scheme.AddKnownTypes(SchemeGroupVersion,
 		&MachineHealthCheck{},
 		&MachineHealthCheckList{},
+		&Machine{},
+		&MachineList{},
+		&MachineSet{},
+		&MachineSetList{},
 	)
 	metav1.AddToGroupVersion(scheme, SchemeGroupVersion)
 	return nil
