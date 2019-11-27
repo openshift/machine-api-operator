@@ -58,7 +58,7 @@ var (
 
 // Add creates a new MachineSet Controller and adds it to the Manager with default RBAC.
 // The Manager will set fields on the Controller and Start it when the Manager is Started.
-func Add(mgr manager.Manager) error {
+func Add(mgr manager.Manager, opts manager.Options) error {
 	r := newReconciler(mgr)
 	return add(mgr, r, r.MachineToMachineSets)
 }
