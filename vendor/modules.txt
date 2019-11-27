@@ -10,6 +10,10 @@ github.com/davecgh/go-spew/spew
 github.com/evanphx/json-patch
 # github.com/fatih/color v1.7.0
 github.com/fatih/color
+# github.com/go-log/log v0.0.0-20181211034820-a514cf01a3eb
+github.com/go-log/log/info
+github.com/go-log/log
+github.com/go-log/log/capture
 # github.com/go-logr/logr v0.1.0
 github.com/go-logr/logr
 # github.com/gobuffalo/flect v0.1.5
@@ -253,6 +257,7 @@ gopkg.in/yaml.v2
 gopkg.in/yaml.v3
 # k8s.io/api v0.0.0-20190918195907-bd6ac527cfd2 => k8s.io/api v0.0.0-20190918155943-95b840bb6a1f
 k8s.io/api/core/v1
+k8s.io/api/policy/v1beta1
 k8s.io/api/apps/v1
 k8s.io/api/admissionregistration/v1
 k8s.io/api/admissionregistration/v1beta1
@@ -275,7 +280,6 @@ k8s.io/api/networking/v1
 k8s.io/api/networking/v1beta1
 k8s.io/api/node/v1alpha1
 k8s.io/api/node/v1beta1
-k8s.io/api/policy/v1beta1
 k8s.io/api/rbac/v1
 k8s.io/api/rbac/v1alpha1
 k8s.io/api/rbac/v1beta1
@@ -312,19 +316,19 @@ k8s.io/apimachinery/pkg/util/validation/field
 k8s.io/apimachinery/pkg/api/errors
 k8s.io/apimachinery/pkg/types
 k8s.io/apimachinery/pkg/util/errors
+k8s.io/apimachinery/pkg/fields
+k8s.io/apimachinery/pkg/util/sets
+k8s.io/apimachinery/pkg/util/wait
 k8s.io/apimachinery/pkg/runtime/serializer
 k8s.io/apimachinery/pkg/util/runtime
 k8s.io/apimachinery/pkg/watch
 k8s.io/apimachinery/pkg/api/equality
 k8s.io/apimachinery/pkg/api/resource
-k8s.io/apimachinery/pkg/util/wait
 k8s.io/apimachinery/pkg/conversion
-k8s.io/apimachinery/pkg/fields
 k8s.io/apimachinery/pkg/selection
 k8s.io/apimachinery/pkg/conversion/queryparams
 k8s.io/apimachinery/pkg/util/json
 k8s.io/apimachinery/pkg/util/naming
-k8s.io/apimachinery/pkg/util/sets
 k8s.io/apimachinery/pkg/util/net
 k8s.io/apimachinery/pkg/runtime/serializer/streaming
 k8s.io/apimachinery/pkg/api/meta
@@ -358,6 +362,8 @@ k8s.io/client-go/tools/leaderelection
 k8s.io/client-go/tools/leaderelection/resourcelock
 k8s.io/client-go/tools/record
 k8s.io/client-go/plugin/pkg/client/auth/gcp
+k8s.io/client-go/kubernetes/typed/apps/v1
+k8s.io/client-go/kubernetes/typed/policy/v1beta1
 k8s.io/client-go/discovery
 k8s.io/client-go/util/flowcontrol
 k8s.io/client-go/discovery/fake
@@ -386,7 +392,6 @@ k8s.io/client-go/informers/settings
 k8s.io/client-go/informers/storage
 k8s.io/client-go/kubernetes/typed/admissionregistration/v1
 k8s.io/client-go/kubernetes/typed/admissionregistration/v1beta1
-k8s.io/client-go/kubernetes/typed/apps/v1
 k8s.io/client-go/kubernetes/typed/apps/v1beta1
 k8s.io/client-go/kubernetes/typed/apps/v1beta2
 k8s.io/client-go/kubernetes/typed/auditregistration/v1alpha1
@@ -410,7 +415,6 @@ k8s.io/client-go/kubernetes/typed/networking/v1
 k8s.io/client-go/kubernetes/typed/networking/v1beta1
 k8s.io/client-go/kubernetes/typed/node/v1alpha1
 k8s.io/client-go/kubernetes/typed/node/v1beta1
-k8s.io/client-go/kubernetes/typed/policy/v1beta1
 k8s.io/client-go/kubernetes/typed/rbac/v1
 k8s.io/client-go/kubernetes/typed/rbac/v1alpha1
 k8s.io/client-go/kubernetes/typed/rbac/v1beta1

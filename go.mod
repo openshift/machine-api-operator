@@ -4,6 +4,7 @@ go 1.12
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
+	github.com/go-log/log v0.0.0-20181211034820-a514cf01a3eb
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/groupcache v0.0.0-20190129154638-5b532d6fd5ef // indirect
 	github.com/imdario/mergo v0.3.7 // indirect
@@ -11,6 +12,7 @@ require (
 	github.com/openshift/client-go v0.0.0-20190617165122-8892c0adc000
 	github.com/openshift/cluster-version-operator v3.11.1-0.20190629164025-08cac1c02538+incompatible
 	github.com/operator-framework/operator-sdk v0.5.1-0.20190301204940-c2efe6f74e7b
+	github.com/pkg/errors v0.8.1
 	github.com/prometheus/client_golang v1.0.0
 	github.com/prometheus/common v0.6.0 // indirect
 	github.com/prometheus/procfs v0.0.3 // indirect
