@@ -20,8 +20,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/openshift/cluster-api/pkg/apis/machine/common"
-	"github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
+	"github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -161,7 +160,7 @@ func TestMachineToDelete(t *testing.T) {
 func TestMachineNewestDelete(t *testing.T) {
 
 	currentTime := metav1.Now()
-	statusError := common.MachineStatusError("I'm unhealthy!")
+	statusError := v1beta1.MachineStatusError("I'm unhealthy!")
 	mustDeleteMachine := &v1beta1.Machine{ObjectMeta: metav1.ObjectMeta{DeletionTimestamp: &currentTime}}
 	newest := &v1beta1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -1))}}
 	new := &v1beta1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -5))}}
@@ -229,7 +228,7 @@ func TestMachineNewestDelete(t *testing.T) {
 func TestMachineOldestDelete(t *testing.T) {
 
 	currentTime := metav1.Now()
-	statusError := common.MachineStatusError("I'm unhealthy!")
+	statusError := v1beta1.MachineStatusError("I'm unhealthy!")
 	empty := &v1beta1.Machine{}
 	newest := &v1beta1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -1))}}
 	new := &v1beta1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -5))}}

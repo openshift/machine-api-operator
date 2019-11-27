@@ -14,12 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package errors
+package machine
 
 import (
 	"fmt"
+	"time"
 
-	commonerrors "github.com/openshift/cluster-api/pkg/apis/machine/common"
+	commonerrors "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 )
 
 // A more descriptive kind of error that represents an error condition that
@@ -65,4 +66,16 @@ func DeleteMachine(msg string, args ...interface{}) *MachineError {
 		Reason:  commonerrors.DeleteMachineError,
 		Message: fmt.Sprintf(msg, args...),
 	}
+}
+
+// RequeueAfterError represents that an actuator managed object should be
+// requeued for further processing after the given RequeueAfter time has
+// passed.
+type RequeueAfterError struct {
+	RequeueAfter time.Duration
+}
+
+// Error implements the error interface
+func (e *RequeueAfterError) Error() string {
+	return fmt.Sprintf("requeue in: %s", e.RequeueAfter)
 }

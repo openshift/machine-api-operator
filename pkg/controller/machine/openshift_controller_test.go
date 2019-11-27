@@ -20,13 +20,11 @@ import (
 	"errors"
 	"testing"
 	"time"
-
-	controllerError "github.com/openshift/cluster-api/pkg/controller/error"
 )
 
 func mockDrainNode(shouldDelay bool) error {
 	if shouldDelay {
-		return &controllerError.RequeueAfterError{RequeueAfter: 20 * time.Second}
+		return &RequeueAfterError{RequeueAfter: 20 * time.Second}
 	}
 	return errors.New("other error")
 }

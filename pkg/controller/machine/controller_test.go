@@ -21,8 +21,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
-	machinev1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -38,40 +37,40 @@ var (
 )
 
 func TestReconcileRequest(t *testing.T) {
-	machineProvisioning := v1beta1.Machine{
+	machineProvisioning := machinev1.Machine{
 		TypeMeta: metav1.TypeMeta{
 			Kind: "Machine",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "create",
 			Namespace:  "default",
-			Finalizers: []string{v1beta1.MachineFinalizer, metav1.FinalizerDeleteDependents},
+			Finalizers: []string{machinev1.MachineFinalizer, metav1.FinalizerDeleteDependents},
 			Labels: map[string]string{
-				v1beta1.MachineClusterIDLabel: "testcluster",
+				machinev1.MachineClusterIDLabel: "testcluster",
 			},
 		},
-		Spec: v1beta1.MachineSpec{
-			ProviderSpec: v1beta1.ProviderSpec{
+		Spec: machinev1.MachineSpec{
+			ProviderSpec: machinev1.ProviderSpec{
 				Value: &runtime.RawExtension{
 					Raw: []byte("{}"),
 				},
 			},
 		},
 	}
-	machineProvisioned := v1beta1.Machine{
+	machineProvisioned := machinev1.Machine{
 		TypeMeta: metav1.TypeMeta{
 			Kind: "Machine",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "update",
 			Namespace:  "default",
-			Finalizers: []string{v1beta1.MachineFinalizer, metav1.FinalizerDeleteDependents},
+			Finalizers: []string{machinev1.MachineFinalizer, metav1.FinalizerDeleteDependents},
 			Labels: map[string]string{
-				v1beta1.MachineClusterIDLabel: "testcluster",
+				machinev1.MachineClusterIDLabel: "testcluster",
 			},
 		},
-		Spec: v1beta1.MachineSpec{
-			ProviderSpec: v1beta1.ProviderSpec{
+		Spec: machinev1.MachineSpec{
+			ProviderSpec: machinev1.ProviderSpec{
 				Value: &runtime.RawExtension{
 					Raw: []byte("{}"),
 				},
@@ -87,42 +86,42 @@ func TestReconcileRequest(t *testing.T) {
 		},
 	}
 	time := metav1.Now()
-	machineDeleting := v1beta1.Machine{
+	machineDeleting := machinev1.Machine{
 		TypeMeta: metav1.TypeMeta{
 			Kind: "Machine",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:              "delete",
 			Namespace:         "default",
-			Finalizers:        []string{v1beta1.MachineFinalizer, metav1.FinalizerDeleteDependents},
+			Finalizers:        []string{machinev1.MachineFinalizer, metav1.FinalizerDeleteDependents},
 			DeletionTimestamp: &time,
 			Labels: map[string]string{
-				v1beta1.MachineClusterIDLabel: "testcluster",
+				machinev1.MachineClusterIDLabel: "testcluster",
 			},
 		},
-		Spec: v1beta1.MachineSpec{
-			ProviderSpec: v1beta1.ProviderSpec{
+		Spec: machinev1.MachineSpec{
+			ProviderSpec: machinev1.ProviderSpec{
 				Value: &runtime.RawExtension{
 					Raw: []byte("{}"),
 				},
 			},
 		},
 	}
-	machineFailed := v1beta1.Machine{
+	machineFailed := machinev1.Machine{
 		TypeMeta: metav1.TypeMeta{
 			Kind: "Machine",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "failed",
 			Namespace:  "default",
-			Finalizers: []string{v1beta1.MachineFinalizer, metav1.FinalizerDeleteDependents},
+			Finalizers: []string{machinev1.MachineFinalizer, metav1.FinalizerDeleteDependents},
 			Labels: map[string]string{
-				v1beta1.MachineClusterIDLabel: "testcluster",
+				machinev1.MachineClusterIDLabel: "testcluster",
 			},
 		},
-		Spec: v1beta1.MachineSpec{
+		Spec: machinev1.MachineSpec{
 			ProviderID: pointer.StringPtr("providerID"),
-			ProviderSpec: v1beta1.ProviderSpec{
+			ProviderSpec: machinev1.ProviderSpec{
 				Value: &runtime.RawExtension{
 					Raw: []byte("{}"),
 				},
@@ -137,21 +136,21 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 	}
-	machineRunning := v1beta1.Machine{
+	machineRunning := machinev1.Machine{
 		TypeMeta: metav1.TypeMeta{
 			Kind: "Machine",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "running",
 			Namespace:  "default",
-			Finalizers: []string{v1beta1.MachineFinalizer, metav1.FinalizerDeleteDependents},
+			Finalizers: []string{machinev1.MachineFinalizer, metav1.FinalizerDeleteDependents},
 			Labels: map[string]string{
-				v1beta1.MachineClusterIDLabel: "testcluster",
+				machinev1.MachineClusterIDLabel: "testcluster",
 			},
 		},
-		Spec: v1beta1.MachineSpec{
+		Spec: machinev1.MachineSpec{
 			ProviderID: pointer.StringPtr("providerID"),
-			ProviderSpec: v1beta1.ProviderSpec{
+			ProviderSpec: machinev1.ProviderSpec{
 				Value: &runtime.RawExtension{
 					Raw: []byte("{}"),
 				},
@@ -254,7 +253,7 @@ func TestReconcileRequest(t *testing.T) {
 	for _, tc := range testCases {
 		act := newTestActuator()
 		act.ExistsValue = tc.existsValue
-		v1beta1.AddToScheme(scheme.Scheme)
+		machinev1.AddToScheme(scheme.Scheme)
 		r := &ReconcileMachine{
 			Client: fake.NewFakeClientWithScheme(scheme.Scheme,
 				&machineProvisioning,
@@ -297,7 +296,7 @@ func TestReconcileRequest(t *testing.T) {
 			t.Errorf("Case %s. Got: %d deleteCallCount, expected %d", tc.request.Name, act.DeleteCallCount, tc.expected.deleteCallCount)
 		}
 
-		machine := &v1beta1.Machine{}
+		machine := &machinev1.Machine{}
 		if err := r.Client.Get(context.TODO(), tc.request.NamespacedName, machine); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -323,7 +322,7 @@ func TestSetPhase(t *testing.T) {
 		},
 		Status: machinev1.MachineStatus{},
 	}
-	v1beta1.AddToScheme(scheme.Scheme)
+	machinev1.AddToScheme(scheme.Scheme)
 	reconciler := &ReconcileMachine{
 		Client: fake.NewFakeClientWithScheme(scheme.Scheme, machine),
 		scheme: scheme.Scheme,

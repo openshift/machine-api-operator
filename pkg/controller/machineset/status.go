@@ -20,8 +20,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
-	"github.com/openshift/cluster-api/pkg/controller/noderefutil"
+	"github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -55,9 +54,9 @@ func (c *ReconcileMachineSet) calculateStatus(ms *v1beta1.MachineSet, filteredMa
 			klog.V(4).Infof("Unable to get node for machine %v, %v", machine.Name, err)
 			continue
 		}
-		if noderefutil.IsNodeReady(node) {
+		if IsNodeReady(node) {
 			readyReplicasCount++
-			if noderefutil.IsNodeAvailable(node, ms.Spec.MinReadySeconds, metav1.Now()) {
+			if IsNodeAvailable(node, ms.Spec.MinReadySeconds, metav1.Now()) {
 				availableReplicasCount++
 			}
 		}

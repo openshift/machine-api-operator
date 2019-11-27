@@ -23,12 +23,10 @@ import (
 
 	"github.com/go-log/log/info"
 	clusterv1 "github.com/openshift/cluster-api/pkg/apis/cluster/v1alpha1"
-	commonerrors "github.com/openshift/cluster-api/pkg/apis/machine/common"
-	machinev1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
-	controllerError "github.com/openshift/cluster-api/pkg/controller/error"
-	kubedrain "github.com/openshift/cluster-api/pkg/drain"
-	clusterapiError "github.com/openshift/cluster-api/pkg/errors"
-	"github.com/openshift/cluster-api/pkg/util"
+	commonerrors "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	kubedrain "github.com/openshift/machine-api-operator/pkg/drain"
+	"github.com/openshift/machine-api-operator/pkg/util"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -362,7 +360,7 @@ func (r *ReconcileMachine) drainNode(machine *machinev1.Machine) error {
 	); err != nil {
 		// Machine still tries to terminate after drain failure
 		klog.Warningf("drain failed for machine %q: %v", machine.Name, err)
-		return &controllerError.RequeueAfterError{RequeueAfter: 20 * time.Second}
+		return &RequeueAfterError{RequeueAfter: 20 * time.Second}
 	}
 
 	klog.Infof("drain successful for machine %q", machine.Name)
@@ -405,7 +403,7 @@ func (r *ReconcileMachine) deleteNode(ctx context.Context, name string) error {
 
 func delayIfRequeueAfterError(err error) (reconcile.Result, error) {
 	switch t := err.(type) {
-	case *controllerError.RequeueAfterError:
+	case *RequeueAfterError:
 		klog.Infof("Actuator returned requeue-after error: %v", err)
 		return reconcile.Result{Requeue: true, RequeueAfter: t.RequeueAfter}, nil
 	}
@@ -414,7 +412,7 @@ func delayIfRequeueAfterError(err error) (reconcile.Result, error) {
 
 func isInvalidMachineConfigurationError(err error) bool {
 	switch t := err.(type) {
-	case *clusterapiError.MachineError:
+	case *MachineError:
 		if t.Reason == commonerrors.InvalidConfigurationMachineError {
 			klog.Infof("Actuator returned invalid configuration error: %v", err)
 			return true
