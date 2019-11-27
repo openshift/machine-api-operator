@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/go-log/log/info"
-	clusterv1 "github.com/openshift/cluster-api/pkg/apis/cluster/v1alpha1"
 	commonerrors "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	kubedrain "github.com/openshift/machine-api-operator/pkg/drain"
@@ -168,33 +167,10 @@ func (r *ReconcileMachine) Reconcile(request reconcile.Request) (reconcile.Resul
 		return reconcile.Result{}, err
 	}
 
-	// Cluster might be nil as some providers might not require a cluster object
-	// for machine management.
-	cluster, err := r.getCluster(ctx, m)
-	if err != nil {
-		return reconcile.Result{}, err
-	}
-
-	// Set the ownerRef with foreground deletion if there is a linked cluster.
-	if cluster != nil && len(m.OwnerReferences) == 0 {
-		blockOwnerDeletion := true
-		m.OwnerReferences = append(m.OwnerReferences, metav1.OwnerReference{
-			APIVersion:         cluster.APIVersion,
-			Kind:               cluster.Kind,
-			Name:               cluster.Name,
-			UID:                cluster.UID,
-			BlockOwnerDeletion: &blockOwnerDeletion,
-		})
-	}
-
 	// If object hasn't been deleted and doesn't have a finalizer, add one
 	// Add a finalizer to newly created objects.
 	if m.ObjectMeta.DeletionTimestamp.IsZero() {
 		finalizerCount := len(m.Finalizers)
-
-		if cluster != nil && !util.Contains(m.Finalizers, metav1.FinalizerDeleteDependents) {
-			m.Finalizers = append(m.ObjectMeta.Finalizers, metav1.FinalizerDeleteDependents)
-		}
 
 		if !util.Contains(m.Finalizers, machinev1.MachineFinalizer) {
 			m.Finalizers = append(m.ObjectMeta.Finalizers, machinev1.MachineFinalizer)
@@ -235,7 +211,7 @@ func (r *ReconcileMachine) Reconcile(request reconcile.Request) (reconcile.Resul
 			}
 		}
 
-		if err := r.actuator.Delete(ctx, cluster, m); err != nil {
+		if err := r.actuator.Delete(ctx, m); err != nil {
 			// isInvalidMachineConfiguration will take care of the case where the
 			// configuration is invalid from the beginning. len(m.Status.Addresses) > 0
 			// will handle the case when a machine configuration was invalidated
@@ -272,7 +248,7 @@ func (r *ReconcileMachine) Reconcile(request reconcile.Request) (reconcile.Resul
 		return reconcile.Result{}, nil
 	}
 
-	instanceExists, err := r.actuator.Exists(ctx, cluster, m)
+	instanceExists, err := r.actuator.Exists(ctx, m)
 	if err != nil {
 		klog.Errorf("Failed to check if machine %q exists: %v", name, err)
 		return reconcile.Result{}, err
@@ -280,7 +256,7 @@ func (r *ReconcileMachine) Reconcile(request reconcile.Request) (reconcile.Resul
 
 	if instanceExists {
 		klog.Infof("Reconciling machine %q triggers idempotent update", name)
-		if err := r.actuator.Update(ctx, cluster, m); err != nil {
+		if err := r.actuator.Update(ctx, m); err != nil {
 			klog.Errorf(`Error updating machine "%s/%s": %v`, m.Namespace, name, err)
 			return delayIfRequeueAfterError(err)
 		}
@@ -315,7 +291,7 @@ func (r *ReconcileMachine) Reconcile(request reconcile.Request) (reconcile.Resul
 		return reconcile.Result{}, err
 	}
 	klog.Infof("Reconciling machine object %v triggers idempotent create.", m.ObjectMeta.Name)
-	if err := r.actuator.Create(ctx, cluster, m); err != nil {
+	if err := r.actuator.Create(ctx, m); err != nil {
 		klog.Warningf("Failed to create machine %q: %v", name, err)
 		if isInvalidMachineConfigurationError(err) {
 			if err := r.setPhase(m, phaseFailed, err.Error()); err != nil {
@@ -367,25 +343,6 @@ func (r *ReconcileMachine) drainNode(machine *machinev1.Machine) error {
 	r.eventRecorder.Eventf(machine, corev1.EventTypeNormal, "Deleted", "Node %q drained", node.Name)
 
 	return nil
-}
-
-func (r *ReconcileMachine) getCluster(ctx context.Context, machine *machinev1.Machine) (*clusterv1.Cluster, error) {
-	if machine.Labels[machinev1.MachineClusterLabelName] == "" {
-		klog.Infof("Machine %q in namespace %q doesn't specify %q label, assuming nil cluster", machine.Name, machine.Namespace, machinev1.MachineClusterLabelName)
-		return nil, nil
-	}
-
-	cluster := &clusterv1.Cluster{}
-	key := client.ObjectKey{
-		Namespace: machine.Namespace,
-		Name:      machine.Labels[machinev1.MachineClusterLabelName],
-	}
-
-	if err := r.Client.Get(ctx, key, cluster); err != nil {
-		return nil, err
-	}
-
-	return cluster, nil
 }
 
 func (r *ReconcileMachine) deleteNode(ctx context.Context, name string) error {
