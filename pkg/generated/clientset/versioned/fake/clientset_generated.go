@@ -20,8 +20,8 @@ package fake
 
 import (
 	clientset "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
-	machinev1beta1 "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned/typed/healthchecking/v1beta1"
-	fakemachinev1beta1 "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned/typed/healthchecking/v1beta1/fake"
+	machinev1beta1 "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned/typed/machine/v1beta1"
+	fakemachinev1beta1 "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned/typed/machine/v1beta1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/discovery"

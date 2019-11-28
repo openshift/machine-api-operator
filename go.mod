@@ -9,7 +9,6 @@ require (
 	github.com/imdario/mergo v0.3.7 // indirect
 	github.com/openshift/api v3.9.1-0.20190517100836-d5b34b957e91+incompatible
 	github.com/openshift/client-go v0.0.0-20190617165122-8892c0adc000
-	github.com/openshift/cluster-api v0.0.0-20191007125355-b2c5ded524d4
 	github.com/openshift/cluster-version-operator v3.11.1-0.20190629164025-08cac1c02538+incompatible
 	github.com/operator-framework/operator-sdk v0.5.1-0.20190301204940-c2efe6f74e7b
 	github.com/prometheus/client_golang v1.0.0
@@ -18,6 +17,7 @@ require (
 	github.com/spf13/cobra v0.0.5
 	github.com/stretchr/testify v1.3.0
 	golang.org/x/crypto v0.0.0-20190621222207-cc06ce4a13d4 // indirect
+	golang.org/x/net v0.0.0-20190812203447-cdfb69ac37fc
 	golang.org/x/sys v0.0.0-20190626221950-04f50cda93cb // indirect
 	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4 // indirect
 	gonum.org/v1/gonum v0.0.0-20190915125329-975d99cd20a9 // indirect

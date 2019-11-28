@@ -9,8 +9,7 @@ dir=$(mktemp -d -t XXXXXXXX)
 echo $dir
 mkdir -p $dir/src/github.com/openshift/machine-api-operator/pkg/apis
 
-cp -r pkg/apis/healthchecking $dir/src/github.com/openshift/machine-api-operator/pkg/apis/.
-cp -r vendor/github.com/openshift/cluster-api/pkg/apis/machine $dir/src/github.com/openshift/machine-api-operator/pkg/apis
+cp -r pkg/apis/machine $dir/src/github.com/openshift/machine-api-operator/pkg/apis
 # Some dependencies need to be copied as well. Othwerwise, controller-gen will complain about non-existing kind Unsupported
 cp -r vendor $dir/src/github.com/openshift/machine-api-operator/
 cp go.mod go.sum $dir/src/github.com/openshift/machine-api-operator/

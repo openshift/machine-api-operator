@@ -2,9 +2,9 @@ package metrics
 
 import (
 	"github.com/golang/glog"
-	mapiv1beta1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
-	machineinformers "github.com/openshift/cluster-api/pkg/client/informers_generated/externalversions/machine/v1beta1"
-	machinelisters "github.com/openshift/cluster-api/pkg/client/listers_generated/machine/v1beta1"
+	mapiv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machineinformers "github.com/openshift/machine-api-operator/pkg/generated/informers/externalversions/machine/v1beta1"
+	machinelisters "github.com/openshift/machine-api-operator/pkg/generated/listers/machine/v1beta1"
 	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/apimachinery/pkg/labels"
 )

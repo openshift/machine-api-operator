@@ -3,7 +3,7 @@ package main
 import (
 	"github.com/golang/glog"
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
-	mapiclientset "github.com/openshift/cluster-api/pkg/client/clientset_generated/clientset"
+	mapiclientset "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"

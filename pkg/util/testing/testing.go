@@ -4,8 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	mapiv1 "github.com/openshift/cluster-api/pkg/apis/machine/v1beta1"
-	mhcv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/healthchecking/v1beta1"
+	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
@@ -96,8 +95,8 @@ func NewMachine(name string, nodeName string) *mapiv1.Machine {
 }
 
 // NewMachineHealthCheck returns new MachineHealthCheck object that can be used for testing
-func NewMachineHealthCheck(name string) *mhcv1beta1.MachineHealthCheck {
-	return &mhcv1beta1.MachineHealthCheck{
+func NewMachineHealthCheck(name string) *mapiv1.MachineHealthCheck {
+	return &mapiv1.MachineHealthCheck{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: Namespace,
@@ -105,9 +104,9 @@ func NewMachineHealthCheck(name string) *mhcv1beta1.MachineHealthCheck {
 		TypeMeta: metav1.TypeMeta{
 			Kind: "MachineHealthCheck",
 		},
-		Spec: mhcv1beta1.MachineHealthCheckSpec{
+		Spec: mapiv1.MachineHealthCheckSpec{
 			Selector: *NewSelectorFooBar(),
-			UnhealthyConditions: []mhcv1beta1.UnhealthyCondition{
+			UnhealthyConditions: []mapiv1.UnhealthyCondition{
 				{
 					Type:    "Ready",
 					Status:  "Unknown",
@@ -120,6 +119,6 @@ func NewMachineHealthCheck(name string) *mhcv1beta1.MachineHealthCheck {
 				},
 			},
 		},
-		Status: mhcv1beta1.MachineHealthCheckStatus{},
+		Status: mapiv1.MachineHealthCheckStatus{},
 	}
 }
