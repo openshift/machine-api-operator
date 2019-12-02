@@ -191,21 +191,29 @@ func isAllowedRemediation(mhc *mapiv1.MachineHealthCheck) bool {
 	if mhc.Spec.MaxUnhealthy == nil {
 		return true
 	}
-	maxUnhealthy, err := intstr.GetValueFromIntOrPercent(mhc.Spec.MaxUnhealthy, mhc.Status.ExpectedMachines, false)
+	maxUnhealthy, err := intstr.GetValueFromIntOrPercent(mhc.Spec.MaxUnhealthy, derefInt(mhc.Status.ExpectedMachines), false)
 	if err != nil {
 		glog.Errorf("%s: error decoding maxUnhealthy, remediation won't be allowed: %v", namespacedName(mhc), err)
 		return false
 	}
 
 	// if noHealthy are above maxUnhealthy we short circuit any farther remediation
-	noHealthy := mhc.Status.ExpectedMachines - mhc.Status.CurrentHealthy
+	noHealthy := derefInt(mhc.Status.ExpectedMachines) - derefInt(mhc.Status.CurrentHealthy)
 	return (maxUnhealthy - noHealthy) >= 0
+}
+
+func derefInt(i *int) int {
+	if i != nil {
+		return *i
+	}
+	return 0
 }
 
 func (r *ReconcileMachineHealthCheck) reconcileStatus(mhc *mapiv1.MachineHealthCheck, targets, currentHealthy int) error {
 	baseToPatch := client.MergeFrom(mhc.DeepCopy())
-	mhc.Status.ExpectedMachines = targets
-	mhc.Status.CurrentHealthy = currentHealthy
+	mhc.Status.ExpectedMachines = &targets
+	mhc.Status.CurrentHealthy = &currentHealthy
+
 	if err := r.client.Status().Patch(context.Background(), mhc, baseToPatch); err != nil {
 		return err
 	}
