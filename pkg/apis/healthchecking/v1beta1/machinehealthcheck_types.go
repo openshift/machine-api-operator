@@ -81,9 +81,9 @@ type UnhealthyCondition struct {
 type MachineHealthCheckStatus struct {
 	// total number of machines counted by this machine health check
 	// +kubebuilder:validation:Minimum=0
-	ExpectedMachines int `json:"expectedMachines"`
+	ExpectedMachines *int `json:"expectedMachines"`
 
 	// total number of machines counted by this machine health check
 	// +kubebuilder:validation:Minimum=0
-	CurrentHealthy int `json:"currentHealthy" protobuf:"varint,4,opt,name=currentHealthy"`
+	CurrentHealthy *int `json:"currentHealthy" protobuf:"varint,4,opt,name=currentHealthy"`
 }
