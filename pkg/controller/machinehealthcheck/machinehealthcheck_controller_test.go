@@ -1987,10 +1987,10 @@ func TestReconcileStatus(t *testing.T) {
 			if err := r.client.Get(context.TODO(), namespacedName(tc.mhc), mhc); err != nil {
 				t.Fatalf("Unexpected error: %v", err)
 			}
-			if mhc.Status.ExpectedMachines != tc.totalTargets {
+			if *mhc.Status.ExpectedMachines != tc.totalTargets {
 				t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, mhc.Status.ExpectedMachines, tc.totalTargets)
 			}
-			if mhc.Status.CurrentHealthy != tc.currentHealthy {
+			if *mhc.Status.CurrentHealthy != tc.currentHealthy {
 				t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, mhc.Status.CurrentHealthy, tc.currentHealthy)
 			}
 		})
@@ -2380,8 +2380,8 @@ func TestIsAllowedRemediation(t *testing.T) {
 					MaxUnhealthy: &maxUnhealthyInt,
 				},
 				Status: mhcv1beta1.MachineHealthCheckStatus{
-					ExpectedMachines: 5,
-					CurrentHealthy:   3,
+					ExpectedMachines: IntPtr(5),
+					CurrentHealthy:   IntPtr(3),
 				},
 			},
 			expected: true,
@@ -2401,8 +2401,8 @@ func TestIsAllowedRemediation(t *testing.T) {
 					MaxUnhealthy: &maxUnhealthyInt,
 				},
 				Status: mhcv1beta1.MachineHealthCheckStatus{
-					ExpectedMachines: 5,
-					CurrentHealthy:   2,
+					ExpectedMachines: IntPtr(5),
+					CurrentHealthy:   IntPtr(2),
 				},
 			},
 			expected: false,
@@ -2422,8 +2422,8 @@ func TestIsAllowedRemediation(t *testing.T) {
 					MaxUnhealthy: &maxUnhealthyString,
 				},
 				Status: mhcv1beta1.MachineHealthCheckStatus{
-					ExpectedMachines: 5,
-					CurrentHealthy:   3,
+					ExpectedMachines: IntPtr(5),
+					CurrentHealthy:   IntPtr(3),
 				},
 			},
 			expected: true,
@@ -2443,11 +2443,32 @@ func TestIsAllowedRemediation(t *testing.T) {
 					MaxUnhealthy: &maxUnhealthyString,
 				},
 				Status: mhcv1beta1.MachineHealthCheckStatus{
-					ExpectedMachines: 5,
-					CurrentHealthy:   2,
+					ExpectedMachines: IntPtr(5),
+					CurrentHealthy:   IntPtr(2),
 				},
 			},
 			expected: false,
+		},
+		{
+			testCase: "nil values",
+			mhc: &mhcv1beta1.MachineHealthCheck{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: namespace,
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind: "MachineHealthCheck",
+				},
+				Spec: mhcv1beta1.MachineHealthCheckSpec{
+					Selector:     metav1.LabelSelector{},
+					MaxUnhealthy: &maxUnhealthyString,
+				},
+				Status: mhcv1beta1.MachineHealthCheckStatus{
+					ExpectedMachines: nil,
+					CurrentHealthy:   nil,
+				},
+			},
+			expected: true,
 		},
 	}
 	for _, tc := range testCases {
@@ -2457,4 +2478,8 @@ func TestIsAllowedRemediation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func IntPtr(i int) *int {
+	return &i
 }
