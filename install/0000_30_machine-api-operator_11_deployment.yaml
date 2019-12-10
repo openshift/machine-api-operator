@@ -34,6 +34,10 @@ spec:
         - containerPort: 8443
           name: https
           protocol: TCP
+        resources:
+          requests:
+            memory: 20Mi
+            cpu: 10m
         volumeMounts:
         - name: config
           mountPath: /etc/kube-rbac-proxy
