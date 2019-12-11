@@ -223,10 +223,11 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 			Resources: resources,
 		},
 		{
-			Name:    "machine-controller",
-			Image:   config.Controllers.Provider,
-			Command: []string{"/machine-controller-manager"},
-			Args:    args,
+			Name:      "machine-controller",
+			Image:     config.Controllers.Provider,
+			Command:   []string{"/machine-controller-manager"},
+			Args:      args,
+			Resources: resources,
 			Env: []corev1.EnvVar{
 				{
 					Name: "NODE_NAME",
