@@ -3,6 +3,8 @@ kind: ConfigMap
 metadata:
   name: kube-rbac-proxy
   namespace: openshift-machine-api
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
 data:
   config-file.yaml: |+
     authorization:

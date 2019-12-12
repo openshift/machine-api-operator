@@ -5,6 +5,8 @@ kind: CustomResourceDefinition
 metadata:
   creationTimestamp: null
   name: machinehealthchecks.machine.openshift.io
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
 spec:
   group: machine.openshift.io
   names:

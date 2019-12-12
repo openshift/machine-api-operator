@@ -5,6 +5,8 @@ kind: CustomResourceDefinition
 metadata:
   creationTimestamp: null
   name: machines.machine.openshift.io
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
 spec:
   additionalPrinterColumns:
   - JSONPath: .status.phase

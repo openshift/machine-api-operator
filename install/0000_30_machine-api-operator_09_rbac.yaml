@@ -3,20 +3,24 @@ kind: ServiceAccount
 metadata:
   name: machine-api-operator
   namespace: openshift-machine-api
-
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
 ---
 apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: machine-api-controllers
   namespace: openshift-machine-api
-
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: machine-api-controllers
   namespace: openshift-machine-api
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
 rules:
 
   - apiGroups:
@@ -92,6 +96,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: machine-api-controllers
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
 rules:
 
   - apiGroups:
@@ -157,6 +163,8 @@ kind: Role
 metadata:
   name: machine-api-operator
   namespace: openshift-machine-api
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
 rules:
 
   - apiGroups:
@@ -205,6 +213,8 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: machine-api-operator
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
 rules:
   - apiGroups: ["authentication.k8s.io"]
     resources:
@@ -256,10 +266,14 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: machine-api-controllers
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: machine-api-controllers
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
 subjects:
   - kind: ServiceAccount
     name: machine-api-controllers
@@ -271,10 +285,14 @@ kind: RoleBinding
 metadata:
   name: machine-api-controllers
   namespace: openshift-machine-api
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: machine-api-controllers
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
 subjects:
   - kind: ServiceAccount
     name: machine-api-controllers
@@ -285,10 +303,14 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: machine-api-operator
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
   name: machine-api-operator
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
 subjects:
   - kind: ServiceAccount
     name: machine-api-operator
@@ -300,10 +322,14 @@ kind: RoleBinding
 metadata:
   name: machine-api-operator
   namespace: openshift-machine-api
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: machine-api-operator
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
 subjects:
   - kind: ServiceAccount
     name: machine-api-operator
@@ -315,10 +341,14 @@ kind: RoleBinding
 metadata:
   name: prometheus-k8s-machine-api-operator
   namespace: openshift-machine-api
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
   name: prometheus-k8s-machine-api-operator
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
 subjects:
   - kind: ServiceAccount
     name: prometheus-k8s
@@ -331,6 +361,8 @@ kind: Role
 metadata:
   name: prometheus-k8s-machine-api-operator
   namespace: openshift-machine-api
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
 rules:
   - apiGroups:
       - ""

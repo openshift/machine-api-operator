@@ -3,6 +3,7 @@ kind: Namespace
 metadata:
   annotations:
     openshift.io/node-selector: ""
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
   name: openshift-machine-api
   labels:
     name: openshift-machine-api
