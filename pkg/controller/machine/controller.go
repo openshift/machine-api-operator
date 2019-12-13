@@ -44,6 +44,7 @@ import (
 
 const (
 	NodeNameEnvVar = "NODE_NAME"
+	requeueAfter   = 30 * time.Second
 
 	// ExcludeNodeDrainingAnnotation annotation explicitly skips node draining if set
 	ExcludeNodeDrainingAnnotation = "machine.openshift.io/exclude-node-draining"
@@ -262,8 +263,8 @@ func (r *ReconcileMachine) Reconcile(request reconcile.Request) (reconcile.Resul
 		}
 
 		if !machineIsProvisioned(m) {
-			klog.Errorf(`Instance for Machine "%s/%s exists but providerID or addresses has not been given to the machine yet"`, m.Namespace, name)
-			return reconcile.Result{}, err
+			klog.Errorf("%v: instance exists but providerID or addresses has not been given to the machine yet, requeuing", m.GetName())
+			return reconcile.Result{RequeueAfter: requeueAfter}, nil
 		}
 		if machineHasNode(m) {
 			if err := r.setPhase(m, phaseRunning, ""); err != nil {
