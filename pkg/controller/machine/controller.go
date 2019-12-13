@@ -304,7 +304,8 @@ func (r *ReconcileMachine) Reconcile(request reconcile.Request) (reconcile.Resul
 		return delayIfRequeueAfterError(err)
 	}
 
-	return reconcile.Result{}, nil
+	klog.Infof("%v: created instance, requeuing", m.GetName())
+	return reconcile.Result{RequeueAfter: requeueAfter}, nil
 }
 
 func (r *ReconcileMachine) drainNode(machine *machinev1.Machine) error {
