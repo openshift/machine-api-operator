@@ -266,16 +266,17 @@ func (r *ReconcileMachine) Reconcile(request reconcile.Request) (reconcile.Resul
 			klog.Errorf("%v: instance exists but providerID or addresses has not been given to the machine yet, requeuing", m.GetName())
 			return reconcile.Result{RequeueAfter: requeueAfter}, nil
 		}
-		if machineHasNode(m) {
-			if err := r.setPhase(m, phaseRunning, ""); err != nil {
-				return reconcile.Result{}, err
-			}
-		} else {
+
+		if !machineHasNode(m) {
+			// Requeue until we reach running phase
 			if err := r.setPhase(m, phaseProvisioned, ""); err != nil {
 				return reconcile.Result{}, err
 			}
+			klog.Infof("%v: has no node yet, requeuing", m.GetName())
+			return reconcile.Result{RequeueAfter: requeueAfter}, nil
 		}
-		return reconcile.Result{}, nil
+
+		return reconcile.Result{}, r.setPhase(m, phaseRunning, "")
 	}
 
 	// Instance does not exist but the machine has been given a providerID/address.

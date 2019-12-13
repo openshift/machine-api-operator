@@ -204,7 +204,7 @@ func TestReconcileRequest(t *testing.T) {
 				existCallCount:  1,
 				updateCallCount: 1,
 				deleteCallCount: 0,
-				result:          reconcile.Result{},
+				result:          reconcile.Result{RequeueAfter: requeueAfter},
 				error:           false,
 				phase:           phaseProvisioned,
 			},
