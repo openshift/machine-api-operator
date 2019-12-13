@@ -158,11 +158,11 @@ func (r *ReconcileMachine) Reconcile(request reconcile.Request) (reconcile.Resul
 	}
 
 	// Implement controller logic here
-	name := m.Name
-	klog.Infof("Reconciling Machine %q", name)
+	machineName := m.GetName()
+	klog.Infof("%v: reconciling Machine", machineName)
 
 	if errList := m.Validate(); len(errList) > 0 {
-		err := fmt.Errorf("%q machine validation failed: %v", m.Name, errList.ToAggregate().Error())
+		err := fmt.Errorf("%v: machine validation failed: %v", machineName, errList.ToAggregate().Error())
 		klog.Error(err)
 		r.eventRecorder.Eventf(m, corev1.EventTypeWarning, "FailedValidate", err.Error())
 		return reconcile.Result{}, err
@@ -179,7 +179,7 @@ func (r *ReconcileMachine) Reconcile(request reconcile.Request) (reconcile.Resul
 
 		if len(m.Finalizers) > finalizerCount {
 			if err := r.Client.Update(ctx, m); err != nil {
-				klog.Infof("Failed to add finalizers to machine %q: %v", name, err)
+				klog.Infof("%v: failed to add finalizers to machine: %v", machineName, err)
 				return reconcile.Result{}, err
 			}
 
@@ -195,11 +195,11 @@ func (r *ReconcileMachine) Reconcile(request reconcile.Request) (reconcile.Resul
 
 		// no-op if finalizer has been removed.
 		if !util.Contains(m.ObjectMeta.Finalizers, machinev1.MachineFinalizer) {
-			klog.Infof("Reconciling machine %q causes a no-op as there is no finalizer", name)
+			klog.Infof("%v: reconciling machine causes a no-op as there is no finalizer", machineName)
 			return reconcile.Result{}, nil
 		}
 
-		klog.Infof("Reconciling machine %q triggers delete", name)
+		klog.Infof("%v: reconciling machine triggers delete", machineName)
 		// Drain node before deletion
 		// If a machine is not linked to a node, just delete the machine. Since a node
 		// can be unlinked from a machine when the node goes NotReady and is removed
@@ -207,7 +207,7 @@ func (r *ReconcileMachine) Reconcile(request reconcile.Request) (reconcile.Resul
 		// deleted without a manual intervention.
 		if _, exists := m.ObjectMeta.Annotations[ExcludeNodeDrainingAnnotation]; !exists && m.Status.NodeRef != nil {
 			if err := r.drainNode(m); err != nil {
-				klog.Errorf("Failed to drain node for machine %q: %v", name, err)
+				klog.Errorf("%v: failed to drain node for machine: %v", machineName, err)
 				return delayIfRequeueAfterError(err)
 			}
 		}
@@ -220,15 +220,15 @@ func (r *ReconcileMachine) Reconcile(request reconcile.Request) (reconcile.Resul
 			// we can loose instances, e.g. right after request to create one
 			// was sent and before a list of node addresses was set.
 			if len(m.Status.Addresses) > 0 || !isInvalidMachineConfigurationError(err) {
-				klog.Errorf("Failed to delete machine %q: %v", name, err)
+				klog.Errorf("%v: failed to delete machine: %v", machineName, err)
 				return delayIfRequeueAfterError(err)
 			}
 		}
 
 		if m.Status.NodeRef != nil {
-			klog.Infof("Deleting node %q for machine %q", m.Status.NodeRef.Name, m.Name)
+			klog.Infof("%v: deleting node %q for machine", m.Status.NodeRef.Name, machineName)
 			if err := r.deleteNode(ctx, m.Status.NodeRef.Name); err != nil {
-				klog.Errorf("Error deleting node %q for machine %q", name, err)
+				klog.Errorf("%v: error deleting node %q for machine", machineName, err)
 				return reconcile.Result{}, err
 			}
 		}
@@ -236,34 +236,34 @@ func (r *ReconcileMachine) Reconcile(request reconcile.Request) (reconcile.Resul
 		// Remove finalizer on successful deletion.
 		m.ObjectMeta.Finalizers = util.Filter(m.ObjectMeta.Finalizers, machinev1.MachineFinalizer)
 		if err := r.Client.Update(context.Background(), m); err != nil {
-			klog.Errorf("Failed to remove finalizer from machine %q: %v", name, err)
+			klog.Errorf("%v: failed to remove finalizer from machine: %v", machineName, err)
 			return reconcile.Result{}, err
 		}
 
-		klog.Infof("Machine %q deletion successful", name)
+		klog.Infof("%v: machine deletion successful", machineName)
 		return reconcile.Result{}, nil
 	}
 
 	if machineIsFailed(m) {
-		klog.Warningf("Machine %q has gone %q phase. It won't reconcile", name, phaseFailed)
+		klog.Warningf("%v: machine has gone %q phase. It won't reconcile", machineName, phaseFailed)
 		return reconcile.Result{}, nil
 	}
 
 	instanceExists, err := r.actuator.Exists(ctx, m)
 	if err != nil {
-		klog.Errorf("Failed to check if machine %q exists: %v", name, err)
+		klog.Errorf("%v: failed to check if machine exists: %v", machineName, err)
 		return reconcile.Result{}, err
 	}
 
 	if instanceExists {
-		klog.Infof("Reconciling machine %q triggers idempotent update", name)
+		klog.Infof("%v: reconciling machine triggers idempotent update", machineName)
 		if err := r.actuator.Update(ctx, m); err != nil {
-			klog.Errorf(`Error updating machine "%s/%s": %v`, m.Namespace, name, err)
+			klog.Errorf("%v: error updating machine: %v", machineName, err)
 			return delayIfRequeueAfterError(err)
 		}
 
 		if !machineIsProvisioned(m) {
-			klog.Errorf("%v: instance exists but providerID or addresses has not been given to the machine yet, requeuing", m.GetName())
+			klog.Errorf("%v: instance exists but providerID or addresses has not been given to the machine yet, requeuing", machineName)
 			return reconcile.Result{RequeueAfter: requeueAfter}, nil
 		}
 
@@ -272,7 +272,7 @@ func (r *ReconcileMachine) Reconcile(request reconcile.Request) (reconcile.Resul
 			if err := r.setPhase(m, phaseProvisioned, ""); err != nil {
 				return reconcile.Result{}, err
 			}
-			klog.Infof("%v: has no node yet, requeuing", m.GetName())
+			klog.Infof("%v: has no node yet, requeuing", machineName)
 			return reconcile.Result{RequeueAfter: requeueAfter}, nil
 		}
 
@@ -292,9 +292,9 @@ func (r *ReconcileMachine) Reconcile(request reconcile.Request) (reconcile.Resul
 	if err := r.setPhase(m, phaseProvisioning, ""); err != nil {
 		return reconcile.Result{}, err
 	}
-	klog.Infof("Reconciling machine object %v triggers idempotent create.", m.ObjectMeta.Name)
+	klog.Infof("%v: reconciling machine triggers idempotent create", machineName)
 	if err := r.actuator.Create(ctx, m); err != nil {
-		klog.Warningf("Failed to create machine %q: %v", name, err)
+		klog.Warningf("%v: failed to create machine: %v", machineName, err)
 		if isInvalidMachineConfigurationError(err) {
 			if err := r.setPhase(m, phaseFailed, err.Error()); err != nil {
 				return reconcile.Result{}, err
@@ -304,7 +304,7 @@ func (r *ReconcileMachine) Reconcile(request reconcile.Request) (reconcile.Resul
 		return delayIfRequeueAfterError(err)
 	}
 
-	klog.Infof("%v: created instance, requeuing", m.GetName())
+	klog.Infof("%v: created instance, requeuing", machineName)
 	return reconcile.Result{RequeueAfter: requeueAfter}, nil
 }
 
@@ -383,7 +383,7 @@ func isInvalidMachineConfigurationError(err error) bool {
 
 func (r *ReconcileMachine) setPhase(machine *machinev1.Machine, phase string, errorMessage string) error {
 	if stringPointerDeref(machine.Status.Phase) != phase {
-		klog.V(3).Infof("Machine %q going into phase %q", machine.GetName(), phase)
+		klog.V(3).Infof("%v: going into phase %q", machine.GetName(), phase)
 		baseToPatch := client.MergeFrom(machine.DeepCopy())
 		machine.Status.Phase = &phase
 		machine.Status.ErrorMessage = nil
