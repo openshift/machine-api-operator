@@ -46,10 +46,10 @@ spec:
     from:
       kind: DockerImage
       name: quay.io/openshift/origin-ironic-ipa-downloader:v4.2.0
-  - name: ironic-rhcos-downloader
+  - name: ironic-machine-os-downloader
     from:
       kind: DockerImage
-      name: quay.io/openshift/origin-ironic-rhcos-downloader:v4.2.0
+      name: quay.io/openshift/origin-ironic-machine-os-downloader:v4.2.0
   - name: ironic-static-ip-manager
     from:
       kind: DockerImage
