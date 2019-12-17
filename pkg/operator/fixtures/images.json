@@ -10,6 +10,6 @@
   "baremetalIronic": "quay.io/openshift/origin-ironic:v4.2.0",
   "baremetalIronicInspector": "quay.io/openshift/origin-ironic-inspector:v4.2.0",
   "baremetalIpaDownloader": "quay.io/openshift/origin-ironic-ipa-downloader:v4.2.0",
-  "baremetalRhcosDownloader": "quay.io/openshift/origin-ironic-rhcos-downloader:v4.2.0",
+  "baremetalMachineOsDownloader": "quay.io/openshift/origin-ironic-machine-os-downloader:v4.3.0",
   "baremetalStaticIpManager": "quay.io/openshift/origin-ironic-static-ip-manager:v4.2.0"
 }

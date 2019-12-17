@@ -192,15 +192,15 @@ func newMetal3InitContainers(config *OperatorConfig) []corev1.Container {
 			},
 		},
 	}
-	initContainers = append(initContainers, createInitContainerRhcosDownloader(config))
+	initContainers = append(initContainers, createInitContainerMachineOsDownloader(config))
 	initContainers = append(initContainers, createInitContainerStaticIpSet(config))
 	return initContainers
 }
 
-func createInitContainerRhcosDownloader(config *OperatorConfig) corev1.Container {
+func createInitContainerMachineOsDownloader(config *OperatorConfig) corev1.Container {
 	initContainer := corev1.Container{
-		Name:            "metal3-rhcos-downloader",
-		Image:           config.BaremetalControllers.IronicRhcosDownloader,
+		Name:            "metal3-machine-os-downloader",
+		Image:           config.BaremetalControllers.IronicMachineOsDownloader,
 		Command:         []string{"/usr/local/bin/get-resource.sh"},
 		ImagePullPolicy: "IfNotPresent",
 		SecurityContext: &corev1.SecurityContext{
