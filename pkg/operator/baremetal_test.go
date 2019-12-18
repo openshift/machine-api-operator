@@ -27,7 +27,7 @@ func newOperatorWithBaremetalConfig() *OperatorConfig {
 			"quay.io/openshift/origin-ironic:v4.2.0",
 			"quay.io/openshift/origin-ironic-inspector:v4.2.0",
 			"quay.io/openshift/origin-ironic-ipa-downloader:v4.2.0",
-			"quay.io/openshift/origin-ironic-rhcos-downloader:v4.2.0",
+			"quay.io/openshift/origin-ironic-machine-os-downloader:v4.2.0",
 			"quay.io/openshift/origin-ironic-static-ip-manager:v4.2.0",
 		},
 	}
