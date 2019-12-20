@@ -21,6 +21,8 @@ import (
 	"crypto/tls"
 	"testing"
 
+	"github.com/vmware/govmomi/vim25/mo"
+
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	vsphereapi "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1alpha1"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
@@ -272,9 +274,107 @@ func TestGetPowerState(t *testing.T) {
 	}
 }
 
+func TestTaskIsFinished(t *testing.T) {
+	model, session, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	obj := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	// Validate VM is powered on
+	if obj.Runtime.PowerState != "poweredOn" {
+		t.Fatal(obj.Runtime.PowerState)
+	}
+	vm := object.NewVirtualMachine(session.Client.Client, obj.Reference())
+	task, err := vm.PowerOff(context.TODO())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var moTask mo.Task
+	moRef := types.ManagedObjectReference{
+		Type:  "Task",
+		Value: task.Reference().Value,
+	}
+	if err := session.RetrieveOne(context.TODO(), moRef, []string{"info"}, &moTask); err != nil {
+		t.Fatal(err)
+	}
+
+	testCases := []struct {
+		testCase    string
+		moTask      func() *mo.Task
+		expectError bool
+		finished    bool
+	}{
+		{
+			testCase: "existing taskRef",
+			moTask: func() *mo.Task {
+				return &moTask
+			},
+			expectError: false,
+			finished:    true,
+		},
+		{
+			testCase: "nil task",
+			moTask: func() *mo.Task {
+				return nil
+			},
+			expectError: false,
+			finished:    true,
+		},
+		{
+			testCase: "task succeeded is finished",
+			moTask: func() *mo.Task {
+				moTask.Info.State = types.TaskInfoStateSuccess
+				return &moTask
+			},
+			expectError: false,
+			finished:    true,
+		},
+		{
+			testCase: "task error is finished",
+			moTask: func() *mo.Task {
+				moTask.Info.State = types.TaskInfoStateError
+				return &moTask
+			},
+			expectError: false,
+			finished:    true,
+		},
+		{
+			testCase: "task running is not finished",
+			moTask: func() *mo.Task {
+				moTask.Info.State = types.TaskInfoStateRunning
+				return &moTask
+			},
+			expectError: false,
+			finished:    false,
+		},
+		{
+			testCase: "task with unknown state errors",
+			moTask: func() *mo.Task {
+				moTask.Info.State = types.TaskInfoState("unknown")
+				return &moTask
+			},
+			expectError: true,
+			finished:    false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.testCase, func(t *testing.T) {
+			finished, err := taskIsFinished(tc.moTask())
+			if (err != nil) != tc.expectError {
+				t.Errorf("Expected error: %v, got: %v", tc.expectError, err)
+			}
+			if finished != tc.finished {
+				t.Errorf("Expected finished: %v, got: %v", tc.finished, finished)
+			}
+		})
+	}
+}
+
 // TODO TestCreate()
 // TODO TestUpdate()
 // TODO TestExist()
 // TODO TestReconcileNetwork()
 // TODO TestReconcileMachineWithCloudState()
 // TODO TestGetNetworkStatus()
+// See https://github.com/vmware/govmomi/blob/master/simulator/example_extend_test.go#L33:6 for extending behaviour example

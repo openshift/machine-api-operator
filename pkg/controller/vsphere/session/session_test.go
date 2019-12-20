@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"testing"
 
+	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/simulator"
 )
 
@@ -168,6 +169,61 @@ func TestFindVM(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
 			ref, err := session.FindVM(context.TODO(), tc.ID)
+			if (err != nil) != tc.expectError {
+				t.Errorf("Expected error: %v, got: %v", tc.expectError, err)
+			}
+			if (ref != nil) != tc.found {
+				t.Errorf("Expected found: %v, got: %v", tc.found, ref)
+			}
+		})
+	}
+}
+
+func TestGetTask(t *testing.T) {
+	model, session, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	obj := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	// Validate VM is powered on
+	if obj.Runtime.PowerState != "poweredOn" {
+		t.Fatal(obj.Runtime.PowerState)
+	}
+	vm := object.NewVirtualMachine(session.Client.Client, obj.Reference())
+	task, err := vm.PowerOff(context.TODO())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testCases := []struct {
+		testCase    string
+		taskRef     string
+		expectError bool
+		found       bool
+	}{
+		{
+			testCase:    "existing taskRef",
+			taskRef:     task.Reference().Value,
+			expectError: false,
+			found:       true,
+		},
+		{
+			testCase:    "empty string",
+			taskRef:     "",
+			expectError: false,
+			found:       false,
+		},
+		{
+			testCase:    "non existing taskRef",
+			taskRef:     "foo",
+			expectError: true,
+			found:       false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.testCase, func(t *testing.T) {
+			ref, err := session.GetTask(context.TODO(), tc.taskRef)
 			if (err != nil) != tc.expectError {
 				t.Errorf("Expected error: %v, got: %v", tc.expectError, err)
 			}

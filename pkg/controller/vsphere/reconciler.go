@@ -9,6 +9,7 @@ import (
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/pkg/errors"
 	"github.com/vmware/govmomi/object"
+	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
 	"k8s.io/klog"
 )
@@ -36,8 +37,20 @@ func (r *Reconciler) create() error {
 		return fmt.Errorf("%v: failed validating machine provider spec: %v", r.machine.GetName(), err)
 	}
 
-	_, err := findVM(r.machineScope)
+	moTask, err := r.session.GetTask(r.Context, r.providerStatus.TaskRef)
 	if err != nil {
+		if !isRetrieveMONotFound(r.providerStatus.TaskRef, err) {
+			return err
+		}
+	}
+	if taskIsFinished, err := taskIsFinished(moTask); err != nil || !taskIsFinished {
+		if !taskIsFinished {
+			return fmt.Errorf("task %v has not finished", moTask.Reference().Value)
+		}
+		return err
+	}
+
+	if _, err := findVM(r.machineScope); err != nil {
 		if !IsNotFound(err) {
 			return err
 		}
@@ -55,6 +68,19 @@ func (r *Reconciler) create() error {
 func (r *Reconciler) update() error {
 	if err := validateMachine(*r.machine, *r.providerSpec); err != nil {
 		return fmt.Errorf("%v: failed validating machine provider spec: %v", r.machine.GetName(), err)
+	}
+
+	taskRef, err := r.session.GetTask(r.Context, r.providerStatus.TaskRef)
+	if err != nil {
+		if !isRetrieveMONotFound(r.providerStatus.TaskRef, err) {
+			return err
+		}
+	}
+	if taskIsFinished, err := taskIsFinished(taskRef); err != nil || !taskIsFinished {
+		if !taskIsFinished {
+			return fmt.Errorf("task %v has not finished", taskRef.Value)
+		}
+		return err
 	}
 
 	vmRef, err := findVM(r.machineScope)
@@ -156,6 +182,10 @@ func IsNotFound(err error) bool {
 	}
 }
 
+func isRetrieveMONotFound(taskRef string, err error) bool {
+	return err.Error() == fmt.Sprintf("ServerFaultCode: The object 'vim.Task:%v' has already been deleted or has not been completely created", taskRef)
+}
+
 func clone(s *machineScope) error {
 	vmTemplate, err := s.GetSession().FindVM(*s, s.providerSpec.Template)
 	if err != nil {
@@ -231,8 +261,8 @@ func clone(s *machineScope) error {
 		return errors.Wrapf(err, "error triggering clone op for machine %v", s)
 	}
 
-	// TODO: store task in providerStatus/conditions?
-	klog.V(3).Infof("%v: running task: %v", s.machine.GetName(), task.Name())
+	s.providerStatus.TaskRef = task.Reference().Value
+	klog.V(3).Infof("%v: running task: %+v", s.machine.GetName(), s.providerStatus.TaskRef)
 	return nil
 }
 
@@ -240,6 +270,27 @@ func newVMFlagInfo() *types.VirtualMachineFlagInfo {
 	diskUUIDEnabled := true
 	return &types.VirtualMachineFlagInfo{
 		DiskUuidEnabled: &diskUUIDEnabled,
+	}
+}
+
+func taskIsFinished(task *mo.Task) (bool, error) {
+	if task == nil {
+		return true, nil
+	}
+
+	// Otherwise the course of action is determined by the state of the task.
+	klog.V(3).Infof("task: %v, state: %v, description-id: %v", task.Reference().Value, task.Info.State, task.Info.DescriptionId)
+	switch task.Info.State {
+	case types.TaskInfoStateQueued:
+		return false, nil
+	case types.TaskInfoStateRunning:
+		return false, nil
+	case types.TaskInfoStateSuccess:
+		return true, nil
+	case types.TaskInfoStateError:
+		return true, nil
+	default:
+		return false, errors.Errorf("task: %v, unknown state %v", task.Reference().Value, task.Info.State)
 	}
 }
 
@@ -256,16 +307,16 @@ func (vm *virtualMachine) reconcilePowerState() (bool, error) {
 	}
 	switch powerState {
 	case types.VirtualMachinePowerStatePoweredOff:
-		klog.Infof("powering on")
+		klog.Infof("%v: powering on", vm.Obj.Reference().Value)
 		_, err := vm.powerOnVM()
 		if err != nil {
 			return false, errors.Wrapf(err, "failed to trigger power on op for vm %q", vm)
 		}
 		// TODO: store task in providerStatus/conditions?
-		klog.Infof("requeue to wait for power on state")
+		klog.Infof("%v: requeue to wait for power on state", vm.Obj.Reference().Value)
 		return false, nil
 	case types.VirtualMachinePowerStatePoweredOn:
-		klog.Infof("powered on")
+		klog.Infof("%v: powered on", vm.Obj.Reference().Value)
 	default:
 		return false, errors.Errorf("unexpected power state %q for vm %q", powerState, vm)
 	}

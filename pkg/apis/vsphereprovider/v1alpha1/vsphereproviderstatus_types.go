@@ -28,6 +28,12 @@ type VSphereMachineProviderStatus struct {
 	// Conditions is a set of conditions associated with the Machine to indicate
 	// errors or other status
 	// Conditions []VSphereMachineProviderCondition `json:"conditions,omitempty"`
+
+	// TaskRef is a managed object reference to a Task related to the machine.
+	// This value is set automatically at runtime and should not be set or
+	// modified by users.
+	// +optional
+	TaskRef string `json:"taskRef,omitempty"`
 }
 
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object

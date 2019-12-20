@@ -21,6 +21,9 @@ import (
 	"net/url"
 	"sync"
 
+	"github.com/vmware/govmomi/vim25/mo"
+	"github.com/vmware/govmomi/vim25/types"
+
 	"github.com/google/uuid"
 	"github.com/pkg/errors"
 	"github.com/vmware/govmomi"
@@ -32,6 +35,10 @@ import (
 
 var sessionCache = map[string]Session{}
 var sessionMU sync.Mutex
+
+const (
+	managedObjectTypeTask = "Task"
+)
 
 // Session is a vSphere session with a configured Finder.
 type Session struct {
@@ -133,4 +140,19 @@ func (s *Session) findVMByName(ctx context.Context, ID string) (*object.VirtualM
 func isValidUUID(str string) bool {
 	_, err := uuid.Parse(str)
 	return err == nil
+}
+
+func (s *Session) GetTask(ctx context.Context, taskRef string) (*mo.Task, error) {
+	if taskRef == "" {
+		return nil, nil
+	}
+	var obj mo.Task
+	moRef := types.ManagedObjectReference{
+		Type:  managedObjectTypeTask,
+		Value: taskRef,
+	}
+	if err := s.RetrieveOne(ctx, moRef, []string{"info"}, &obj); err != nil {
+		return nil, err
+	}
+	return &obj, nil
 }
