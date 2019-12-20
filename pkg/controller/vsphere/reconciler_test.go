@@ -19,6 +19,8 @@ package vsphere
 import (
 	"context"
 	"crypto/tls"
+	"fmt"
+	"reflect"
 	"testing"
 
 	"github.com/vmware/govmomi/vim25/mo"
@@ -371,10 +373,189 @@ func TestTaskIsFinished(t *testing.T) {
 	}
 }
 
+func TestGetNetworkDevices(t *testing.T) {
+	model, session, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	managedObj := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	objVM := object.NewVirtualMachine(session.Client.Client, managedObj.Reference())
+
+	devices, err := objVM.Device(context.TODO())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// checking network has been created by default
+	_, err = session.Finder.Network(context.TODO(), "VM Network")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testCases := []struct {
+		testCase     string
+		providerSpec *vsphereapi.VSphereMachineProviderSpec
+		expected     func(gotDevices []types.BaseVirtualDeviceConfigSpec) bool
+	}{
+		{
+			testCase:     "no Network",
+			providerSpec: &vsphereapi.VSphereMachineProviderSpec{},
+			expected: func(gotDevices []types.BaseVirtualDeviceConfigSpec) bool {
+				if len(gotDevices) != 1 {
+					return false
+				}
+				if gotDevices[0].GetVirtualDeviceConfigSpec().Operation != types.VirtualDeviceConfigSpecOperationRemove {
+					return false
+				}
+				return true
+			},
+		},
+		{
+			testCase: "one Network",
+			providerSpec: &vsphereapi.VSphereMachineProviderSpec{
+				Network: vsphereapi.NetworkSpec{
+					Devices: []vsphereapi.NetworkDeviceSpec{
+						{
+							NetworkName: "VM Network",
+						},
+					},
+				},
+			},
+			expected: func(gotDevices []types.BaseVirtualDeviceConfigSpec) bool {
+				if len(gotDevices) != 2 {
+					return false
+				}
+				if gotDevices[0].GetVirtualDeviceConfigSpec().Operation != types.VirtualDeviceConfigSpecOperationRemove {
+					return false
+				}
+				if gotDevices[1].GetVirtualDeviceConfigSpec().Operation != types.VirtualDeviceConfigSpecOperationAdd {
+					return false
+				}
+				return true
+			},
+		},
+	}
+	// TODO: verify GetVirtualDeviceConfigSpec().Device values
+
+	for _, tc := range testCases {
+		t.Run(tc.testCase, func(t *testing.T) {
+			machineScope := &machineScope{
+				Context:      context.TODO(),
+				providerSpec: tc.providerSpec,
+				session:      session,
+			}
+			networkDevices, err := getNetworkDevices(machineScope, devices)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !tc.expected(networkDevices) {
+				t.Errorf("Got unexpected networkDevices len (%v) or operations (%v)",
+					len(networkDevices),
+					printOperations(networkDevices))
+			}
+		})
+	}
+}
+
+func printOperations(networkDevices []types.BaseVirtualDeviceConfigSpec) string {
+	var output string
+	for i := range networkDevices {
+		output += fmt.Sprintf("device: %v has operation: %v, ", i, string(networkDevices[i].GetVirtualDeviceConfigSpec().Operation))
+	}
+	return output
+}
+
+func TestGetNetworkStatusList(t *testing.T) {
+	model, session, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	managedObj := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	defaultFakeIPs := []string{"127.0.0.1"}
+	managedObj.Guest.Net[0].IpAddress = defaultFakeIPs
+	managedObjRef := object.NewVirtualMachine(session.Client.Client, managedObj.Reference()).Reference()
+
+	vm := &virtualMachine{
+		Context: context.TODO(),
+		Obj:     object.NewVirtualMachine(session.Client.Client, managedObjRef),
+		Ref:     managedObjRef,
+	}
+
+	defaultFakeMAC := "00:0c:29:33:34:38"
+	expectedNetworkStatusList := []NetworkStatus{
+		{
+			IPAddrs:   defaultFakeIPs,
+			Connected: true,
+			MACAddr:   defaultFakeMAC,
+		},
+	}
+
+	// validations
+	networkStatusList, err := vm.getNetworkStatusList(session.Client.Client)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if len(networkStatusList) != 1 {
+		t.Errorf("Expected networkStatusList len to be 1, got %v", len(networkStatusList))
+	}
+	if !reflect.DeepEqual(networkStatusList, expectedNetworkStatusList) {
+		t.Errorf("Expected: %v, got: %v", networkStatusList, expectedNetworkStatusList)
+	}
+	// TODO: add more cases by adding network devices to the NewVirtualMachine() object
+}
+
+func TestReconcileNetwork(t *testing.T) {
+	model, session, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	managedObj := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	managedObj.Guest.Net[0].IpAddress = []string{"127.0.0.1"}
+	managedObjRef := object.NewVirtualMachine(session.Client.Client, managedObj.Reference()).Reference()
+
+	vm := &virtualMachine{
+		Context: context.TODO(),
+		Obj:     object.NewVirtualMachine(session.Client.Client, managedObjRef),
+		Ref:     managedObjRef,
+	}
+
+	expectedAddresses := []corev1.NodeAddress{
+		{
+			Type:    corev1.NodeInternalIP,
+			Address: "127.0.0.1",
+		},
+	}
+	r := &Reconciler{
+		machineScope: &machineScope{
+			Context: context.TODO(),
+			session: session,
+			machine: &machinev1.Machine{
+				Status: machinev1.MachineStatus{},
+			},
+			providerSpec: &vsphereapi.VSphereMachineProviderSpec{
+				Network: vsphereapi.NetworkSpec{
+					Devices: []vsphereapi.NetworkDeviceSpec{
+						{
+							NetworkName: "dummy",
+						},
+					},
+				},
+			},
+		},
+	}
+	if err := r.reconcileNetwork(vm); err != nil {
+		t.Fatal(err)
+	}
+
+	if !reflect.DeepEqual(expectedAddresses, r.machineScope.machine.Status.Addresses) {
+		t.Errorf("Expected: %v, got: %v", expectedAddresses, r.machineScope.machine.Status.Addresses)
+	}
+	// TODO: add more cases by adding network devices to the NewVirtualMachine() object
+}
+
 // TODO TestCreate()
 // TODO TestUpdate()
 // TODO TestExist()
-// TODO TestReconcileNetwork()
 // TODO TestReconcileMachineWithCloudState()
-// TODO TestGetNetworkStatus()
 // See https://github.com/vmware/govmomi/blob/master/simulator/example_extend_test.go#L33:6 for extending behaviour example

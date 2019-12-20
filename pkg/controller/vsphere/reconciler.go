@@ -3,14 +3,18 @@ package vsphere
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	vsphereapi "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1alpha1"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/pkg/errors"
 	"github.com/vmware/govmomi/object"
+	"github.com/vmware/govmomi/property"
+	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/klog"
 )
 
@@ -18,6 +22,7 @@ const (
 	minMemMB     = 2048
 	minCPU       = 2
 	diskMoveType = string(types.VirtualMachineRelocateDiskMoveOptionsMoveAllDiskBackingsAndConsolidate)
+	ethCardType  = "vmxnet3"
 )
 
 // Reconciler runs the logic to reconciles a machine resource towards its desired state
@@ -132,11 +137,35 @@ func (r *Reconciler) reconcileMachineWithCloudState(vm *virtualMachine) error {
 	klog.V(3).Infof("%v: reconciling machine with cloud state", r.machine.GetName())
 	// TODO: reconcile providerID
 	// TODO: reconcile task
+	klog.V(3).Infof("%v: reconciling network", r.machine.GetName())
 	return r.reconcileNetwork(vm)
 }
 
 func (r *Reconciler) reconcileNetwork(vm *virtualMachine) error {
-	// TODO: implement
+	currentNetworkStatusList, err := vm.getNetworkStatusList(r.session.Client.Client)
+	if err != nil {
+		return fmt.Errorf("error getting network status: %v", err)
+	}
+
+	//If the VM is powered on then issue requeues until all of the VM's
+	//networks have IP addresses.
+	expectNetworkLen, currentNetworkLen := len(r.providerSpec.Network.Devices), len(currentNetworkStatusList)
+	if expectNetworkLen != currentNetworkLen {
+		return errors.Errorf("invalid network count: expected=%d current=%d", expectNetworkLen, currentNetworkLen)
+	}
+
+	var ipAddrs []corev1.NodeAddress
+	for _, netStatus := range currentNetworkStatusList {
+		for _, ip := range netStatus.IPAddrs {
+			ipAddrs = append(ipAddrs, corev1.NodeAddress{
+				Type:    corev1.NodeInternalIP,
+				Address: ip,
+			})
+		}
+	}
+
+	klog.V(3).Infof("%v: reconciling network: IP addresses: %v", r.machine.GetName(), ipAddrs)
+	r.machine.Status.Addresses = ipAddrs
 	return nil
 }
 
@@ -227,6 +256,20 @@ func clone(s *machineScope) error {
 		memMiB = minMemMB
 	}
 
+	devices, err := vmTemplate.Device(s.Context)
+	if err != nil {
+		return fmt.Errorf("error getting devices %v", err)
+	}
+
+	klog.V(3).Infof("Getting network devices")
+	networkDevices, err := getNetworkDevices(s, devices)
+	if err != nil {
+		return fmt.Errorf("error getting network specs: %v", err)
+	}
+
+	var deviceSpecs []types.BaseVirtualDeviceConfigSpec
+	deviceSpecs = append(deviceSpecs, networkDevices...)
+
 	spec := types.VirtualMachineCloneSpec{
 		Config: &types.VirtualMachineConfigSpec{
 			Annotation: s.machine.GetName(),
@@ -237,8 +280,8 @@ func clone(s *machineScope) error {
 			Flags:        newVMFlagInfo(),
 			// TODO: set userData
 			//ExtraConfig:       extraConfig,
-			// TODO: set devices
-			//DeviceChange:      deviceSpecs,
+			// TODO: set disk devices
+			DeviceChange:      deviceSpecs,
 			NumCPUs:           numCPUs,
 			NumCoresPerSocket: numCoresPerSocket,
 			MemoryMB:          memMiB,
@@ -264,6 +307,55 @@ func clone(s *machineScope) error {
 	s.providerStatus.TaskRef = task.Reference().Value
 	klog.V(3).Infof("%v: running task: %+v", s.machine.GetName(), s.providerStatus.TaskRef)
 	return nil
+}
+
+func getNetworkDevices(s *machineScope, devices object.VirtualDeviceList) ([]types.BaseVirtualDeviceConfigSpec, error) {
+	var networkDevices []types.BaseVirtualDeviceConfigSpec
+	// Remove any existing NICs
+	for _, dev := range devices.SelectByType((*types.VirtualEthernetCard)(nil)) {
+		networkDevices = append(networkDevices, &types.VirtualDeviceConfigSpec{
+			Device:    dev,
+			Operation: types.VirtualDeviceConfigSpecOperationRemove,
+		})
+	}
+
+	// Add new NICs based on the machine config.
+	for i := range s.providerSpec.Network.Devices {
+		netSpec := &s.providerSpec.Network.Devices[i]
+		klog.V(3).Infof("Adding device: %v", netSpec.NetworkName)
+
+		ref, err := s.GetSession().Finder.Network(s.Context, netSpec.NetworkName)
+		if err != nil {
+			return nil, errors.Wrapf(err, "unable to find network %q", netSpec.NetworkName)
+		}
+
+		backing, err := ref.EthernetCardBackingInfo(s.Context)
+		if err != nil {
+			return nil, errors.Wrapf(err, "unable to create new ethernet card backing info for network %q", netSpec.NetworkName)
+		}
+
+		dev, err := object.EthernetCardTypes().CreateEthernetCard(ethCardType, backing)
+		if err != nil {
+			return nil, errors.Wrapf(err, "unable to create new ethernet card %q for network %q", ethCardType, netSpec.NetworkName)
+		}
+
+		// Get the actual NIC object. This is safe to assert without a check
+		// because "object.EthernetCardTypes().CreateEthernetCard" returns a
+		// "types.BaseVirtualEthernetCard" as a "types.BaseVirtualDevice".
+		nic := dev.(types.BaseVirtualEthernetCard).GetVirtualEthernetCard()
+		// Assign a temporary device key to ensure that a unique one will be
+		// generated when the device is created.
+		nic.Key = int32(i)
+
+		networkDevices = append(networkDevices, &types.VirtualDeviceConfigSpec{
+			Device:    dev,
+			Operation: types.VirtualDeviceConfigSpecOperationAdd,
+		})
+		klog.V(3).Infof("Adding device: eth card type: %v, network spec: %+v, device info: %+v",
+			ethCardType, netSpec, dev.GetVirtualDevice().Backing)
+	}
+
+	return networkDevices, nil
 }
 
 func newVMFlagInfo() *types.VirtualMachineFlagInfo {
@@ -356,4 +448,62 @@ func (vm *virtualMachine) getPowerState() (types.VirtualMachinePowerState, error
 	default:
 		return "", errors.Errorf("unexpected power state %q for vm %v", powerState, vm)
 	}
+}
+
+type NetworkStatus struct {
+	// Connected is a flag that indicates whether this network is currently
+	// connected to the VM.
+	Connected bool
+
+	// IPAddrs is one or more IP addresses reported by vm-tools.
+	IPAddrs []string
+
+	// MACAddr is the MAC address of the network device.
+	MACAddr string
+
+	// NetworkName is the name of the network.
+	NetworkName string
+}
+
+func (vm *virtualMachine) getNetworkStatusList(client *vim25.Client) ([]NetworkStatus, error) {
+	var obj mo.VirtualMachine
+	var pc = property.DefaultCollector(client)
+	var props = []string{
+		"config.hardware.device",
+		"guest.net",
+	}
+
+	if err := pc.RetrieveOne(vm.Context, vm.Ref, props, &obj); err != nil {
+		return nil, errors.Wrapf(err, "unable to fetch props %v for vm %v", props, vm.Ref)
+	}
+	klog.V(3).Infof("Getting network status: object reference: %v", obj.Reference().Value)
+	if obj.Config == nil {
+		return nil, errors.New("config.hardware.device is nil")
+	}
+
+	var networkStatusList []NetworkStatus
+	for _, device := range obj.Config.Hardware.Device {
+		if dev, ok := device.(types.BaseVirtualEthernetCard); ok {
+			nic := dev.GetVirtualEthernetCard()
+			klog.V(3).Infof("Getting network status: device: %v, macAddress: %v", nic.DeviceInfo.GetDescription().Summary, nic.MacAddress)
+			netStatus := NetworkStatus{
+				MACAddr: nic.MacAddress,
+			}
+			if obj.Guest != nil {
+				klog.V(3).Infof("Getting network status: getting guest info")
+				for _, i := range obj.Guest.Net {
+					klog.V(3).Infof("Getting network status: getting guest info: network: %+v", i)
+					if strings.EqualFold(nic.MacAddress, i.MacAddress) {
+						//TODO: sanitizeIPAddrs
+						netStatus.IPAddrs = i.IpAddress
+						netStatus.NetworkName = i.Network
+						netStatus.Connected = i.Connected
+					}
+				}
+			}
+			networkStatusList = append(networkStatusList, netStatus)
+		}
+	}
+
+	return networkStatusList, nil
 }
