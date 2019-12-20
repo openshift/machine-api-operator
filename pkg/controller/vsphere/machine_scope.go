@@ -79,9 +79,14 @@ func newMachineScope(params machineScopeParams) (*machineScope, error) {
 // Patch patches the machine spec and machine status after reconciling.
 func (s *machineScope) PatchMachine() error {
 	klog.V(3).Infof("%v: patching", s.machine.GetName())
-	// TODO: copy s.providerStatus in to machine.status
 	// TODO: patch machine
 
+	providerStatus, err := apivshpere.RawExtensionFromProviderStatus(s.providerStatus)
+	if err != nil {
+		return machineapierros.InvalidMachineConfiguration("failed to get machine provider status: %v", err.Error())
+	}
+
+	s.machine.Status.ProviderStatus = providerStatus
 	if err := s.client.Status().Patch(context.Background(), s.machine, s.machineToBePatched); err != nil {
 		klog.Errorf("Failed to update machine %q: %v", s.machine.GetName(), err)
 		return err
