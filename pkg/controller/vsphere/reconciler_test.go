@@ -1,12 +1,9 @@
 /*
 Copyright 2018 The Kubernetes Authors.
-
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
-
     http://www.apache.org/licenses/LICENSE-2.0
-
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -611,6 +608,72 @@ func TestIgnitionConfig(t *testing.T) {
 				if got.Key != want.Key || got.Value != want.Value {
 					t.Errorf("%q does not match expected %q", want, got)
 				}
+			}
+		})
+	}
+}
+
+func TestReconcileProviderID(t *testing.T) {
+	model, session, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	managedObj := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	objectVM := object.NewVirtualMachine(session.Client.Client, managedObj.Reference())
+	managedObjRef := objectVM.Reference()
+
+	vm := &virtualMachine{
+		Context: context.TODO(),
+		Obj:     objectVM,
+		Ref:     managedObjRef,
+	}
+
+	r := &Reconciler{
+		machineScope: &machineScope{
+			Context: context.TODO(),
+			session: session,
+			machine: &machinev1.Machine{
+				Status: machinev1.MachineStatus{},
+			},
+		},
+	}
+
+	if err := r.reconcileProviderID(vm); err != nil {
+		t.Errorf("unexpected error")
+	}
+
+	if *r.machine.Spec.ProviderID != providerIDPrefix+vm.Obj.UUID(context.TODO()) {
+		t.Errorf("failed to match expected providerID pattern, expected: %v, got: %v", providerIDPrefix+vm.Obj.UUID(context.TODO()), *r.machine.Spec.ProviderID)
+	}
+}
+
+func TestConvertUUIDToProviderID(t *testing.T) {
+	validUUID := "f7c371d6-2003-5a48-9859-3bc9a8b08908"
+	testCases := []struct {
+		testCase string
+		UUID     string
+		expected string
+	}{
+		{
+			testCase: "valid",
+			UUID:     validUUID,
+			expected: providerIDPrefix + validUUID,
+		},
+		{
+			testCase: "invalid",
+			UUID:     "f7c371d6",
+			expected: "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.testCase, func(t *testing.T) {
+			got, err := convertUUIDToProviderID(tc.UUID)
+			if got != tc.expected {
+				t.Errorf("expected: %v, got: %v", tc.expected, got)
+			}
+			if tc.expected == "" && err == nil {
+				t.Errorf("expected error, got %v", err)
 			}
 		})
 	}

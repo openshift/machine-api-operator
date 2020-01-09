@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/google/uuid"
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	vsphereapi "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1alpha1"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
@@ -20,10 +21,11 @@ import (
 )
 
 const (
-	minMemMB     = 2048
-	minCPU       = 2
-	diskMoveType = string(types.VirtualMachineRelocateDiskMoveOptionsMoveAllDiskBackingsAndConsolidate)
-	ethCardType  = "vmxnet3"
+	minMemMB         = 2048
+	minCPU           = 2
+	diskMoveType     = string(types.VirtualMachineRelocateDiskMoveOptionsMoveAllDiskBackingsAndConsolidate)
+	ethCardType      = "vmxnet3"
+	providerIDPrefix = "vsphere://"
 )
 
 // These are the guestinfo variables used by Ignition.
@@ -83,15 +85,15 @@ func (r *Reconciler) update() error {
 		return fmt.Errorf("%v: failed validating machine provider spec: %v", r.machine.GetName(), err)
 	}
 
-	taskRef, err := r.session.GetTask(r.Context, r.providerStatus.TaskRef)
+	motask, err := r.session.GetTask(r.Context, r.providerStatus.TaskRef)
 	if err != nil {
 		if !isRetrieveMONotFound(r.providerStatus.TaskRef, err) {
 			return err
 		}
 	}
-	if taskIsFinished, err := taskIsFinished(taskRef); err != nil || !taskIsFinished {
+	if taskIsFinished, err := taskIsFinished(motask); err != nil || !taskIsFinished {
 		if !taskIsFinished {
-			return fmt.Errorf("task %v has not finished", taskRef.Value)
+			return fmt.Errorf("task %v has not finished", motask.Reference().Value)
 		}
 		return err
 	}
@@ -143,10 +145,32 @@ func (r *Reconciler) delete() error {
 // reconcileMachineWithCloudState reconcile machineSpec and status with the latest cloud state
 func (r *Reconciler) reconcileMachineWithCloudState(vm *virtualMachine) error {
 	klog.V(3).Infof("%v: reconciling machine with cloud state", r.machine.GetName())
-	// TODO: reconcile providerID
 	// TODO: reconcile task
+
+	klog.V(3).Infof("%v: reconciling providerID", r.machine.GetName())
+	if err := r.reconcileProviderID(vm); err != nil {
+		return err
+	}
 	klog.V(3).Infof("%v: reconciling network", r.machine.GetName())
 	return r.reconcileNetwork(vm)
+}
+
+func (r *Reconciler) reconcileProviderID(vm *virtualMachine) error {
+	providerID, err := convertUUIDToProviderID(vm.Obj.UUID(vm.Context))
+	if err != nil {
+		return err
+	}
+	r.machine.Spec.ProviderID = &providerID
+	return nil
+}
+
+// convertUUIDToProviderID transforms a UUID string into a provider ID.
+func convertUUIDToProviderID(UUID string) (string, error) {
+	parsedUUID, err := uuid.Parse(UUID)
+	if err != nil {
+		return "", err
+	}
+	return providerIDPrefix + parsedUUID.String(), nil
 }
 
 func (r *Reconciler) reconcileNetwork(vm *virtualMachine) error {
