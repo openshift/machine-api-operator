@@ -19,6 +19,7 @@ package vsphere
 import (
 	"context"
 	"crypto/tls"
+	"encoding/base64"
 	"fmt"
 	"reflect"
 	"testing"
@@ -552,6 +553,67 @@ func TestReconcileNetwork(t *testing.T) {
 		t.Errorf("Expected: %v, got: %v", expectedAddresses, r.machineScope.machine.Status.Addresses)
 	}
 	// TODO: add more cases by adding network devices to the NewVirtualMachine() object
+}
+
+func TestIgnitionConfig(t *testing.T) {
+	optionsForData := func(data []byte) []types.BaseOptionValue {
+		return []types.BaseOptionValue{
+			&types.OptionValue{
+				Key:   GuestInfoIgnitionData,
+				Value: base64.StdEncoding.EncodeToString(data),
+			},
+			&types.OptionValue{
+				Key:   GuestInfoIgnitionEncoding,
+				Value: "base64",
+			},
+		}
+	}
+
+	testCases := []struct {
+		testCase string
+		data     []byte
+		expected []types.BaseOptionValue
+	}{
+		{
+			testCase: "nil data",
+			data:     nil,
+			expected: nil,
+		},
+		{
+			testCase: "empty data",
+			data:     []byte(""),
+			expected: nil,
+		},
+		{
+			testCase: "plain-text data",
+			data:     []byte("{}"),
+			expected: optionsForData([]byte("{}")),
+		},
+		{
+			testCase: "base64 data",
+			data:     []byte("e30="),
+			expected: optionsForData([]byte("{}")),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.testCase, func(t *testing.T) {
+			options := IgnitionConfig(tc.data)
+
+			if len(options) != len(tc.expected) {
+				t.Errorf("Got: %q, Want: %q", options, tc.expected)
+			}
+
+			for i := range options {
+				got := options[i].GetOptionValue()
+				want := tc.expected[i].GetOptionValue()
+
+				if got.Key != want.Key || got.Value != want.Value {
+					t.Errorf("%q does not match expected %q", want, got)
+				}
+			}
+		})
+	}
 }
 
 // TODO TestCreate()

@@ -16,6 +16,7 @@ import (
 )
 
 const (
+	userDataSecretKey         = "userData"
 	credentialsSecretUser     = "user"
 	credentialsSecretPassword = "password"
 )
@@ -96,6 +97,32 @@ func (s *machineScope) PatchMachine() error {
 
 func (s *machineScope) GetSession() *session.Session {
 	return s.session
+}
+
+// GetUserData fetches the user-data from the secret referenced in the Machine's
+// provider spec, if one is set.
+func (s *machineScope) GetUserData() ([]byte, error) {
+	if s.providerSpec == nil || s.providerSpec.UserDataSecret == nil {
+		return nil, nil
+	}
+
+	userDataSecret := &apicorev1.Secret{}
+
+	objKey := runtimeclient.ObjectKey{
+		Namespace: s.machine.Namespace,
+		Name:      s.providerSpec.UserDataSecret.Name,
+	}
+
+	if err := s.client.Get(context.Background(), objKey, userDataSecret); err != nil {
+		return nil, err
+	}
+
+	userData, exists := userDataSecret.Data[userDataSecretKey]
+	if !exists {
+		return nil, fmt.Errorf("secret %s missing %s key", objKey, userDataSecretKey)
+	}
+
+	return userData, nil
 }
 
 // This is a temporary assumption to expose credentials as a secret

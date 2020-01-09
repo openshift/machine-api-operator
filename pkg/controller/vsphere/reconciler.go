@@ -2,6 +2,7 @@ package vsphere
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"strings"
 
@@ -23,6 +24,13 @@ const (
 	minCPU       = 2
 	diskMoveType = string(types.VirtualMachineRelocateDiskMoveOptionsMoveAllDiskBackingsAndConsolidate)
 	ethCardType  = "vmxnet3"
+)
+
+// These are the guestinfo variables used by Ignition.
+// https://access.redhat.com/documentation/en-us/openshift_container_platform/4.1/html/installing/installing-on-vsphere
+const (
+	GuestInfoIgnitionData     = "guestinfo.ignition.config.data"
+	GuestInfoIgnitionEncoding = "guestinfo.ignition.config.data.encoding"
 )
 
 // Reconciler runs the logic to reconciles a machine resource towards its desired state
@@ -216,6 +224,11 @@ func isRetrieveMONotFound(taskRef string, err error) bool {
 }
 
 func clone(s *machineScope) error {
+	userData, err := s.GetUserData()
+	if err != nil {
+		return err
+	}
+
 	vmTemplate, err := s.GetSession().FindVM(*s, s.providerSpec.Template)
 	if err != nil {
 		return err
@@ -278,8 +291,7 @@ func clone(s *machineScope) error {
 			// the VM's UUID.
 			InstanceUuid: string(s.machine.UID),
 			Flags:        newVMFlagInfo(),
-			// TODO: set userData
-			//ExtraConfig:       extraConfig,
+			ExtraConfig:  IgnitionConfig(userData),
 			// TODO: set disk devices
 			DeviceChange:      deviceSpecs,
 			NumCPUs:           numCPUs,
@@ -506,4 +518,44 @@ func (vm *virtualMachine) getNetworkStatusList(client *vim25.Client) ([]NetworkS
 	}
 
 	return networkStatusList, nil
+}
+
+// IgnitionConfig returns a slice of option values that set the given data as
+// the guest's ignition config.
+func IgnitionConfig(data []byte) []types.BaseOptionValue {
+	config := EncodeIgnitionConfig(data)
+
+	if config == "" {
+		return nil
+	}
+
+	return []types.BaseOptionValue{
+		&types.OptionValue{
+			Key:   GuestInfoIgnitionData,
+			Value: config,
+		},
+		&types.OptionValue{
+			Key:   GuestInfoIgnitionEncoding,
+			Value: "base64",
+		},
+	}
+}
+
+// EncodeIgnitionConfig attempts to decode the given data until it looks to be
+// plain-text, then returns a base64 encoded version of that plain-text.
+func EncodeIgnitionConfig(data []byte) string {
+	if len(data) == 0 {
+		return ""
+	}
+
+	for {
+		decoded, err := base64.StdEncoding.DecodeString(string(data))
+		if err != nil {
+			break
+		}
+
+		data = decoded
+	}
+
+	return base64.StdEncoding.EncodeToString(data)
 }
