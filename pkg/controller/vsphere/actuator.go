@@ -110,6 +110,7 @@ func (a *Actuator) Update(ctx context.Context, machine *machinev1.Machine) error
 func (a *Actuator) Delete(ctx context.Context, machine *machinev1.Machine) error {
 	klog.Infof("%s: actuator deleting machine", machine.GetName())
 	scope, err := newMachineScope(machineScopeParams{
+		Context: ctx,
 		client:  a.client,
 		machine: machine,
 	})
@@ -118,8 +119,11 @@ func (a *Actuator) Delete(ctx context.Context, machine *machinev1.Machine) error
 		return a.handleMachineError(machine, fmt.Errorf(fmtErr), deleteEventAction)
 	}
 	if err := newReconciler(scope).delete(); err != nil {
+		if err := scope.PatchMachine(); err != nil {
+			return err
+		}
 		return a.handleMachineError(machine, err, deleteEventAction)
 	}
 	a.eventRecorder.Eventf(machine, corev1.EventTypeNormal, deleteEventAction, "Deleted machine %v", machine.GetName())
-	return nil
+	return scope.PatchMachine()
 }
