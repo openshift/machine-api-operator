@@ -6,6 +6,19 @@ metadata:
   creationTimestamp: null
   name: machinehealthchecks.machine.openshift.io
 spec:
+  additionalPrinterColumns:
+  - JSONPath: .spec.maxUnhealthy
+    description: Maximum number of unhealthy machines allowed
+    name: MaxUnhealthy
+    type: string
+  - JSONPath: .status.expectedMachines
+    description: Number of machines currently monitored
+    name: ExpectedMachines
+    type: integer
+  - JSONPath: .status.currentHealthy
+    description: Current observed healthy machines
+    name: CurrentHealthy
+    type: integer
   group: machine.openshift.io
   names:
     kind: MachineHealthCheck
