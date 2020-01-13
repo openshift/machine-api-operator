@@ -59,6 +59,9 @@ func newMachineScope(params machineScopeParams) (*machineScope, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%v: error getting credentials: %v", params.machine.GetName(), err)
 	}
+	if providerSpec.Workspace == nil {
+		return nil, fmt.Errorf("%v: no workspace provided", params.machine.GetName())
+	}
 	authSession, err := session.GetOrCreate(context.TODO(),
 		providerSpec.Workspace.Server, providerSpec.Workspace.Datacenter,
 		user, password)
@@ -79,19 +82,26 @@ func newMachineScope(params machineScopeParams) (*machineScope, error) {
 
 // Patch patches the machine spec and machine status after reconciling.
 func (s *machineScope) PatchMachine() error {
-	klog.V(3).Infof("%v: patching", s.machine.GetName())
-	// TODO: patch machine
+	klog.V(3).Infof("%v: patching machine", s.machine.GetName())
 
 	providerStatus, err := apivshpere.RawExtensionFromProviderStatus(s.providerStatus)
 	if err != nil {
 		return machineapierros.InvalidMachineConfiguration("failed to get machine provider status: %v", err.Error())
 	}
-
 	s.machine.Status.ProviderStatus = providerStatus
-	if err := s.client.Status().Patch(context.Background(), s.machine, s.machineToBePatched); err != nil {
-		klog.Errorf("Failed to update machine %q: %v", s.machine.GetName(), err)
+
+	// patch machine
+	if err := s.client.Patch(context.Background(), s.machine, s.machineToBePatched); err != nil {
+		klog.Errorf("Failed to patch machine %q: %v", s.machine.GetName(), err)
 		return err
 	}
+
+	// patch status
+	if err := s.client.Status().Patch(context.Background(), s.machine, s.machineToBePatched); err != nil {
+		klog.Errorf("Failed to patch machine status %q: %v", s.machine.GetName(), err)
+		return err
+	}
+
 	return nil
 }
 
