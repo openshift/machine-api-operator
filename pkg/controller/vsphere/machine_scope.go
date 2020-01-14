@@ -45,6 +45,10 @@ type machineScope struct {
 // newMachineScope creates a new machineScope from the supplied parameters.
 // This is meant to be called for each machine actuator operation.
 func newMachineScope(params machineScopeParams) (*machineScope, error) {
+	if params.Context == nil {
+		return nil, fmt.Errorf("%v: machine scope require a context", params.machine.GetName())
+	}
+
 	providerSpec, err := apivshpere.ProviderSpecFromRawExtension(params.machine.Spec.ProviderSpec.Value)
 	if err != nil {
 		return nil, machineapierros.InvalidMachineConfiguration("failed to get machine config: %v", err)

@@ -138,8 +138,45 @@ func (r *Reconciler) exists() (bool, error) {
 }
 
 func (r *Reconciler) delete() error {
-	// TODO: implement
-	return nil
+	moTask, err := r.session.GetTask(r.Context, r.providerStatus.TaskRef)
+	if err != nil {
+		if !isRetrieveMONotFound(r.providerStatus.TaskRef, err) {
+			return err
+		}
+	}
+	if taskIsFinished, err := taskIsFinished(moTask); err != nil || !taskIsFinished {
+		if !taskIsFinished {
+			return fmt.Errorf("task %v has not finished", moTask.Reference().Value)
+		}
+		return err
+	}
+
+	vmRef, err := findVM(r.machineScope)
+	if err != nil {
+		if !IsNotFound(err) {
+			return err
+		}
+		klog.Infof("%v: vm does not exist", r.machine.GetName())
+		return nil
+	}
+
+	vm := &virtualMachine{
+		Context: r.Context,
+		Obj:     object.NewVirtualMachine(r.machineScope.session.Client.Client, vmRef),
+		Ref:     vmRef,
+	}
+
+	if _, err := vm.powerOffVM(); err != nil {
+		return err
+	}
+
+	task, err := vm.Obj.Destroy(r.Context)
+	if err != nil {
+		return fmt.Errorf("%v: failed to destroy vm: %v", r.machine.GetName(), err)
+	}
+	r.providerStatus.TaskRef = task.Reference().Value
+
+	return fmt.Errorf("destroying vm in progress, reconciling")
 }
 
 // reconcileMachineWithCloudState reconcile machineSpec and status with the latest cloud state

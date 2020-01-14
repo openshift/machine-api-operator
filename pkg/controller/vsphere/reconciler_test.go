@@ -21,16 +21,16 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/vmware/govmomi/vim25/mo"
-
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	vsphereapi "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1alpha1"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/simulator"
+	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 )
@@ -674,6 +674,106 @@ func TestConvertUUIDToProviderID(t *testing.T) {
 			}
 			if tc.expected == "" && err == nil {
 				t.Errorf("expected error, got %v", err)
+			}
+		})
+	}
+}
+
+func TestDelete(t *testing.T) {
+	model, _, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	password, _ := server.URL.User.Password()
+	namespace := "test"
+	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	instanceUUID := "instanceUUID"
+	vm.Config.InstanceUuid = instanceUUID
+	credentialsSecret := corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: namespace,
+		},
+		Data: map[string][]byte{
+			credentialsSecretUser:     []byte(server.URL.User.Username()),
+			credentialsSecretPassword: []byte(password),
+		},
+	}
+
+	testCases := []struct {
+		testCase string
+		machine  func(t *testing.T) *machinev1.Machine
+	}{
+		{
+			testCase: "all good deletion",
+			machine: func(t *testing.T) *machinev1.Machine {
+				providerSpec := vsphereapi.VSphereMachineProviderSpec{
+					CredentialsSecret: &corev1.LocalObjectReference{
+						Name: "test",
+					},
+					Workspace: &vsphereapi.Workspace{
+						Server: server.URL.Host,
+					},
+				}
+				raw, err := vsphereapi.RawExtensionFromProviderSpec(&providerSpec)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return &machinev1.Machine{
+					TypeMeta: metav1.TypeMeta{
+						Kind: "Machine",
+					},
+					ObjectMeta: metav1.ObjectMeta{
+						UID:       apimachinerytypes.UID(instanceUUID),
+						Name:      "defaultFolder",
+						Namespace: namespace,
+					},
+					Spec: machinev1.MachineSpec{
+						ProviderSpec: machinev1.ProviderSpec{
+							Value: raw,
+						},
+					},
+				}
+			},
+		},
+	}
+
+	machinev1.AddToScheme(scheme.Scheme)
+	for _, tc := range testCases {
+		t.Run(tc.testCase, func(t *testing.T) {
+			machineScope, err := newMachineScope(machineScopeParams{
+				client:  fake.NewFakeClientWithScheme(scheme.Scheme, &credentialsSecret, tc.machine(t)),
+				Context: context.TODO(),
+				machine: tc.machine(t),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			reconciler := newReconciler(machineScope)
+
+			// expect the first call to delete to make the vSphere destroy request
+			// and always return error to let it reconcile and monitor the destroy tasks until completion
+			if err := reconciler.delete(); err == nil {
+				t.Errorf("expected error on the first call to delete")
+			}
+
+			moTask, err := reconciler.session.GetTask(reconciler.Context, reconciler.providerStatus.TaskRef)
+			if err != nil {
+				if !isRetrieveMONotFound(reconciler.providerStatus.TaskRef, err) {
+					t.Fatal(err)
+				}
+			}
+			if moTask.Info.DescriptionId != "VirtualMachine.destroy" {
+				t.Errorf("task description expected: VirtualMachine.destroy, got: %v", moTask.Info.DescriptionId)
+			}
+
+			// expect the second call to not find the vm and succeed
+			if err := reconciler.delete(); err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+			model.Machine--
+			if model.Machine != model.Count().Machine {
+				t.Errorf("Unexpected number of machines. Expected: %v, got: %v", model.Machine, model.Count().Machine)
 			}
 		})
 	}
