@@ -37,47 +37,47 @@ func MachineWithSpec(spec *apivsphere.VSphereMachineProviderSpec) *machinev1.Mac
 }
 
 func TestGetUserData(t *testing.T) {
-	userDataSecretName := "vsphere-ignition"
+	ignitionSecretName := "vsphere-ignition"
 
 	defaultProviderSpec := &apivsphere.VSphereMachineProviderSpec{
-		UserDataSecret: &corev1.LocalObjectReference{
-			Name: userDataSecretName,
+		IgnitionSecret: &corev1.LocalObjectReference{
+			Name: ignitionSecretName,
 		},
 	}
 
 	testCases := []struct {
 		testCase         string
-		userDataSecret   *corev1.Secret
+		ignitionSecret   *corev1.Secret
 		providerSpec     *apivsphere.VSphereMachineProviderSpec
-		expectedUserdata []byte
+		expectedIgnition []byte
 		expectError      bool
 	}{
 		{
 			testCase: "all good",
-			userDataSecret: &corev1.Secret{
+			ignitionSecret: &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      userDataSecretName,
+					Name:      ignitionSecretName,
 					Namespace: TestNamespace,
 				},
 				Data: map[string][]byte{
-					userDataSecretKey: []byte("{}"),
+					ignitionSecretKey: []byte("{}"),
 				},
 			},
 			providerSpec:     defaultProviderSpec,
-			expectedUserdata: []byte("{}"),
+			expectedIgnition: []byte("{}"),
 			expectError:      false,
 		},
 		{
 			testCase:       "missing secret",
-			userDataSecret: nil,
+			ignitionSecret: nil,
 			providerSpec:   defaultProviderSpec,
 			expectError:    true,
 		},
 		{
 			testCase: "missing key in secret",
-			userDataSecret: &corev1.Secret{
+			ignitionSecret: &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      userDataSecretName,
+					Name:      ignitionSecretName,
 					Namespace: TestNamespace,
 				},
 				Data: map[string][]byte{
@@ -89,17 +89,17 @@ func TestGetUserData(t *testing.T) {
 		},
 		{
 			testCase:         "no provider spec",
-			userDataSecret:   nil,
+			ignitionSecret:   nil,
 			providerSpec:     nil,
 			expectError:      false,
-			expectedUserdata: nil,
+			expectedIgnition: nil,
 		},
 		{
 			testCase:         "no user-data in provider spec",
-			userDataSecret:   nil,
+			ignitionSecret:   nil,
 			providerSpec:     &apivsphere.VSphereMachineProviderSpec{},
 			expectError:      false,
-			expectedUserdata: nil,
+			expectedIgnition: nil,
 		},
 	}
 
@@ -107,8 +107,8 @@ func TestGetUserData(t *testing.T) {
 		t.Run(tc.testCase, func(t *testing.T) {
 			clientObjs := []runtime.Object{}
 
-			if tc.userDataSecret != nil {
-				clientObjs = append(clientObjs, tc.userDataSecret)
+			if tc.ignitionSecret != nil {
+				clientObjs = append(clientObjs, tc.ignitionSecret)
 			}
 
 			client := fake.NewFakeClient(clientObjs...)
@@ -122,13 +122,13 @@ func TestGetUserData(t *testing.T) {
 				providerSpec: tc.providerSpec,
 			}
 
-			userData, err := ms.GetUserData()
+			ignition, err := ms.GetIgnitionData()
 			if !tc.expectError && err != nil {
 				t.Errorf("Unexpected error: %v", err)
 			}
 
-			if bytes.Compare(userData, tc.expectedUserdata) != 0 {
-				t.Errorf("Got: %q, Want: %q", userData, tc.expectedUserdata)
+			if bytes.Compare(ignition, tc.expectedIgnition) != 0 {
+				t.Errorf("Got: %q, Want: %q", ignition, tc.expectedIgnition)
 			}
 		})
 	}

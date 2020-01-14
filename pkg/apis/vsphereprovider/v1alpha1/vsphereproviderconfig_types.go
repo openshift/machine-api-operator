@@ -15,9 +15,9 @@ type VSphereMachineProviderSpec struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	// UserDataSecret contains a local reference to a secret that contains the
-	// UserData to apply to the instance
-	UserDataSecret *corev1.LocalObjectReference `json:"userDataSecret,omitempty"`
+	// IgnitionSecret is a reference to a secret with Ignition data for the
+	// instance.  The secret should have a single key called "ignition".
+	IgnitionSecret *corev1.LocalObjectReference `json:"ignitionSecret,omitempty"`
 
 	// CredentialsSecret is a reference to the secret with vSphere credentials.
 	CredentialsSecret *corev1.LocalObjectReference `json:"credentialsSecret,omitempty"`
@@ -67,8 +67,7 @@ type NetworkDeviceSpec struct {
 	NetworkName string `json:"networkName"`
 }
 
-// WorkspaceConfig defines a workspace configuration for the vSphere cloud
-// provider.
+// Workspace defines a workspace configuration for the vSphere cloud provider.
 type Workspace struct {
 	// Server is the IP address or FQDN of the vSphere endpoint.
 	// +optional

@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	userDataSecretKey         = "userData"
+	ignitionSecretKey         = "ignition"
 	credentialsSecretUser     = "user"
 	credentialsSecretPassword = "password"
 )
@@ -99,30 +99,30 @@ func (s *machineScope) GetSession() *session.Session {
 	return s.session
 }
 
-// GetUserData fetches the user-data from the secret referenced in the Machine's
-// provider spec, if one is set.
-func (s *machineScope) GetUserData() ([]byte, error) {
-	if s.providerSpec == nil || s.providerSpec.UserDataSecret == nil {
+// GetIgnitionData fetches the Ignition configuration from the secret referenced
+// in the Machine's provider spec, if one is set.
+func (s *machineScope) GetIgnitionData() ([]byte, error) {
+	if s.providerSpec == nil || s.providerSpec.IgnitionSecret == nil {
 		return nil, nil
 	}
 
-	userDataSecret := &apicorev1.Secret{}
+	ignitionSecret := &apicorev1.Secret{}
 
 	objKey := runtimeclient.ObjectKey{
 		Namespace: s.machine.Namespace,
-		Name:      s.providerSpec.UserDataSecret.Name,
+		Name:      s.providerSpec.IgnitionSecret.Name,
 	}
 
-	if err := s.client.Get(context.Background(), objKey, userDataSecret); err != nil {
+	if err := s.client.Get(context.Background(), objKey, ignitionSecret); err != nil {
 		return nil, err
 	}
 
-	userData, exists := userDataSecret.Data[userDataSecretKey]
+	ignition, exists := ignitionSecret.Data[ignitionSecretKey]
 	if !exists {
-		return nil, fmt.Errorf("secret %s missing %s key", objKey, userDataSecretKey)
+		return nil, fmt.Errorf("secret %s missing %s key", objKey, ignitionSecretKey)
 	}
 
-	return userData, nil
+	return ignition, nil
 }
 
 // This is a temporary assumption to expose credentials as a secret

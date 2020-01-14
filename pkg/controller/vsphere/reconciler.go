@@ -224,7 +224,7 @@ func isRetrieveMONotFound(taskRef string, err error) bool {
 }
 
 func clone(s *machineScope) error {
-	userData, err := s.GetUserData()
+	ignitionData, err := s.GetIgnitionData()
 	if err != nil {
 		return err
 	}
@@ -291,7 +291,7 @@ func clone(s *machineScope) error {
 			// the VM's UUID.
 			InstanceUuid: string(s.machine.UID),
 			Flags:        newVMFlagInfo(),
-			ExtraConfig:  IgnitionConfig(userData),
+			ExtraConfig:  IgnitionConfig(ignitionData),
 			// TODO: set disk devices
 			DeviceChange:      deviceSpecs,
 			NumCPUs:           numCPUs,

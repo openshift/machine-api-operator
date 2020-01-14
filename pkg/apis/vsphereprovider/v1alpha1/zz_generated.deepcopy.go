@@ -66,8 +66,8 @@ func (in *VSphereMachineProviderSpec) DeepCopyInto(out *VSphereMachineProviderSp
 	*out = *in
 	out.TypeMeta = in.TypeMeta
 	in.ObjectMeta.DeepCopyInto(&out.ObjectMeta)
-	if in.UserDataSecret != nil {
-		in, out := &in.UserDataSecret, &out.UserDataSecret
+	if in.IgnitionSecret != nil {
+		in, out := &in.IgnitionSecret, &out.IgnitionSecret
 		*out = new(v1.LocalObjectReference)
 		**out = **in
 	}
