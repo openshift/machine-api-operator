@@ -251,6 +251,14 @@ rules:
       - watch
       - list
       - patch
+
+  - apiGroups:
+      - metal3.io
+    resources:
+      - provisionings
+    verbs:
+      - get
+      - list
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
