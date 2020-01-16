@@ -4,6 +4,7 @@ import (
 	"github.com/golang/glog"
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
 	mapiclientset "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -18,6 +19,11 @@ type ClientBuilder struct {
 // KubeClientOrDie returns the kubernetes client interface for general kubernetes objects.
 func (cb *ClientBuilder) KubeClientOrDie(name string) kubernetes.Interface {
 	return kubernetes.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
+}
+
+// NewForConfigOrDie returns the kubernetes client interface for dynamic objects.
+func (cb *ClientBuilder) dynamicClientOrDie(name string) dynamic.Interface {
+	return dynamic.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
 }
 
 // OpenshiftClientOrDie returns the kubernetes client interface for Openshift objects.

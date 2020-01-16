@@ -14,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/dynamic"
 	appsinformersv1 "k8s.io/client-go/informers/apps/v1"
 	"k8s.io/client-go/kubernetes"
 	appslisterv1 "k8s.io/client-go/listers/apps/v1"
@@ -41,6 +42,7 @@ type Operator struct {
 
 	kubeClient    kubernetes.Interface
 	osClient      osclientset.Interface
+	dynamicClient dynamic.Interface
 	eventRecorder record.EventRecorder
 
 	syncHandler func(ic string) error
@@ -68,6 +70,7 @@ func New(
 
 	kubeClient kubernetes.Interface,
 	osClient osclientset.Interface,
+	dynamicClient dynamic.Interface,
 
 	recorder record.EventRecorder,
 ) *Operator {
@@ -84,6 +87,7 @@ func New(
 		imagesFile:      imagesFile,
 		kubeClient:      kubeClient,
 		osClient:        osClient,
+		dynamicClient:   dynamicClient,
 		eventRecorder:   recorder,
 		queue:           workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
 		operandVersions: operandVersions,
