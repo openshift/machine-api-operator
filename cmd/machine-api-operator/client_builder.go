@@ -21,8 +21,8 @@ func (cb *ClientBuilder) KubeClientOrDie(name string) kubernetes.Interface {
 	return kubernetes.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
 }
 
-// NewForConfigOrDie returns the kubernetes client interface for dynamic objects.
-func (cb *ClientBuilder) dynamicClientOrDie(name string) dynamic.Interface {
+// DynamicClientOrDie returns a dynamic client interface.
+func (cb *ClientBuilder) DynamicClientOrDie(name string) dynamic.Interface {
 	return dynamic.NewForConfigOrDie(rest.AddUserAgent(cb.config, name))
 }
 

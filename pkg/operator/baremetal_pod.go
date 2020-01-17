@@ -98,7 +98,8 @@ func createMariadbPasswordSecret(client coreclientv1.SecretsGetter, config *Oper
 	return err
 }
 
-func newMetal3Deployment(config *OperatorConfig) *appsv1.Deployment {
+func newMetal3Deployment(config *OperatorConfig, baremetalProvisioningConfig BaremetalProvisioningConfig) *appsv1.Deployment {
+	// TODO(sadasu): Use config from BaremetalProvisioningConfig to set env vars for containers.
 	replicas := int32(1)
 	template := newMetal3PodTemplateSpec(config)
 

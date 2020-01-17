@@ -124,7 +124,7 @@ func startControllers(ctx *ControllerContext) {
 		ctx.ConfigInformerFactory.Config().V1().FeatureGates(),
 		ctx.ClientBuilder.KubeClientOrDie(componentName),
 		ctx.ClientBuilder.OpenshiftClientOrDie(componentName),
-		ctx.ClientBuilder.dynamicClientOrDie(componentName),
+		ctx.ClientBuilder.DynamicClientOrDie(componentName),
 		recorder,
 	).Run(1, ctx.Stop)
 }
