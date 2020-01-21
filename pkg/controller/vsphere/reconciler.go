@@ -13,6 +13,8 @@ import (
 	"github.com/pkg/errors"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/property"
+	"github.com/vmware/govmomi/vapi/rest"
+	"github.com/vmware/govmomi/vapi/tags"
 	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
@@ -26,6 +28,8 @@ const (
 	diskMoveType     = string(types.VirtualMachineRelocateDiskMoveOptionsMoveAllDiskBackingsAndConsolidate)
 	ethCardType      = "vmxnet3"
 	providerIDPrefix = "vsphere://"
+	regionKey        = "region"
+	zoneKey          = "zone"
 )
 
 // These are the guestinfo variables used by Ignition.
@@ -184,12 +188,54 @@ func (r *Reconciler) reconcileMachineWithCloudState(vm *virtualMachine) error {
 	klog.V(3).Infof("%v: reconciling machine with cloud state", r.machine.GetName())
 	// TODO: reconcile task
 
+	if err := r.reconcileRegionAndZoneLabels(vm); err != nil {
+		// Not treating this is as a fatal error for now.
+		klog.Errorf("Failed to reconcile region and zone labels: %v", err)
+	}
+
 	klog.V(3).Infof("%v: reconciling providerID", r.machine.GetName())
 	if err := r.reconcileProviderID(vm); err != nil {
 		return err
 	}
 	klog.V(3).Infof("%v: reconciling network", r.machine.GetName())
 	return r.reconcileNetwork(vm)
+}
+
+// reconcileRegionAndZoneLabels reconciles the labels on the Machine containing
+// region and zone information -- provided the vSphere cloud provider has been
+// configured with the labels that identify region and zone, and the configured
+// tags are found somewhere in the ancestry of the given virtual machine.
+func (r *Reconciler) reconcileRegionAndZoneLabels(vm *virtualMachine) error {
+	if r.vSphereConfig == nil {
+		klog.Warning("No vSphere cloud provider config. " +
+			"Will not set region and zone labels.")
+		return nil
+	}
+
+	regionLabel := r.vSphereConfig.Labels.Region
+	zoneLabel := r.vSphereConfig.Labels.Zone
+
+	var res map[string]string
+
+	err := r.session.WithRestClient(vm.Context, func(c *rest.Client) error {
+		var err error
+		res, err = vm.getRegionAndZone(c, regionLabel, zoneLabel)
+
+		return err
+	})
+
+	if err != nil {
+		return err
+	}
+
+	if r.machine.Labels == nil {
+		r.machine.Labels = make(map[string]string)
+	}
+
+	r.machine.Labels[machinecontroller.MachineRegionLabelName] = res[regionKey]
+	r.machine.Labels[machinecontroller.MachineAZLabelName] = res[zoneKey]
+
+	return nil
 }
 
 func (r *Reconciler) reconcileProviderID(vm *virtualMachine) error {
@@ -463,6 +509,71 @@ type virtualMachine struct {
 	context.Context
 	Ref types.ManagedObjectReference
 	Obj *object.VirtualMachine
+}
+
+func (vm *virtualMachine) getAncestors() ([]mo.ManagedEntity, error) {
+	client := vm.Obj.Client()
+	pc := client.ServiceContent.PropertyCollector
+
+	return mo.Ancestors(vm.Context, client, pc, vm.Ref)
+}
+
+// getRegionAndZone checks the virtual machine and each of its ancestors for the
+// given region and zone labels and returns their values if found.
+func (vm *virtualMachine) getRegionAndZone(c *rest.Client, regionLabel, zoneLabel string) (map[string]string, error) {
+	result := make(map[string]string)
+	tagsMgr := tags.NewManager(c)
+
+	objects, err := vm.getAncestors()
+	if err != nil {
+		klog.Errorf("Failed to get ancestors for %s: %v", vm.Ref, err)
+		return nil, err
+	}
+
+	for i := range objects {
+		obj := objects[len(objects)-1-i] // Reverse order.
+		klog.V(4).Infof("getRegionAndZone: Name: %s, Type: %s",
+			obj.Self.Value, obj.Self.Type)
+
+		tags, err := tagsMgr.ListAttachedTags(vm.Context, obj)
+		if err != nil {
+			klog.Warningf("Failed to list attached tags: %v", err)
+			return nil, err
+		}
+
+		for _, value := range tags {
+			tag, err := tagsMgr.GetTag(vm.Context, value)
+			if err != nil {
+				klog.Errorf("Failed to get tag: %v", err)
+				return nil, err
+			}
+
+			category, err := tagsMgr.GetCategory(vm.Context, tag.CategoryID)
+			if err != nil {
+				klog.Errorf("Failed to get tag category: %v", err)
+				return nil, err
+			}
+
+			switch {
+			case regionLabel != "" && category.Name == regionLabel:
+				result[regionKey] = tag.Name
+				klog.V(2).Infof("%s has region tag (%s) with value %s",
+					vm.Ref, category.Name, tag.Name)
+
+			case zoneLabel != "" && category.Name == zoneLabel:
+				result[zoneKey] = tag.Name
+				klog.V(2).Infof("%s has zone tag (%s) with value %s",
+					vm.Ref, category.Name, tag.Name)
+			}
+
+			// We've found both tags, return early.
+			if result[regionKey] != "" && result[zoneKey] != "" {
+				return result, nil
+			}
+		}
+	}
+
+	return result, nil
 }
 
 func (vm *virtualMachine) reconcilePowerState() (bool, error) {

@@ -21,6 +21,7 @@ import (
 	"net/url"
 	"sync"
 
+	"github.com/vmware/govmomi/vapi/rest"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
 
@@ -45,6 +46,9 @@ type Session struct {
 	*govmomi.Client
 	Finder     *find.Finder
 	Datacenter *object.Datacenter
+
+	username string
+	password string
 }
 
 // GetOrCreate gets a cached session or creates a new one if one does not
@@ -79,7 +83,12 @@ func GetOrCreate(
 		return nil, errors.Wrapf(err, "error setting up new vSphere SOAP client")
 	}
 
-	session := Session{Client: client}
+	session := Session{
+		Client:   client,
+		username: username,
+		password: password,
+	}
+
 	session.UserAgent = "machineAPIvSphereProvider"
 	session.Finder = find.NewFinder(session.Client.Client, false)
 
@@ -155,4 +164,21 @@ func (s *Session) GetTask(ctx context.Context, taskRef string) (*mo.Task, error)
 		return nil, err
 	}
 	return &obj, nil
+}
+
+func (s *Session) WithRestClient(ctx context.Context, f func(c *rest.Client) error) error {
+	c := rest.NewClient(s.Client.Client)
+
+	user := url.UserPassword(s.username, s.password)
+	if err := c.Login(ctx, user); err != nil {
+		return err
+	}
+
+	defer func() {
+		if err := c.Logout(ctx); err != nil {
+			klog.Errorf("Failed to logout: %v", err)
+		}
+	}()
+
+	return f(c)
 }
