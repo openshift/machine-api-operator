@@ -1,6 +1,9 @@
 package operator
 
 import (
+	"fmt"
+	"net"
+
 	"github.com/golang/glog"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -9,7 +12,16 @@ import (
 )
 
 var provisioningGVR = schema.GroupVersionResource{Group: "metal3.io", Resource: "provisionings", Version: "v1alpha1"}
-var baremetalProvisioningCR = "cluster"
+var baremetalProvisioningCR = "provisioning-configuration"
+
+const (
+	baremetalHttpPort              = "6180"
+	baremetalIronicPort            = "6385"
+	baremetalIronicInspectorPort   = "5050"
+	baremetalKernelUrlSubPath      = "images/ironic-python-agent.kernel"
+	baremetalRamdiskUrlSubPath     = "images/ironic-python-agent.initramfs"
+	baremetalIronicEndpointSubpath = "v1/"
+)
 
 // Provisioning Config needed to deploy Metal3 pod
 type BaremetalProvisioningConfig struct {
@@ -64,4 +76,89 @@ func getBaremetalProvisioningConfig(dc dynamic.Interface, configName string) (Ba
 		ProvisioningDHCPExternal: provisioningDHCPExternal,
 		ProvisioningDHCPRange:    provisioningDHCPRange,
 	}, nil
+}
+
+func getProvisioningIPCIDR(baremetalConfig BaremetalProvisioningConfig) *string {
+	if baremetalConfig.ProvisioningNetworkCIDR != "" && baremetalConfig.ProvisioningIp != "" {
+		_, net, err := net.ParseCIDR(baremetalConfig.ProvisioningNetworkCIDR)
+		if err == nil {
+			cidr, _ := net.Mask.Size()
+			generatedConfig := fmt.Sprintf("%s/%d", baremetalConfig.ProvisioningIp, cidr)
+			return &generatedConfig
+		}
+	}
+	return nil
+}
+
+func getDeployKernelUrl(baremetalConfig BaremetalProvisioningConfig) *string {
+	if baremetalConfig.ProvisioningIp != "" {
+		generatedConfig := fmt.Sprintf("http://%s/%s", net.JoinHostPort(baremetalConfig.ProvisioningIp, baremetalHttpPort), baremetalKernelUrlSubPath)
+		return &generatedConfig
+	}
+	return nil
+}
+
+func getDeployRamdiskUrl(baremetalConfig BaremetalProvisioningConfig) *string {
+	if baremetalConfig.ProvisioningIp != "" {
+		generatedConfig := fmt.Sprintf("http://%s/%s", net.JoinHostPort(baremetalConfig.ProvisioningIp, baremetalHttpPort), baremetalRamdiskUrlSubPath)
+		return &generatedConfig
+	}
+	return nil
+}
+
+func getIronicEndpoint(baremetalConfig BaremetalProvisioningConfig) *string {
+	if baremetalConfig.ProvisioningIp != "" {
+		generatedConfig := fmt.Sprintf("http://%s/%s", net.JoinHostPort(baremetalConfig.ProvisioningIp, baremetalIronicPort), baremetalIronicEndpointSubpath)
+		return &generatedConfig
+	}
+	return nil
+}
+
+func getIronicInspectorEndpoint(baremetalConfig BaremetalProvisioningConfig) *string {
+	if baremetalConfig.ProvisioningIp != "" {
+		generatedConfig := fmt.Sprintf("http://%s/%s", net.JoinHostPort(baremetalConfig.ProvisioningIp, baremetalIronicInspectorPort), baremetalIronicEndpointSubpath)
+		return &generatedConfig
+	}
+	return nil
+}
+
+func getProvisioningDHCPRange(baremetalConfig BaremetalProvisioningConfig) *string {
+	if baremetalConfig.ProvisioningDHCPRange != "" {
+		return &(baremetalConfig.ProvisioningDHCPRange)
+	}
+	return nil
+}
+
+func getProvisioningInterface(baremetalConfig BaremetalProvisioningConfig) *string {
+	if baremetalConfig.ProvisioningInterface != "" {
+		return &(baremetalConfig.ProvisioningInterface)
+	}
+	return nil
+}
+
+func getMetal3DeploymentConfig(name string, baremetalConfig BaremetalProvisioningConfig) *string {
+	configValue := ""
+	switch name {
+	case "CACHEURL":
+		configValue = ""
+		return &configValue
+	case "PROVISIONING_IP":
+		return getProvisioningIPCIDR(baremetalConfig)
+	case "PROVISIONING_INTERFACE":
+		return getProvisioningInterface(baremetalConfig)
+	case "DEPLOY_KERNEL_URL":
+		return getDeployKernelUrl(baremetalConfig)
+	case "DEPLOY_RAMDISK_URL":
+		return getDeployRamdiskUrl(baremetalConfig)
+	case "IRONIC_ENDPOINT":
+		return getIronicEndpoint(baremetalConfig)
+	case "IRONIC_INSPECTOR_ENDPOINT":
+		return getIronicInspectorEndpoint(baremetalConfig)
+	case "HTTP_PORT":
+		configValue = baremetalHttpPort
+		return &configValue
+	case "DHCP_RANGE":
+		return getProvisioningDHCPRange(baremetalConfig)
+	}
+	return nil
 }
