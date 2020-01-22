@@ -42,7 +42,7 @@ check-pkg:
 	./hack/verify-actuator-pkg.sh
 
 .PHONY: build
-build: machine-api-operator nodelink-controller machine-healthcheck ## Build binaries
+build: machine-api-operator nodelink-controller machine-healthcheck machineset vsphere ## Build binaries
 
 .PHONY: machine-api-operator
 machine-api-operator:
@@ -55,6 +55,14 @@ nodelink-controller:
 .PHONY: machine-healthcheck
 machine-healthcheck:
 	$(DOCKER_CMD) ./hack/go-build.sh machine-healthcheck
+
+.PHONY: vsphere
+vsphere:
+	$(DOCKER_CMD) ./hack/go-build.sh vsphere
+
+.PHONY: machineset
+machineset:
+	$(DOCKER_CMD) ./hack/go-build.sh machineset
 
 .PHONY: generate
 generate: gen-crd update-codegen
