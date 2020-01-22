@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -111,13 +113,40 @@ func TestGetNodeCondition(t *testing.T) {
 	}
 }
 
+func assertEvents(t *testing.T, testCase string, expectedEvents []string, realEvents chan string) {
+	if len(expectedEvents) != len(realEvents) {
+		t.Errorf(
+			"Test case: %s. Number of expected events (%v) differs from number of real events (%v)",
+			testCase,
+			len(expectedEvents),
+			len(realEvents),
+		)
+	} else {
+		for _, eventType := range expectedEvents {
+			select {
+			case event := <-realEvents:
+				if !strings.Contains(event, fmt.Sprintf(" %s ", eventType)) {
+					t.Errorf("Test case: %s. Expected %v event, got: %v", testCase, eventType, event)
+				}
+			default:
+				t.Errorf("Test case: %s. Expected %v event, but no event occured", testCase, eventType)
+			}
+		}
+	}
+}
+
 // newFakeReconciler returns a new reconcile.Reconciler with a fake client
 func newFakeReconciler(initObjects ...runtime.Object) *ReconcileMachineHealthCheck {
+	return newFakeReconcilerWithCustomRecorder(nil, initObjects...)
+}
+
+func newFakeReconcilerWithCustomRecorder(recorder record.EventRecorder, initObjects ...runtime.Object) *ReconcileMachineHealthCheck {
 	fakeClient := fake.NewFakeClient(initObjects...)
 	return &ReconcileMachineHealthCheck{
 		client:    fakeClient,
 		scheme:    scheme.Scheme,
 		namespace: namespace,
+		recorder:  recorder,
 	}
 }
 
@@ -176,10 +205,11 @@ func TestReconcile(t *testing.T) {
 	machineUnhealthyForTooLong := maotesting.NewMachine("machineUnhealthyForTooLong", nodeUnhealthyForTooLong.Name)
 
 	testCases := []struct {
-		testCase string
-		machine  *mapiv1beta1.Machine
-		node     *corev1.Node
-		expected expectedReconcile
+		testCase       string
+		machine        *mapiv1beta1.Machine
+		node           *corev1.Node
+		expected       expectedReconcile
+		expectedEvents []string
 	}{
 		{
 			testCase: "machine unhealthy",
@@ -189,6 +219,7 @@ func TestReconcile(t *testing.T) {
 				result: reconcile.Result{},
 				error:  false,
 			},
+			expectedEvents: []string{EventMachineDeleted},
 		},
 		{
 			testCase: "machine with node unhealthy",
@@ -198,6 +229,7 @@ func TestReconcile(t *testing.T) {
 				result: reconcile.Result{},
 				error:  false,
 			},
+			expectedEvents: []string{},
 		},
 		{
 			testCase: "machine with node likely to go unhealthy",
@@ -210,6 +242,7 @@ func TestReconcile(t *testing.T) {
 				},
 				error: false,
 			},
+			expectedEvents: []string{EventDetectedUnhealthy},
 		},
 		{
 			testCase: "no target: no machine and bad node annotation",
@@ -219,6 +252,7 @@ func TestReconcile(t *testing.T) {
 				result: reconcile.Result{},
 				error:  false,
 			},
+			expectedEvents: []string{},
 		},
 		{
 			testCase: "no target: no machine",
@@ -228,6 +262,7 @@ func TestReconcile(t *testing.T) {
 				result: reconcile.Result{},
 				error:  false,
 			},
+			expectedEvents: []string{},
 		},
 		{
 			testCase: "machine no controller owner",
@@ -237,6 +272,7 @@ func TestReconcile(t *testing.T) {
 				result: reconcile.Result{},
 				error:  false,
 			},
+			expectedEvents: []string{},
 		},
 		{
 			testCase: "machine no noderef",
@@ -248,6 +284,7 @@ func TestReconcile(t *testing.T) {
 				},
 				error: false,
 			},
+			expectedEvents: []string{EventDetectedUnhealthy},
 		},
 	}
 
@@ -259,7 +296,8 @@ func TestReconcile(t *testing.T) {
 				objects = append(objects, tc.machine)
 			}
 			objects = append(objects, tc.node)
-			r := newFakeReconciler(objects...)
+			recorder := record.NewFakeRecorder(2)
+			r := newFakeReconcilerWithCustomRecorder(recorder, objects...)
 
 			request := reconcile.Request{
 				NamespacedName: types.NamespacedName{
@@ -268,6 +306,7 @@ func TestReconcile(t *testing.T) {
 				},
 			}
 			result, err := r.Reconcile(request)
+			assertEvents(t, tc.testCase, tc.expectedEvents, recorder.Events)
 			if tc.expected.error != (err != nil) {
 				var errorExpectation string
 				if !tc.expected.error {
@@ -335,7 +374,8 @@ func TestApplyRemediationReboot(t *testing.T) {
 			Name:      nodeUnhealthyForTooLong.Name,
 		},
 	}
-	r := newFakeReconciler(nodeUnhealthyForTooLong, machineUnhealthyForTooLong, machineHealthCheck)
+	recorder := record.NewFakeRecorder(2)
+	r := newFakeReconcilerWithCustomRecorder(recorder, nodeUnhealthyForTooLong, machineUnhealthyForTooLong, machineHealthCheck)
 	target := target{
 		Node:    nodeUnhealthyForTooLong,
 		Machine: *machineUnhealthyForTooLong,
@@ -344,6 +384,12 @@ func TestApplyRemediationReboot(t *testing.T) {
 	if err := target.remediationStrategyReboot(r); err != nil {
 		t.Fatalf("unexpected error %v", err)
 	}
+	assertEvents(
+		t,
+		"apply remediation reboot",
+		[]string{EventRebootAnnotationAdded},
+		recorder.Events,
+	)
 
 	node := &corev1.Node{}
 	if err := r.client.Get(context.TODO(), request.NamespacedName, node); err != nil {
@@ -1817,10 +1863,11 @@ func TestStringPointerDeref(t *testing.T) {
 
 func TestRemediate(t *testing.T) {
 	testCases := []struct {
-		testCase      string
-		target        *target
-		expectedError bool
-		deletion      bool
+		testCase       string
+		target         *target
+		expectedError  bool
+		deletion       bool
+		expectedEvents []string
 	}{
 		{
 			testCase: "no master",
@@ -1853,8 +1900,9 @@ func TestRemediate(t *testing.T) {
 				},
 				MHC: mapiv1beta1.MachineHealthCheck{},
 			},
-			deletion:      true,
-			expectedError: false,
+			deletion:       true,
+			expectedError:  false,
+			expectedEvents: []string{EventMachineDeleted},
 		},
 		{
 			testCase: "node master",
@@ -1890,8 +1938,9 @@ func TestRemediate(t *testing.T) {
 				},
 				MHC: mapiv1beta1.MachineHealthCheck{},
 			},
-			deletion:      false,
-			expectedError: false,
+			deletion:       false,
+			expectedError:  false,
+			expectedEvents: []string{EventSkippedMaster},
 		},
 		{
 			testCase: "machine master",
@@ -1913,8 +1962,9 @@ func TestRemediate(t *testing.T) {
 				Node: &corev1.Node{},
 				MHC:  mapiv1beta1.MachineHealthCheck{},
 			},
-			deletion:      false,
-			expectedError: false,
+			deletion:       false,
+			expectedError:  false,
+			expectedEvents: []string{EventSkippedMaster},
 		},
 	}
 
@@ -1922,10 +1972,12 @@ func TestRemediate(t *testing.T) {
 		t.Run(tc.testCase, func(t *testing.T) {
 			var objects []runtime.Object
 			objects = append(objects, runtime.Object(&tc.target.Machine))
-			r := newFakeReconciler(objects...)
+			recorder := record.NewFakeRecorder(2)
+			r := newFakeReconcilerWithCustomRecorder(recorder, objects...)
 			if err := tc.target.remediate(r); (err != nil) != tc.expectedError {
 				t.Errorf("Case: %v. Got: %v, expected error: %v", tc.testCase, err, tc.expectedError)
 			}
+			assertEvents(t, tc.testCase, tc.expectedEvents, recorder.Events)
 			machine := &mapiv1beta1.Machine{}
 			err := r.client.Get(context.TODO(), namespacedName(machine), machine)
 			if tc.deletion {
@@ -2335,8 +2387,10 @@ func TestHealthCheckTargets(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
+		recorder := record.NewFakeRecorder(2)
+		r := newFakeReconcilerWithCustomRecorder(recorder)
 		t.Run(tc.testCase, func(t *testing.T) {
-			currentHealhty, needRemediationTargets, nextCheckTimes, errList := healthCheckTargets(tc.targets)
+			currentHealhty, needRemediationTargets, nextCheckTimes, errList := r.healthCheckTargets(tc.targets)
 			if currentHealhty != tc.currentHealthy {
 				t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, currentHealhty, tc.currentHealthy)
 			}
