@@ -370,8 +370,8 @@ func TestApplyRemediationReboot(t *testing.T) {
 	machineHealthCheck := maotesting.NewMachineHealthCheck("machineHealthCheck")
 	request := reconcile.Request{
 		NamespacedName: types.NamespacedName{
-			Namespace: "",
-			Name:      nodeUnhealthyForTooLong.Name,
+			Namespace: namespace,
+			Name:      machineUnhealthyForTooLong.Name,
 		},
 	}
 	recorder := record.NewFakeRecorder(2)
@@ -391,13 +391,13 @@ func TestApplyRemediationReboot(t *testing.T) {
 		recorder.Events,
 	)
 
-	node := &corev1.Node{}
-	if err := r.client.Get(context.TODO(), request.NamespacedName, node); err != nil {
+	machine := &mapiv1beta1.Machine{}
+	if err := r.client.Get(context.TODO(), request.NamespacedName, machine); err != nil {
 		t.Errorf("Expected: no error, got: %v", err)
 	}
 
-	if _, ok := node.Annotations[machineRebootAnnotationKey]; !ok {
-		t.Errorf("Expected: node to have reboot annotion %s, got: %v", machineRebootAnnotationKey, node.Annotations)
+	if _, ok := machine.Annotations[machineRebootAnnotationKey]; !ok {
+		t.Errorf("Expected: node to have reboot annotion %s, got: %v", machineRebootAnnotationKey, machine.Annotations)
 	}
 }
 
