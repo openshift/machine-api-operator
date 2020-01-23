@@ -473,17 +473,17 @@ func (t *target) remediate(r *ReconcileMachineHealthCheck) error {
 
 func (t *target) remediationStrategyReboot(r *ReconcileMachineHealthCheck) error {
 	// we already have reboot annotation on the node, stop reconcile
-	if _, ok := t.Node.Annotations[machineRebootAnnotationKey]; ok {
+	if _, ok := t.Machine.Annotations[machineRebootAnnotationKey]; ok {
 		return nil
 	}
 
-	if t.Node.Annotations == nil {
-		t.Node.Annotations = map[string]string{}
+	if t.Machine.Annotations == nil {
+		t.Machine.Annotations = map[string]string{}
 	}
 
 	glog.Infof("Machine %s has been unhealthy for too long, adding reboot annotation", t.Machine.Name)
-	t.Node.Annotations[machineRebootAnnotationKey] = ""
-	if err := r.client.Update(context.TODO(), t.Node); err != nil {
+	t.Machine.Annotations[machineRebootAnnotationKey] = ""
+	if err := r.client.Update(context.TODO(), &t.Machine); err != nil {
 		r.recorder.Eventf(
 			&t.Machine,
 			corev1.EventTypeWarning,
