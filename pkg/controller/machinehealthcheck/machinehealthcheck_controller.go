@@ -28,7 +28,7 @@ import (
 
 const (
 	machineAnnotationKey          = "machine.openshift.io/machine"
-	machineRebootAnnotationKey    = "healthchecking.openshift.io/machine-remediation-reboot"
+	machineRebootAnnotationKey    = "healthchecking.openshift.io/external-remediation"
 	ownerControllerKind           = "MachineSet"
 	nodeMasterLabel               = "node-role.kubernetes.io/master"
 	machineRoleLabel              = "machine.openshift.io/cluster-api-machine-role"
