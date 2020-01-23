@@ -21,14 +21,23 @@ spec:
   provisioningIP: "172.30.20.3"
   provisioningNetworkCIDR: "172.30.20.0/24"
   provisioningDHCPExternal: false
-  provisioningDHCPRange: "172.30.20.10, 72.30.20.100"
+  provisioningDHCPRange: "172.30.20.11, 172.30.20.101"
 `
 var (
-	expectedProvisioningInterface    = "ensp0"
-	expectedProvisioningIP           = "172.30.20.3"
-	expectedProvisioningNetworkCIDR  = "172.30.20.0/24"
-	expectedProvisioningDHCPExternal = false
-	expectedProvisioningDHCPRange    = "172.30.20.10, 72.30.20.100"
+	expectedProvisioningInterface        = "ensp0"
+	expectedProvisioningIP               = "172.30.20.3"
+	expectedProvisioningNetworkCIDR      = "172.30.20.0/24"
+	expectedProvisioningDHCPExternal     = false
+	expectedProvisioningDHCPRange        = "172.30.20.11, 172.30.20.101"
+	expectedCacheURL                     = ""
+	expectedRhcosImageURL                = "unknown"
+	expectedProvisioningIPCIDR           = "172.30.20.3/24"
+	expectedDeployKernelURL              = "http://172.30.20.3:6180/images/ironic-python-agent.kernel"
+	expectedDeployRamdiskURL             = "http://172.30.20.3:6180/images/ironic-python-agent.initramfs"
+	expectedIronicEndpoint               = "http://172.30.20.3:6385/v1/"
+	expectedIronicInspectorEndpoint      = "http://172.30.20.3:5050/v1/"
+	expectedHttpPort                     = "6180"
+	expectedDefaultProvisioningDHCPRange = "172.30.20.10, 172.30.20.100"
 )
 
 func TestGenerateRandomPassword(t *testing.T) {
@@ -97,38 +106,139 @@ func TestCreateMariadbPasswordSecret(t *testing.T) {
 }
 
 func TestGetBaremetalProvisioningConfig(t *testing.T) {
+	testConfigResource := "test"
 	u := &unstructured.Unstructured{Object: map[string]interface{}{}}
 	if err := yaml.Unmarshal([]byte(yamlContent), &u); err != nil {
 		t.Errorf("failed to unmarshall input yaml content:%v", err)
 	}
 	dynamicClient := fakedynamic.NewSimpleDynamicClient(runtime.NewScheme(), u)
-	baremetalConfig, err := getBaremetalProvisioningConfig(dynamicClient, "test")
+	baremetalConfig, err := getBaremetalProvisioningConfig(dynamicClient, testConfigResource)
 	if err != nil {
 		t.Logf("Unstructed Config:  %+v", u)
-		t.Fatalf("Failed to get Baremetal Provisioning Interface from CR %s", "test")
+		t.Fatalf("Failed to get Baremetal Provisioning Interface from CR %s", testConfigResource)
 	}
 	if baremetalConfig.ProvisioningInterface != expectedProvisioningInterface ||
 		baremetalConfig.ProvisioningIp != expectedProvisioningIP ||
 		baremetalConfig.ProvisioningNetworkCIDR != expectedProvisioningNetworkCIDR ||
 		baremetalConfig.ProvisioningDHCPExternal != expectedProvisioningDHCPExternal ||
 		baremetalConfig.ProvisioningDHCPRange != expectedProvisioningDHCPRange {
-		t.Logf("Actual BaremetalProvisioningConfig: %+v", baremetalConfig)
-		t.Logf("Expected : ProvisioningInterface: %s, ProvisioningIP: %s, ProvisioningNetworkCIDR: %s, ProvisioningDHCPExternal: %t, expectedProvisioningDHCPRange: %s", expectedProvisioningInterface, expectedProvisioningIP, expectedProvisioningNetworkCIDR, expectedProvisioningDHCPExternal, expectedProvisioningDHCPRange)
+		t.Logf("Expected: ProvisioningInterface: %s, ProvisioningIP: %s, ProvisioningNetworkCIDR: %s, ProvisioningDHCPExternal: %t, expectedProvisioningDHCPRange: %s, Got: %+v", expectedProvisioningInterface, expectedProvisioningIP, expectedProvisioningNetworkCIDR, expectedProvisioningDHCPExternal, expectedProvisioningDHCPRange, baremetalConfig)
 		t.Fatalf("failed getBaremetalProvisioningConfig. One or more BaremetalProvisioningConfig items do not match the expected config.")
 	}
 }
 
 func TestGetIncorrectBaremetalProvisioningCR(t *testing.T) {
+	incorrectConfigResource := "test1"
 	u := &unstructured.Unstructured{Object: map[string]interface{}{}}
 	if err := yaml.Unmarshal([]byte(yamlContent), &u); err != nil {
 		t.Errorf("failed to unmarshall input yaml content:%v", err)
 	}
 	dynamicClient := fakedynamic.NewSimpleDynamicClient(runtime.NewScheme(), u)
-	baremetalConfig, err := getBaremetalProvisioningConfig(dynamicClient, "test1")
+	baremetalConfig, err := getBaremetalProvisioningConfig(dynamicClient, incorrectConfigResource)
 	if err != nil {
-		t.Logf("Unable to get Baremetal Provisioning Config from CR %s as expected", "test1")
+		t.Logf("Unable to get Baremetal Provisioning Config from CR %s as expected", incorrectConfigResource)
 	}
 	if baremetalConfig.ProvisioningInterface != "" {
 		t.Errorf("BaremetalProvisioningConfig is not expected to be set.")
+	}
+}
+
+func TestGetMetal3DeploymentConfig(t *testing.T) {
+	testConfigResource := "test"
+	u := &unstructured.Unstructured{Object: map[string]interface{}{}}
+	if err := yaml.Unmarshal([]byte(yamlContent), &u); err != nil {
+		t.Errorf("failed to unmarshall input yaml content:%v", err)
+	}
+	dynamicClient := fakedynamic.NewSimpleDynamicClient(runtime.NewScheme(), u)
+	baremetalConfig, err := getBaremetalProvisioningConfig(dynamicClient, testConfigResource)
+	if err != nil {
+		t.Logf("Unstructed Config:  %+v", u)
+		t.Errorf("Failed to get Baremetal Provisioning Config from CR %s", testConfigResource)
+	}
+	actualCacheURL := getMetal3DeploymentConfig("CACHEURL", baremetalConfig)
+	if actualCacheURL != nil {
+		t.Logf("Actual Cache URL is %s, Expected is %s", *actualCacheURL, expectedCacheURL)
+		if *actualCacheURL != expectedCacheURL {
+			t.Errorf("Actual %s and Expected %s CacheURLs do not match", *actualCacheURL, expectedCacheURL)
+		}
+	} else {
+		t.Errorf("CacheURL is not available.")
+	}
+	actualRhcosImageURL := getMetal3DeploymentConfig("RHCOS_IMAGE_URL", baremetalConfig)
+	if actualRhcosImageURL != nil {
+		t.Logf("Actual Rhcos Image URL is %s, Expected is %s", *actualRhcosImageURL, expectedRhcosImageURL)
+		if *actualRhcosImageURL != expectedRhcosImageURL {
+			t.Errorf("Actual %s and Expected %s Rhcos Image URLs do not match", *actualRhcosImageURL, expectedRhcosImageURL)
+		}
+	} else {
+		t.Logf("Rhcos Image URL is not available as expected.")
+	}
+	actualProvisioningIPCIDR := getMetal3DeploymentConfig("PROVISIONING_IP", baremetalConfig)
+	if actualProvisioningIPCIDR != nil {
+		t.Logf("Actual ProvisioningIP with CIDR is %s, Expected is %s", *actualProvisioningIPCIDR, expectedProvisioningIPCIDR)
+		if *actualProvisioningIPCIDR != expectedProvisioningIPCIDR {
+			t.Errorf("Actual %s and Expected %s Provisioning IPs with CIDR do not match", *actualProvisioningIPCIDR, expectedProvisioningIPCIDR)
+		}
+	} else {
+		t.Errorf("Provisioning IP with CIDR is not available.")
+	}
+	actualProvisioningInterface := getMetal3DeploymentConfig("PROVISIONING_INTERFACE", baremetalConfig)
+	if actualProvisioningInterface != nil {
+		t.Logf("Actual Provisioning Interface is %s, Expected is %s", *actualProvisioningInterface, expectedProvisioningInterface)
+		if *actualProvisioningInterface != expectedProvisioningInterface {
+			t.Errorf("Actual %s and Expected %s Provisioning Interfaces do not match", *actualProvisioningIPCIDR, expectedProvisioningIPCIDR)
+		}
+	} else {
+		t.Errorf("Provisioning Interface is not available.")
+	}
+	actualDeployKernelURL := getMetal3DeploymentConfig("DEPLOY_KERNEL_URL", baremetalConfig)
+	if actualDeployKernelURL != nil {
+		t.Logf("Actual Deploy Kernel URL is %s, Expected is %s", *actualDeployKernelURL, expectedDeployKernelURL)
+		if *actualDeployKernelURL != expectedDeployKernelURL {
+			t.Errorf("Actual %s and Expected %s Deploy Kernel URLs do not match", *actualDeployKernelURL, expectedDeployKernelURL)
+		}
+	} else {
+		t.Errorf("Deploy Kernel URL is not available.")
+	}
+	actualDeployRamdiskURL := getMetal3DeploymentConfig("DEPLOY_RAMDISK_URL", baremetalConfig)
+	if actualDeployRamdiskURL != nil {
+		t.Logf("Actual Deploy Ramdisk URL is %s, Expected is %s", *actualDeployRamdiskURL, expectedDeployRamdiskURL)
+		if *actualDeployRamdiskURL != expectedDeployRamdiskURL {
+			t.Errorf("Actual %s and Expected %s Deploy Ramdisk URLs do not match", *actualDeployRamdiskURL, expectedDeployRamdiskURL)
+		}
+	} else {
+		t.Errorf("Deploy Ramdisk URL is not available.")
+	}
+	actualIronicEndpoint := getMetal3DeploymentConfig("IRONIC_ENDPOINT", baremetalConfig)
+	if actualIronicEndpoint != nil {
+		t.Logf("Actual Ironic Endpoint is %s, Expected is %s", *actualIronicEndpoint, expectedIronicEndpoint)
+		if *actualIronicEndpoint != expectedIronicEndpoint {
+			t.Errorf("Actual %s and Expected %s Ironic Endpoints do not match", *actualIronicEndpoint, expectedIronicEndpoint)
+		}
+	} else {
+		t.Errorf("Ironic Endpoint is not available.")
+	}
+	actualIronicInspectorEndpoint := getMetal3DeploymentConfig("IRONIC_INSPECTOR_ENDPOINT", baremetalConfig)
+	if actualIronicInspectorEndpoint != nil {
+		t.Logf("Actual Ironic Inspector Endpoint is %s, Expected is %s", *actualIronicInspectorEndpoint, expectedIronicInspectorEndpoint)
+		if *actualIronicInspectorEndpoint != expectedIronicInspectorEndpoint {
+			t.Errorf("Actual %s and Expected %s Ironic Inspector Endpoints do not match", *actualIronicInspectorEndpoint, expectedIronicInspectorEndpoint)
+		}
+	} else {
+		t.Errorf("Ironic Inspector Endpoint is not available.")
+	}
+	actualHttpPort := getMetal3DeploymentConfig("HTTP_PORT", baremetalConfig)
+	t.Logf("Actual Http Port is %s, Expected is %s", *actualHttpPort, expectedHttpPort)
+	if *actualHttpPort != expectedHttpPort {
+		t.Errorf("Actual %s and Expected %s Http Ports do not match", *actualHttpPort, expectedHttpPort)
+	}
+	actualDHCPRange := getMetal3DeploymentConfig("DHCP_RANGE", baremetalConfig)
+	if actualDHCPRange != nil {
+		t.Logf("Actual DHCP Range is %s, Expected is %s", *actualDHCPRange, expectedProvisioningDHCPRange)
+		if *actualDHCPRange != expectedProvisioningDHCPRange {
+			t.Errorf("Actual %s and Expected %s DHCP Range do not match", *actualDHCPRange, expectedProvisioningDHCPRange)
+		}
+	} else {
+		t.Errorf("Provisioning DHCP Range is not available.")
 	}
 }

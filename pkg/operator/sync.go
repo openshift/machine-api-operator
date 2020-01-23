@@ -77,7 +77,8 @@ func (optr *Operator) syncBaremetalControllers(config *OperatorConfig) error {
 	// Try to get baremetal provisioning config from a CR
 	baremetalProvisioningConfig, err := getBaremetalProvisioningConfig(optr.dynamicClient, baremetalProvisioningCR)
 	if err != nil {
-		glog.Infof("Unable to read Baremetal Provisioning config from CR %s.", baremetalProvisioningCR)
+		glog.Errorf("Unable to read Baremetal Provisioning config from CR %s.", baremetalProvisioningCR)
+		glog.Infof("Will try to read Baremetal Provisioning config from ConfigMap %s instead", baremetalConfigmap)
 	}
 	// Create a Secret needed for the Metal3 deployment
 	if err := createMariadbPasswordSecret(optr.kubeClient.CoreV1(), config); err != nil {
