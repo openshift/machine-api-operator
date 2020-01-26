@@ -384,7 +384,7 @@ rules:
   - apiGroups:
       - ""
     resources:
-      - configmap
+      - configmaps
     resourceNames:
       - cloud-provider-config
     verbs:
