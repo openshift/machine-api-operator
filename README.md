@@ -3,6 +3,7 @@
 The Machine API Operator manages the lifecycle of specific purpose CRDs, controllers and RBAC objects that extend the Kubernetes API.
 This allows to convey desired state of machines in a cluster in a declarative fashion.
 
+See https://github.com/openshift/enhancements/tree/master/enhancements/machine-api for more details.
 ## Architecture
 
 ![Machine API Operator overview](machine-api-operator.png)
@@ -11,108 +12,41 @@ This allows to convey desired state of machines in a cluster in a declarative fa
 
 - MachineSet
 - Machine
-- Cluster
 - MachineHealthCheck
 
 ## Controllers
 
-### Cluster API controllers
-- [MachineSet Controller](https://github.com/openshift/cluster-api/tree/master/pkg/controller/machineset)
-  - Reconciles desired state for [MachineSets](https://github.com/openshift/cluster-api/blob/master/pkg/apis/machine/v1beta1/machineset_types.go) by ensuring presence of specified number of replicas and config for a set of machines.
+- MachineSet Controller
 
-- [Machine Controller](https://github.com/openshift/cluster-api/tree/master/pkg/controller/machine)
-  - Reconciles desired state for [Machines](https://github.com/openshift/cluster-api/blob/master/pkg/apis/machine/v1beta1/machine_types.go) by ensuring that instances with a desired config exist in a given cloud provider. Currently we support:
+Ensure presence of expected number of replicas and a given provider config for a set of machines.
+
+- Machine Controller
 
   - [cluster-api-provider-aws](https://github.com/openshift/cluster-api-provider-aws)
+  
+  - [cluster-api-provider-gcp](https://github.com/openshift/cluster-api-provider-gcp)
 
+  - [cluster-api-provider-azure](https://github.com/openshift/cluster-api-provider-azure)
+  
   - [cluster-api-provider-libvirt](https://github.com/openshift/cluster-api-provider-libvirt)
 
-  - [cluster-api-provider-azure](https://github.com/openshift/cluster-api-provider-azure) Coming soon.
+  - [cluster-api-provider-openstack](https://github.com/kubernetes-sigs/cluster-api-provider-openstack)
 
-  - [cluster-api-provider-openstack](https://github.com/kubernetes-sigs/cluster-api-provider-openstack) Coming soon.
+  - [cluster-api-provider-baremetal](https://github.com/metal3-io/cluster-api-provider-baremetal)
 
-  - [cluster-api-provider-baremetal](https://github.com/metal3-io/cluster-api-provider-baremetal). Under development in [Metal3](http://metal3.io).
+  - [cluster-api-provider-ovirt](https://github.com/openshift/cluster-api-provider-ovirt)
 
-- [Node Controller](https://github.com/openshift/cluster-api/tree/master/pkg/controller/node)
-  - Reconciles desired state of machines by matching IP addresses of machine objects with IP addresses of node objects. Annotating node with a special label containing machine name that the cluster-api node controller interprets and sets corresponding nodeRef field of each relevant machine.
+Ensure that a provider instance is created for a Machine object in a given provider.
 
-### Nodelink controller
+- Node link Controller
 
-- Reconciles desired state of machines by matching IP addresses of machine objects with IP addresses of node objects and annotates nodes with a special [machine annotation](https://github.com/openshift/cluster-api/blob/master/pkg/controller/node/node.go#L34) containing the machine name. The cluster-api node controller interprets the annotation and sets the corresponding nodeRef field of each relevant machine.
+Ensure machines have a nodeRef based on IPs or providerID matching.
+Annotate nodes with a label containing the machine name.
 
-- Build:
 
-```
-$ make nodelink-controller
-```
+- Machine healthcheck controller
 
-### Machine healthcheck controller
-
-- Reconciles desired state for [MachineHealthChecks](https://github.com/openshift/machine-api-operator/blob/master/pkg/apis/healthchecking/v1alpha1/machinehealthcheck_types.go) by ensuring that machines targeted by machineHealthCheck objects are healthy or remediated otherwise.
-
-- Build:
-
-  ```
-  $ make machine-healthcheck
-  ```
-
-- How to test it:
-
-  1. Create a machineset and locate its selector. Assuming the selector corresponds
-     to the following list of match labels:
-     ```
-     machine.openshift.io/cluster-api-cluster: cluster
-     machine.openshift.io/cluster-api-machine-role: worker
-     machine.openshift.io/cluster-api-machine-type: worker
-     machine.openshift.io/cluster-api-machineset: cluster-worker-us-east-1a
-     ```
-
-  1. Define a `MachineHealthCheck` manifest that will be watching all machines
-     of the machinset based on its match labels:
-     ```yaml
-     apiVersion: healthchecking.openshift.io/v1alpha1
-     kind: MachineHealthCheck
-     metadata:
-       name: example
-       namespace: default
-     spec:
-       selector:
-         matchLabels:
-           machine.openshift.io/cluster-api-cluster: cluster
-           machine.openshift.io/cluster-api-machine-role: worker
-           machine.openshift.io/cluster-api-machine-type: worker
-           machine.openshift.io/cluster-api-machineset: cluster-worker-us-east-1a
-     ```
-
-  1. By default, the machine health check controller recognize only `NotReady` condition and will remove
-     unhealthy machine after 5 minutes. If you want to customize unhealthy conditions you can create `node-unhealthy-conditions` config map, for example:
-     ```yaml
-     apiVersion: v1
-     kind: ConfigMap
-     metadata:
-       name: node-unhealthy-conditions
-       namespace: openshift-machine-api
-     data:
-       conditions: |
-         items:
-         - name: NetworkUnavailable
-           timeout: 5m
-           status: True
-     ```
-
-  1. Pick a node that is managed by one of the machineset's machines
-  1. SSH into the node, disable and stop the kubelet services:
-     ```
-     # systemctl disable kubelet
-     # systemctl stop kubelet
-     ```
-
-  1. After some time the node will transition into `NotReady` state
-  1. Watch the `machine-healthcheck` controller logs to see how it notices a node
-     in `NotReady` state and starts to reconcile the node
-  1. After some time the current node instance is terminated and
-     new instance is created. Followed by new node joining the cluster
-     and turning in `Ready` state.
+Ensure machines targeted by MachineHealthCheck objects satisfy a healthiness criteria or are remediated otherwise.
 
 ## Creating machines
 
@@ -125,7 +59,6 @@ You can set other labels to provide a convenient way for users and consumers to 
 machine.openshift.io/cluster-api-machine-role: worker
 machine.openshift.io/cluster-api-machine-type: worker
 ```
-
 
 ## Dev
 
