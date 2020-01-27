@@ -24,12 +24,14 @@ const (
 // Actuator is responsible for performing machine reconciliation.
 type Actuator struct {
 	client        runtimeclient.Client
+	apiReader     runtimeclient.Reader
 	eventRecorder record.EventRecorder
 }
 
 // ActuatorParams holds parameter information for Actuator.
 type ActuatorParams struct {
 	Client        runtimeclient.Client
+	APIReader     runtimeclient.Reader
 	EventRecorder record.EventRecorder
 }
 
@@ -37,6 +39,7 @@ type ActuatorParams struct {
 func NewActuator(params ActuatorParams) *Actuator {
 	return &Actuator{
 		client:        params.Client,
+		apiReader:     params.APIReader,
 		eventRecorder: params.EventRecorder,
 	}
 }
@@ -55,9 +58,10 @@ func (a *Actuator) handleMachineError(machine *machinev1.Machine, err error, eve
 func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error {
 	klog.Infof("%s: actuator creating machine", machine.GetName())
 	scope, err := newMachineScope(machineScopeParams{
-		Context: ctx,
-		client:  a.client,
-		machine: machine,
+		Context:   ctx,
+		client:    a.client,
+		machine:   machine,
+		apiReader: a.apiReader,
 	})
 	if err != nil {
 		return a.handleMachineError(machine, err, createEventAction)
@@ -75,9 +79,10 @@ func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error
 func (a *Actuator) Exists(ctx context.Context, machine *machinev1.Machine) (bool, error) {
 	klog.Infof("%s: actuator checking if machine exists", machine.GetName())
 	scope, err := newMachineScope(machineScopeParams{
-		Context: ctx,
-		client:  a.client,
-		machine: machine,
+		Context:   ctx,
+		client:    a.client,
+		machine:   machine,
+		apiReader: a.apiReader,
 	})
 	if err != nil {
 		return false, fmt.Errorf(scopeFailFmt, machine.GetName(), err)
@@ -88,9 +93,10 @@ func (a *Actuator) Exists(ctx context.Context, machine *machinev1.Machine) (bool
 func (a *Actuator) Update(ctx context.Context, machine *machinev1.Machine) error {
 	klog.Infof("%s: actuator updating machine", machine.GetName())
 	scope, err := newMachineScope(machineScopeParams{
-		Context: ctx,
-		client:  a.client,
-		machine: machine,
+		Context:   ctx,
+		client:    a.client,
+		machine:   machine,
+		apiReader: a.apiReader,
 	})
 	if err != nil {
 		fmtErr := fmt.Sprintf(scopeFailFmt, machine.GetName(), err)
@@ -110,9 +116,10 @@ func (a *Actuator) Update(ctx context.Context, machine *machinev1.Machine) error
 func (a *Actuator) Delete(ctx context.Context, machine *machinev1.Machine) error {
 	klog.Infof("%s: actuator deleting machine", machine.GetName())
 	scope, err := newMachineScope(machineScopeParams{
-		Context: ctx,
-		client:  a.client,
-		machine: machine,
+		Context:   ctx,
+		client:    a.client,
+		machine:   machine,
+		apiReader: a.apiReader,
 	})
 	if err != nil {
 		fmtErr := fmt.Sprintf(scopeFailFmt, machine.GetName(), err)

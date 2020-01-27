@@ -24,8 +24,10 @@ const (
 // machineScopeParams defines the input parameters used to create a new MachineScope.
 type machineScopeParams struct {
 	context.Context
-	client  runtimeclient.Client
-	machine *machinev1.Machine
+	client        runtimeclient.Client
+	apiReader     runtimeclient.Reader
+	machine       *machinev1.Machine
+	vSphereConfig *vSphereConfig
 }
 
 // machineScope defines a scope defined around a machine and its cluster.
@@ -35,6 +37,10 @@ type machineScope struct {
 	session *session.Session
 	// api server controller runtime client
 	client runtimeclient.Client
+	// client reader that bypasses the manager's cache
+	apiReader runtimeclient.Reader
+	// vSphere cloud-provider config
+	vSphereConfig *vSphereConfig
 	// machine resource
 	machine            *machinev1.Machine
 	providerSpec       *apivshpere.VSphereMachineProviderSpec
@@ -47,6 +53,11 @@ type machineScope struct {
 func newMachineScope(params machineScopeParams) (*machineScope, error) {
 	if params.Context == nil {
 		return nil, fmt.Errorf("%v: machine scope require a context", params.machine.GetName())
+	}
+
+	vSphereConfig, err := getVSphereConfig(params.apiReader)
+	if err != nil {
+		klog.Errorf("Failed to fetch vSphere config: %v", err)
 	}
 
 	providerSpec, err := apivshpere.ProviderSpecFromRawExtension(params.machine.Spec.ProviderSpec.Value)
@@ -76,10 +87,12 @@ func newMachineScope(params machineScopeParams) (*machineScope, error) {
 	return &machineScope{
 		Context:            params.Context,
 		client:             params.client,
+		apiReader:          params.apiReader,
 		session:            authSession,
 		machine:            params.machine,
 		providerSpec:       providerSpec,
 		providerStatus:     providerStatus,
+		vSphereConfig:      vSphereConfig,
 		machineToBePatched: runtimeclient.MergeFrom(params.machine.DeepCopy()),
 	}, nil
 }

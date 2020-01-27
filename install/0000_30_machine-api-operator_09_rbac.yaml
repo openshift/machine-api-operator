@@ -16,6 +16,22 @@ apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
   name: machine-api-controllers
+  namespace: openshift-config
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - configmaps
+    verbs:
+      - get
+      - list
+      - watch
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: machine-api-controllers
   namespace: openshift-machine-api
 rules:
 
@@ -290,6 +306,21 @@ subjects:
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: machine-api-controllers
+  namespace: openshift-config
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: machine-api-controllers
+subjects:
+  - kind: ServiceAccount
+    name: machine-api-controllers
+    namespace: openshift-machine-api
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: machine-api-operator
@@ -333,21 +364,6 @@ subjects:
     namespace: openshift-monitoring
 
 ---
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: machine-api-cloud-provider-config-reader
-  namespace: openshift-config
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: cloud-provider-config-reader
-subjects:
-  - kind: ServiceAccount
-    name: machine-api-controllers
-    namespace: openshift-machine-api
-
----
 # Roles needed by prometheus to scrape machine api Operator metrics endpoint
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -371,21 +387,3 @@ rules:
       - get
       - list
       - watch
-
----
-# Roles needed by machine-api in order to read openshift-config:cloud-provider-config configmap
-# https://github.com/openshift/installer/blob/a76a6b34092d99835d0e947ae9343d231f38f7e1/pkg/asset/manifests/cloudproviderconfig.go#L80
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: cloud-provider-config-reader
-  namespace: openshift-config
-rules:
-  - apiGroups:
-      - ""
-    resources:
-      - configmap
-    resourceNames:
-      - cloud-provider-config
-    verbs:
-      - get

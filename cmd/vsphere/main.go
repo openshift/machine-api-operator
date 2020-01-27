@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	vsphereapis "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider"
 	capimachine "github.com/openshift/machine-api-operator/pkg/controller/machine"
@@ -50,8 +51,13 @@ func main() {
 	// Initialize machine actuator.
 	machineActuator := machine.NewActuator(machine.ActuatorParams{
 		Client:        mgr.GetClient(),
+		APIReader:     mgr.GetAPIReader(),
 		EventRecorder: mgr.GetEventRecorderFor("vspherecontroller"),
 	})
+
+	if err := configv1.AddToScheme(mgr.GetScheme()); err != nil {
+		klog.Fatal(err)
+	}
 
 	if err := vsphereapis.AddToScheme(mgr.GetScheme()); err != nil {
 		klog.Fatal(err)

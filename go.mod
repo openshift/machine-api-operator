@@ -14,7 +14,7 @@ require (
 	github.com/imdario/mergo v0.3.8 // indirect
 	github.com/onsi/ginkgo v1.10.1 // indirect
 	github.com/onsi/gomega v1.7.0 // indirect
-	github.com/openshift/api v3.9.1-0.20191021111209-b216bf51f261+incompatible // indirect
+	github.com/openshift/api v3.9.1-0.20191021111209-b216bf51f261+incompatible
 	github.com/openshift/client-go v0.0.0-20190617165122-8892c0adc000
 	github.com/openshift/cluster-version-operator v3.11.1-0.20190629164025-08cac1c02538+incompatible
 	github.com/operator-framework/operator-sdk v0.5.1-0.20190301204940-c2efe6f74e7b
@@ -35,6 +35,8 @@ require (
 	gonum.org/v1/gonum v0.0.0-20190915125329-975d99cd20a9 // indirect
 	google.golang.org/appengine v1.6.1 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
+	gopkg.in/gcfg.v1 v1.2.3
+	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.2.4 // indirect
 	k8s.io/api v0.0.0-20190918195907-bd6ac527cfd2
 	k8s.io/apiextensions-apiserver v0.0.0-20190918201827-3de75813f604 // indirect
