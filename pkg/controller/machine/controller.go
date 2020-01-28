@@ -83,6 +83,8 @@ const (
 
 	// Machine has a deletion timestamp
 	phaseDeleting = "Deleting"
+
+	skipWaitForDeleteTimeoutSeconds = 60 * 5
 )
 
 var DefaultActuator Actuator
@@ -344,6 +346,10 @@ func (r *ReconcileMachine) drainNode(machine *machinev1.Machine) error {
 		DryRun: false,
 	}
 
+	if nodeIsUnreachable(node) {
+		drainer.SkipWaitForDeleteTimeoutSeconds = skipWaitForDeleteTimeoutSeconds
+	}
+
 	if err := drain.RunCordonOrUncordon(drainer, node, true); err != nil {
 		// Can't cordon a node
 		klog.Warningf("cordon failed for node %q: %v", node.Name, err)
@@ -426,6 +432,16 @@ func machineIsFailed(machine *machinev1.Machine) bool {
 	if stringPointerDeref(machine.Status.Phase) == phaseFailed {
 		return true
 	}
+	return false
+}
+
+func nodeIsUnreachable(node *corev1.Node) bool {
+	for _, condition := range node.Status.Conditions {
+		if condition.Type == corev1.NodeReady && condition.Status == corev1.ConditionUnknown {
+			return true
+		}
+	}
+
 	return false
 }
 
