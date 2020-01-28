@@ -23,14 +23,14 @@ Ensure presence of expected number of replicas and a given provider config for a
 - Machine Controller
 
   - [cluster-api-provider-aws](https://github.com/openshift/cluster-api-provider-aws)
-  
+
   - [cluster-api-provider-gcp](https://github.com/openshift/cluster-api-provider-gcp)
 
   - [cluster-api-provider-azure](https://github.com/openshift/cluster-api-provider-azure)
-  
+
   - [cluster-api-provider-libvirt](https://github.com/openshift/cluster-api-provider-libvirt)
 
-  - [cluster-api-provider-openstack](https://github.com/kubernetes-sigs/cluster-api-provider-openstack)
+  - [cluster-api-provider-openstack](https://github.com/openshift/cluster-api-provider-openstack)
 
   - [cluster-api-provider-baremetal](https://github.com/metal3-io/cluster-api-provider-baremetal)
 
