@@ -71,6 +71,8 @@ func TestClone(t *testing.T) {
 	model, _, server := initSimulator(t)
 	defer model.Remove()
 	defer server.Close()
+	credentialsSecretUsername := fmt.Sprintf("%s.username", server.URL.Host)
+	credentialsSecretPassword := fmt.Sprintf("%s.password", server.URL.Host)
 
 	password, _ := server.URL.User.Password()
 	namespace := "test"
@@ -81,7 +83,7 @@ func TestClone(t *testing.T) {
 			Namespace: namespace,
 		},
 		Data: map[string][]byte{
-			credentialsSecretUser:     []byte(server.URL.User.Username()),
+			credentialsSecretUsername: []byte(server.URL.User.Username()),
 			credentialsSecretPassword: []byte(password),
 		},
 	}
@@ -683,6 +685,8 @@ func TestDelete(t *testing.T) {
 	model, _, server := initSimulator(t)
 	defer model.Remove()
 	defer server.Close()
+	credentialsSecretUsername := fmt.Sprintf("%s.username", server.URL.Host)
+	credentialsSecretPassword := fmt.Sprintf("%s.password", server.URL.Host)
 
 	password, _ := server.URL.User.Password()
 	namespace := "test"
@@ -695,7 +699,7 @@ func TestDelete(t *testing.T) {
 			Namespace: namespace,
 		},
 		Data: map[string][]byte{
-			credentialsSecretUser:     []byte(server.URL.User.Username()),
+			credentialsSecretUsername: []byte(server.URL.User.Username()),
 			credentialsSecretPassword: []byte(password),
 		},
 	}

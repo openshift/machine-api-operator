@@ -16,9 +16,7 @@ import (
 )
 
 const (
-	userDataSecretKey         = "userData"
-	credentialsSecretUser     = "user"
-	credentialsSecretPassword = "password"
+	userDataSecretKey = "userData"
 )
 
 // machineScopeParams defines the input parameters used to create a new MachineScope.
@@ -152,11 +150,12 @@ func (s *machineScope) GetUserData() ([]byte, error) {
 	return userData, nil
 }
 
-// This is a temporary assumption to expose credentials as a secret
-// TODO: re-evaluate this when is clear how the credentials are exposed
-// for us to consume
+// getCredentialsSecret returns the username and password from the VSphere credentials secret.
+// The secret is expected to be in the format documented here:
+// https://vmware.github.io/vsphere-storage-for-kubernetes/documentation/k8s-secret.html
 //
-// expects:
+// Assuming the vcenter is our dev server vcsa.vmware.devcluster.openshift.com,
+// the secret would be in this format:
 //apiVersion: v1
 //kind: Secret
 //metadata:
@@ -164,8 +163,8 @@ func (s *machineScope) GetUserData() ([]byte, error) {
 //  namespace: openshift-machine-api
 //type: Opaque
 //data:
-//  user: base64 string
-//  password: base64 string
+//  vcsa.vmware.devcluster.openshift.com.username: base64 string
+//  vcsa.vmware.devcluster.openshift.com.password: base64 string
 func getCredentialsSecret(client runtimeclient.Client, namespace string, spec apivsphere.VSphereMachineProviderSpec) (string, string, error) {
 	if spec.CredentialsSecret == nil {
 		return "", "", nil
@@ -181,6 +180,9 @@ func getCredentialsSecret(client runtimeclient.Client, namespace string, spec ap
 		}
 		return "", "", fmt.Errorf("error getting credentials secret %v/%v: %v", namespace, spec.CredentialsSecret.Name, err)
 	}
+
+	credentialsSecretUser := fmt.Sprintf("%s.username", spec.Workspace.Server)
+	credentialsSecretPassword := fmt.Sprintf("%s.password", spec.Workspace.Server)
 
 	user, exists := credentialsSecret.Data[credentialsSecretUser]
 	if !exists {
