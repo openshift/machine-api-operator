@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
-	apivshpere "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1alpha1"
+	apivsphere "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1alpha1"
 	machineapierros "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
 	"github.com/pkg/errors"
@@ -16,9 +16,7 @@ import (
 )
 
 const (
-	userDataSecretKey         = "userData"
-	credentialsSecretUser     = "user"
-	credentialsSecretPassword = "password"
+	userDataSecretKey = "userData"
 )
 
 // machineScopeParams defines the input parameters used to create a new MachineScope.
@@ -43,8 +41,8 @@ type machineScope struct {
 	vSphereConfig *vSphereConfig
 	// machine resource
 	machine            *machinev1.Machine
-	providerSpec       *apivshpere.VSphereMachineProviderSpec
-	providerStatus     *apivshpere.VSphereMachineProviderStatus
+	providerSpec       *apivsphere.VSphereMachineProviderSpec
+	providerStatus     *apivsphere.VSphereMachineProviderStatus
 	machineToBePatched runtimeclient.Patch
 }
 
@@ -60,12 +58,12 @@ func newMachineScope(params machineScopeParams) (*machineScope, error) {
 		klog.Errorf("Failed to fetch vSphere config: %v", err)
 	}
 
-	providerSpec, err := apivshpere.ProviderSpecFromRawExtension(params.machine.Spec.ProviderSpec.Value)
+	providerSpec, err := apivsphere.ProviderSpecFromRawExtension(params.machine.Spec.ProviderSpec.Value)
 	if err != nil {
 		return nil, machineapierros.InvalidMachineConfiguration("failed to get machine config: %v", err)
 	}
 
-	providerStatus, err := apivshpere.ProviderStatusFromRawExtension(params.machine.Status.ProviderStatus)
+	providerStatus, err := apivsphere.ProviderStatusFromRawExtension(params.machine.Status.ProviderStatus)
 	if err != nil {
 		return nil, machineapierros.InvalidMachineConfiguration("failed to get machine provider status: %v", err.Error())
 	}
@@ -101,7 +99,7 @@ func newMachineScope(params machineScopeParams) (*machineScope, error) {
 func (s *machineScope) PatchMachine() error {
 	klog.V(3).Infof("%v: patching machine", s.machine.GetName())
 
-	providerStatus, err := apivshpere.RawExtensionFromProviderStatus(s.providerStatus)
+	providerStatus, err := apivsphere.RawExtensionFromProviderStatus(s.providerStatus)
 	if err != nil {
 		return machineapierros.InvalidMachineConfiguration("failed to get machine provider status: %v", err.Error())
 	}
@@ -152,11 +150,12 @@ func (s *machineScope) GetUserData() ([]byte, error) {
 	return userData, nil
 }
 
-// This is a temporary assumption to expose credentials as a secret
-// TODO: re-evaluate this when is clear how the credentials are exposed
-// for us to consume
+// getCredentialsSecret returns the username and password from the VSphere credentials secret.
+// The secret is expected to be in the format documented here:
+// https://vmware.github.io/vsphere-storage-for-kubernetes/documentation/k8s-secret.html
 //
-// expects:
+// Assuming the vcenter is our dev server vcsa.vmware.devcluster.openshift.com,
+// the secret would be in this format:
 //apiVersion: v1
 //kind: Secret
 //metadata:
@@ -164,9 +163,9 @@ func (s *machineScope) GetUserData() ([]byte, error) {
 //  namespace: openshift-machine-api
 //type: Opaque
 //data:
-//  user: base64 string
-//  password: base64 string
-func getCredentialsSecret(client runtimeclient.Client, namespace string, spec apivshpere.VSphereMachineProviderSpec) (string, string, error) {
+//  vcsa.vmware.devcluster.openshift.com.username: base64 string
+//  vcsa.vmware.devcluster.openshift.com.password: base64 string
+func getCredentialsSecret(client runtimeclient.Client, namespace string, spec apivsphere.VSphereMachineProviderSpec) (string, string, error) {
 	if spec.CredentialsSecret == nil {
 		return "", "", nil
 	}
@@ -181,6 +180,9 @@ func getCredentialsSecret(client runtimeclient.Client, namespace string, spec ap
 		}
 		return "", "", fmt.Errorf("error getting credentials secret %v/%v: %v", namespace, spec.CredentialsSecret.Name, err)
 	}
+
+	credentialsSecretUser := fmt.Sprintf("%s.username", spec.Workspace.Server)
+	credentialsSecretPassword := fmt.Sprintf("%s.password", spec.Workspace.Server)
 
 	user, exists := credentialsSecret.Data[credentialsSecretUser]
 	if !exists {

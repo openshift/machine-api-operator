@@ -3,6 +3,7 @@ package vsphere
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"testing"
 
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
@@ -139,6 +140,9 @@ func TestGetUserData(t *testing.T) {
 func TestGetCredentialsSecret(t *testing.T) {
 	expectedUser := "user"
 	expectedPassword := "password"
+	expectedServer := "test-server"
+	expectedCredentialsSecretUsername := fmt.Sprintf("%s.username", expectedServer)
+	expectedCredentialsSecretPassword := fmt.Sprintf("%s.password", expectedServer)
 	testCases := []struct {
 		testCase          string
 		secret            *corev1.Secret
@@ -154,13 +158,16 @@ func TestGetCredentialsSecret(t *testing.T) {
 					Namespace: TestNamespace,
 				},
 				Data: map[string][]byte{
-					credentialsSecretUser:     []byte(expectedUser),
-					credentialsSecretPassword: []byte(expectedPassword),
+					expectedCredentialsSecretUsername: []byte(expectedUser),
+					expectedCredentialsSecretPassword: []byte(expectedPassword),
 				},
 			},
 			providerSpec: &apivsphere.VSphereMachineProviderSpec{
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: "test",
+				},
+				Workspace: &apivsphere.Workspace{
+					Server: expectedServer,
 				},
 			},
 			expectCredentials: true,
@@ -173,13 +180,16 @@ func TestGetCredentialsSecret(t *testing.T) {
 					Namespace: TestNamespace,
 				},
 				Data: map[string][]byte{
-					credentialsSecretUser:     []byte(expectedUser),
-					credentialsSecretPassword: []byte(expectedPassword),
+					expectedCredentialsSecretUsername: []byte(expectedUser),
+					expectedCredentialsSecretPassword: []byte(expectedPassword),
 				},
 			},
 			providerSpec: &apivsphere.VSphereMachineProviderSpec{
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: "secret-does-not-exist",
+				},
+				Workspace: &apivsphere.Workspace{
+					Server: expectedServer,
 				},
 			},
 			expectError: true,
@@ -192,13 +202,16 @@ func TestGetCredentialsSecret(t *testing.T) {
 					Namespace: TestNamespace,
 				},
 				Data: map[string][]byte{
-					"badUserKey":              []byte(expectedUser),
-					credentialsSecretPassword: []byte(expectedPassword),
+					"badUserKey":                      []byte(expectedUser),
+					expectedCredentialsSecretPassword: []byte(expectedPassword),
 				},
 			},
 			providerSpec: &apivsphere.VSphereMachineProviderSpec{
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: "test",
+				},
+				Workspace: &apivsphere.Workspace{
+					Server: expectedServer,
 				},
 			},
 			expectError: true,
@@ -211,13 +224,16 @@ func TestGetCredentialsSecret(t *testing.T) {
 					Namespace: TestNamespace,
 				},
 				Data: map[string][]byte{
-					credentialsSecretUser: []byte(expectedUser),
-					"badPasswordKey":      []byte(expectedPassword),
+					expectedCredentialsSecretUsername: []byte(expectedUser),
+					"badPasswordKey":                  []byte(expectedPassword),
 				},
 			},
 			providerSpec: &apivsphere.VSphereMachineProviderSpec{
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: "test",
+				},
+				Workspace: &apivsphere.Workspace{
+					Server: expectedServer,
 				},
 			},
 			expectError: true,
@@ -230,8 +246,8 @@ func TestGetCredentialsSecret(t *testing.T) {
 					Namespace: TestNamespace,
 				},
 				Data: map[string][]byte{
-					credentialsSecretUser:     []byte(expectedUser),
-					credentialsSecretPassword: []byte(expectedPassword),
+					expectedCredentialsSecretUsername: []byte(expectedUser),
+					expectedCredentialsSecretPassword: []byte(expectedPassword),
 				},
 			},
 			providerSpec:      &apivsphere.VSphereMachineProviderSpec{},
@@ -264,6 +280,8 @@ func TestPatchMachine(t *testing.T) {
 	model, _, server := initSimulator(t)
 	defer model.Remove()
 	defer server.Close()
+	credentialsSecretUsername := fmt.Sprintf("%s.username", server.URL.Host)
+	credentialsSecretPassword := fmt.Sprintf("%s.password", server.URL.Host)
 
 	// fake objects for newMachineScope()
 	password, _ := server.URL.User.Password()
@@ -274,7 +292,7 @@ func TestPatchMachine(t *testing.T) {
 			Namespace: namespace,
 		},
 		Data: map[string][]byte{
-			credentialsSecretUser:     []byte(server.URL.User.Username()),
+			credentialsSecretUsername: []byte(server.URL.User.Username()),
 			credentialsSecretPassword: []byte(password),
 		},
 	}
