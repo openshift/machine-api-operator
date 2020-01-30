@@ -34,7 +34,7 @@ const (
 	machineRoleLabel              = "machine.openshift.io/cluster-api-machine-role"
 	machineMasterRole             = "master"
 	machinePhaseFailed            = "Failed"
-	remediationStrategyAnnotation = "healthchecking.openshift.io/strategy"
+	remediationStrategyAnnotation = "machine.openshift.io/remediation-strategy"
 	remediationStrategyExternal   = mapiv1.RemediationStrategyType("external")
 	timeoutForMachineToHaveNode   = 10 * time.Minute
 	machineNodeNameIndex          = "machineNodeNameIndex"
