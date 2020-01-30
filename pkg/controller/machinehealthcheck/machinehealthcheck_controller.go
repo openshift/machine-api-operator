@@ -488,7 +488,7 @@ func (t *target) remediationStrategyExternal(r *ReconcileMachineHealthCheck) err
 			&t.Machine,
 			corev1.EventTypeWarning,
 			EventExternalAnnotationFailed,
-			"Requesting external of node associated with machine %v failed: %v",
+			"Requesting external remediation of node associated with machine %v failed: %v",
 			t.string(),
 			err,
 		)
@@ -498,7 +498,7 @@ func (t *target) remediationStrategyExternal(r *ReconcileMachineHealthCheck) err
 		&t.Machine,
 		corev1.EventTypeNormal,
 		EventExternalAnnotationAdded,
-		"Requesting external of node associated with machine %v",
+		"Requesting external remediation of node associated with machine %v",
 		t.string(),
 	)
 	return nil
