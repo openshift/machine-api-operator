@@ -254,8 +254,8 @@ spec:
                   type: string
               type: object
             phase:
-              description: Phase represents the current phase of machine actuation.
-                E.g. Pending, Running, Terminating, Failed etc.
+              description: 'Phase represents the current phase of machine actuation.
+                One of: Failed, Provisioning, Provisioned, Running, Deleting'
               type: string
             providerStatus:
               description: ProviderStatus details a Provider-specific status. It is
