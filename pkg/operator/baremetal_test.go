@@ -22,22 +22,22 @@ spec:
   provisioningNetworkCIDR: "172.30.20.0/24"
   provisioningDHCPExternal: false
   provisioningDHCPRange: "172.30.20.11, 172.30.20.101"
+  provisioningOSDownloadURL: "http://172.22.0.1/images/rhcos-44.81.202001171431.0-openstack.x86_64.qcow2.gz?sha256=e98f83a2b9d4043719664a2be75fe8134dc6ca1fdbde807996622f8cc7ecd234"
 `
 var (
-	expectedProvisioningInterface        = "ensp0"
-	expectedProvisioningIP               = "172.30.20.3"
-	expectedProvisioningNetworkCIDR      = "172.30.20.0/24"
-	expectedProvisioningDHCPExternal     = false
-	expectedProvisioningDHCPRange        = "172.30.20.11, 172.30.20.101"
-	expectedCacheURL                     = ""
-	expectedRhcosImageURL                = "unknown"
-	expectedProvisioningIPCIDR           = "172.30.20.3/24"
-	expectedDeployKernelURL              = "http://172.30.20.3:6180/images/ironic-python-agent.kernel"
-	expectedDeployRamdiskURL             = "http://172.30.20.3:6180/images/ironic-python-agent.initramfs"
-	expectedIronicEndpoint               = "http://172.30.20.3:6385/v1/"
-	expectedIronicInspectorEndpoint      = "http://172.30.20.3:5050/v1/"
-	expectedHttpPort                     = "6180"
-	expectedDefaultProvisioningDHCPRange = "172.30.20.10, 172.30.20.100"
+	expectedProvisioningInterface    = "ensp0"
+	expectedProvisioningIP           = "172.30.20.3"
+	expectedProvisioningNetworkCIDR  = "172.30.20.0/24"
+	expectedProvisioningDHCPExternal = false
+	expectedProvisioningDHCPRange    = "172.30.20.11, 172.30.20.101"
+	expectedCacheURL                 = ""
+	expectedOSImageURL               = "http://172.22.0.1/images/rhcos-44.81.202001171431.0-openstack.x86_64.qcow2.gz?sha256=e98f83a2b9d4043719664a2be75fe8134dc6ca1fdbde807996622f8cc7ecd234"
+	expectedProvisioningIPCIDR       = "172.30.20.3/24"
+	expectedDeployKernelURL          = "http://172.30.20.3:6180/images/ironic-python-agent.kernel"
+	expectedDeployRamdiskURL         = "http://172.30.20.3:6180/images/ironic-python-agent.initramfs"
+	expectedIronicEndpoint           = "http://172.30.20.3:6385/v1/"
+	expectedIronicInspectorEndpoint  = "http://172.30.20.3:5050/v1/"
+	expectedHttpPort                 = "6180"
 )
 
 func TestGenerateRandomPassword(t *testing.T) {
@@ -164,14 +164,14 @@ func TestGetMetal3DeploymentConfig(t *testing.T) {
 	} else {
 		t.Errorf("CacheURL is not available.")
 	}
-	actualRhcosImageURL := getMetal3DeploymentConfig("RHCOS_IMAGE_URL", baremetalConfig)
-	if actualRhcosImageURL != nil {
-		t.Logf("Actual Rhcos Image URL is %s, Expected is %s", *actualRhcosImageURL, expectedRhcosImageURL)
-		if *actualRhcosImageURL != expectedRhcosImageURL {
-			t.Errorf("Actual %s and Expected %s Rhcos Image URLs do not match", *actualRhcosImageURL, expectedRhcosImageURL)
+	actualOSImageURL := getMetal3DeploymentConfig("RHCOS_IMAGE_URL", baremetalConfig)
+	if actualOSImageURL != nil {
+		t.Logf("Actual OS Image Download URL is %s, Expected is %s", *actualOSImageURL, expectedOSImageURL)
+		if *actualOSImageURL != expectedOSImageURL {
+			t.Errorf("Actual %s and Expected %s OS Image Download URLs do not match", *actualOSImageURL, expectedOSImageURL)
 		}
 	} else {
-		t.Logf("Rhcos Image URL is not available as expected.")
+		t.Errorf("OS Image Download URL is not available.")
 	}
 	actualProvisioningIPCIDR := getMetal3DeploymentConfig("PROVISIONING_IP", baremetalConfig)
 	if actualProvisioningIPCIDR != nil {

@@ -77,6 +77,10 @@ spec:
                 start of the range and the 2nd address represents the last usable address in the
                 range.
               type: string
+            provisioningOSDownloadURL:
+              description: provisioningOSDownloadURL is the location from which the OS Image used to boot
+                baremetal host machines can be downloaded by the metal3 cluster.
+              type: string
         status:
           description: status holds observed values from the cluster. They may not
             be overridden.

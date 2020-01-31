@@ -12,9 +12,9 @@ import (
 )
 
 var provisioningGVR = schema.GroupVersionResource{Group: "metal3.io", Resource: "provisionings", Version: "v1alpha1"}
-var baremetalProvisioningCR = "provisioning-configuration"
 
 const (
+	baremetalProvisioningCR        = "provisioning-configuration"
 	baremetalHttpPort              = "6180"
 	baremetalIronicPort            = "6385"
 	baremetalIronicInspectorPort   = "5050"
@@ -25,11 +25,12 @@ const (
 
 // Provisioning Config needed to deploy Metal3 pod
 type BaremetalProvisioningConfig struct {
-	ProvisioningInterface    string
-	ProvisioningIp           string
-	ProvisioningNetworkCIDR  string
-	ProvisioningDHCPExternal bool
-	ProvisioningDHCPRange    string
+	ProvisioningInterface     string
+	ProvisioningIp            string
+	ProvisioningNetworkCIDR   string
+	ProvisioningDHCPExternal  bool
+	ProvisioningDHCPRange     string
+	ProvisioningOSDownloadURL string
 }
 
 func getBaremetalProvisioningConfig(dc dynamic.Interface, configName string) (BaremetalProvisioningConfig, error) {
@@ -40,41 +41,48 @@ func getBaremetalProvisioningConfig(dc dynamic.Interface, configName string) (Ba
 		return BaremetalProvisioningConfig{}, err
 	}
 	provisioningSpec, found, err := unstructured.NestedMap(provisioningConfig.UnstructuredContent(), "spec")
-	if !found {
+	if !found || err != nil {
 		glog.Errorf("Nested Spec not found in Baremetal provisioning CR %s", configName)
 		return BaremetalProvisioningConfig{}, err
 	}
 	provisioningInterface, found, err := unstructured.NestedString(provisioningSpec, "provisioningInterface")
-	if !found {
+	if !found || err != nil {
 		glog.Errorf("provisioningInterface not found in Baremetal provisioning CR %s", configName)
 		return BaremetalProvisioningConfig{}, err
 	}
 	provisioningIP, found, err := unstructured.NestedString(provisioningSpec, "provisioningIP")
-	if !found {
+	if !found || err != nil {
 		glog.Errorf("provisioningIP not found in Baremetal provisioning CR %s", configName)
 		return BaremetalProvisioningConfig{}, err
 	}
 	provisioningNetworkCIDR, found, err := unstructured.NestedString(provisioningSpec, "provisioningNetworkCIDR")
-	if !found {
+	if !found || err != nil {
 		glog.Errorf("provisioningNetworkCIDR not found in Baremetal provisioning CR %s", configName)
 		return BaremetalProvisioningConfig{}, err
 	}
 	provisioningDHCPExternal, found, err := unstructured.NestedBool(provisioningSpec, "provisioningDHCPExternal")
-	if !found {
+	if !found || err != nil {
 		glog.Errorf("provisioningDHCPExternal not found in Baremetal provisioning CR %s", configName)
 		return BaremetalProvisioningConfig{}, err
 	}
 	provisioningDHCPRange, found, err := unstructured.NestedString(provisioningSpec, "provisioningDHCPRange")
-	if !found {
+	if !found || err != nil {
 		glog.Errorf("provisioningDHCPRange not found in Baremetal provisioning CR %s", configName)
 		return BaremetalProvisioningConfig{}, err
 	}
+	provisioningOSDownloadURL, found, err := unstructured.NestedString(provisioningSpec, "provisioningOSDownloadURL")
+	if !found || err != nil {
+		glog.Errorf("provisioningOSDownloadURL not found in Baremetal provisioning CR %s", configName)
+		return BaremetalProvisioningConfig{}, err
+	}
+
 	return BaremetalProvisioningConfig{
-		ProvisioningInterface:    provisioningInterface,
-		ProvisioningIp:           provisioningIP,
-		ProvisioningNetworkCIDR:  provisioningNetworkCIDR,
-		ProvisioningDHCPExternal: provisioningDHCPExternal,
-		ProvisioningDHCPRange:    provisioningDHCPRange,
+		ProvisioningInterface:     provisioningInterface,
+		ProvisioningIp:            provisioningIP,
+		ProvisioningNetworkCIDR:   provisioningNetworkCIDR,
+		ProvisioningDHCPExternal:  provisioningDHCPExternal,
+		ProvisioningDHCPRange:     provisioningDHCPRange,
+		ProvisioningOSDownloadURL: provisioningOSDownloadURL,
 	}, nil
 }
 
@@ -136,6 +144,13 @@ func getProvisioningInterface(baremetalConfig BaremetalProvisioningConfig) *stri
 	return nil
 }
 
+func getProvisioningOSDownloadURL(baremetalConfig BaremetalProvisioningConfig) *string {
+	if baremetalConfig.ProvisioningOSDownloadURL != "" {
+		return &(baremetalConfig.ProvisioningOSDownloadURL)
+	}
+	return nil
+}
+
 func getMetal3DeploymentConfig(name string, baremetalConfig BaremetalProvisioningConfig) *string {
 	configValue := ""
 	switch name {
@@ -159,6 +174,8 @@ func getMetal3DeploymentConfig(name string, baremetalConfig BaremetalProvisionin
 		return &configValue
 	case "DHCP_RANGE":
 		return getProvisioningDHCPRange(baremetalConfig)
+	case "RHCOS_IMAGE_URL":
+		return getProvisioningOSDownloadURL(baremetalConfig)
 	}
 	return nil
 }
