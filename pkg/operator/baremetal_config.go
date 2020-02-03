@@ -154,9 +154,6 @@ func getProvisioningOSDownloadURL(baremetalConfig BaremetalProvisioningConfig) *
 func getMetal3DeploymentConfig(name string, baremetalConfig BaremetalProvisioningConfig) *string {
 	configValue := ""
 	switch name {
-	case "CACHEURL":
-		configValue = ""
-		return &configValue
 	case "PROVISIONING_IP":
 		return getProvisioningIPCIDR(baremetalConfig)
 	case "PROVISIONING_INTERFACE":

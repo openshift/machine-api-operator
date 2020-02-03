@@ -30,7 +30,6 @@ var (
 	expectedProvisioningNetworkCIDR  = "172.30.20.0/24"
 	expectedProvisioningDHCPExternal = false
 	expectedProvisioningDHCPRange    = "172.30.20.11, 172.30.20.101"
-	expectedCacheURL                 = ""
 	expectedOSImageURL               = "http://172.22.0.1/images/rhcos-44.81.202001171431.0-openstack.x86_64.qcow2.gz?sha256=e98f83a2b9d4043719664a2be75fe8134dc6ca1fdbde807996622f8cc7ecd234"
 	expectedProvisioningIPCIDR       = "172.30.20.3/24"
 	expectedDeployKernelURL          = "http://172.30.20.3:6180/images/ironic-python-agent.kernel"
@@ -157,12 +156,9 @@ func TestGetMetal3DeploymentConfig(t *testing.T) {
 	}
 	actualCacheURL := getMetal3DeploymentConfig("CACHEURL", baremetalConfig)
 	if actualCacheURL != nil {
-		t.Logf("Actual Cache URL is %s, Expected is %s", *actualCacheURL, expectedCacheURL)
-		if *actualCacheURL != expectedCacheURL {
-			t.Errorf("Actual %s and Expected %s CacheURLs do not match", *actualCacheURL, expectedCacheURL)
-		}
+		t.Errorf("CacheURL is found to be %s. CACHEURL is not expected.", *actualCacheURL)
 	} else {
-		t.Errorf("CacheURL is not available.")
+		t.Logf("CacheURL is not available as expected.")
 	}
 	actualOSImageURL := getMetal3DeploymentConfig("RHCOS_IMAGE_URL", baremetalConfig)
 	if actualOSImageURL != nil {

@@ -199,9 +199,7 @@ func newMetal3InitContainers(config *OperatorConfig, baremetalProvisioningConfig
 				Privileged: pointer.BoolPtr(true),
 			},
 			VolumeMounts: volumeMounts,
-			Env: []corev1.EnvVar{
-				buildEnvVar("CACHEURL", "cache_url", baremetalProvisioningConfig),
-			},
+			Env:          []corev1.EnvVar{},
 		},
 	}
 	initContainers = append(initContainers, createInitContainerMachineOsDownloader(config, baremetalProvisioningConfig))
@@ -221,7 +219,6 @@ func createInitContainerMachineOsDownloader(config *OperatorConfig, baremetalPro
 		VolumeMounts: volumeMounts,
 		Env: []corev1.EnvVar{
 			buildEnvVar("RHCOS_IMAGE_URL", "rhcos_image_url", baremetalProvisioningConfig),
-			buildEnvVar("CACHEURL", "cache_url", baremetalProvisioningConfig),
 		},
 	}
 	return initContainer
