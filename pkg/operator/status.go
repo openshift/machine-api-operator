@@ -213,6 +213,12 @@ func (optr *Operator) getOrCreateClusterOperator() (*osconfigv1.ClusterOperator,
 			Resource: "clusterroles",
 			Name:     "machine-api-controllers",
 		},
+		{
+			Group:     "rbac.authorization.k8s.io",
+			Resource:  "roles",
+			Name:      "cloud-provider-config-reader",
+			Namespace: "openshift-config",
+		},
 	}
 	if !equality.Semantic.DeepEqual(co.Status.RelatedObjects, relatedObjects) {
 		co.Status.RelatedObjects = relatedObjects
