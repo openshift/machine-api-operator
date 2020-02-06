@@ -6,7 +6,7 @@ spec:
   group: config.openshift.io
   version: v1
   scope: Cluster
-  preserveUnknownField: false
+  preserveUnknownFields: false
   names:
     kind: FeatureGate
     singular: featuregate

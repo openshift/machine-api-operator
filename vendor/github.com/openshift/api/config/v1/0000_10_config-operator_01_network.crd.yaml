@@ -10,7 +10,7 @@ spec:
     plural: networks
     singular: network
   scope: Cluster
-  preserveUnknownField: false
+  preserveUnknownFields: false
   versions:
   - name: v1
     served: true

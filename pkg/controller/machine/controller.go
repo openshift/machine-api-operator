@@ -21,10 +21,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/go-log/log/info"
 	commonerrors "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
-	kubedrain "github.com/openshift/machine-api-operator/pkg/drain"
 	"github.com/openshift/machine-api-operator/pkg/util"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -34,6 +32,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog"
+	"k8s.io/kubectl/pkg/drain"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -84,6 +83,8 @@ const (
 
 	// Machine has a deletion timestamp
 	phaseDeleting = "Deleting"
+
+	skipWaitForDeleteTimeoutSeconds = 60 * 5
 )
 
 var DefaultActuator Actuator
@@ -323,20 +324,39 @@ func (r *ReconcileMachine) drainNode(machine *machinev1.Machine) error {
 		return fmt.Errorf("unable to get node %q: %v", machine.Status.NodeRef.Name, err)
 	}
 
-	if err := kubedrain.Drain(
-		kubeClient,
-		[]*corev1.Node{node},
-		&kubedrain.DrainOptions{
-			Force:              true,
-			IgnoreDaemonsets:   true,
-			DeleteLocalData:    true,
-			GracePeriodSeconds: -1,
-			Logger:             info.New(klog.V(0)),
-			// If a pod is not evicted in 20 second, retry the eviction next time the
-			// machine gets reconciled again (to allow other machines to be reconciled)
-			Timeout: 20 * time.Second,
+	drainer := &drain.Helper{
+		Client:              kubeClient,
+		Force:               true,
+		IgnoreAllDaemonSets: true,
+		DeleteLocalData:     true,
+		GracePeriodSeconds:  -1,
+		// If a pod is not evicted in 20 seconds, retry the eviction next time the
+		// machine gets reconciled again (to allow other machines to be reconciled).
+		Timeout: 20 * time.Second,
+		OnPodDeletedOrEvicted: func(pod *corev1.Pod, usingEviction bool) {
+			verbStr := "Deleted"
+			if usingEviction {
+				verbStr = "Evicted"
+			}
+			klog.Info(fmt.Sprintf("%s pod from Node", verbStr),
+				"pod", fmt.Sprintf("%s/%s", pod.Name, pod.Namespace))
 		},
-	); err != nil {
+		Out:    writer{klog.Info},
+		ErrOut: writer{klog.Error},
+		DryRun: false,
+	}
+
+	if nodeIsUnreachable(node) {
+		drainer.SkipWaitForDeleteTimeoutSeconds = skipWaitForDeleteTimeoutSeconds
+	}
+
+	if err := drain.RunCordonOrUncordon(drainer, node, true); err != nil {
+		// Can't cordon a node
+		klog.Warningf("cordon failed for node %q: %v", node.Name, err)
+		return &RequeueAfterError{RequeueAfter: 20 * time.Second}
+	}
+
+	if err := drain.RunNodeDrain(drainer, node.Name); err != nil {
 		// Machine still tries to terminate after drain failure
 		klog.Warningf("drain failed for machine %q: %v", machine.Name, err)
 		return &RequeueAfterError{RequeueAfter: 20 * time.Second}
@@ -413,4 +433,25 @@ func machineIsFailed(machine *machinev1.Machine) bool {
 		return true
 	}
 	return false
+}
+
+func nodeIsUnreachable(node *corev1.Node) bool {
+	for _, condition := range node.Status.Conditions {
+		if condition.Type == corev1.NodeReady && condition.Status == corev1.ConditionUnknown {
+			return true
+		}
+	}
+
+	return false
+}
+
+// writer implements io.Writer interface as a pass-through for klog.
+type writer struct {
+	logFunc func(args ...interface{})
+}
+
+// Write passes string(p) into writer's logFunc and always returns len(p)
+func (w writer) Write(p []byte) (n int, err error) {
+	w.logFunc(string(p))
+	return len(p), nil
 }

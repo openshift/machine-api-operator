@@ -4,7 +4,7 @@ metadata:
   name: consoles.config.openshift.io
 spec:
   scope: Cluster
-  preserveUnknownField: false
+  preserveUnknownFields: false
   group: config.openshift.io
   names:
     kind: Console

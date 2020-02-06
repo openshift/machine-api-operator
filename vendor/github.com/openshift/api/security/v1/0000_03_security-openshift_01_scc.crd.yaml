@@ -10,7 +10,7 @@ spec:
     plural: securitycontextconstraints
     singular: securitycontextconstraints
   scope: Cluster
-  preserveUnknownField: false
+  preserveUnknownFields: false
   versions:
   - name: v1
     served: true

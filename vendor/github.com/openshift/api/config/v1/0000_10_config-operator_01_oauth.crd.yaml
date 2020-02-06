@@ -10,7 +10,7 @@ spec:
     plural: oauths
     singular: oauth
   scope: Cluster
-  preserveUnknownField: false
+  preserveUnknownFields: false
   subresources:
     status: {}
   versions:

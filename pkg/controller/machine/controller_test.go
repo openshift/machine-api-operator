@@ -497,3 +497,56 @@ func TestMachineIsFailed(t *testing.T) {
 		}
 	}
 }
+
+func TestNodeIsUnreachable(t *testing.T) {
+	testCases := []struct {
+		name     string
+		node     *corev1.Node
+		expected bool
+	}{
+		{
+			name: "Node should be unreachable",
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "Node",
+					Namespace: "test",
+				},
+				Status: corev1.NodeStatus{
+					Conditions: []corev1.NodeCondition{
+						corev1.NodeCondition{
+							Type:   corev1.NodeReady,
+							Status: corev1.ConditionUnknown,
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "Node should not be unreachable",
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "Node",
+					Namespace: "test",
+				},
+				Status: corev1.NodeStatus{
+					Conditions: []corev1.NodeCondition{
+						corev1.NodeCondition{
+							Type:   corev1.NodeReady,
+							Status: corev1.ConditionTrue,
+						},
+					},
+				},
+			},
+			expected: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if actual := nodeIsUnreachable(tc.node); actual != tc.expected {
+				t.Errorf("Expected: %v, got: %v", actual, tc.expected)
+			}
+		})
+	}
+}
