@@ -347,6 +347,8 @@ func (r *ReconcileMachine) drainNode(machine *machinev1.Machine) error {
 	}
 
 	if nodeIsUnreachable(node) {
+		klog.Infof("%q: Node %q is unreachable, draining will wait %q seconds after pod is signalled for deletion and skip after it",
+			machine.Name, node.Name, skipWaitForDeleteTimeoutSeconds)
 		drainer.SkipWaitForDeleteTimeoutSeconds = skipWaitForDeleteTimeoutSeconds
 	}
 
