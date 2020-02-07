@@ -28,7 +28,7 @@ import (
 
 const (
 	machineAnnotationKey          = "machine.openshift.io/machine"
-	machineExternalAnnotationKey  = "machine.openshift.io/external-remediation"
+	machineExternalAnnotationKey  = "host.metal3.io/external-remediation"
 	ownerControllerKind           = "MachineSet"
 	nodeMasterLabel               = "node-role.kubernetes.io/master"
 	machineRoleLabel              = "machine.openshift.io/cluster-api-machine-role"
