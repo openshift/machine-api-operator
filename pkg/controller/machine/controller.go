@@ -226,6 +226,17 @@ func (r *ReconcileMachine) Reconcile(request reconcile.Request) (reconcile.Resul
 			}
 		}
 
+		instanceExists, err := r.actuator.Exists(ctx, m)
+		if err != nil {
+			klog.Errorf("%v: failed to check if machine exists: %v", machineName, err)
+			return reconcile.Result{}, err
+		}
+
+		if instanceExists {
+			klog.V(3).Infof("%v: can't proceed deleting machine while cloud instance is being terminated, requeuing", machineName)
+			return reconcile.Result{RequeueAfter: requeueAfter}, nil
+		}
+
 		if m.Status.NodeRef != nil {
 			klog.Infof("%v: deleting node %q for machine", m.Status.NodeRef.Name, machineName)
 			if err := r.deleteNode(ctx, m.Status.NodeRef.Name); err != nil {

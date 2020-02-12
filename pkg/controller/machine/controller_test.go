@@ -211,13 +211,26 @@ func TestReconcileRequest(t *testing.T) {
 		},
 		{
 			request:     reconcile.Request{NamespacedName: types.NamespacedName{Name: machineDeleting.Name, Namespace: machineDeleting.Namespace}},
-			existsValue: true,
+			existsValue: false,
 			expected: expected{
 				createCallCount: 0,
-				existCallCount:  0,
+				existCallCount:  1,
 				updateCallCount: 0,
 				deleteCallCount: 1,
 				result:          reconcile.Result{},
+				error:           false,
+				phase:           phaseDeleting,
+			},
+		},
+		{
+			request:     reconcile.Request{NamespacedName: types.NamespacedName{Name: machineDeleting.Name, Namespace: machineDeleting.Namespace}},
+			existsValue: true,
+			expected: expected{
+				createCallCount: 0,
+				existCallCount:  1,
+				updateCallCount: 0,
+				deleteCallCount: 1,
+				result:          reconcile.Result{RequeueAfter: requeueAfter},
 				error:           false,
 				phase:           phaseDeleting,
 			},
