@@ -35,7 +35,7 @@ const (
 	machineMasterRole             = "master"
 	machinePhaseFailed            = "Failed"
 	remediationStrategyAnnotation = "machine.openshift.io/remediation-strategy"
-	remediationStrategyExternal   = mapiv1.RemediationStrategyType("external")
+	remediationStrategyExternal   = mapiv1.RemediationStrategyType("external-baremetal")
 	timeoutForMachineToHaveNode   = 10 * time.Minute
 	machineNodeNameIndex          = "machineNodeNameIndex"
 	controllerName                = "machinehealthcheck-controller"
