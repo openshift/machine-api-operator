@@ -22,7 +22,6 @@ var (
 	expectedIronicMachineOsDownloader = "quay.io/openshift/origin-ironic-machine-os-downloader:v4.3.0"
 	expectedIronicStaticIpManager     = "quay.io/openshift/origin-ironic-static-ip-manager:v4.2.0"
 	expectedOvirtImage                = "quay.io/openshift/origin-ovirt-machine-controllers"
-	expectedVSphereImage              = "docker.io/openshift/origin-machine-api-operator:v4.0.0"
 )
 
 func TestGetProviderFromInfrastructure(t *testing.T) {
@@ -138,9 +137,6 @@ func TestGetImagesFromJSONFile(t *testing.T) {
 	if img.ClusterAPIControllerOvirt != expectedOvirtImage {
 		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedOvirtImage, img.ClusterAPIControllerOvirt)
 	}
-	if img.ClusterAPIControllerVSphere != expectedVSphereImage {
-		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedVSphereImage, img.ClusterAPIControllerVSphere)
-	}
 }
 
 func TestGetProviderControllerFromImages(t *testing.T) {
@@ -177,7 +173,7 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 		},
 		{
 			provider:      configv1.VSpherePlatformType,
-			expectedImage: expectedVSphereImage,
+			expectedImage: clusterAPIControllerNoOp,
 		},
 		{
 			provider:      configv1.NonePlatformType,

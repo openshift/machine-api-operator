@@ -7,7 +7,6 @@
   "clusterAPIControllerAzure": "quay.io/openshift/origin-azure-machine-controllers:v4.0.0",
   "clusterAPIControllerGCP": "quay.io/openshift/origin-gcp-machine-controllers:v4.0.0",
   "clusterAPIControllerOvirt": "quay.io/openshift/origin-ovirt-machine-controllers",
-  "clusterAPIControllerVSphere": "docker.io/openshift/origin-machine-api-operator:v4.0.0",
   "baremetalOperator": "quay.io/openshift/origin-baremetal-operator:v4.2.0",
   "baremetalIronic": "quay.io/openshift/origin-ironic:v4.2.0",
   "baremetalIronicInspector": "quay.io/openshift/origin-ironic-inspector:v4.2.0",
