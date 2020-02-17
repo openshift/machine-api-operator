@@ -197,7 +197,7 @@ func TestReconcile(t *testing.T) {
 
 	machineHealthCheck := maotesting.NewMachineHealthCheck("machineHealthCheck")
 
-	// remediationReboot
+	// remediationExternal
 	nodeUnhealthyForTooLong := maotesting.NewNode("nodeUnhealthyForTooLong", false)
 	nodeUnhealthyForTooLong.Annotations = map[string]string{
 		machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "machineUnhealthyForTooLong"),
@@ -361,7 +361,7 @@ func TestHasMachineSetOwner(t *testing.T) {
 
 }
 
-func TestApplyRemediationReboot(t *testing.T) {
+func TestApplyRemediationExternal(t *testing.T) {
 	nodeUnhealthyForTooLong := maotesting.NewNode("nodeUnhealthyForTooLong", false)
 	nodeUnhealthyForTooLong.Annotations = map[string]string{
 		machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "machineUnhealthyForTooLong"),
@@ -381,13 +381,13 @@ func TestApplyRemediationReboot(t *testing.T) {
 		Machine: *machineUnhealthyForTooLong,
 		MHC:     mapiv1beta1.MachineHealthCheck{},
 	}
-	if err := target.remediationStrategyReboot(r); err != nil {
+	if err := target.remediationStrategyExternal(r); err != nil {
 		t.Fatalf("unexpected error %v", err)
 	}
 	assertEvents(
 		t,
-		"apply remediation reboot",
-		[]string{EventRebootAnnotationAdded},
+		"apply remediation external",
+		[]string{EventExternalAnnotationAdded},
 		recorder.Events,
 	)
 
@@ -396,8 +396,8 @@ func TestApplyRemediationReboot(t *testing.T) {
 		t.Errorf("Expected: no error, got: %v", err)
 	}
 
-	if _, ok := machine.Annotations[machineRebootAnnotationKey]; !ok {
-		t.Errorf("Expected: node to have reboot annotion %s, got: %v", machineRebootAnnotationKey, machine.Annotations)
+	if _, ok := machine.Annotations[machineExternalAnnotationKey]; !ok {
+		t.Errorf("Expected: machine to have external annotion %s, got: %v", machineExternalAnnotationKey, machine.Annotations)
 	}
 }
 

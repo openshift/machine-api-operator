@@ -28,14 +28,14 @@ import (
 
 const (
 	machineAnnotationKey          = "machine.openshift.io/machine"
-	machineRebootAnnotationKey    = "healthchecking.openshift.io/machine-remediation-reboot"
+	machineExternalAnnotationKey  = "host.metal3.io/external-remediation"
 	ownerControllerKind           = "MachineSet"
 	nodeMasterLabel               = "node-role.kubernetes.io/master"
 	machineRoleLabel              = "machine.openshift.io/cluster-api-machine-role"
 	machineMasterRole             = "master"
 	machinePhaseFailed            = "Failed"
-	remediationStrategyAnnotation = "healthchecking.openshift.io/strategy"
-	remediationStrategyReboot     = mapiv1.RemediationStrategyType("reboot")
+	remediationStrategyAnnotation = "machine.openshift.io/remediation-strategy"
+	remediationStrategyExternal   = mapiv1.RemediationStrategyType("external-baremetal")
 	timeoutForMachineToHaveNode   = 10 * time.Minute
 	machineNodeNameIndex          = "machineNodeNameIndex"
 	controllerName                = "machinehealthcheck-controller"
@@ -48,7 +48,7 @@ const (
 	// machine was detected unhealthy
 	EventDetectedUnhealthy string = "DetectedUnhealthy"
 	// EventSkippedMaster is emitted in case an unhealthy node (or a machine
-	// associated with the node) has Master role and reboot remediation strategy
+	// associated with the node) has Master role and external remediation strategy
 	// is not enabled
 	EventSkippedMaster string = "SkippedMaster"
 	// EventMachineDeletionFailed is emitted in case remediation of a machine
@@ -57,12 +57,12 @@ const (
 	// EventMachineDeleted is emitted when machine was successfully remediated
 	// by deleting its Machine object
 	EventMachineDeleted string = "MachineDeleted"
-	// EventRebootAnnotationFailed is emitted in case adding reboot annotation
+	// EventExternalAnnotationFailed is emitted in case adding external annotation
 	// to a Node object failed
-	EventRebootAnnotationFailed string = "RebootAnnotationFailed"
-	// EventRebootAnnotationAdded is emitted when reboot annotation was
+	EventExternalAnnotationFailed string = "ExternalAnnotationFailed"
+	// EventExternalAnnotationAdded is emitted when external annotation was
 	// successfully added to a Node object
-	EventRebootAnnotationAdded string = "RebootAnnotationAdded"
+	EventExternalAnnotationAdded string = "ExternalAnnotationAdded"
 )
 
 // Add creates a new MachineHealthCheck Controller and adds it to the Manager. The Manager will set fields on the Controller
@@ -433,8 +433,8 @@ func (t *target) remediate(r *ReconcileMachineHealthCheck) error {
 
 	remediationStrategy, ok := t.MHC.Annotations[remediationStrategyAnnotation]
 	if ok {
-		if mapiv1.RemediationStrategyType(remediationStrategy) == remediationStrategyReboot {
-			return t.remediationStrategyReboot(r)
+		if mapiv1.RemediationStrategyType(remediationStrategy) == remediationStrategyExternal {
+			return t.remediationStrategyExternal(r)
 		}
 	}
 	if t.isMaster() {
@@ -471,9 +471,9 @@ func (t *target) remediate(r *ReconcileMachineHealthCheck) error {
 	return nil
 }
 
-func (t *target) remediationStrategyReboot(r *ReconcileMachineHealthCheck) error {
-	// we already have reboot annotation on the node, stop reconcile
-	if _, ok := t.Machine.Annotations[machineRebootAnnotationKey]; ok {
+func (t *target) remediationStrategyExternal(r *ReconcileMachineHealthCheck) error {
+	// we already have external annotation on the machine, stop reconcile
+	if _, ok := t.Machine.Annotations[machineExternalAnnotationKey]; ok {
 		return nil
 	}
 
@@ -481,14 +481,14 @@ func (t *target) remediationStrategyReboot(r *ReconcileMachineHealthCheck) error
 		t.Machine.Annotations = map[string]string{}
 	}
 
-	glog.Infof("Machine %s has been unhealthy for too long, adding reboot annotation", t.Machine.Name)
-	t.Machine.Annotations[machineRebootAnnotationKey] = ""
+	glog.Infof("Machine %s has been unhealthy for too long, adding external annotation", t.Machine.Name)
+	t.Machine.Annotations[machineExternalAnnotationKey] = ""
 	if err := r.client.Update(context.TODO(), &t.Machine); err != nil {
 		r.recorder.Eventf(
 			&t.Machine,
 			corev1.EventTypeWarning,
-			EventRebootAnnotationFailed,
-			"Requesting reboot of node associated with machine %v failed: %v",
+			EventExternalAnnotationFailed,
+			"Requesting external remediation of node associated with machine %v failed: %v",
 			t.string(),
 			err,
 		)
@@ -497,8 +497,8 @@ func (t *target) remediationStrategyReboot(r *ReconcileMachineHealthCheck) error
 	r.recorder.Eventf(
 		&t.Machine,
 		corev1.EventTypeNormal,
-		EventRebootAnnotationAdded,
-		"Requesting reboot of node associated with machine %v",
+		EventExternalAnnotationAdded,
+		"Requesting external remediation of node associated with machine %v",
 		t.string(),
 	)
 	return nil
