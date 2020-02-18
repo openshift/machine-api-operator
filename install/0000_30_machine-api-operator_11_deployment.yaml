@@ -21,7 +21,7 @@ spec:
       serviceAccountName: machine-api-operator
       containers:
       - name: kube-rbac-proxy
-        image: quay.io/openshift/origin-kube-rbac-proxy:4.2.0
+        image: registry.svc.ci.openshift.org/openshift:kube-rbac-proxy
         args:
         - "--secure-listen-address=0.0.0.0:8443"
         - "--upstream=http://localhost:8080/"
@@ -44,7 +44,7 @@ spec:
         - mountPath: /etc/tls/private
           name: machine-api-operator-tls
       - name: machine-api-operator
-        image: docker.io/openshift/origin-machine-api-operator:v4.0.0
+        image: registry.svc.ci.openshift.org/openshift:machine-api-operator
         command:
         - "/machine-api-operator"
         args:

@@ -6,19 +6,19 @@ metadata:
 data:
   images.json: >
     {
-      "machineAPIOperator": "docker.io/openshift/origin-machine-api-operator:v4.0.0",
-      "clusterAPIControllerAWS": "docker.io/openshift/origin-aws-machine-controllers:v4.0.0",
-      "clusterAPIControllerOpenStack": "docker.io/openshift/origin-openstack-machine-controllers:v4.0.0",
-      "clusterAPIControllerLibvirt": "docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0",
-      "clusterAPIControllerBareMetal": "quay.io/openshift/origin-baremetal-machine-controllers:v4.0.0",
-      "clusterAPIControllerAzure": "quay.io/openshift/origin-azure-machine-controllers:v4.0.0",
-      "clusterAPIControllerGCP": "quay.io/openshift/origin-gcp-machine-controllers:v4.0.0",
-      "clusterAPIControllerOvirt": "quay.io/openshift/origin-ovirt-machine-controllers",
-      "clusterAPIControllerVSphere": "docker.io/openshift/origin-machine-api-operator:v4.0.0",
-      "baremetalOperator": "quay.io/openshift/origin-baremetal-operator:v4.2.0",
-      "baremetalIronic": "quay.io/openshift/origin-ironic:v4.2.0",
-      "baremetalIronicInspector": "quay.io/openshift/origin-ironic-inspector:v4.2.0",
-      "baremetalIpaDownloader": "quay.io/openshift/origin-ironic-ipa-downloader:v4.2.0",
-      "baremetalMachineOsDownloader": "quay.io/openshift/origin-ironic-machine-os-downloader:v4.3.0",
-      "baremetalStaticIpManager": "quay.io/openshift/origin-ironic-static-ip-manager:v4.2.0"
+      "machineAPIOperator": "registry.svc.ci.openshift.org/openshift:machine-api-operator",
+      "clusterAPIControllerAWS": "registry.svc.ci.openshift.org/openshift:aws-machine-controllers",
+      "clusterAPIControllerOpenStack": "registry.svc.ci.openshift.org/openshift:openstack-machine-controllers",
+      "clusterAPIControllerLibvirt": "registry.svc.ci.openshift.org/openshift:libvirt-machine-controllers",
+      "clusterAPIControllerBareMetal": "registry.svc.ci.openshift.org/openshift:baremetal-machine-controllers",
+      "clusterAPIControllerAzure": "registry.svc.ci.openshift.org/openshift:azure-machine-controllers",
+      "clusterAPIControllerGCP": "registry.svc.ci.openshift.org/openshift:gcp-machine-controllers",
+      "clusterAPIControllerOvirt": "registry.svc.ci.openshift.org/openshift:ovirt-machine-controllers",
+      "clusterAPIControllerVSphere": "registry.svc.ci.openshift.org/openshift:machine-api-operator",
+      "baremetalOperator": "registry.svc.ci.openshift.org/openshift:baremetal-operator",
+      "baremetalIronic": "registry.svc.ci.openshift.org/openshift:ironic",
+      "baremetalIronicInspector": "registry.svc.ci.openshift.org/openshift:ironic-inspector",
+      "baremetalIpaDownloader": "registry.svc.ci.openshift.org/openshift:ironic-ipa-downloader",
+      "baremetalMachineOsDownloader": "registry.svc.ci.openshift.org/openshift:ironic-machine-os-downloader",
+      "baremetalStaticIpManager": "registry.svc.ci.openshift.org/openshift:ironic-static-ip-manager"
     }
