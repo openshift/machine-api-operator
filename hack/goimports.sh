@@ -7,10 +7,10 @@ if [ "$IS_CONTAINER" != "" ]; then
   done
   git diff --exit-code
 else
-  docker run -it --rm \
+  docker run --rm \
     --env IS_CONTAINER=TRUE \
-    --volume "${PWD}:/go/src/sigs.k8s.io/${REPO_NAME}:z" \
-    --workdir "/go/src/sigs.k8s.io/${REPO_NAME}" \
+    --volume "${PWD}:/go/src/github.com/openshift/machine-api-operator:z" \
+    --workdir /go/src/github.com/openshift/machine-api-operator \
     openshift/origin-release:golang-1.13 \
     ./hack/goimports.sh "${@}"
 fi
