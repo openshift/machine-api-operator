@@ -35,11 +35,7 @@ vendor:
 	go mod verify
 
 .PHONY: check
-check: lint fmt vet verify-codegen check-pkg test ## Run code validations
-
-.PHONY: check-pkg
-check-pkg:
-	./hack/verify-actuator-pkg.sh
+check: lint fmt vet verify-codegen test ## Run code validations
 
 .PHONY: build
 build: machine-api-operator nodelink-controller machine-healthcheck machineset vsphere ## Build binaries
