@@ -36,7 +36,7 @@ const (
 	machinePhaseFailed            = "Failed"
 	remediationStrategyAnnotation = "machine.openshift.io/remediation-strategy"
 	remediationStrategyExternal   = mapiv1.RemediationStrategyType("external-baremetal")
-	timeoutForMachineToHaveNode   = 10 * time.Minute
+	defaultNodeStartupTimeout     = 10 * time.Minute
 	machineNodeNameIndex          = "machineNodeNameIndex"
 	controllerName                = "machinehealthcheck-controller"
 
@@ -166,8 +166,14 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 	}
 	totalTargets := len(targets)
 
+	nodeStartupTimeout, err := getNodeStartupTimeout(mhc)
+	if err != nil {
+		glog.Errorf("Reconciling %s: error getting NodeStartupTimeout: %v", request.String(), err)
+		return reconcile.Result{}, err
+	}
+
 	// health check all targets and reconcile mhc status
-	currentHealthy, needRemediationTargets, nextCheckTimes, errList := r.healthCheckTargets(targets)
+	currentHealthy, needRemediationTargets, nextCheckTimes, errList := r.healthCheckTargets(targets, nodeStartupTimeout)
 	if err := r.reconcileStatus(mhc, totalTargets, currentHealthy); err != nil {
 		glog.Errorf("Reconciling %s: error patching status: %v", request.String(), err)
 		return reconcile.Result{}, err
@@ -259,14 +265,14 @@ func (r *ReconcileMachineHealthCheck) reconcileStatus(mhc *mapiv1.MachineHealthC
 
 // healthCheckTargets health checks a slice of targets
 // and gives a data to measure the average health
-func (r *ReconcileMachineHealthCheck) healthCheckTargets(targets []target) (int, []target, []time.Duration, []error) {
+func (r *ReconcileMachineHealthCheck) healthCheckTargets(targets []target, timeoutForMachineToHaveNode time.Duration) (int, []target, []time.Duration, []error) {
 	var nextCheckTimes []time.Duration
 	var errList []error
 	var needRemediationTargets []target
 	var currentHealthy int
 	for _, t := range targets {
 		glog.V(3).Infof("Reconciling %s: health checking", t.string())
-		needsRemediation, nextCheck, err := t.needsRemediation()
+		needsRemediation, nextCheck, err := t.needsRemediation(timeoutForMachineToHaveNode)
 		if err != nil {
 			glog.Errorf("Reconciling %s: error health checking: %v", t.string(), err)
 			errList = append(errList, err)
@@ -549,7 +555,7 @@ func (t *target) isMaster() bool {
 	return false
 }
 
-func (t *target) needsRemediation() (bool, time.Duration, error) {
+func (t *target) needsRemediation(timeoutForMachineToHaveNode time.Duration) (bool, time.Duration, error) {
 	var nextCheckTimes []time.Duration
 	now := time.Now()
 
@@ -672,4 +678,16 @@ func hasMatchingLabels(machineHealthCheck *mapiv1.MachineHealthCheck, machine *m
 		return false
 	}
 	return true
+}
+
+func getNodeStartupTimeout(mhc *mapiv1.MachineHealthCheck) (time.Duration, error) {
+	if mhc.Spec.NodeStartupTimeout == "" {
+		return defaultNodeStartupTimeout, nil
+	}
+
+	timeout, err := time.ParseDuration(mhc.Spec.NodeStartupTimeout)
+	if err != nil {
+		return time.Duration(0), fmt.Errorf("error parsing NodeStartupTimeout: %v", err)
+	}
+	return timeout, nil
 }
