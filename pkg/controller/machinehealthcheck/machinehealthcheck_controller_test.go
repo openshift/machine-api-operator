@@ -196,6 +196,8 @@ func TestReconcile(t *testing.T) {
 	machineWithoutNodeRef.Status.NodeRef = nil
 
 	machineHealthCheck := maotesting.NewMachineHealthCheck("machineHealthCheck")
+	nodeStartupTimeout := 15 * time.Minute
+	machineHealthCheck.Spec.NodeStartupTimeout = nodeStartupTimeout.String()
 
 	// remediationExternal
 	nodeUnhealthyForTooLong := maotesting.NewNode("nodeUnhealthyForTooLong", false)
@@ -280,7 +282,7 @@ func TestReconcile(t *testing.T) {
 			node:     nodeAnnotatedWithMachineWithoutNodeReference,
 			expected: expectedReconcile{
 				result: reconcile.Result{
-					RequeueAfter: timeoutForMachineToHaveNode,
+					RequeueAfter: nodeStartupTimeout,
 				},
 				error: false,
 			},
@@ -1244,11 +1246,12 @@ func TestNeedsRemediation(t *testing.T) {
 	knownDate := metav1.Time{Time: time.Date(1985, 06, 03, 0, 0, 0, 0, time.Local)}
 	machineFailed := machinePhaseFailed
 	testCases := []struct {
-		testCase                 string
-		target                   *target
-		expectedNeedsRemediation bool
-		expectedNextCheck        time.Duration
-		expectedError            bool
+		testCase                    string
+		target                      *target
+		timeoutForMachineToHaveNode time.Duration
+		expectedNeedsRemediation    bool
+		expectedNextCheck           time.Duration
+		expectedError               bool
 	}{
 		{
 			testCase: "healthy: does not met conditions criteria",
@@ -1307,9 +1310,10 @@ func TestNeedsRemediation(t *testing.T) {
 					Status: mapiv1beta1.MachineHealthCheckStatus{},
 				},
 			},
-			expectedNeedsRemediation: false,
-			expectedNextCheck:        time.Duration(0),
-			expectedError:            false,
+			timeoutForMachineToHaveNode: defaultNodeStartupTimeout,
+			expectedNeedsRemediation:    false,
+			expectedNextCheck:           time.Duration(0),
+			expectedError:               false,
 		},
 		{
 			testCase: "unhealthy: node does not exist",
@@ -1346,9 +1350,10 @@ func TestNeedsRemediation(t *testing.T) {
 					Status: mapiv1beta1.MachineHealthCheckStatus{},
 				},
 			},
-			expectedNeedsRemediation: true,
-			expectedNextCheck:        time.Duration(0),
-			expectedError:            false,
+			timeoutForMachineToHaveNode: defaultNodeStartupTimeout,
+			expectedNeedsRemediation:    true,
+			expectedNextCheck:           time.Duration(0),
+			expectedError:               false,
 		},
 		{
 			testCase: "unhealthy: nodeRef nil longer than timeout",
@@ -1364,7 +1369,7 @@ func TestNeedsRemediation(t *testing.T) {
 					},
 					Spec: mapiv1beta1.MachineSpec{},
 					Status: mapiv1beta1.MachineStatus{
-						LastUpdated: &metav1.Time{Time: time.Now().Add(time.Duration(-timeoutForMachineToHaveNode) - 1*time.Second)},
+						LastUpdated: &metav1.Time{Time: time.Now().Add(time.Duration(-defaultNodeStartupTimeout) - 1*time.Second)},
 					},
 				},
 				Node: nil,
@@ -1398,9 +1403,10 @@ func TestNeedsRemediation(t *testing.T) {
 					Status: mapiv1beta1.MachineHealthCheckStatus{},
 				},
 			},
-			expectedNeedsRemediation: true,
-			expectedNextCheck:        time.Duration(0),
-			expectedError:            false,
+			timeoutForMachineToHaveNode: defaultNodeStartupTimeout,
+			expectedNeedsRemediation:    true,
+			expectedNextCheck:           time.Duration(0),
+			expectedError:               false,
 		},
 		{
 			testCase: "unhealthy: meet conditions criteria",
@@ -1416,7 +1422,7 @@ func TestNeedsRemediation(t *testing.T) {
 					},
 					Spec: mapiv1beta1.MachineSpec{},
 					Status: mapiv1beta1.MachineStatus{
-						LastUpdated: &metav1.Time{Time: time.Now().Add(time.Duration(-timeoutForMachineToHaveNode) - 1*time.Second)},
+						LastUpdated: &metav1.Time{Time: time.Now().Add(time.Duration(-defaultNodeStartupTimeout) - 1*time.Second)},
 					},
 				},
 				Node: &corev1.Node{
@@ -1472,9 +1478,10 @@ func TestNeedsRemediation(t *testing.T) {
 					Status: mapiv1beta1.MachineHealthCheckStatus{},
 				},
 			},
-			expectedNeedsRemediation: true,
-			expectedNextCheck:        time.Duration(0),
-			expectedError:            false,
+			timeoutForMachineToHaveNode: defaultNodeStartupTimeout,
+			expectedNeedsRemediation:    true,
+			expectedNextCheck:           time.Duration(0),
+			expectedError:               false,
 		},
 		{
 			testCase: "unhealthy: machine phase failed",
@@ -1524,9 +1531,10 @@ func TestNeedsRemediation(t *testing.T) {
 					Status: mapiv1beta1.MachineHealthCheckStatus{},
 				},
 			},
-			expectedNeedsRemediation: true,
-			expectedNextCheck:        time.Duration(0),
-			expectedError:            false,
+			timeoutForMachineToHaveNode: defaultNodeStartupTimeout,
+			expectedNeedsRemediation:    true,
+			expectedNextCheck:           time.Duration(0),
+			expectedError:               false,
 		},
 		{
 			testCase: "healthy: meet conditions criteria but timeout",
@@ -1542,7 +1550,7 @@ func TestNeedsRemediation(t *testing.T) {
 					},
 					Spec: mapiv1beta1.MachineSpec{},
 					Status: mapiv1beta1.MachineStatus{
-						LastUpdated: &metav1.Time{Time: time.Now().Add(time.Duration(-timeoutForMachineToHaveNode) - 1*time.Second)},
+						LastUpdated: &metav1.Time{Time: time.Now().Add(time.Duration(-defaultNodeStartupTimeout) - 1*time.Second)},
 					},
 				},
 				Node: &corev1.Node{
@@ -1598,9 +1606,10 @@ func TestNeedsRemediation(t *testing.T) {
 					Status: mapiv1beta1.MachineHealthCheckStatus{},
 				},
 			},
-			expectedNeedsRemediation: false,
-			expectedNextCheck:        time.Duration(1 * time.Minute), // 300-200 rounded
-			expectedError:            false,
+			timeoutForMachineToHaveNode: defaultNodeStartupTimeout,
+			expectedNeedsRemediation:    false,
+			expectedNextCheck:           time.Duration(1 * time.Minute), // 300-200 rounded
+			expectedError:               false,
 		},
 		{
 			testCase: "error bad conditions timeout",
@@ -1616,7 +1625,7 @@ func TestNeedsRemediation(t *testing.T) {
 					},
 					Spec: mapiv1beta1.MachineSpec{},
 					Status: mapiv1beta1.MachineStatus{
-						LastUpdated: &metav1.Time{Time: time.Now().Add(time.Duration(-timeoutForMachineToHaveNode) - 1*time.Second)},
+						LastUpdated: &metav1.Time{Time: time.Now().Add(time.Duration(-defaultNodeStartupTimeout) - 1*time.Second)},
 					},
 				},
 				Node: &corev1.Node{
@@ -1672,15 +1681,16 @@ func TestNeedsRemediation(t *testing.T) {
 					Status: mapiv1beta1.MachineHealthCheckStatus{},
 				},
 			},
-			expectedNeedsRemediation: false,
-			expectedNextCheck:        time.Duration(0),
-			expectedError:            true,
+			timeoutForMachineToHaveNode: defaultNodeStartupTimeout,
+			expectedNeedsRemediation:    false,
+			expectedNextCheck:           time.Duration(0),
+			expectedError:               true,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
-			needsRemediation, nextCheck, err := tc.target.needsRemediation()
+			needsRemediation, nextCheck, err := tc.target.needsRemediation(tc.timeoutForMachineToHaveNode)
 			if needsRemediation != tc.expectedNeedsRemediation {
 				t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, needsRemediation, tc.expectedNeedsRemediation)
 			}
@@ -2050,12 +2060,13 @@ func TestReconcileStatus(t *testing.T) {
 func TestHealthCheckTargets(t *testing.T) {
 	now := time.Now()
 	testCases := []struct {
-		testCase               string
-		targets                []target
-		currentHealthy         int
-		needRemediationTargets []target
-		nextCheckTimesLen      int
-		errList                []error
+		testCase                    string
+		targets                     []target
+		timeoutForMachineToHaveNode time.Duration
+		currentHealthy              int
+		needRemediationTargets      []target
+		nextCheckTimesLen           int
+		errList                     []error
 	}{
 		{
 			testCase: "one healthy, one unhealthy",
@@ -2193,7 +2204,8 @@ func TestHealthCheckTargets(t *testing.T) {
 					},
 				},
 			},
-			currentHealthy: 1,
+			timeoutForMachineToHaveNode: defaultNodeStartupTimeout,
+			currentHealthy:              1,
 			needRemediationTargets: []target{
 				{
 					Machine: mapiv1beta1.Machine{
@@ -2280,7 +2292,7 @@ func TestHealthCheckTargets(t *testing.T) {
 						},
 						Spec: mapiv1beta1.MachineSpec{},
 						Status: mapiv1beta1.MachineStatus{
-							LastUpdated: &metav1.Time{Time: now.Add(time.Duration(-timeoutForMachineToHaveNode) + 1*time.Minute)},
+							LastUpdated: &metav1.Time{Time: now.Add(time.Duration(-defaultNodeStartupTimeout) + 1*time.Minute)},
 						},
 					},
 					Node: nil,
@@ -2381,16 +2393,17 @@ func TestHealthCheckTargets(t *testing.T) {
 					},
 				},
 			},
-			currentHealthy:    0,
-			nextCheckTimesLen: 2,
-			errList:           []error{},
+			timeoutForMachineToHaveNode: defaultNodeStartupTimeout,
+			currentHealthy:              0,
+			nextCheckTimesLen:           2,
+			errList:                     []error{},
 		},
 	}
 	for _, tc := range testCases {
 		recorder := record.NewFakeRecorder(2)
 		r := newFakeReconcilerWithCustomRecorder(recorder)
 		t.Run(tc.testCase, func(t *testing.T) {
-			currentHealhty, needRemediationTargets, nextCheckTimes, errList := r.healthCheckTargets(tc.targets)
+			currentHealhty, needRemediationTargets, nextCheckTimes, errList := r.healthCheckTargets(tc.targets, tc.timeoutForMachineToHaveNode)
 			if currentHealhty != tc.currentHealthy {
 				t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, currentHealhty, tc.currentHealthy)
 			}
@@ -2528,6 +2541,52 @@ func TestIsAllowedRemediation(t *testing.T) {
 		t.Run(tc.testCase, func(t *testing.T) {
 			if got := isAllowedRemediation(tc.mhc); got != tc.expected {
 				t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, got, tc.expected)
+			}
+		})
+	}
+}
+
+func TestGetNodeStartupTimeout(t *testing.T) {
+	testCases := []struct {
+		name            string
+		timeout         string
+		expectError     bool
+		expectedTimeout time.Duration
+	}{
+		{
+			name:            "when the timeout is not set",
+			timeout:         "",
+			expectError:     false,
+			expectedTimeout: defaultNodeStartupTimeout,
+		},
+		{
+			name:            "when the timeout is not parsable",
+			timeout:         "a",
+			expectError:     true,
+			expectedTimeout: time.Duration(0),
+		},
+		{
+			name:            "when the timeout is  parsable",
+			timeout:         "10s",
+			expectError:     false,
+			expectedTimeout: 10 * time.Second,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			mhc := &mapiv1beta1.MachineHealthCheck{
+				Spec: mapiv1beta1.MachineHealthCheckSpec{
+					NodeStartupTimeout: tc.timeout,
+				},
+			}
+
+			timeout, err := getNodeStartupTimeout(mhc)
+			if tc.expectError != (err != nil) {
+				t.Errorf("Case: %s. Got: %v, expected: %v", tc.name, err, tc.expectError)
+			}
+			if timeout != tc.expectedTimeout {
+				t.Errorf("Case: %s. Got: %v, expected: %v", tc.name, timeout.String(), tc.expectedTimeout.String())
 			}
 		})
 	}
