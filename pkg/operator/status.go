@@ -40,8 +40,8 @@ var (
 )
 
 // statusProgressing sets the Progressing condition to True, with the given
-// reason and message, and sets both the Available and Degraded conditions to
-// False.
+// reason and message, and sets the upgradeable condition to True.  It does not
+// modify any existing Available or Degraded conditions.
 func (optr *Operator) statusProgressing() error {
 	desiredVersions := optr.operandVersions
 	currentVersions, err := optr.getCurrentVersions()
@@ -71,8 +71,6 @@ func (optr *Operator) statusProgressing() error {
 
 	conds := []osconfigv1.ClusterOperatorStatusCondition{
 		newClusterOperatorStatusCondition(osconfigv1.OperatorProgressing, isProgressing, string(ReasonSyncing), message),
-		newClusterOperatorStatusCondition(osconfigv1.OperatorAvailable, osconfigv1.ConditionTrue, "", ""),
-		newClusterOperatorStatusCondition(osconfigv1.OperatorDegraded, osconfigv1.ConditionFalse, "", ""),
 		operatorUpgradeable,
 	}
 
@@ -102,9 +100,8 @@ func (optr *Operator) statusAvailable() error {
 }
 
 // statusDegraded sets the Degraded condition to True, with the given reason and
-// message, and sets the Progressing condition to False, and the Available
-// condition to True.  This indicates that the operator is present and may be
-// partially functioning, but is in a degraded or failing state.
+// message, and sets the upgradeable condition.  It does not modify any existing
+// Available or Progressing conditions.
 func (optr *Operator) statusDegraded(error string) error {
 	desiredVersions := optr.operandVersions
 	currentVersions, err := optr.getCurrentVersions()
@@ -123,8 +120,6 @@ func (optr *Operator) statusDegraded(error string) error {
 	conds := []osconfigv1.ClusterOperatorStatusCondition{
 		newClusterOperatorStatusCondition(osconfigv1.OperatorDegraded, osconfigv1.ConditionTrue,
 			string(ReasonSyncFailed), message),
-		newClusterOperatorStatusCondition(osconfigv1.OperatorProgressing, osconfigv1.ConditionFalse, "", ""),
-		newClusterOperatorStatusCondition(osconfigv1.OperatorAvailable, osconfigv1.ConditionTrue, "", ""),
 		operatorUpgradeable,
 	}
 
@@ -205,7 +200,7 @@ func (optr *Operator) relatedObjects() []osconfigv1.ObjectReference {
 	}
 }
 
-// defaultStatusConditions returns the default set of stauts conditions for the
+// defaultStatusConditions returns the default set of status conditions for the
 // ClusterOperator resource used on first creation of the ClusterOperator.
 func (optr *Operator) defaultStatusConditions() []osconfigv1.ClusterOperatorStatusCondition {
 	// All conditions default to False with no message.
@@ -255,6 +250,26 @@ func (optr *Operator) updateRelatedObjects(co *osconfigv1.ClusterOperator) (*osc
 	return co, nil
 }
 
+// setMissingStatusConditions checks that the given ClusterOperator has a value
+// for each of the default status conditions, and sets the default value for any
+// that are missing.
+func (optr *Operator) setMissingStatusConditions(co *osconfigv1.ClusterOperator) (*osconfigv1.ClusterOperator, error) {
+	var modified bool
+
+	for _, c := range optr.defaultStatusConditions() {
+		if cvoresourcemerge.FindOperatorStatusCondition(co.Status.Conditions, c.Type) == nil {
+			cvoresourcemerge.SetOperatorStatusCondition(&co.Status.Conditions, c)
+			modified = true
+		}
+	}
+
+	if modified {
+		return optr.osClient.ConfigV1().ClusterOperators().UpdateStatus(co)
+	}
+
+	return co, nil
+}
+
 // getClusterOperator returns the current ClusterOperator.
 func (optr *Operator) getClusterOperator() (*osconfigv1.ClusterOperator, error) {
 	return optr.osClient.ConfigV1().ClusterOperators().
@@ -287,6 +302,12 @@ func (optr *Operator) getOrCreateClusterOperator() (*osconfigv1.ClusterOperator,
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get clusterOperator %q: %v", clusterOperatorName, err)
+	}
+
+	// Update any missing status conditions with their default value.
+	existing, err = optr.setMissingStatusConditions(existing)
+	if err != nil {
+		return nil, fmt.Errorf("failed to set default conditions: %v", err)
 	}
 
 	return optr.updateRelatedObjects(existing)

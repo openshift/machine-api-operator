@@ -1,7 +1,6 @@
 package operator
 
 import (
-	"reflect"
 	"testing"
 	"time"
 
@@ -9,6 +8,7 @@ import (
 	fakeconfigclientset "github.com/openshift/client-go/config/clientset/versioned/fake"
 	cvoresourcemerge "github.com/openshift/cluster-version-operator/lib/resourcemerge"
 	"github.com/stretchr/testify/assert"
+	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
 )
@@ -56,7 +56,7 @@ func TestOperatorStatusProgressing(t *testing.T) {
 			},
 			expectedConditions: []osconfigv1.ClusterOperatorStatusCondition{
 				newClusterOperatorStatusCondition(osconfigv1.OperatorProgressing, osconfigv1.ConditionFalse, string(ReasonSyncing), ""),
-				newClusterOperatorStatusCondition(osconfigv1.OperatorAvailable, osconfigv1.ConditionTrue, "", ""),
+				newClusterOperatorStatusCondition(osconfigv1.OperatorAvailable, osconfigv1.ConditionFalse, "", ""),
 				newClusterOperatorStatusCondition(osconfigv1.OperatorDegraded, osconfigv1.ConditionFalse, "", ""),
 				operatorUpgradeable,
 			},
@@ -76,7 +76,7 @@ func TestOperatorStatusProgressing(t *testing.T) {
 			},
 			expectedConditions: []osconfigv1.ClusterOperatorStatusCondition{
 				newClusterOperatorStatusCondition(osconfigv1.OperatorProgressing, osconfigv1.ConditionTrue, string(ReasonSyncing), ""),
-				newClusterOperatorStatusCondition(osconfigv1.OperatorAvailable, osconfigv1.ConditionTrue, "", ""),
+				newClusterOperatorStatusCondition(osconfigv1.OperatorAvailable, osconfigv1.ConditionFalse, "", ""),
 				newClusterOperatorStatusCondition(osconfigv1.OperatorDegraded, osconfigv1.ConditionFalse, "", ""),
 				operatorUpgradeable,
 			},
@@ -85,14 +85,20 @@ func TestOperatorStatusProgressing(t *testing.T) {
 
 	optr := Operator{eventRecorder: record.NewFakeRecorder(5)}
 	for i, tc := range tCases {
-		optr.operandVersions = tc.currentVersion
-		co := &osconfigv1.ClusterOperator{ObjectMeta: metav1.ObjectMeta{Name: clusterOperatorName}}
-		co.Status.Versions = tc.desiredVersion
-
-		optr.osClient = fakeconfigclientset.NewSimpleClientset(co)
 		startTime := metav1.Now()
+
+		optr.operandVersions = tc.currentVersion
+		co := optr.defaultClusterOperator()
+		co.Status.Versions = tc.desiredVersion
+		optr.osClient = fakeconfigclientset.NewSimpleClientset(co)
+
 		optr.statusProgressing()
-		gotCO, _ := optr.osClient.ConfigV1().ClusterOperators().Get(clusterOperatorName, metav1.GetOptions{})
+
+		gotCO, err := optr.getClusterOperator()
+		if err != nil {
+			t.Fatalf("Failed to fetch ClusterOperator: %v", err)
+		}
+
 		var condition osconfigv1.ClusterOperatorStatusCondition
 		for _, coCondition := range gotCO.Status.Conditions {
 			assert.True(t, startTime.Before(&coCondition.LastTransitionTime), "test-case %v expected LastTransitionTime for the status condition to be updated", i)
@@ -139,7 +145,36 @@ func TestOperatorStatusProgressing(t *testing.T) {
 
 func TestGetOrCreateClusterOperator(t *testing.T) {
 	var namespace = "some-namespace"
+
+	var defaultConditions = []osconfigv1.ClusterOperatorStatusCondition{
+		newClusterOperatorStatusCondition(
+			osconfigv1.OperatorProgressing,
+			osconfigv1.ConditionFalse,
+			"", "",
+		),
+		newClusterOperatorStatusCondition(
+			osconfigv1.OperatorDegraded,
+			osconfigv1.ConditionFalse,
+			"", "",
+		),
+		newClusterOperatorStatusCondition(
+			osconfigv1.OperatorAvailable,
+			osconfigv1.ConditionFalse,
+			"", "",
+		),
+	}
+
 	var conditions = []osconfigv1.ClusterOperatorStatusCondition{
+		newClusterOperatorStatusCondition(
+			osconfigv1.OperatorProgressing,
+			osconfigv1.ConditionFalse,
+			"", "",
+		),
+		newClusterOperatorStatusCondition(
+			osconfigv1.OperatorDegraded,
+			osconfigv1.ConditionFalse,
+			"", "",
+		),
 		{
 			Type:               "Available",
 			Status:             "true",
@@ -148,6 +183,7 @@ func TestGetOrCreateClusterOperator(t *testing.T) {
 			LastTransitionTime: metav1.NewTime(time.Now()),
 		},
 	}
+
 	testCases := []struct {
 		existingCO *osconfigv1.ClusterOperator
 		expectedCO *osconfigv1.ClusterOperator
@@ -159,6 +195,7 @@ func TestGetOrCreateClusterOperator(t *testing.T) {
 					Name: clusterOperatorName,
 				},
 				Status: osconfigv1.ClusterOperatorStatus{
+					Conditions: defaultConditions,
 					RelatedObjects: []osconfigv1.ObjectReference{
 						{
 							Group:    "",
@@ -280,8 +317,23 @@ func TestGetOrCreateClusterOperator(t *testing.T) {
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		if !reflect.DeepEqual(co, tc.expectedCO) {
+
+		normalizeTransitionTimes(co.Status, tc.expectedCO.Status)
+
+		if !equality.Semantic.DeepEqual(co, tc.expectedCO) {
 			t.Errorf("got: %v, expected: %v", co, tc.expectedCO)
 		}
+	}
+}
+
+func normalizeTransitionTimes(got, expected osconfigv1.ClusterOperatorStatus) {
+	now := metav1.NewTime(time.Now())
+
+	for i := range got.Conditions {
+		got.Conditions[i].LastTransitionTime = now
+	}
+
+	for i := range expected.Conditions {
+		expected.Conditions[i].LastTransitionTime = now
 	}
 }
