@@ -159,27 +159,10 @@ func (optr *Operator) syncStatus(co *osconfigv1.ClusterOperator, conds []osconfi
 	return err
 }
 
-func (optr *Operator) getOrCreateClusterOperator() (*osconfigv1.ClusterOperator, error) {
-	var co *osconfigv1.ClusterOperator
-	co, err := optr.osClient.ConfigV1().ClusterOperators().Get(clusterOperatorName, metav1.GetOptions{})
-	if errors.IsNotFound(err) {
-		co = &osconfigv1.ClusterOperator{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: clusterOperatorName,
-			},
-		}
-		glog.Infof("clusterOperator %q does not exist, creating a new one: %v", clusterOperatorName, co)
-		co, err = optr.osClient.ConfigV1().ClusterOperators().Create(co)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create new clusterOperator: %v", err)
-		}
-	}
-	if err != nil {
-		return nil, fmt.Errorf("failed to get clusterOperator %q: %v", clusterOperatorName, err)
-	}
-
-	// Related objects lets openshift/must-gather collect diagnostic content
-	relatedObjects := []osconfigv1.ObjectReference{
+// relatedObjects returns the current list of ObjectReference's for the
+// ClusterOperator objects's status.
+func (optr *Operator) relatedObjects() []osconfigv1.ObjectReference {
+	return []osconfigv1.ObjectReference{
 		{
 			Group:    "",
 			Resource: "namespaces",
@@ -220,11 +203,93 @@ func (optr *Operator) getOrCreateClusterOperator() (*osconfigv1.ClusterOperator,
 			Namespace: "openshift-config",
 		},
 	}
+}
+
+// defaultStatusConditions returns the default set of stauts conditions for the
+// ClusterOperator resource used on first creation of the ClusterOperator.
+func (optr *Operator) defaultStatusConditions() []osconfigv1.ClusterOperatorStatusCondition {
+	// All conditions default to False with no message.
+	return []osconfigv1.ClusterOperatorStatusCondition{
+		newClusterOperatorStatusCondition(
+			osconfigv1.OperatorProgressing,
+			osconfigv1.ConditionFalse,
+			"", "",
+		),
+		newClusterOperatorStatusCondition(
+			osconfigv1.OperatorDegraded,
+			osconfigv1.ConditionFalse,
+			"", "",
+		),
+		newClusterOperatorStatusCondition(
+			osconfigv1.OperatorAvailable,
+			osconfigv1.ConditionFalse,
+			"", "",
+		),
+	}
+}
+
+// defaultClusterOperator returns the default ClusterOperator resource with
+// default values for related objects and status conditions.
+func (optr *Operator) defaultClusterOperator() *osconfigv1.ClusterOperator {
+	return &osconfigv1.ClusterOperator{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: clusterOperatorName,
+		},
+		Status: osconfigv1.ClusterOperatorStatus{
+			Conditions:     optr.defaultStatusConditions(),
+			RelatedObjects: optr.relatedObjects(),
+		},
+	}
+}
+
+// updateRelatedObjects updates the ClusterOperator's related objects field if
+// necessary and returns the updated ClusterOperator object.
+func (optr *Operator) updateRelatedObjects(co *osconfigv1.ClusterOperator) (*osconfigv1.ClusterOperator, error) {
+	relatedObjects := optr.relatedObjects()
+
 	if !equality.Semantic.DeepEqual(co.Status.RelatedObjects, relatedObjects) {
 		co.Status.RelatedObjects = relatedObjects
 		return optr.osClient.ConfigV1().ClusterOperators().UpdateStatus(co)
 	}
+
 	return co, nil
+}
+
+// getClusterOperator returns the current ClusterOperator.
+func (optr *Operator) getClusterOperator() (*osconfigv1.ClusterOperator, error) {
+	return optr.osClient.ConfigV1().ClusterOperators().
+		Get(clusterOperatorName, metav1.GetOptions{})
+}
+
+// createClusterOperator creates the ClusterOperator and updates its status.
+func (optr *Operator) createClusterOperator() (*osconfigv1.ClusterOperator, error) {
+	defaultCO := optr.defaultClusterOperator()
+
+	co, err := optr.osClient.ConfigV1().ClusterOperators().Create(defaultCO)
+	if err != nil {
+		return nil, err
+	}
+
+	co.Status = defaultCO.Status
+
+	return optr.osClient.ConfigV1().ClusterOperators().UpdateStatus(co)
+}
+
+// getOrCreateClusterOperator fetches the current ClusterOperator or creates a
+// default one if not found -- ensuring the related objects list is current.
+func (optr *Operator) getOrCreateClusterOperator() (*osconfigv1.ClusterOperator, error) {
+	existing, err := optr.getClusterOperator()
+
+	if errors.IsNotFound(err) {
+		glog.Infof("ClusterOperator does not exist, creating a new one.")
+		return optr.createClusterOperator()
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to get clusterOperator %q: %v", clusterOperatorName, err)
+	}
+
+	return optr.updateRelatedObjects(existing)
 }
 
 func (optr *Operator) getCurrentVersions() ([]osconfigv1.OperandVersion, error) {
