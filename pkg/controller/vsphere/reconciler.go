@@ -8,7 +8,6 @@ import (
 
 	"github.com/google/uuid"
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
-	vsphereapi "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1alpha1"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/pkg/errors"
 	"github.com/vmware/govmomi/object"
@@ -52,7 +51,7 @@ func newReconciler(scope *machineScope) *Reconciler {
 
 // create creates machine if it does not exists.
 func (r *Reconciler) create() error {
-	if err := validateMachine(*r.machine, *r.providerSpec); err != nil {
+	if err := validateMachine(*r.machine); err != nil {
 		return fmt.Errorf("%v: failed validating machine provider spec: %v", r.machine.GetName(), err)
 	}
 
@@ -85,7 +84,7 @@ func (r *Reconciler) create() error {
 
 // update finds a vm and reconciles the machine resource status against it.
 func (r *Reconciler) update() error {
-	if err := validateMachine(*r.machine, *r.providerSpec); err != nil {
+	if err := validateMachine(*r.machine); err != nil {
 		return fmt.Errorf("%v: failed validating machine provider spec: %v", r.machine.GetName(), err)
 	}
 
@@ -126,7 +125,7 @@ func (r *Reconciler) update() error {
 
 // exists returns true if machine exists.
 func (r *Reconciler) exists() (bool, error) {
-	if err := validateMachine(*r.machine, *r.providerSpec); err != nil {
+	if err := validateMachine(*r.machine); err != nil {
 		return false, fmt.Errorf("%v: failed validating machine provider spec: %v", r.machine.GetName(), err)
 	}
 
@@ -284,7 +283,7 @@ func (r *Reconciler) reconcileNetwork(vm *virtualMachine) error {
 	return nil
 }
 
-func validateMachine(machine machinev1.Machine, providerSpec vsphereapi.VSphereMachineProviderSpec) error {
+func validateMachine(machine machinev1.Machine) error {
 	if machine.Labels[machinev1.MachineClusterIDLabel] == "" {
 		return machinecontroller.InvalidMachineConfiguration("%v: missing %q label", machine.GetName(), machinev1.MachineClusterIDLabel)
 	}
