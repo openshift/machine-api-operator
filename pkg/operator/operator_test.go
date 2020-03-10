@@ -110,11 +110,7 @@ func TestOperatorSync_NoOp(t *testing.T) {
 		},
 		{
 			platform:     openshiftv1.VSpherePlatformType,
-			expectedNoop: false,
-		},
-		{
-			platform:     openshiftv1.OvirtPlatformType,
-			expectedNoop: false,
+			expectedNoop: true,
 		},
 		{
 			platform:     openshiftv1.NonePlatformType,
