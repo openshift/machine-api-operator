@@ -39,6 +39,7 @@ type BaremetalControllers struct {
 	IronicIpaDownloader       string
 	IronicMachineOsDownloader string
 	IronicStaticIpManager     string
+	IronicHwInventoryRecorder string
 }
 
 // Images allows build systems to inject images for MAO components
@@ -59,6 +60,7 @@ type Images struct {
 	BaremetalIpaDownloader       string `json:"baremetalIpaDownloader"`
 	BaremetalMachineOsDownloader string `json:"baremetalMachineOsDownloader"`
 	BaremetalStaticIpManager     string `json:"baremetalStaticIpManager"`
+	BaremetalHwInventoryRecorder string `json:"baremetalHwInventoryRecorder"`
 }
 
 func getProviderFromInfrastructure(infra *configv1.Infrastructure) (configv1.PlatformType, error) {
@@ -130,6 +132,7 @@ func newBaremetalControllers(images Images, usingBareMetal bool) BaremetalContro
 		IronicIpaDownloader:       images.BaremetalIpaDownloader,
 		IronicMachineOsDownloader: images.BaremetalMachineOsDownloader,
 		IronicStaticIpManager:     images.BaremetalStaticIpManager,
+		IronicHwInventoryRecorder: images.BaremetalHwInventoryRecorder,
 	}
 }
 

@@ -102,6 +102,8 @@ func New(
 
 	deployInformer.Informer().AddEventHandler(optr.eventHandlerDeployments())
 	featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
+	// TODO not sure if this is required
+	//daemonSetInformer.Informer().AddEventHandler(optr.eventHandlerDaemonSets())
 
 	optr.config = config
 	optr.syncHandler = optr.sync

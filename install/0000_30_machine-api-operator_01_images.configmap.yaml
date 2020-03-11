@@ -20,5 +20,6 @@ data:
       "baremetalIronicInspector": "registry.svc.ci.openshift.org/openshift:ironic-inspector",
       "baremetalIpaDownloader": "registry.svc.ci.openshift.org/openshift:ironic-ipa-downloader",
       "baremetalMachineOsDownloader": "registry.svc.ci.openshift.org/openshift:ironic-machine-os-downloader",
-      "baremetalStaticIpManager": "registry.svc.ci.openshift.org/openshift:ironic-static-ip-manager"
+      "baremetalStaticIpManager": "registry.svc.ci.openshift.org/openshift:ironic-static-ip-manager",
+      "baremetalHwInventoryRecorder": "quay.io/openshift/origin-ironic-hardware-inventory-recorder"
     }

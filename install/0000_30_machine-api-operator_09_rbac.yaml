@@ -164,6 +164,10 @@ rules:
       - get
       - list
       - watch
+      - create
+      - update
+      - patch
+      - delete
 
   - apiGroups:
     - config.openshift.io
@@ -173,6 +177,11 @@ rules:
     - get
     - list
     - watch
+    - create
+    - update
+    - patch
+    - delete
+
 
 # the baremetal pod deployment uses hostNetwork, hostPort, and privileged
   - apiGroups:

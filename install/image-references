@@ -62,3 +62,7 @@ spec:
     from:
       kind: DockerImage
       name: registry.svc.ci.openshift.org/openshift:ovirt-machine-controllers
+  - name: ironic-hardware-inventory-recorder
+    from:
+      kind: DockerImage
+      name: quay.io/openshift/origin-ironic-hardware-inventory-recorder

@@ -526,7 +526,7 @@ func TestNodeIsUnreachable(t *testing.T) {
 				},
 				Status: corev1.NodeStatus{
 					Conditions: []corev1.NodeCondition{
-						corev1.NodeCondition{
+						{
 							Type:   corev1.NodeReady,
 							Status: corev1.ConditionUnknown,
 						},
@@ -544,7 +544,7 @@ func TestNodeIsUnreachable(t *testing.T) {
 				},
 				Status: corev1.NodeStatus{
 					Conditions: []corev1.NodeCondition{
-						corev1.NodeCondition{
+						{
 							Type:   corev1.NodeReady,
 							Status: corev1.ConditionTrue,
 						},

@@ -53,18 +53,9 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 	glog.V(3).Info("Synced up all machine-api-controller components")
 
 	// In addition, if the Provider is BareMetal, then bring up
-	// the baremetal-operator pod
+	// the metal3 pod and the metal3-hw-inventory daemonset
 	if config.BaremetalControllers.BaremetalOperator != "" {
-		if err := optr.syncBaremetalControllers(config); err != nil {
-			if err := optr.statusDegraded(err.Error()); err != nil {
-				// Just log the error here.  We still want to
-				// return the outer error.
-				glog.Errorf("Error syncing BaremetalOperatorStatus: %v", err)
-			}
-			glog.Errorf("Error syncing metal3-controller: %v", err)
-			return err
-		}
-		glog.V(3).Info("Synced up all metal3 components")
+		return optr.syncBaremetal(config)
 	}
 
 	if err := optr.statusAvailable(); err != nil {
@@ -114,13 +105,38 @@ func (optr *Operator) syncTerminationHandler(config *OperatorConfig) error {
 	return nil
 }
 
-func (optr *Operator) syncBaremetalControllers(config *OperatorConfig) error {
+func (optr *Operator) syncBaremetal(config *OperatorConfig) error {
 	// Try to get baremetal provisioning config from a CR
 	baremetalProvisioningConfig, err := getBaremetalProvisioningConfig(optr.dynamicClient, baremetalProvisioningCR)
 	if err != nil {
 		glog.Errorf("Unable to read Baremetal Provisioning config from CR %s.", baremetalProvisioningCR)
 		glog.Infof("Will try to read Baremetal Provisioning config from ConfigMap %s instead", baremetalConfigmap)
 	}
+
+	if err := optr.syncBaremetalControllers(config, baremetalProvisioningConfig); err != nil {
+		if err := optr.statusDegraded(err.Error()); err != nil {
+			// Just log the error here.  We still want to
+			// return the outer error.
+			glog.Errorf("Error syncing ClusterOperatorStatus for metal3: %v", err)
+		}
+		glog.Errorf("Error syncing metal3-controller: %v", err)
+		return err
+	}
+	glog.V(3).Info("Synced up all metal3 components")
+	if err := optr.syncBaremetalDaemonSet(config, baremetalProvisioningConfig); err != nil {
+		if err := optr.statusDegraded(err.Error()); err != nil {
+			// Just log the error here.  We still want to
+			// return the outer error.
+			glog.Errorf("Error syncing ClusterOperatorStatus for metal3HwInventoryDaemon: %v", err)
+		}
+		glog.Errorf("Error syncing metal3HwInventoryDaemon DaemonSet: %v", err)
+		return err
+	}
+	glog.V(3).Info("Synced up metal3-hw-inventory daemonset")
+	return nil
+}
+
+func (optr *Operator) syncBaremetalControllers(config *OperatorConfig, baremetalProvisioningConfig BaremetalProvisioningConfig) error {
 	// Create a Secret needed for the Metal3 deployment
 	if err := createMariadbPasswordSecret(optr.kubeClient.CoreV1(), config); err != nil {
 		glog.Error("Not proceeding with Metal3 deployment. Failed to create Mariadb password.")
@@ -139,6 +155,18 @@ func (optr *Operator) syncBaremetalControllers(config *OperatorConfig) error {
 		return optr.waitForDeploymentRollout(metal3Deployment)
 	}
 
+	return nil
+}
+
+func (optr *Operator) syncBaremetalDaemonSet(config *OperatorConfig, baremetalProvisioningConfig BaremetalProvisioningConfig) error {
+	metal3DaemonSet := newMetal3DaemonSet(config, baremetalProvisioningConfig)
+	_, updated, err := resourceapply.ApplyDaemonSet(optr.kubeClient.AppsV1(), metal3DaemonSet)
+	if err != nil {
+		return err
+	}
+	if updated {
+		return optr.waitForDaemonSetRollout(metal3DaemonSet)
+	}
 	return nil
 }
 

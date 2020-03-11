@@ -1072,7 +1072,7 @@ func TestUpdate(t *testing.T) {
 				Template: vm.Name,
 				Network: vsphereapi.NetworkSpec{
 					Devices: []vsphereapi.NetworkDeviceSpec{
-						vsphereapi.NetworkDeviceSpec{
+						{
 							NetworkName: "test",
 						},
 					},
@@ -1088,7 +1088,7 @@ func TestUpdate(t *testing.T) {
 				Template: vm.Name,
 				Network: vsphereapi.NetworkSpec{
 					Devices: []vsphereapi.NetworkDeviceSpec{
-						vsphereapi.NetworkDeviceSpec{
+						{
 							NetworkName: "test",
 						},
 					},
@@ -1261,7 +1261,7 @@ func TestReconcileMachineWithCloudState(t *testing.T) {
 			Template: vm.Name,
 			Network: vsphereapi.NetworkSpec{
 				Devices: []vsphereapi.NetworkDeviceSpec{
-					vsphereapi.NetworkDeviceSpec{
+					{
 						NetworkName: "test",
 					},
 				},

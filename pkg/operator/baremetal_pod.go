@@ -427,3 +427,79 @@ func createContainerMetal3StaticIpManager(config *OperatorConfig, baremetalProvi
 	}
 	return container
 }
+
+func newMetal3DaemonSet(config *OperatorConfig, baremetalProvisioningConfig BaremetalProvisioningConfig) *appsv1.DaemonSet {
+	template := newMetal3DaemonSetTemplateSpec(config, baremetalProvisioningConfig)
+
+	return &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "metal3-hw-inventory",
+			Namespace: config.TargetNamespace,
+			Labels: map[string]string{
+				// "api" not required
+				"k8s-app": "controller",
+			},
+		},
+		Spec: appsv1.DaemonSetSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"api":     "clusterapi",
+					"k8s-app": "controller",
+				},
+			},
+			Template: *template,
+		},
+	}
+}
+
+func newMetal3DaemonSetTemplateSpec(config *OperatorConfig, baremetalProvisioningConfig BaremetalProvisioningConfig) *corev1.PodTemplateSpec {
+	container := newMetal3DaemonSetContainer(config, baremetalProvisioningConfig)
+	tolerations := []corev1.Toleration{
+		{
+			Key:    "node-role.kubernetes.io/master",
+			Effect: corev1.TaintEffectNoSchedule,
+		},
+	}
+	return &corev1.PodTemplateSpec{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				"api":     "clusterapi",
+				"k8s-app": "controller",
+			},
+		},
+		Spec: corev1.PodSpec{
+			Volumes:           volumes,
+			Containers:        container,
+			HostNetwork:       true,
+			PriorityClassName: "system-node-critical",
+			NodeSelector: map[string]string{
+				"node-role.kubernetes.io/master": "",
+				"node-role.kubernetes.io/worker": "",
+			},
+			SecurityContext: &corev1.PodSecurityContext{
+				RunAsNonRoot: pointer.BoolPtr(false),
+			},
+			ServiceAccountName: "machine-api-controllers",
+			Tolerations:        tolerations,
+		},
+	}
+}
+
+func newMetal3DaemonSetContainer(config *OperatorConfig, baremetalProvisioningConfig BaremetalProvisioningConfig) []corev1.Container {
+	container := []corev1.Container{
+		{
+			Name:            "metal3-hw-inventory-recorder",
+			Image:           config.BaremetalControllers.IronicHwInventoryRecorder,
+			Command:         []string{"/bin/runironic-agent"},
+			ImagePullPolicy: "IfNotPresent",
+			SecurityContext: &corev1.SecurityContext{
+				Privileged: pointer.BoolPtr(true),
+			},
+			Env: []corev1.EnvVar{
+				buildEnvVar("PROVISIONING_IP", "provisioning_ip", baremetalProvisioningConfig),
+				buildEnvVar("IRONIC_INSPECTOR_PORT", "ironic_inspector_port", baremetalProvisioningConfig),
+			},
+		},
+	}
+	return container
+}

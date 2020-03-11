@@ -23,6 +23,7 @@ var (
 	expectedIronicStaticIpManager     = "quay.io/openshift/origin-ironic-static-ip-manager:v4.2.0"
 	expectedOvirtImage                = "quay.io/openshift/origin-ovirt-machine-controllers"
 	expectedVSphereImage              = "docker.io/openshift/origin-machine-api-operator:v4.0.0"
+	expectedHwInventoryRecorder       = "quay.io/openshift/origin-ironic-hardware-inventory-recorder:v4.4.0"
 )
 
 func TestGetProviderFromInfrastructure(t *testing.T) {
@@ -293,13 +294,13 @@ func TestGetBaremetalControllers(t *testing.T) {
 	}
 
 	baremetalControllers := newBaremetalControllers(*img, true)
-
 	if baremetalControllers.BaremetalOperator != expectedBaremetalOperator ||
 		baremetalControllers.Ironic != expectedIronic ||
 		baremetalControllers.IronicInspector != expectedIronicInspector ||
 		baremetalControllers.IronicIpaDownloader != expectedIronicIpaDownloader ||
 		baremetalControllers.IronicMachineOsDownloader != expectedIronicMachineOsDownloader ||
-		baremetalControllers.IronicStaticIpManager != expectedIronicStaticIpManager {
+		baremetalControllers.IronicStaticIpManager != expectedIronicStaticIpManager ||
+		baremetalControllers.IronicHwInventoryRecorder != expectedHwInventoryRecorder {
 		t.Errorf("failed getAdditionalProviderImages. One or more BaremetalController images do not match the expected images.")
 	}
 }

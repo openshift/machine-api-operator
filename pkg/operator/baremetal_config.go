@@ -174,6 +174,9 @@ func getMetal3DeploymentConfig(name string, baremetalConfig BaremetalProvisionin
 		return getProvisioningDHCPRange(baremetalConfig)
 	case "RHCOS_IMAGE_URL":
 		return getProvisioningOSDownloadURL(baremetalConfig)
+	case "IRONIC_INSPECTOR_PORT":
+		configValue = baremetalIronicInspectorPort
+		return &configValue
 	}
 	return nil
 }
