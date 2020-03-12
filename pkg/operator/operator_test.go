@@ -6,6 +6,7 @@ import (
 	"time"
 
 	openshiftv1 "github.com/openshift/api/config/v1"
+	osconfigv1 "github.com/openshift/api/config/v1"
 	fakeos "github.com/openshift/client-go/config/clientset/versioned/fake"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions"
 	"github.com/stretchr/testify/assert"
@@ -24,6 +25,7 @@ const (
 	deploymentName   = "machine-api-controllers"
 	targetNamespace  = "test-namespace"
 	hcControllerName = "machine-healthcheck-controller"
+	releaseVersion   = "0.0.0.test-unit"
 )
 
 func newOperatorConfig() *OperatorConfig {
@@ -69,6 +71,10 @@ func newFakeOperator(kubeObjects []runtime.Object, osObjects []runtime.Object, s
 	optr.syncHandler = optr.sync
 	deployInformer.Informer().AddEventHandler(optr.eventHandlerDeployments())
 	featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
+
+	optr.operandVersions = []osconfigv1.OperandVersion{
+		{Name: "operator", Version: releaseVersion},
+	}
 
 	return optr
 }
@@ -151,20 +157,39 @@ func TestOperatorSync_NoOp(t *testing.T) {
 				return true, nil
 			})
 
-			if tc.expectedNoop != (err != nil) {
-				t.Errorf("Failed to verify deployment %q with platform %s", deploymentName, tc.platform)
+			var expectedConditions map[openshiftv1.ClusterStatusConditionType]openshiftv1.ConditionStatus
+
+			if tc.expectedNoop {
+				// The PollImmediate looking for the deployment above should
+				// have failed in the case of a no-op platform.
+				if err == nil {
+					t.Error("Found deployment when expecting no-op sync")
+				}
+
+				// In this case, we expect to report available.
+				expectedConditions = map[openshiftv1.ClusterStatusConditionType]openshiftv1.ConditionStatus{
+					openshiftv1.OperatorAvailable:   openshiftv1.ConditionTrue,
+					openshiftv1.OperatorProgressing: openshiftv1.ConditionFalse,
+					openshiftv1.OperatorDegraded:    openshiftv1.ConditionFalse,
+					openshiftv1.OperatorUpgradeable: openshiftv1.ConditionTrue,
+				}
+
+			} else {
+				// If this wasn't a no-op, we expect to be progressing towards
+				// the new version of the operands.
+				expectedConditions = map[openshiftv1.ClusterStatusConditionType]openshiftv1.ConditionStatus{
+					openshiftv1.OperatorAvailable:   openshiftv1.ConditionFalse,
+					openshiftv1.OperatorProgressing: openshiftv1.ConditionTrue,
+					openshiftv1.OperatorDegraded:    openshiftv1.ConditionFalse,
+					openshiftv1.OperatorUpgradeable: openshiftv1.ConditionTrue,
+				}
 			}
 
 			o, err := optr.osClient.ConfigV1().ClusterOperators().Get(clusterOperatorName, metav1.GetOptions{})
 			if !assert.NoError(t, err, "failed to get clusteroperator") {
 				t.Fatal()
 			}
-			expectedConditions := map[openshiftv1.ClusterStatusConditionType]openshiftv1.ConditionStatus{
-				openshiftv1.OperatorAvailable:   openshiftv1.ConditionTrue,
-				openshiftv1.OperatorProgressing: openshiftv1.ConditionFalse,
-				openshiftv1.OperatorDegraded:    openshiftv1.ConditionFalse,
-				openshiftv1.OperatorUpgradeable: openshiftv1.ConditionTrue,
-			}
+
 			for _, c := range o.Status.Conditions {
 				assert.Equal(t, expectedConditions[c.Type], c.Status, fmt.Sprintf("unexpected clusteroperator condition %s status", c.Type))
 			}
