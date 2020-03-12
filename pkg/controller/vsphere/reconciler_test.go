@@ -17,6 +17,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -783,8 +784,382 @@ func TestDelete(t *testing.T) {
 	}
 }
 
-// TODO TestCreate()
-// TODO TestUpdate()
-// TODO TestExist()
-// TODO TestReconcileMachineWithCloudState()
+func TestCreate(t *testing.T) {
+	model, session, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+	credentialsSecretUsername := fmt.Sprintf("%s.username", server.URL.Host)
+	credentialsSecretPassword := fmt.Sprintf("%s.password", server.URL.Host)
+
+	password, _ := server.URL.User.Password()
+	namespace := "test"
+	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+
+	credentialsSecret := corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: namespace,
+		},
+		Data: map[string][]byte{
+			credentialsSecretUsername: []byte(server.URL.User.Username()),
+			credentialsSecretPassword: []byte(password),
+		},
+	}
+
+	vmObj := object.NewVirtualMachine(session.Client.Client, vm.Reference())
+	task, err := vmObj.PowerOn(context.TODO())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cases := []struct {
+		name                  string
+		expectedError         error
+		providerSpec          vsphereapi.VSphereMachineProviderSpec
+		labels                map[string]string
+		notConnectedToVCenter bool
+	}{
+		{
+			name: "Successfully create machine",
+			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+				Template: vm.Name,
+			},
+		},
+		{
+			name: "Fail on invalid missing machine label",
+			labels: map[string]string{
+				machinev1.MachineClusterIDLabel: "",
+			},
+			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+				Template: vm.Name,
+			},
+			expectedError: errors.New("test: failed validating machine provider spec: test: missing \"machine.openshift.io/cluster-api-cluster\" label"),
+		},
+		{
+			name: "Fail on not connected to vCenter",
+			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+				Template: vm.Name,
+			},
+			expectedError:         errors.New("test: not connected to a vCenter"),
+			notConnectedToVCenter: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			labels := map[string]string{
+				machinev1.MachineClusterIDLabel: "CLUSTERID",
+			}
+
+			if tc.labels != nil {
+				labels = tc.labels
+			}
+
+			if tc.notConnectedToVCenter {
+				session.Client.ServiceContent.About.ApiType = ""
+			}
+
+			machineScope := machineScope{
+				Context: context.TODO(),
+				machine: &machinev1.Machine{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: "test",
+						Labels:    labels,
+					},
+				},
+				providerSpec: &tc.providerSpec,
+				session:      session,
+				providerStatus: &vsphereapi.VSphereMachineProviderStatus{
+					TaskRef: task.Reference().Value,
+				},
+				client: fake.NewFakeClientWithScheme(scheme.Scheme, &credentialsSecret),
+			}
+
+			reconciler := newReconciler(&machineScope)
+
+			err := reconciler.create()
+
+			if tc.expectedError != nil {
+				if err == nil {
+					t.Error("reconciler was expected to return error")
+				}
+				if err.Error() != tc.expectedError.Error() {
+					t.Errorf("Expected: %v, got %v", tc.expectedError, err)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("reconciler was not expected to return error: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestUpdate(t *testing.T) {
+	model, session, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+	credentialsSecretUsername := fmt.Sprintf("%s.username", server.URL.Host)
+	credentialsSecretPassword := fmt.Sprintf("%s.password", server.URL.Host)
+
+	password, _ := server.URL.User.Password()
+	namespace := "test"
+	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	instanceUUID := "instanceUUID"
+	vm.Config.InstanceUuid = instanceUUID
+
+	credentialsSecret := corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: namespace,
+		},
+		Data: map[string][]byte{
+			credentialsSecretUsername: []byte(server.URL.User.Username()),
+			credentialsSecretPassword: []byte(password),
+		},
+	}
+
+	vmObj := object.NewVirtualMachine(session.Client.Client, vm.Reference())
+	task, err := vmObj.PowerOn(context.TODO())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cases := []struct {
+		name          string
+		expectedError error
+		providerSpec  vsphereapi.VSphereMachineProviderSpec
+		labels        map[string]string
+	}{
+		{
+			name: "Successfully update machine",
+			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+				Template: vm.Name,
+				Network: vsphereapi.NetworkSpec{
+					Devices: []vsphereapi.NetworkDeviceSpec{
+						vsphereapi.NetworkDeviceSpec{
+							NetworkName: "test",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "Fail on invalid missing machine label",
+			labels: map[string]string{
+				machinev1.MachineClusterIDLabel: "",
+			},
+			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+				Template: vm.Name,
+				Network: vsphereapi.NetworkSpec{
+					Devices: []vsphereapi.NetworkDeviceSpec{
+						vsphereapi.NetworkDeviceSpec{
+							NetworkName: "test",
+						},
+					},
+				},
+			},
+			expectedError: errors.New("test: failed validating machine provider spec: test: missing \"machine.openshift.io/cluster-api-cluster\" label"),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			labels := map[string]string{
+				machinev1.MachineClusterIDLabel: "CLUSTERID",
+			}
+
+			if tc.labels != nil {
+				labels = tc.labels
+			}
+
+			machineScope := machineScope{
+				Context: context.TODO(),
+				machine: &machinev1.Machine{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: "test",
+						Labels:    labels,
+						UID:       apimachinerytypes.UID(instanceUUID),
+					},
+				},
+				providerSpec: &tc.providerSpec,
+				session:      session,
+				providerStatus: &vsphereapi.VSphereMachineProviderStatus{
+					TaskRef: task.Reference().Value,
+				},
+				client: fake.NewFakeClientWithScheme(scheme.Scheme, &credentialsSecret),
+			}
+
+			reconciler := newReconciler(&machineScope)
+
+			err := reconciler.update()
+
+			if tc.expectedError != nil {
+				if err == nil {
+					t.Fatal("reconciler was expected to return error")
+				}
+				if err.Error() != tc.expectedError.Error() {
+					t.Fatalf("Expected: %v, got %v", tc.expectedError, err)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("reconciler was not expected to return error: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestExists(t *testing.T) {
+	model, session, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+	credentialsSecretUsername := fmt.Sprintf("%s.username", server.URL.Host)
+	credentialsSecretPassword := fmt.Sprintf("%s.password", server.URL.Host)
+
+	password, _ := server.URL.User.Password()
+	namespace := "test"
+	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	instanceUUID := "instanceUUID"
+	vm.Config.InstanceUuid = instanceUUID
+
+	credentialsSecret := corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: namespace,
+		},
+		Data: map[string][]byte{
+			credentialsSecretUsername: []byte(server.URL.User.Username()),
+			credentialsSecretPassword: []byte(password),
+		},
+	}
+
+	vmObj := object.NewVirtualMachine(session.Client.Client, vm.Reference())
+	task, err := vmObj.PowerOn(context.TODO())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cases := []struct {
+		name   string
+		exists bool
+	}{
+		{
+			name:   "VM doesn't exist",
+			exists: false,
+		},
+		{
+			name:   "VM already exists",
+			exists: true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			machineScope := machineScope{
+				Context: context.TODO(),
+				machine: &machinev1.Machine{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: "test",
+						Labels: map[string]string{
+							machinev1.MachineClusterIDLabel: "CLUSTERID",
+						},
+					},
+				},
+				providerSpec: &vsphereapi.VSphereMachineProviderSpec{
+					Template: vm.Name,
+				},
+				session: session,
+				providerStatus: &vsphereapi.VSphereMachineProviderStatus{
+					TaskRef: task.Reference().Value,
+				},
+				client: fake.NewFakeClientWithScheme(scheme.Scheme, &credentialsSecret),
+			}
+
+			reconciler := newReconciler(&machineScope)
+
+			if tc.exists {
+				reconciler.machine.UID = apimachinerytypes.UID(instanceUUID)
+			}
+
+			exists, err := reconciler.exists()
+			if err != nil {
+				t.Fatalf("reconciler was not expected to return error: %v", err)
+			}
+
+			if tc.exists != exists {
+				t.Fatalf("Expected: %v, got %v", tc.exists, exists)
+			}
+		})
+	}
+}
+
+func TestReconcileMachineWithCloudState(t *testing.T) {
+	model, session, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	instanceUUID := "instanceUUID"
+	vm.Config.InstanceUuid = instanceUUID
+
+	vmObj := object.NewVirtualMachine(session.Client.Client, vm.Reference())
+	task, err := vmObj.PowerOn(context.TODO())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	machineScope := machineScope{
+		Context: context.TODO(),
+		machine: &machinev1.Machine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: "test",
+				Labels: map[string]string{
+					machinev1.MachineClusterIDLabel: "CLUSTERID",
+				},
+			},
+		},
+		providerSpec: &vsphereapi.VSphereMachineProviderSpec{
+			Template: vm.Name,
+			Network: vsphereapi.NetworkSpec{
+				Devices: []vsphereapi.NetworkDeviceSpec{
+					vsphereapi.NetworkDeviceSpec{
+						NetworkName: "test",
+					},
+				},
+			},
+		},
+		session: session,
+		providerStatus: &vsphereapi.VSphereMachineProviderStatus{
+			TaskRef: task.Reference().Value,
+		},
+	}
+
+	vmWrapper := &virtualMachine{
+		Context: machineScope.Context,
+		Obj:     object.NewVirtualMachine(machineScope.session.Client.Client, vmObj.Reference()),
+		Ref:     vmObj.Reference(),
+	}
+
+	reconciler := newReconciler(&machineScope)
+	if err := reconciler.reconcileMachineWithCloudState(vmWrapper); err != nil {
+		t.Fatalf("reconciler was not expected to return error: %v", err)
+	}
+
+	expectedProviderID, err := convertUUIDToProviderID(vmWrapper.Obj.UUID(vmWrapper.Context))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if expectedProviderID != *reconciler.machine.Spec.ProviderID {
+		t.Errorf("Expected: %s, got: %s", expectedProviderID, *reconciler.machine.Spec.ProviderID)
+	}
+
+	// TODO: add zones and networks
+}
+
 // See https://github.com/vmware/govmomi/blob/master/simulator/example_extend_test.go#L33:6 for extending behaviour example
