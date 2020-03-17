@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	configv1 "github.com/openshift/api/config/v1"
+	corev1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -65,6 +66,34 @@ func getProviderFromInfrastructure(infra *configv1.Infrastructure) (configv1.Pla
 		return "", fmt.Errorf("no platform provider found on install config")
 	}
 	return infra.Status.Platform, nil
+}
+
+func getProviderFromConfigMap(configmap *corev1.ConfigMap) (configv1.PlatformType, error) {
+
+	provider := configmap.Data["cloud-api-provider"]
+
+	switch provider {
+	case string(configv1.AWSPlatformType):
+		return configv1.AWSPlatformType, nil
+	case string(configv1.LibvirtPlatformType):
+		return configv1.LibvirtPlatformType, nil
+	case string(configv1.OpenStackPlatformType):
+		return configv1.OpenStackPlatformType, nil
+	case string(configv1.AzurePlatformType):
+		return configv1.AzurePlatformType, nil
+	case string(configv1.GCPPlatformType):
+		return configv1.GCPPlatformType, nil
+	case string(configv1.BareMetalPlatformType):
+		return configv1.BareMetalPlatformType, nil
+	case string(configv1.OvirtPlatformType):
+		return configv1.OvirtPlatformType, nil
+	case string(configv1.VSpherePlatformType):
+		return configv1.BareMetalPlatformType, nil
+	case string(kubemarkPlatform):
+		return clusterAPIControllerKubemark, nil
+	default:
+		return clusterAPIControllerNoOp, fmt.Errorf("no platform provider found on install config")
+	}
 }
 
 func getImagesFromJSONFile(filePath string) (*Images, error) {
