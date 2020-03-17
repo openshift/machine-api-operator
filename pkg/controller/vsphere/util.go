@@ -7,8 +7,10 @@ import (
 	"gopkg.in/gcfg.v1"
 
 	configv1 "github.com/openshift/api/config/v1"
+	vspherev1 "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1alpha1"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -86,4 +88,62 @@ func getVSphereConfig(c runtimeclient.Reader) (*vSphereConfig, error) {
 	}
 
 	return &vcfg, nil
+}
+
+func setVSphereMachineProviderConditions(condition vspherev1.VSphereMachineProviderCondition, conditions []vspherev1.VSphereMachineProviderCondition) []vspherev1.VSphereMachineProviderCondition {
+	now := metav1.Now()
+
+	if existingCondition := findProviderCondition(conditions, condition.Type); existingCondition == nil {
+		condition.LastProbeTime = now
+		condition.LastTransitionTime = now
+		conditions = append(conditions, condition)
+	} else {
+		updateExistingCondition(&condition, existingCondition)
+	}
+
+	return conditions
+}
+
+func findProviderCondition(conditions []vspherev1.VSphereMachineProviderCondition, conditionType vspherev1.VSphereMachineProviderConditionType) *vspherev1.VSphereMachineProviderCondition {
+	for i := range conditions {
+		if conditions[i].Type == conditionType {
+			return &conditions[i]
+		}
+	}
+	return nil
+}
+
+func updateExistingCondition(newCondition, existingCondition *vspherev1.VSphereMachineProviderCondition) {
+	if !shouldUpdateCondition(newCondition, existingCondition) {
+		return
+	}
+
+	if existingCondition.Status != newCondition.Status {
+		existingCondition.LastTransitionTime = metav1.Now()
+	}
+	existingCondition.Status = newCondition.Status
+	existingCondition.Reason = newCondition.Reason
+	existingCondition.Message = newCondition.Message
+	existingCondition.LastProbeTime = newCondition.LastProbeTime
+}
+
+func shouldUpdateCondition(newCondition, existingCondition *vspherev1.VSphereMachineProviderCondition) bool {
+	return newCondition.Reason != existingCondition.Reason || newCondition.Message != existingCondition.Message
+}
+
+func conditionSuccess() vspherev1.VSphereMachineProviderCondition {
+	return vspherev1.VSphereMachineProviderCondition{
+		Type:    vspherev1.MachineCreation,
+		Status:  corev1.ConditionTrue,
+		Reason:  vspherev1.MachineCreationSucceeded,
+		Message: "Machine successfully created",
+	}
+}
+
+func conditionFailed() vspherev1.VSphereMachineProviderCondition {
+	return vspherev1.VSphereMachineProviderCondition{
+		Type:   vspherev1.MachineCreation,
+		Status: corev1.ConditionFalse,
+		Reason: vspherev1.MachineCreationFailed,
+	}
 }
