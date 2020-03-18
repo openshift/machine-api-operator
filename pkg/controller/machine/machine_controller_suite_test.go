@@ -61,14 +61,15 @@ func SetupTestReconcile(inner reconcile.Reconciler) (reconcile.Reconciler, chan 
 }
 
 // StartTestManager adds recFn
-func StartTestManager(mgr manager.Manager, t *testing.T) chan struct{} {
+func StartTestManager(mgr manager.Manager, t *testing.T) (chan struct{}, chan error) {
 	t.Helper()
 
 	stop := make(chan struct{})
+	errs := make(chan error, 1)
+
 	go func() {
-		if err := mgr.Start(stop); err != nil {
-			t.Fatalf("error starting test manager: %v", err)
-		}
+		errs <- mgr.Start(stop)
 	}()
-	return stop
+
+	return stop, errs
 }

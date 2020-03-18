@@ -49,7 +49,14 @@ func TestReconcile(t *testing.T) {
 	if err := add(mgr, recFn, r.MachineToMachineSets); err != nil {
 		t.Errorf("error adding controller to manager: %v", err)
 	}
-	defer close(StartTestManager(mgr, t))
+
+	stop, errChan := StartTestManager(mgr, t)
+	defer func() {
+		close(stop)
+		if err := <-errChan; err != nil {
+			t.Fatalf("error starting test manager: %v", err)
+		}
+	}()
 
 	replicas := int32(2)
 	labels := map[string]string{"foo": "bar"}
