@@ -6,7 +6,6 @@ import (
 	"time"
 
 	openshiftv1 "github.com/openshift/api/config/v1"
-	osconfigv1 "github.com/openshift/api/config/v1"
 	fakeos "github.com/openshift/client-go/config/clientset/versioned/fake"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions"
 	"github.com/stretchr/testify/assert"
@@ -27,20 +26,6 @@ const (
 	hcControllerName = "machine-healthcheck-controller"
 	releaseVersion   = "0.0.0.test-unit"
 )
-
-func newOperatorConfig() *OperatorConfig {
-	baremetalControllers := BaremetalControllers{}
-
-	return &OperatorConfig{
-		targetNamespace,
-		Controllers{
-			"docker.io/openshift/origin-aws-machine-controllers:v4.0.0",
-			"docker.io/openshift/origin-machine-api-operator:v4.0.0",
-			"docker.io/openshift/origin-machine-api-operator:v4.0.0",
-		},
-		baremetalControllers,
-	}
-}
 
 func newFakeOperator(kubeObjects []runtime.Object, osObjects []runtime.Object, stopCh <-chan struct{}) *Operator {
 	kubeClient := fakekube.NewSimpleClientset(kubeObjects...)
@@ -72,7 +57,7 @@ func newFakeOperator(kubeObjects []runtime.Object, osObjects []runtime.Object, s
 	deployInformer.Informer().AddEventHandler(optr.eventHandlerDeployments())
 	featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
 
-	optr.operandVersions = []osconfigv1.OperandVersion{
+	optr.operandVersions = []openshiftv1.OperandVersion{
 		{Name: "operator", Version: releaseVersion},
 	}
 

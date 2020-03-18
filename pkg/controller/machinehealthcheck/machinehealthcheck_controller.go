@@ -634,13 +634,6 @@ func derefStringPointer(stringPointer *string) string {
 	return ""
 }
 
-func derefStringInt(intPointer *int) int {
-	if intPointer != nil {
-		return 0
-	}
-	return *intPointer
-}
-
 func minDuration(durations []time.Duration) time.Duration {
 	if len(durations) == 0 {
 		return time.Duration(0)

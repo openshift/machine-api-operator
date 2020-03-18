@@ -7,7 +7,6 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/controller/machinehealthcheck"
 
 	"github.com/golang/glog"
-	"github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/controller"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
@@ -51,7 +50,7 @@ func main() {
 	glog.Infof("Registering Components.")
 
 	// Setup Scheme for all resources
-	if err := v1beta1.AddToScheme(mgr.GetScheme()); err != nil {
+	if err := mapiv1.AddToScheme(mgr.GetScheme()); err != nil {
 		glog.Fatal(err)
 	}
 	if err := mapiv1.AddToScheme(mgr.GetScheme()); err != nil {

@@ -53,7 +53,14 @@ func TestReconcile(t *testing.T) {
 	if err := add(mgr, recFn); err != nil {
 		t.Fatalf("error adding controller to manager: %v", err)
 	}
-	defer close(StartTestManager(mgr, t))
+
+	stop, errChan := StartTestManager(mgr, t)
+	defer func() {
+		close(stop)
+		if err := <-errChan; err != nil {
+			t.Fatalf("error starting test manager: %v", err)
+		}
+	}()
 
 	// Create the Machine object and expect Reconcile and the actuator to be called
 	if err := c.Create(context.TODO(), instance); err != nil {

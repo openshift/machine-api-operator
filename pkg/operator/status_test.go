@@ -35,10 +35,9 @@ func TestPrintOperandVersions(t *testing.T) {
 
 func TestOperatorStatusProgressing(t *testing.T) {
 	type tCase struct {
-		currentVersion        []osconfigv1.OperandVersion
-		desiredVersion        []osconfigv1.OperandVersion
-		expectedConditions    []osconfigv1.ClusterOperatorStatusCondition
-		transitionTimeUpdated bool
+		currentVersion     []osconfigv1.OperandVersion
+		desiredVersion     []osconfigv1.OperandVersion
+		expectedConditions []osconfigv1.ClusterOperatorStatusCondition
 	}
 	tCases := []tCase{
 		{
