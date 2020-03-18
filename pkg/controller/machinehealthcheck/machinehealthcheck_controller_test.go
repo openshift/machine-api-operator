@@ -2424,6 +2424,7 @@ func TestIsAllowedRemediation(t *testing.T) {
 	// short circuit if ever more than 2 out of 5 go unhealthy
 	maxUnhealthyInt := intstr.FromInt(2)
 	maxUnhealthyString := intstr.FromString("40%")
+	maxUnhealthyIntInString := intstr.FromString("2")
 
 	testCases := []struct {
 		testCase string
@@ -2506,6 +2507,48 @@ func TestIsAllowedRemediation(t *testing.T) {
 				Spec: mapiv1beta1.MachineHealthCheckSpec{
 					Selector:     metav1.LabelSelector{},
 					MaxUnhealthy: &maxUnhealthyString,
+				},
+				Status: mapiv1beta1.MachineHealthCheckStatus{
+					ExpectedMachines: IntPtr(5),
+					CurrentHealthy:   IntPtr(2),
+				},
+			},
+			expected: false,
+		},
+		{
+			testCase: "not above maxUnhealthy (int in string)",
+			mhc: &mapiv1beta1.MachineHealthCheck{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: namespace,
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind: "MachineHealthCheck",
+				},
+				Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Selector:     metav1.LabelSelector{},
+					MaxUnhealthy: &maxUnhealthyIntInString,
+				},
+				Status: mapiv1beta1.MachineHealthCheckStatus{
+					ExpectedMachines: IntPtr(5),
+					CurrentHealthy:   IntPtr(3),
+				},
+			},
+			expected: true,
+		},
+		{
+			testCase: "above maxUnhealthy (int in string)",
+			mhc: &mapiv1beta1.MachineHealthCheck{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: namespace,
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind: "MachineHealthCheck",
+				},
+				Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Selector:     metav1.LabelSelector{},
+					MaxUnhealthy: &maxUnhealthyIntInString,
 				},
 				Status: mapiv1beta1.MachineHealthCheckStatus{
 					ExpectedMachines: IntPtr(5),
