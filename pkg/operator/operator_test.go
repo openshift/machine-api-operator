@@ -27,20 +27,6 @@ const (
 	releaseVersion   = "0.0.0.test-unit"
 )
 
-func newOperatorConfig() *OperatorConfig {
-	baremetalControllers := BaremetalControllers{}
-
-	return &OperatorConfig{
-		targetNamespace,
-		Controllers{
-			"docker.io/openshift/origin-aws-machine-controllers:v4.0.0",
-			"docker.io/openshift/origin-machine-api-operator:v4.0.0",
-			"docker.io/openshift/origin-machine-api-operator:v4.0.0",
-		},
-		baremetalControllers,
-	}
-}
-
 func newFakeOperator(kubeObjects []runtime.Object, osObjects []runtime.Object, stopCh <-chan struct{}) *Operator {
 	kubeClient := fakekube.NewSimpleClientset(kubeObjects...)
 	osClient := fakeos.NewSimpleClientset(osObjects...)

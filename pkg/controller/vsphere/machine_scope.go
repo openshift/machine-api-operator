@@ -22,10 +22,9 @@ const (
 // machineScopeParams defines the input parameters used to create a new MachineScope.
 type machineScopeParams struct {
 	context.Context
-	client        runtimeclient.Client
-	apiReader     runtimeclient.Reader
-	machine       *machinev1.Machine
-	vSphereConfig *vSphereConfig
+	client    runtimeclient.Client
+	apiReader runtimeclient.Reader
+	machine   *machinev1.Machine
 }
 
 // machineScope defines a scope defined around a machine and its cluster.
