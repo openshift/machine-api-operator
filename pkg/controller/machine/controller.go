@@ -441,10 +441,7 @@ func machineHasNode(machine *machinev1.Machine) bool {
 }
 
 func machineIsFailed(machine *machinev1.Machine) bool {
-	if stringPointerDeref(machine.Status.Phase) == phaseFailed {
-		return true
-	}
-	return false
+	return stringPointerDeref(machine.Status.Phase) == phaseFailed
 }
 
 func nodeIsUnreachable(node *corev1.Node) bool {

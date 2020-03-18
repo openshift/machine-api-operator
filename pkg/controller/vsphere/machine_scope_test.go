@@ -129,7 +129,7 @@ func TestGetUserData(t *testing.T) {
 				t.Errorf("Unexpected error: %v", err)
 			}
 
-			if bytes.Compare(userData, tc.expectedUserdata) != 0 {
+			if !bytes.Equal(userData, tc.expectedUserdata) {
 				t.Errorf("Got: %q, Want: %q", userData, tc.expectedUserdata)
 			}
 		})
