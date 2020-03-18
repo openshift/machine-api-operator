@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"time"
 
-	commonerrors "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/util"
 	corev1 "k8s.io/api/core/v1"
@@ -406,7 +405,7 @@ func delayIfRequeueAfterError(err error) (reconcile.Result, error) {
 func isInvalidMachineConfigurationError(err error) bool {
 	switch t := err.(type) {
 	case *MachineError:
-		if t.Reason == commonerrors.InvalidConfigurationMachineError {
+		if t.Reason == machinev1.InvalidConfigurationMachineError {
 			klog.Infof("Actuator returned invalid configuration error: %v", err)
 			return true
 		}

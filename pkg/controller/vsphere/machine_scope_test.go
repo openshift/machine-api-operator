@@ -7,8 +7,7 @@ import (
 	"testing"
 
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
-	apivsphere "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1alpha1"
-	vsphereapi "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1alpha1"
+	vspherev1 "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,8 +19,8 @@ import (
 
 const TestNamespace = "vsphere-test"
 
-func MachineWithSpec(spec *apivsphere.VSphereMachineProviderSpec) *machinev1.Machine {
-	rawSpec, err := vsphereapi.RawExtensionFromProviderSpec(spec)
+func MachineWithSpec(spec *vspherev1.VSphereMachineProviderSpec) *machinev1.Machine {
+	rawSpec, err := vspherev1.RawExtensionFromProviderSpec(spec)
 	if err != nil {
 		panic("Failed to encode raw extension from provider spec")
 	}
@@ -42,7 +41,7 @@ func MachineWithSpec(spec *apivsphere.VSphereMachineProviderSpec) *machinev1.Mac
 func TestGetUserData(t *testing.T) {
 	userDataSecretName := "vsphere-ignition"
 
-	defaultProviderSpec := &apivsphere.VSphereMachineProviderSpec{
+	defaultProviderSpec := &vspherev1.VSphereMachineProviderSpec{
 		UserDataSecret: &corev1.LocalObjectReference{
 			Name: userDataSecretName,
 		},
@@ -51,7 +50,7 @@ func TestGetUserData(t *testing.T) {
 	testCases := []struct {
 		testCase         string
 		userDataSecret   *corev1.Secret
-		providerSpec     *apivsphere.VSphereMachineProviderSpec
+		providerSpec     *vspherev1.VSphereMachineProviderSpec
 		expectedUserdata []byte
 		expectError      bool
 	}{
@@ -100,7 +99,7 @@ func TestGetUserData(t *testing.T) {
 		{
 			testCase:         "no user-data in provider spec",
 			userDataSecret:   nil,
-			providerSpec:     &apivsphere.VSphereMachineProviderSpec{},
+			providerSpec:     &vspherev1.VSphereMachineProviderSpec{},
 			expectError:      false,
 			expectedUserdata: nil,
 		},
@@ -146,7 +145,7 @@ func TestGetCredentialsSecret(t *testing.T) {
 	testCases := []struct {
 		testCase          string
 		secret            *corev1.Secret
-		providerSpec      *apivsphere.VSphereMachineProviderSpec
+		providerSpec      *vspherev1.VSphereMachineProviderSpec
 		expectError       bool
 		expectCredentials bool
 	}{
@@ -162,11 +161,11 @@ func TestGetCredentialsSecret(t *testing.T) {
 					expectedCredentialsSecretPassword: []byte(expectedPassword),
 				},
 			},
-			providerSpec: &apivsphere.VSphereMachineProviderSpec{
+			providerSpec: &vspherev1.VSphereMachineProviderSpec{
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: "test",
 				},
-				Workspace: &apivsphere.Workspace{
+				Workspace: &vspherev1.Workspace{
 					Server: expectedServer,
 				},
 			},
@@ -184,11 +183,11 @@ func TestGetCredentialsSecret(t *testing.T) {
 					expectedCredentialsSecretPassword: []byte(expectedPassword),
 				},
 			},
-			providerSpec: &apivsphere.VSphereMachineProviderSpec{
+			providerSpec: &vspherev1.VSphereMachineProviderSpec{
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: "secret-does-not-exist",
 				},
-				Workspace: &apivsphere.Workspace{
+				Workspace: &vspherev1.Workspace{
 					Server: expectedServer,
 				},
 			},
@@ -206,11 +205,11 @@ func TestGetCredentialsSecret(t *testing.T) {
 					expectedCredentialsSecretPassword: []byte(expectedPassword),
 				},
 			},
-			providerSpec: &apivsphere.VSphereMachineProviderSpec{
+			providerSpec: &vspherev1.VSphereMachineProviderSpec{
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: "test",
 				},
-				Workspace: &apivsphere.Workspace{
+				Workspace: &vspherev1.Workspace{
 					Server: expectedServer,
 				},
 			},
@@ -228,11 +227,11 @@ func TestGetCredentialsSecret(t *testing.T) {
 					"badPasswordKey":                  []byte(expectedPassword),
 				},
 			},
-			providerSpec: &apivsphere.VSphereMachineProviderSpec{
+			providerSpec: &vspherev1.VSphereMachineProviderSpec{
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: "test",
 				},
-				Workspace: &apivsphere.Workspace{
+				Workspace: &vspherev1.Workspace{
 					Server: expectedServer,
 				},
 			},
@@ -250,7 +249,7 @@ func TestGetCredentialsSecret(t *testing.T) {
 					expectedCredentialsSecretPassword: []byte(expectedPassword),
 				},
 			},
-			providerSpec:      &apivsphere.VSphereMachineProviderSpec{},
+			providerSpec:      &vspherev1.VSphereMachineProviderSpec{},
 			expectError:       false,
 			expectCredentials: false,
 		},
@@ -298,25 +297,25 @@ func TestPatchMachine(t *testing.T) {
 	}
 
 	// original objects
-	originalProviderSpec := apivsphere.VSphereMachineProviderSpec{
+	originalProviderSpec := vspherev1.VSphereMachineProviderSpec{
 		CredentialsSecret: &corev1.LocalObjectReference{
 			Name: "test",
 		},
 
-		Workspace: &apivsphere.Workspace{
+		Workspace: &vspherev1.Workspace{
 			Server: server.URL.Host,
 			Folder: "test",
 		},
 	}
-	rawProviderSpec, err := apivsphere.RawExtensionFromProviderSpec(&originalProviderSpec)
+	rawProviderSpec, err := vspherev1.RawExtensionFromProviderSpec(&originalProviderSpec)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	originalProviderStatus := &apivsphere.VSphereMachineProviderStatus{
+	originalProviderStatus := &vspherev1.VSphereMachineProviderStatus{
 		TaskRef: "test",
 	}
-	rawProviderStatus, err := apivsphere.RawExtensionFromProviderStatus(originalProviderStatus)
+	rawProviderStatus, err := vspherev1.RawExtensionFromProviderStatus(originalProviderStatus)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -349,10 +348,10 @@ func TestPatchMachine(t *testing.T) {
 			Address: "127.0.0.1",
 		},
 	}
-	expectedProviderStatus := &apivsphere.VSphereMachineProviderStatus{
+	expectedProviderStatus := &vspherev1.VSphereMachineProviderStatus{
 		TaskRef: "mutated",
 	}
-	rawProviderStatus, err = apivsphere.RawExtensionFromProviderStatus(expectedProviderStatus)
+	rawProviderStatus, err = vspherev1.RawExtensionFromProviderStatus(expectedProviderStatus)
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	openshiftv1 "github.com/openshift/api/config/v1"
-	osconfigv1 "github.com/openshift/api/config/v1"
 	fakeos "github.com/openshift/client-go/config/clientset/versioned/fake"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions"
 	"github.com/stretchr/testify/assert"
@@ -72,7 +71,7 @@ func newFakeOperator(kubeObjects []runtime.Object, osObjects []runtime.Object, s
 	deployInformer.Informer().AddEventHandler(optr.eventHandlerDeployments())
 	featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
 
-	optr.operandVersions = []osconfigv1.OperandVersion{
+	optr.operandVersions = []openshiftv1.OperandVersion{
 		{Name: "operator", Version: releaseVersion},
 	}
 
