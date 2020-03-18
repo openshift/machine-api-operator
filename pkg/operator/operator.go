@@ -262,14 +262,11 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 
 	cloudapiconfig, err := optr.kubeClient.CoreV1().ConfigMaps(optr.namespace).Get("cluster-api-provider-config", metav1.GetOptions{})
 	if err != nil {
-		glog.Infoln("ConfigMap cluster-api-provider-config not found or error in reading it, continuing with infrastructure Object")
+		glog.V(4).Infof("Error in reading config map cluster-api-provider-config, %v", err)
 	} else {
-		glog.Infoln("ConfigMap found, Trying to read cloud from ConfigMap")
 		provider, err = getProviderFromConfigMap(cloudapiconfig)
 		if err != nil {
-			glog.Infoln("Unable able to find cloud in cloud config")
-		} else {
-			glog.Infoln("Found cloud ", provider, "in configmap")
+			glog.V(4).Infof("Unable able to find cloud in configmap, %v", err)
 		}
 	}
 
