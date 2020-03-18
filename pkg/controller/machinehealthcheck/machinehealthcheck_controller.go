@@ -2,7 +2,11 @@ package machinehealthcheck
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"math"
+	"strconv"
+	"strings"
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -228,7 +232,7 @@ func isAllowedRemediation(mhc *mapiv1.MachineHealthCheck) bool {
 	if mhc.Spec.MaxUnhealthy == nil {
 		return true
 	}
-	maxUnhealthy, err := intstr.GetValueFromIntOrPercent(mhc.Spec.MaxUnhealthy, derefInt(mhc.Status.ExpectedMachines), false)
+	maxUnhealthy, err := getValueFromIntOrPercent(mhc.Spec.MaxUnhealthy, derefInt(mhc.Status.ExpectedMachines), false)
 	if err != nil {
 		glog.Errorf("%s: error decoding maxUnhealthy, remediation won't be allowed: %v", namespacedName(mhc), err)
 		return false
@@ -672,4 +676,54 @@ func hasMatchingLabels(machineHealthCheck *mapiv1.MachineHealthCheck, machine *m
 		return false
 	}
 	return true
+}
+
+// getValueFromIntOrPercent returns the integer number value based on the
+// percentage of the total or absolute number dependent on the IntOrString given
+//
+// The following code is copied from https://github.com/kubernetes/apimachinery/blob/1a505bc60c6dfb15cb18a8cdbfa01db042156fe2/pkg/util/intstr/intstr.go#L154-L185
+// But fixed so that string values aren't always assumed to be percentages
+// See https://github.com/kubernetes/kubernetes/issues/89082 for details
+func getValueFromIntOrPercent(intOrPercent *intstr.IntOrString, total int, roundUp bool) (int, error) {
+	if intOrPercent == nil {
+		return 0, errors.New("nil value for IntOrString")
+	}
+	value, isPercent, err := getIntOrPercentValue(intOrPercent)
+	if err != nil {
+		return 0, fmt.Errorf("invalid value for IntOrString: %v", err)
+	}
+	if isPercent {
+		if roundUp {
+			value = int(math.Ceil(float64(value) * (float64(total)) / 100))
+		} else {
+			value = int(math.Floor(float64(value) * (float64(total)) / 100))
+		}
+	}
+	return value, nil
+}
+
+// getIntOrPercentValue returns the integer value of the IntOrString and
+// determines if this value is a percentage or absolute number
+//
+// The following code is copied from https://github.com/kubernetes/apimachinery/blob/1a505bc60c6dfb15cb18a8cdbfa01db042156fe2/pkg/util/intstr/intstr.go#L154-L185
+// But fixed so that string values aren't always assumed to be percentages
+// See https://github.com/kubernetes/kubernetes/issues/89082 for details
+func getIntOrPercentValue(intOrStr *intstr.IntOrString) (int, bool, error) {
+	switch intOrStr.Type {
+	case intstr.Int:
+		return intOrStr.IntValue(), false, nil
+	case intstr.String:
+		isPercent := false
+		s := intOrStr.StrVal
+		if strings.Contains(s, "%") {
+			isPercent = true
+			s = strings.Replace(intOrStr.StrVal, "%", "", -1)
+		}
+		v, err := strconv.Atoi(s)
+		if err != nil {
+			return 0, isPercent, fmt.Errorf("invalid value %q: %v", intOrStr.StrVal, err)
+		}
+		return int(v), isPercent, nil
+	}
+	return 0, false, fmt.Errorf("invalid type: neither int nor percentage")
 }
