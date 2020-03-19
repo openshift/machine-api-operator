@@ -14,7 +14,7 @@ data:
       "clusterAPIControllerAzure": "registry.svc.ci.openshift.org/openshift:azure-machine-controllers",
       "clusterAPIControllerGCP": "registry.svc.ci.openshift.org/openshift:gcp-machine-controllers",
       "clusterAPIControllerOvirt": "registry.svc.ci.openshift.org/openshift:ovirt-machine-controllers",
-      "clusterAPIControllerVSphere": "docker.io/openshift/origin-machine-api-operator:v4.0.0",
+      "clusterAPIControllerVSphere": "registry.svc.ci.openshift.org/openshift:machine-api-operator",
       "baremetalOperator": "registry.svc.ci.openshift.org/openshift:baremetal-operator",
       "baremetalIronic": "registry.svc.ci.openshift.org/openshift:ironic",
       "baremetalIronicInspector": "registry.svc.ci.openshift.org/openshift:ironic-inspector",
