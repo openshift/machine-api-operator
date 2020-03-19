@@ -2412,6 +2412,7 @@ func TestIsAllowedRemediation(t *testing.T) {
 	maxUnhealthyInt := intstr.FromInt(2)
 	maxUnhealthyString := intstr.FromString("40%")
 	maxUnhealthyIntInString := intstr.FromString("2")
+	maxUnhealthyMixedString := intstr.FromString("foo%50")
 
 	testCases := []struct {
 		testCase string
@@ -2564,6 +2565,27 @@ func TestIsAllowedRemediation(t *testing.T) {
 				},
 			},
 			expected: true,
+		},
+		{
+			testCase: "invalid string value",
+			mhc: &mapiv1beta1.MachineHealthCheck{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: namespace,
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind: "MachineHealthCheck",
+				},
+				Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Selector:     metav1.LabelSelector{},
+					MaxUnhealthy: &maxUnhealthyMixedString,
+				},
+				Status: mapiv1beta1.MachineHealthCheckStatus{
+					ExpectedMachines: nil,
+					CurrentHealthy:   nil,
+				},
+			},
+			expected: false,
 		},
 	}
 
