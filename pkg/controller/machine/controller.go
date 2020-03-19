@@ -59,8 +59,8 @@ const (
 	// MachineInstanceTypeLabelName as annotation name for a machine instance type
 	MachineInstanceTypeLabelName = "machine.openshift.io/instance-type"
 
-	// MachineInterruptableInstanceLabelName as annotaiton name for interruptible instances
-	MachineInterruptableInstanceLabelName = "machine.openshift.io/interruptible-instance"
+	// MachineInterruptibleInstanceLabelName as annotaiton name for interruptible instances
+	MachineInterruptibleInstanceLabelName = "machine.openshift.io/interruptible-instance"
 
 	// https://github.com/openshift/enhancements/blob/master/enhancements/machine-instance-lifecycle.md
 	// This is not a transient error, but
