@@ -5,7 +5,7 @@ set -eu
 function annotate_crd() {
   script='/^metadata:/a\
 \ \ annotations:\
-\ \ \ \ exclude.release.openshift.io/internal-opernshift-hosted: "true"'
+\ \ \ \ exclude.release.openshift.io/internal-openshift-hosted: "true"'
   input="${1}"
   output="${2}"
   sed -e "${script}" "${input}" > "${output}"
