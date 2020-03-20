@@ -70,7 +70,7 @@ func getProviderFromInfrastructure(infra *configv1.Infrastructure) (configv1.Pla
 
 func getProviderFromConfigMap(configmap *corev1.ConfigMap) (configv1.PlatformType, error) {
 
-	provider := configmap.Data["cloud-api-provider"]
+	provider := configmap.Data["machine-api-provider"]
 
 	switch provider {
 	case string(configv1.AWSPlatformType):
@@ -92,7 +92,7 @@ func getProviderFromConfigMap(configmap *corev1.ConfigMap) (configv1.PlatformTyp
 	case string(kubemarkPlatform):
 		return clusterAPIControllerKubemark, nil
 	default:
-		return clusterAPIControllerNoOp, fmt.Errorf("no platform provider found on install config")
+		return clusterAPIControllerNoOp, fmt.Errorf("no platform provider found in config map")
 	}
 }
 
