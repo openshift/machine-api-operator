@@ -96,7 +96,7 @@ However you can run it in a vanilla Kubernetes cluster by precreating some asset
 - Create a [CRD Machine definition](install/0000_30_machine-api-operator_02_machine.crd.yaml)
 - Create a [CRD MachineSet definition](install/0000_30_machine-api-operator_03_machineset.crd.yaml)
 - Create a [Installer config](config/kubemark-config-infra.yaml)
-- Then you can run it as a [deployment](install/0000_30_machine-api-operator_09_deployment.yaml)
+- Then you can run it as a [deployment](install/0000_30_machine-api-operator_11_deployment.yaml)
 - You should then be able to deploy a [machineSet](config/machineset.yaml) object
 
 ## Machine API operator with Kubemark over Kubernetes
