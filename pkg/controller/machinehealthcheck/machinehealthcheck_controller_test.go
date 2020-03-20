@@ -2657,6 +2657,74 @@ func TestGetNodeStartupTimeout(t *testing.T) {
 	}
 }
 
+func TestGetIntOrPercentValue(t *testing.T) {
+	int10 := intstr.FromInt(10)
+	percent20 := intstr.FromString("20%")
+	intInString30 := intstr.FromString("30")
+	invalidStringA := intstr.FromString("a")
+	invalidStringAPercent := intstr.FromString("a%")
+
+	testCases := []struct {
+		name            string
+		in              *intstr.IntOrString
+		expectedValue   int
+		expectedPercent bool
+		expectedError   error
+	}{
+		{
+			name:            "with a integer",
+			in:              &int10,
+			expectedValue:   10,
+			expectedPercent: false,
+			expectedError:   nil,
+		},
+		{
+			name:            "with a percentage",
+			in:              &percent20,
+			expectedValue:   20,
+			expectedPercent: true,
+			expectedError:   nil,
+		},
+		{
+			name:            "with an int in string",
+			in:              &intInString30,
+			expectedValue:   30,
+			expectedPercent: false,
+			expectedError:   nil,
+		},
+		{
+			name:            "with an 'a' string",
+			in:              &invalidStringA,
+			expectedValue:   0,
+			expectedPercent: false,
+			expectedError:   fmt.Errorf("invalid value \"a\": strconv.Atoi: parsing \"a\": invalid syntax"),
+		},
+		{
+			name:            "with an 'a%' string",
+			in:              &invalidStringAPercent,
+			expectedValue:   0,
+			expectedPercent: true,
+			expectedError:   fmt.Errorf("invalid value \"a%%\": strconv.Atoi: parsing \"a\": invalid syntax"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			value, percent, err := getIntOrPercentValue(tc.in)
+			// Check first if one is nil, and the other isn't, otherwise if not nil, do the messages match
+			if (tc.expectedError != nil) != (err != nil) || err != nil && tc.expectedError.Error() != err.Error() {
+				t.Errorf("Case: %s. Got: %v, expected: %v", tc.name, err, tc.expectedError)
+			}
+			if tc.expectedPercent != percent {
+				t.Errorf("Case: %s. Got: %v, expected: %v", tc.name, percent, tc.expectedPercent)
+			}
+			if tc.expectedValue != value {
+				t.Errorf("Case: %s. Got: %v, expected: %v", tc.name, value, tc.expectedValue)
+			}
+		})
+	}
+}
+
 func IntPtr(i int) *int {
 	return &i
 }
