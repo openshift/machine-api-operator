@@ -3,7 +3,7 @@
 ## Summary
 
 Machine disruption budget controller should monitor machines and **MachineDisruptionBudget** objects and updates accordingly the **MachineDisruptionBudget** object status.
-It will provide the updated ingormation regarding the number of healthy machines with specific labels under the cluster that can be used by another controllers.
+It will provide the updated information regarding the number of healthy machines with specific labels under the cluster that can be used by another controllers.
 
 ## Motivation
 
