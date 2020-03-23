@@ -41,7 +41,8 @@ type MachineHealthCheckList struct {
 
 // MachineHealthCheckSpec defines the desired state of MachineHealthCheck
 type MachineHealthCheckSpec struct {
-	// Label selector to match machines whose health will be exercised
+	// Label selector to match machines whose health will be exercised.
+	// Note: An empty selector will match all machines.
 	Selector metav1.LabelSelector `json:"selector"`
 
 	// UnhealthyConditions contains a list of the conditions that determine

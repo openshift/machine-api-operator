@@ -68,6 +68,38 @@ func TestHasMatchingLabels(t *testing.T) {
 			},
 			expected: false,
 		},
+		{
+			machine: machine,
+			machineHealthCheck: &mapiv1beta1.MachineHealthCheck{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "EmptySelector",
+					Namespace: namespace,
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind: "MachineHealthCheck",
+				},
+				Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Selector: metav1.LabelSelector{},
+				},
+				Status: mapiv1beta1.MachineHealthCheckStatus{},
+			},
+			expected: true,
+		},
+		{
+			machine: machine,
+			machineHealthCheck: &mapiv1beta1.MachineHealthCheck{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "NilSelector", // Note this shouldn't happen, API schema validation requires the selector be non-nil
+					Namespace: namespace,
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind: "MachineHealthCheck",
+				},
+				Spec:   mapiv1beta1.MachineHealthCheckSpec{},
+				Status: mapiv1beta1.MachineHealthCheckStatus{},
+			},
+			expected: true,
+		},
 	}
 
 	for _, tc := range testsCases {

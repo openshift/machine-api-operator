@@ -59,7 +59,8 @@ spec:
               description: Any farther remediation is only allowed if at most "MaxUnhealthy"
                 machines selected by "selector" are not healthy.
             selector:
-              description: Label selector to match machines whose health will be exercised
+              description: 'Label selector to match machines whose health will be
+                exercised. Note: An empty selector will match all machines.'
               properties:
                 matchExpressions:
                   description: matchExpressions is a list of label selector requirements.
