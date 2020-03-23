@@ -278,6 +278,11 @@ func (r *Reconciler) reconcileNetwork(vm *virtualMachine) error {
 		}
 	}
 
+	ipAddrs = append(ipAddrs, corev1.NodeAddress{
+		Type:    corev1.NodeInternalDNS,
+		Address: vm.Obj.Name(),
+	})
+
 	klog.V(3).Infof("%v: reconciling network: IP addresses: %v", r.machine.GetName(), ipAddrs)
 	r.machine.Status.Addresses = ipAddrs
 	return nil
