@@ -1,12 +1,13 @@
 package operator
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
 	fakeconfigclientset "github.com/openshift/client-go/config/clientset/versioned/fake"
-	cvoresourcemerge "github.com/openshift/cluster-version-operator/lib/resourcemerge"
+	"github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -108,18 +109,18 @@ func TestOperatorStatusProgressing(t *testing.T) {
 		}
 
 		for _, expectedCondition := range tc.expectedConditions {
-			ok := cvoresourcemerge.IsOperatorStatusConditionPresentAndEqual(
+			ok := v1helpers.IsStatusConditionPresentAndEqual(
 				gotCO.Status.Conditions, expectedCondition.Type, expectedCondition.Status,
 			)
 			if !ok {
 				t.Errorf("wrong status for condition. Expected: %v, got: %v",
 					expectedCondition,
-					cvoresourcemerge.FindOperatorStatusCondition(gotCO.Status.Conditions, expectedCondition.Type))
+					v1helpers.FindStatusCondition(gotCO.Status.Conditions, expectedCondition.Type))
 			}
 		}
 
 		optr.statusProgressing()
-		gotCO, _ = optr.osClient.ConfigV1().ClusterOperators().Get(clusterOperatorName, metav1.GetOptions{})
+		gotCO, _ = optr.osClient.ConfigV1().ClusterOperators().Get(context.Background(), clusterOperatorName, metav1.GetOptions{})
 		var conditionAfterAnotherSync osconfigv1.ClusterOperatorStatusCondition
 		for _, coCondition := range gotCO.Status.Conditions {
 			if coCondition.Type == osconfigv1.OperatorProgressing {
@@ -130,13 +131,13 @@ func TestOperatorStatusProgressing(t *testing.T) {
 		assert.True(t, condition.LastTransitionTime.Equal(&conditionAfterAnotherSync.LastTransitionTime), "test-case %v expected LastTransitionTime not to be updated if condition state is same", i)
 
 		for _, expectedCondition := range tc.expectedConditions {
-			ok := cvoresourcemerge.IsOperatorStatusConditionPresentAndEqual(
+			ok := v1helpers.IsStatusConditionPresentAndEqual(
 				gotCO.Status.Conditions, expectedCondition.Type, expectedCondition.Status,
 			)
 			if !ok {
 				t.Errorf("wrong status for condition. Expected: %v, got: %v",
 					expectedCondition,
-					cvoresourcemerge.FindOperatorStatusCondition(gotCO.Status.Conditions, expectedCondition.Type))
+					v1helpers.FindStatusCondition(gotCO.Status.Conditions, expectedCondition.Type))
 			}
 		}
 	}

@@ -1,16 +1,16 @@
 package operator
 
 import (
+	"context"
 	"fmt"
 	"reflect"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/api/equality"
-
 	"github.com/golang/glog"
 	osconfigv1 "github.com/openshift/api/config/v1"
-	cvoresourcemerge "github.com/openshift/cluster-version-operator/lib/resourcemerge"
+	"github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -147,10 +147,10 @@ func newClusterOperatorStatusCondition(conditionType osconfigv1.ClusterStatusCon
 //syncStatus applies the new condition to the mao ClusterOperator object.
 func (optr *Operator) syncStatus(co *osconfigv1.ClusterOperator, conds []osconfigv1.ClusterOperatorStatusCondition) error {
 	for _, c := range conds {
-		cvoresourcemerge.SetOperatorStatusCondition(&co.Status.Conditions, c)
+		v1helpers.SetStatusCondition(&co.Status.Conditions, c)
 	}
 
-	_, err := optr.osClient.ConfigV1().ClusterOperators().UpdateStatus(co)
+	_, err := optr.osClient.ConfigV1().ClusterOperators().UpdateStatus(context.Background(), co, metav1.UpdateOptions{})
 	return err
 }
 
@@ -244,7 +244,7 @@ func (optr *Operator) updateRelatedObjects(co *osconfigv1.ClusterOperator) (*osc
 
 	if !equality.Semantic.DeepEqual(co.Status.RelatedObjects, relatedObjects) {
 		co.Status.RelatedObjects = relatedObjects
-		return optr.osClient.ConfigV1().ClusterOperators().UpdateStatus(co)
+		return optr.osClient.ConfigV1().ClusterOperators().UpdateStatus(context.Background(), co, metav1.UpdateOptions{})
 	}
 
 	return co, nil
@@ -257,14 +257,14 @@ func (optr *Operator) setMissingStatusConditions(co *osconfigv1.ClusterOperator)
 	var modified bool
 
 	for _, c := range optr.defaultStatusConditions() {
-		if cvoresourcemerge.FindOperatorStatusCondition(co.Status.Conditions, c.Type) == nil {
-			cvoresourcemerge.SetOperatorStatusCondition(&co.Status.Conditions, c)
+		if v1helpers.FindStatusCondition(co.Status.Conditions, c.Type) == nil {
+			v1helpers.SetStatusCondition(&co.Status.Conditions, c)
 			modified = true
 		}
 	}
 
 	if modified {
-		return optr.osClient.ConfigV1().ClusterOperators().UpdateStatus(co)
+		return optr.osClient.ConfigV1().ClusterOperators().UpdateStatus(context.Background(), co, metav1.UpdateOptions{})
 	}
 
 	return co, nil
@@ -273,21 +273,21 @@ func (optr *Operator) setMissingStatusConditions(co *osconfigv1.ClusterOperator)
 // getClusterOperator returns the current ClusterOperator.
 func (optr *Operator) getClusterOperator() (*osconfigv1.ClusterOperator, error) {
 	return optr.osClient.ConfigV1().ClusterOperators().
-		Get(clusterOperatorName, metav1.GetOptions{})
+		Get(context.Background(), clusterOperatorName, metav1.GetOptions{})
 }
 
 // createClusterOperator creates the ClusterOperator and updates its status.
 func (optr *Operator) createClusterOperator() (*osconfigv1.ClusterOperator, error) {
 	defaultCO := optr.defaultClusterOperator()
 
-	co, err := optr.osClient.ConfigV1().ClusterOperators().Create(defaultCO)
+	co, err := optr.osClient.ConfigV1().ClusterOperators().Create(context.Background(), defaultCO, metav1.CreateOptions{})
 	if err != nil {
 		return nil, err
 	}
 
 	co.Status = defaultCO.Status
 
-	return optr.osClient.ConfigV1().ClusterOperators().UpdateStatus(co)
+	return optr.osClient.ConfigV1().ClusterOperators().UpdateStatus(context.Background(), co, metav1.UpdateOptions{})
 }
 
 // getOrCreateClusterOperator fetches the current ClusterOperator or creates a
