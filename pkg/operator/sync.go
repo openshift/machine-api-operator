@@ -7,6 +7,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
+	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -285,4 +286,93 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 		},
 	}
 	return containers
+}
+
+func newTerminationDaemonSet(config *OperatorConfig) *appsv1.DaemonSet {
+	template := newTerminationPodTemplateSpec(config)
+
+	return &appsv1.DaemonSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "machine-api-termination-handler",
+			Namespace: config.TargetNamespace,
+			Annotations: map[string]string{
+				maoOwnedAnnotation: "",
+			},
+			Labels: map[string]string{
+				"api":     "clusterapi",
+				"k8s-app": "termination-handler",
+			},
+		},
+		Spec: appsv1.DaemonSetSpec{
+			Selector: &metav1.LabelSelector{
+				MatchLabels: map[string]string{
+					"api":     "clusterapi",
+					"k8s-app": "termination-handler",
+				},
+			},
+			Template: *template,
+		},
+	}
+}
+
+func newTerminationPodTemplateSpec(config *OperatorConfig) *corev1.PodTemplateSpec {
+	containers := newTerminationContainers(config)
+	// Tolerate any taint, node selector will ensure the pod only runs where required
+	tolerations := []corev1.Toleration{
+		{
+			Operator: corev1.TolerationOpExists,
+		},
+	}
+
+	return &corev1.PodTemplateSpec{
+		ObjectMeta: metav1.ObjectMeta{
+			Labels: map[string]string{
+				"api":     "clusterapi",
+				"k8s-app": "termination-handler",
+			},
+		},
+		Spec: corev1.PodSpec{
+			Containers:         containers,
+			PriorityClassName:  "system-node-critical",
+			NodeSelector:       map[string]string{machinecontroller.MachineInterruptibleInstanceLabelName: ""},
+			ServiceAccountName: "machine-api-termination-handler",
+			Tolerations:        tolerations,
+			HostNetwork:        true,
+		},
+	}
+}
+
+func newTerminationContainers(config *OperatorConfig) []corev1.Container {
+	resources := corev1.ResourceRequirements{
+		Requests: map[corev1.ResourceName]resource.Quantity{
+			corev1.ResourceMemory: resource.MustParse("20Mi"),
+			corev1.ResourceCPU:    resource.MustParse("10m"),
+		},
+	}
+	terminationArgs := []string{
+		"--logtostderr=true",
+		"--v=3",
+		"--node-name=$(NODE_NAME)",
+		fmt.Sprintf("--namespace=%s", config.TargetNamespace),
+		"--poll-interval-seconds=5",
+	}
+	return []corev1.Container{
+		{
+			Name:      "termination-handler",
+			Image:     config.Controllers.TerminationHandler,
+			Command:   []string{"/termination-handler"},
+			Args:      terminationArgs,
+			Resources: resources,
+			Env: []corev1.EnvVar{
+				{
+					Name: "NODE_NAME",
+					ValueFrom: &corev1.EnvVarSource{
+						FieldRef: &corev1.ObjectFieldSelector{
+							FieldPath: "spec.nodeName",
+						},
+					},
+				},
+			},
+		},
+	}
 }
