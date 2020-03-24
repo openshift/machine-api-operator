@@ -3,6 +3,7 @@ package operator
 import (
 	"testing"
 
+	"golang.org/x/net/context"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -76,7 +77,7 @@ func TestCreateMariadbPasswordSecret(t *testing.T) {
 		t.Fatalf("Failed to create first Mariadb password. %s ", err)
 	}
 	// Read and get Mariadb password from Secret just created.
-	oldMaridbPassword, err := client.Secrets(operatorConfig.TargetNamespace).Get(baremetalSecretName, metav1.GetOptions{})
+	oldMaridbPassword, err := client.Secrets(operatorConfig.TargetNamespace).Get(context.Background(), baremetalSecretName, metav1.GetOptions{})
 	if err != nil {
 		t.Fatal("Failure getting the first Mariadb password that just got created.")
 	}
@@ -89,7 +90,7 @@ func TestCreateMariadbPasswordSecret(t *testing.T) {
 	if err := createMariadbPasswordSecret(kubeClient.CoreV1(), operatorConfig); err != nil {
 		t.Fatal("Failure creating second Mariadb password.")
 	}
-	newMaridbPassword, err := client.Secrets(operatorConfig.TargetNamespace).Get(baremetalSecretName, metav1.GetOptions{})
+	newMaridbPassword, err := client.Secrets(operatorConfig.TargetNamespace).Get(context.Background(), baremetalSecretName, metav1.GetOptions{})
 	if err != nil {
 		t.Fatal("Failure getting the second Mariadb password.")
 	}

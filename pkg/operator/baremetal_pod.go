@@ -1,6 +1,7 @@
 package operator
 
 import (
+	"context"
 	"math/rand"
 	"time"
 
@@ -91,10 +92,11 @@ func generateRandomPassword() string {
 
 func createMariadbPasswordSecret(client coreclientv1.SecretsGetter, config *OperatorConfig) error {
 	glog.V(3).Info("Checking if the Maridb password secret already exists")
-	_, err := client.Secrets(config.TargetNamespace).Get(baremetalSecretName, metav1.GetOptions{})
+	_, err := client.Secrets(config.TargetNamespace).Get(context.Background(), baremetalSecretName, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		// Secret does not already exist. So, create one.
 		_, err := client.Secrets(config.TargetNamespace).Create(
+			context.Background(),
 			&corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      baremetalSecretName,
@@ -104,6 +106,7 @@ func createMariadbPasswordSecret(client coreclientv1.SecretsGetter, config *Oper
 					baremetalSecretKey: generateRandomPassword(),
 				},
 			},
+			metav1.CreateOptions{},
 		)
 		return err
 	}

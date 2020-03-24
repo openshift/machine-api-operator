@@ -1,6 +1,7 @@
 package operator
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -170,7 +171,7 @@ func TestOperatorSync_NoOp(t *testing.T) {
 				}
 			}
 
-			o, err := optr.osClient.ConfigV1().ClusterOperators().Get(clusterOperatorName, metav1.GetOptions{})
+			o, err := optr.osClient.ConfigV1().ClusterOperators().Get(context.Background(), clusterOperatorName, metav1.GetOptions{})
 			if !assert.NoError(t, err, "failed to get clusteroperator") {
 				t.Fatal()
 			}
