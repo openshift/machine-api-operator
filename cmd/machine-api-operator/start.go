@@ -121,6 +121,7 @@ func startControllers(ctx *ControllerContext) {
 		startOpts.imagesFile,
 		config,
 		ctx.KubeNamespacedInformerFactory.Apps().V1().Deployments(),
+		ctx.KubeNamespacedInformerFactory.Apps().V1().DaemonSets(),
 		ctx.ConfigInformerFactory.Config().V1().FeatureGates(),
 		ctx.ClientBuilder.KubeClientOrDie(componentName),
 		ctx.ClientBuilder.OpenshiftClientOrDie(componentName),

@@ -20,6 +20,9 @@ import (
 const (
 	deploymentRolloutPollInterval = time.Second
 	deploymentRolloutTimeout      = 5 * time.Minute
+	daemonsetRolloutPollInterval  = time.Second
+	daemonsetRolloutTimeout       = 5 * time.Minute
+	machineAPITerminationHandler  = "machine-api-termination-handler"
 )
 
 func (optr *Operator) syncAll(config *OperatorConfig) error {
@@ -41,7 +44,16 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 	}
 
 	if config.Controllers.TerminationHandler != clusterAPIControllerNoOp {
-
+		if err := optr.syncTerminationHandler(config); err != nil {
+			if err := optr.statusDegraded(err.Error()); err != nil {
+				// Just log the error here.  We still want to
+				// return the outer error.
+				glog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
+			}
+			glog.Errorf("Error syncing machine-api-termination-handler: %v", err)
+			return err
+		}
+		glog.V(3).Info("Synced up all machine-api-termination-handler components")
 	}
 
 	// In addition, if the Provider is BareMetal, then bring up
@@ -86,6 +98,30 @@ func (optr *Operator) syncClusterAPIController(config *OperatorConfig) error {
 	}
 	if updated {
 		return optr.waitForDeploymentRollout(controllersDeployment)
+	}
+	return nil
+}
+
+func (optr *Operator) syncTerminationHandler(config *OperatorConfig) error {
+	terminationDaemonSet := newTerminationDaemonSet(config)
+	ds, err := optr.daemonsetLister.DaemonSets(terminationDaemonSet.GetNamespace()).Get(terminationDaemonSet.GetName())
+	generation := int64(-1)
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return err
+		}
+	}
+	if ds != nil {
+		generation = ds.Status.ObservedGeneration
+	}
+
+	_, updated, err := resourceapply.ApplyDaemonSet(optr.kubeClient.AppsV1(),
+		events.NewLoggingEventRecorder(optr.name), terminationDaemonSet, generation, false)
+	if err != nil {
+		return err
+	}
+	if updated {
+		return optr.waitForDaemonSetRollout(terminationDaemonSet)
 	}
 	return nil
 }
@@ -152,6 +188,40 @@ func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment) erro
 			return true, nil
 		}
 		lastError = fmt.Errorf("deployment %s is not ready. status: (replicas: %d, updated: %d, ready: %d, unavailable: %d)", d.Name, d.Status.Replicas, d.Status.UpdatedReplicas, d.Status.ReadyReplicas, d.Status.UnavailableReplicas)
+		glog.V(4).Info(lastError)
+		return false, nil
+	})
+	if lastError != nil {
+		return lastError
+	}
+	return err
+}
+
+func (optr *Operator) waitForDaemonSetRollout(resource *appsv1.DaemonSet) error {
+	var lastError error
+	err := wait.Poll(daemonsetRolloutPollInterval, daemonsetRolloutTimeout, func() (bool, error) {
+		d, err := optr.daemonsetLister.DaemonSets(resource.Namespace).Get(resource.Name)
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		if err != nil {
+			// Do not return error here, as we could be updating the API Server itself, in which case we
+			// want to continue waiting.
+			lastError = fmt.Errorf("getting DaemonSet %s during rollout: %v", resource.Name, err)
+			glog.Error(lastError)
+			return false, nil
+		}
+
+		if d.DeletionTimestamp != nil {
+			lastError = nil
+			return false, fmt.Errorf("daemonset %s is being deleted", resource.Name)
+		}
+
+		if d.Generation <= d.Status.ObservedGeneration && d.Status.UpdatedNumberScheduled == d.Status.DesiredNumberScheduled && d.Status.NumberUnavailable == 0 {
+			lastError = nil
+			return true, nil
+		}
+		lastError = fmt.Errorf("daemonset %s is not ready. status: (desired: %d, updated: %d, available: %d, unavailable: %d)", d.Name, d.Status.DesiredNumberScheduled, d.Status.UpdatedNumberScheduled, d.Status.NumberAvailable, d.Status.NumberUnavailable)
 		glog.V(4).Info(lastError)
 		return false, nil
 	})
@@ -293,7 +363,7 @@ func newTerminationDaemonSet(config *OperatorConfig) *appsv1.DaemonSet {
 
 	return &appsv1.DaemonSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "machine-api-termination-handler",
+			Name:      machineAPITerminationHandler,
 			Namespace: config.TargetNamespace,
 			Annotations: map[string]string{
 				maoOwnedAnnotation: "",
@@ -317,12 +387,6 @@ func newTerminationDaemonSet(config *OperatorConfig) *appsv1.DaemonSet {
 
 func newTerminationPodTemplateSpec(config *OperatorConfig) *corev1.PodTemplateSpec {
 	containers := newTerminationContainers(config)
-	// Tolerate any taint, node selector will ensure the pod only runs where required
-	tolerations := []corev1.Toleration{
-		{
-			Operator: corev1.TolerationOpExists,
-		},
-	}
 
 	return &corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
@@ -335,8 +399,7 @@ func newTerminationPodTemplateSpec(config *OperatorConfig) *corev1.PodTemplateSp
 			Containers:         containers,
 			PriorityClassName:  "system-node-critical",
 			NodeSelector:       map[string]string{machinecontroller.MachineInterruptibleInstanceLabelName: ""},
-			ServiceAccountName: "machine-api-termination-handler",
-			Tolerations:        tolerations,
+			ServiceAccountName: machineAPITerminationHandler,
 			HostNetwork:        true,
 		},
 	}

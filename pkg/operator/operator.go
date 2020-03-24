@@ -50,6 +50,9 @@ type Operator struct {
 	deployLister       appslisterv1.DeploymentLister
 	deployListerSynced cache.InformerSynced
 
+	daemonsetLister       appslisterv1.DaemonSetLister
+	daemonsetListerSynced cache.InformerSynced
+
 	featureGateLister      configlistersv1.FeatureGateLister
 	featureGateCacheSynced cache.InformerSynced
 
@@ -66,6 +69,7 @@ func New(
 	config string,
 
 	deployInformer appsinformersv1.DeploymentInformer,
+	daemonsetInformer appsinformersv1.DaemonSetInformer,
 	featureGateInformer configinformersv1.FeatureGateInformer,
 
 	kubeClient kubernetes.Interface,
@@ -102,6 +106,9 @@ func New(
 	optr.deployLister = deployInformer.Lister()
 	optr.deployListerSynced = deployInformer.Informer().HasSynced
 
+	optr.daemonsetLister = daemonsetInformer.Lister()
+	optr.daemonsetListerSynced = daemonsetInformer.Informer().HasSynced
+
 	optr.featureGateLister = featureGateInformer.Lister()
 	optr.featureGateCacheSynced = featureGateInformer.Informer().HasSynced
 
@@ -118,6 +125,7 @@ func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 
 	if !cache.WaitForCacheSync(stopCh,
 		optr.deployListerSynced,
+		optr.daemonsetListerSynced,
 		optr.featureGateCacheSynced) {
 		glog.Error("Failed to sync caches")
 		return

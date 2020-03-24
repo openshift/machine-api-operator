@@ -36,6 +36,7 @@ func newFakeOperator(kubeObjects []runtime.Object, osObjects []runtime.Object, s
 	configSharedInformer := configinformersv1.NewSharedInformerFactoryWithOptions(osClient, 2*time.Minute)
 	featureGateInformer := configSharedInformer.Config().V1().FeatureGates()
 	deployInformer := kubeNamespacedSharedInformer.Apps().V1().Deployments()
+	daemonsetInformer := kubeNamespacedSharedInformer.Apps().V1().DaemonSets()
 
 	optr := &Operator{
 		kubeClient:             kubeClient,
@@ -43,11 +44,13 @@ func newFakeOperator(kubeObjects []runtime.Object, osObjects []runtime.Object, s
 		dynamicClient:          dynamicClient,
 		featureGateLister:      featureGateInformer.Lister(),
 		deployLister:           deployInformer.Lister(),
+		daemonsetLister:        daemonsetInformer.Lister(),
 		imagesFile:             "fixtures/images.json",
 		namespace:              targetNamespace,
 		eventRecorder:          record.NewFakeRecorder(50),
 		queue:                  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
 		deployListerSynced:     deployInformer.Informer().HasSynced,
+		daemonsetListerSynced:  daemonsetInformer.Informer().HasSynced,
 		featureGateCacheSynced: featureGateInformer.Informer().HasSynced,
 	}
 
