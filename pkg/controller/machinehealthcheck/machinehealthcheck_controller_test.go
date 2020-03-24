@@ -936,7 +936,8 @@ func TestGetTargetsFromMHC(t *testing.T) {
 							Labels: map[string]string{},
 						},
 						TypeMeta: metav1.TypeMeta{
-							Kind: "Node",
+							Kind:       "Node",
+							APIVersion: "v1",
 						},
 						Status: corev1.NodeStatus{
 							Conditions: []corev1.NodeCondition{},
@@ -963,7 +964,8 @@ func TestGetTargetsFromMHC(t *testing.T) {
 						Labels: map[string]string{},
 					},
 					TypeMeta: metav1.TypeMeta{
-						Kind: "Node",
+						Kind:       "Node",
+						APIVersion: "v1",
 					},
 					Status: corev1.NodeStatus{
 						Conditions: []corev1.NodeCondition{},
@@ -979,7 +981,8 @@ func TestGetTargetsFromMHC(t *testing.T) {
 						Labels: map[string]string{},
 					},
 					TypeMeta: metav1.TypeMeta{
-						Kind: "Node",
+						Kind:       "Node",
+						APIVersion: "v1",
 					},
 					Status: corev1.NodeStatus{
 						Conditions: []corev1.NodeCondition{},
@@ -1000,7 +1003,8 @@ func TestGetTargetsFromMHC(t *testing.T) {
 							Labels: map[string]string{},
 						},
 						TypeMeta: metav1.TypeMeta{
-							Kind: "Node",
+							Kind:       "Node",
+							APIVersion: "v1",
 						},
 						Status: corev1.NodeStatus{
 							Conditions: []corev1.NodeCondition{},
@@ -1020,7 +1024,8 @@ func TestGetTargetsFromMHC(t *testing.T) {
 							Labels: map[string]string{},
 						},
 						TypeMeta: metav1.TypeMeta{
-							Kind: "Node",
+							Kind:       "Node",
+							APIVersion: "v1",
 						},
 						Status: corev1.NodeStatus{
 							Conditions: []corev1.NodeCondition{},
@@ -1100,7 +1105,7 @@ func TestGetTargetsFromMHC(t *testing.T) {
 		t.Run(tc.testCase, func(t *testing.T) {
 			got, err := newFakeReconciler(objects...).getTargetsFromMHC(*tc.mhc)
 			if !equality.Semantic.DeepEqual(got, tc.expectedTargets) {
-				t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, got, tc.expectedTargets)
+				t.Errorf("Case: %v. Got: %+v, expected: %+v", tc.testCase, got, tc.expectedTargets)
 			}
 			if tc.expectedError != (err != nil) {
 				t.Errorf("Case: %v. Got: %v, expected error: %v", tc.testCase, err, tc.expectedError)
@@ -1162,7 +1167,8 @@ func TestGetNodeFromMachine(t *testing.T) {
 					Labels: map[string]string{},
 				},
 				TypeMeta: metav1.TypeMeta{
-					Kind: "Node",
+					Kind:       "Node",
+					APIVersion: "v1",
 				},
 				Status: corev1.NodeStatus{
 					Conditions: []corev1.NodeCondition{},
@@ -1883,7 +1889,10 @@ func TestRemediate(t *testing.T) {
 			testCase: "no master",
 			target: &target{
 				Machine: mapiv1beta1.Machine{
-					TypeMeta: metav1.TypeMeta{Kind: "Machine"},
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "Machine",
+						APIVersion: "machine.openshift.io/v1beta1",
+					},
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations:     make(map[string]string),
 						Name:            "test",
@@ -1918,7 +1927,10 @@ func TestRemediate(t *testing.T) {
 			testCase: "node master",
 			target: &target{
 				Machine: mapiv1beta1.Machine{
-					TypeMeta: metav1.TypeMeta{Kind: "Machine"},
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "Machine",
+						APIVersion: "machine.openshift.io/v1beta1",
+					},
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations:     make(map[string]string),
 						Name:            "test",
@@ -1956,7 +1968,10 @@ func TestRemediate(t *testing.T) {
 			testCase: "machine master",
 			target: &target{
 				Machine: mapiv1beta1.Machine{
-					TypeMeta: metav1.TypeMeta{Kind: "Machine"},
+					TypeMeta: metav1.TypeMeta{
+						Kind:       "Machine",
+						APIVersion: "machine.openshift.io/v1beta1",
+					},
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations: make(map[string]string),
 						Name:        "test",
@@ -1989,7 +2004,7 @@ func TestRemediate(t *testing.T) {
 			}
 			assertEvents(t, tc.testCase, tc.expectedEvents, recorder.Events)
 			machine := &mapiv1beta1.Machine{}
-			err := r.client.Get(context.TODO(), namespacedName(machine), machine)
+			err := r.client.Get(context.TODO(), namespacedName(&tc.target.Machine), machine)
 			if tc.deletion {
 				if err != nil {
 					if !errors.IsNotFound(err) {
@@ -2001,7 +2016,7 @@ func TestRemediate(t *testing.T) {
 			}
 			if !tc.deletion {
 				if !equality.Semantic.DeepEqual(*machine, tc.target.Machine) {
-					t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, *machine, tc.target.Machine)
+					t.Errorf("Case: %v. Got: %+v, expected: %+v", tc.testCase, *machine, tc.target.Machine)
 				}
 			}
 		})

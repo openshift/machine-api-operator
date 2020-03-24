@@ -132,7 +132,7 @@ func TestOperatorSync_NoOp(t *testing.T) {
 			stopCh := make(<-chan struct{})
 			optr := newFakeOperator(nil, []runtime.Object{infra}, stopCh)
 			optr.queue.Add("trigger")
-			go optr.Run(2, stopCh)
+			go optr.Run(1, stopCh)
 
 			err := wait.PollImmediate(1*time.Second, 5*time.Second, func() (bool, error) {
 				_, err := optr.deployLister.Deployments(targetNamespace).Get(deploymentName)
@@ -140,6 +140,7 @@ func TestOperatorSync_NoOp(t *testing.T) {
 					t.Logf("Failed to get %q deployment: %v", deploymentName, err)
 					return false, nil
 				}
+				t.Logf("Found deployment: %q", deploymentName)
 				return true, nil
 			})
 

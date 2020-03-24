@@ -326,7 +326,8 @@ func TestPatchMachine(t *testing.T) {
 			Namespace: namespace,
 		},
 		TypeMeta: metav1.TypeMeta{
-			Kind: "Machine",
+			Kind:       "Machine",
+			APIVersion: "machine.openshift.io/v1beta1",
 		},
 		Spec: machinev1.MachineSpec{
 			ProviderSpec: machinev1.ProviderSpec{
@@ -384,6 +385,7 @@ func TestPatchMachine(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	expectedMachine.ResourceVersion = "2"
 	if !equality.Semantic.DeepEqual(gotMachine, expectedMachine) {
 		t.Errorf("expected: %+v, got: %+v", expectedMachine, gotMachine)
 	}

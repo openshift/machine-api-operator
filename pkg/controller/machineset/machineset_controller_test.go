@@ -35,6 +35,8 @@ var expectedRequest = reconcile.Request{NamespacedName: types.NamespacedName{Nam
 
 const timeout = time.Second * 5
 
+// TODO: drop this in favour of ginkgo like validations
+// similar to https://github.com/kubernetes-sigs/cluster-api/blob/master/controllers/machineset_controller_test.go
 func TestReconcile(t *testing.T) {
 	// Setup the Manager and Controller.  Wrap the Controller Reconcile function so it writes each request to a
 	// channel when it is finished.
@@ -158,12 +160,18 @@ func TestReconcile(t *testing.T) {
 			}
 
 			defer func() {
-				c.Delete(context.TODO(), tc.instance)
+				err := c.Delete(context.TODO(), tc.instance)
+				if err != nil {
+					t.Logf("error deleting %v: %v", tc.instance, err)
+				}
+
 				select {
 				case recv := <-requests:
 					if recv != tc.expectedRequest {
 						t.Error("received request does not match expected request")
 					}
+
+					t.Logf("Last reconcile %v", <-requests)
 				case <-time.After(timeout):
 					t.Error("timed out waiting for request")
 				}
@@ -172,7 +180,7 @@ func TestReconcile(t *testing.T) {
 			select {
 			case recv := <-requests:
 				if recv != tc.expectedRequest {
-					t.Error("received request does not match expected request")
+					t.Errorf("received request does not match expected request. Got: %v, expected: %v", recv, tc.expectedRequest)
 				}
 			case <-time.After(timeout):
 				t.Error("timed out waiting for request")
