@@ -39,6 +39,10 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 		glog.V(3).Info("Synced up all machine-api-controller components")
 	}
 
+	if config.Controllers.TerminationHandler != clusterAPIControllerNoOp {
+
+	}
+
 	// In addition, if the Provider is BareMetal, then bring up
 	// the baremetal-operator pod
 	if config.BaremetalControllers.BaremetalOperator != "" {

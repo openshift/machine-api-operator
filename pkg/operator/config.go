@@ -29,6 +29,7 @@ type Controllers struct {
 	Provider           string
 	NodeLink           string
 	MachineHealthCheck string
+	TerminationHandler string
 }
 
 type BaremetalControllers struct {
@@ -100,6 +101,18 @@ func getProviderControllerFromImages(platform configv1.PlatformType, images Imag
 		return images.ClusterAPIControllerVSphere, nil
 	case kubemarkPlatform:
 		return clusterAPIControllerKubemark, nil
+	default:
+		return clusterAPIControllerNoOp, nil
+	}
+}
+
+// getTerminationHandlerFromImages returns the image to use for the Termination Handler DaemonSet
+// based on the platform provided.
+// Defaults to NoOp if not supported by the platform.
+func getTerminationHandlerFromImages(platform configv1.PlatformType, images Images) (string, error) {
+	switch platform {
+	case configv1.AWSPlatformType:
+		return images.ClusterAPIControllerAWS, nil
 	default:
 		return clusterAPIControllerNoOp, nil
 	}
