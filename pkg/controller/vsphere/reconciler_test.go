@@ -526,6 +526,10 @@ func TestReconcileNetwork(t *testing.T) {
 			Type:    corev1.NodeInternalIP,
 			Address: "127.0.0.1",
 		},
+		{
+			Type:    corev1.NodeInternalDNS,
+			Address: vm.Obj.Name(),
+		},
 	}
 	r := &Reconciler{
 		machineScope: &machineScope{
