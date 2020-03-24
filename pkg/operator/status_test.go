@@ -7,7 +7,7 @@ import (
 
 	osconfigv1 "github.com/openshift/api/config/v1"
 	fakeconfigclientset "github.com/openshift/client-go/config/clientset/versioned/fake"
-	cvoresourcemerge "github.com/openshift/cluster-version-operator/lib/resourcemerge"
+	"github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers"
 	"github.com/stretchr/testify/assert"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
@@ -103,13 +103,13 @@ func TestOperatorStatusProgressing(t *testing.T) {
 		}
 
 		for _, expectedCondition := range tc.expectedConditions {
-			ok := cvoresourcemerge.IsOperatorStatusConditionPresentAndEqual(
+			ok := v1helpers.IsStatusConditionPresentAndEqual(
 				gotCO.Status.Conditions, expectedCondition.Type, expectedCondition.Status,
 			)
 			if !ok {
 				t.Errorf("wrong status for condition. Expected: %v, got: %v",
 					expectedCondition,
-					cvoresourcemerge.FindOperatorStatusCondition(gotCO.Status.Conditions, expectedCondition.Type))
+					v1helpers.FindStatusCondition(gotCO.Status.Conditions, expectedCondition.Type))
 			}
 		}
 
@@ -125,13 +125,13 @@ func TestOperatorStatusProgressing(t *testing.T) {
 		assert.True(t, condition.LastTransitionTime.Equal(&conditionAfterAnotherSync.LastTransitionTime), "test-case %v expected LastTransitionTime not to be updated if condition state is same", i)
 
 		for _, expectedCondition := range tc.expectedConditions {
-			ok := cvoresourcemerge.IsOperatorStatusConditionPresentAndEqual(
+			ok := v1helpers.IsStatusConditionPresentAndEqual(
 				gotCO.Status.Conditions, expectedCondition.Type, expectedCondition.Status,
 			)
 			if !ok {
 				t.Errorf("wrong status for condition. Expected: %v, got: %v",
 					expectedCondition,
-					cvoresourcemerge.FindOperatorStatusCondition(gotCO.Status.Conditions, expectedCondition.Type))
+					v1helpers.FindStatusCondition(gotCO.Status.Conditions, expectedCondition.Type))
 			}
 		}
 	}
