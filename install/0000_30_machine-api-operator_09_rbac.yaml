@@ -12,6 +12,13 @@ metadata:
   namespace: openshift-machine-api
 
 ---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: machine-api-termination-handler
+  namespace: openshift-machine-api
+
+---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -181,6 +188,21 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
+  name: machine-api-termination-handler
+  namespace: openshift-machine-api
+rules:
+  - apiGroups:
+      - machine.openshift.io
+    resources:
+      - machines
+    verbs:
+      - list
+      - delete
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
   name: machine-api-operator
   namespace: openshift-machine-api
 rules:
@@ -202,6 +224,7 @@ rules:
       - apps
     resources:
       - deployments
+      - daemonsets
     verbs:
       - get
       - list
@@ -327,6 +350,21 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: machine-api-controllers
+    namespace: openshift-machine-api
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: machine-api-termination-handler
+  namespace: openshift-machine-api
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: machine-api-termination-handler
+subjects:
+  - kind: ServiceAccount
+    name: machine-api-termination-handler
     namespace: openshift-machine-api
 
 ---
