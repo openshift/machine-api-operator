@@ -2424,6 +2424,8 @@ func TestIsAllowedRemediation(t *testing.T) {
 	// short circuit if ever more than 2 out of 5 go unhealthy
 	maxUnhealthyInt := intstr.FromInt(2)
 	maxUnhealthyString := intstr.FromString("40%")
+	maxUnhealthyIntInString := intstr.FromString("2")
+	maxUnhealthyMixedString := intstr.FromString("foo%50")
 
 	testCases := []struct {
 		testCase string
@@ -2515,6 +2517,48 @@ func TestIsAllowedRemediation(t *testing.T) {
 			expected: false,
 		},
 		{
+			testCase: "not above maxUnhealthy (int in string)",
+			mhc: &mapiv1beta1.MachineHealthCheck{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: namespace,
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind: "MachineHealthCheck",
+				},
+				Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Selector:     metav1.LabelSelector{},
+					MaxUnhealthy: &maxUnhealthyIntInString,
+				},
+				Status: mapiv1beta1.MachineHealthCheckStatus{
+					ExpectedMachines: IntPtr(5),
+					CurrentHealthy:   IntPtr(3),
+				},
+			},
+			expected: true,
+		},
+		{
+			testCase: "above maxUnhealthy (int in string)",
+			mhc: &mapiv1beta1.MachineHealthCheck{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: namespace,
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind: "MachineHealthCheck",
+				},
+				Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Selector:     metav1.LabelSelector{},
+					MaxUnhealthy: &maxUnhealthyIntInString,
+				},
+				Status: mapiv1beta1.MachineHealthCheckStatus{
+					ExpectedMachines: IntPtr(5),
+					CurrentHealthy:   IntPtr(2),
+				},
+			},
+			expected: false,
+		},
+		{
 			testCase: "nil values",
 			mhc: &mapiv1beta1.MachineHealthCheck{
 				ObjectMeta: metav1.ObjectMeta{
@@ -2534,6 +2578,27 @@ func TestIsAllowedRemediation(t *testing.T) {
 				},
 			},
 			expected: true,
+		},
+		{
+			testCase: "invalid string value",
+			mhc: &mapiv1beta1.MachineHealthCheck{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: namespace,
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind: "MachineHealthCheck",
+				},
+				Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Selector:     metav1.LabelSelector{},
+					MaxUnhealthy: &maxUnhealthyMixedString,
+				},
+				Status: mapiv1beta1.MachineHealthCheckStatus{
+					ExpectedMachines: nil,
+					CurrentHealthy:   nil,
+				},
+			},
+			expected: false,
 		},
 	}
 
@@ -2587,6 +2652,74 @@ func TestGetNodeStartupTimeout(t *testing.T) {
 			}
 			if timeout != tc.expectedTimeout {
 				t.Errorf("Case: %s. Got: %v, expected: %v", tc.name, timeout.String(), tc.expectedTimeout.String())
+			}
+		})
+	}
+}
+
+func TestGetIntOrPercentValue(t *testing.T) {
+	int10 := intstr.FromInt(10)
+	percent20 := intstr.FromString("20%")
+	intInString30 := intstr.FromString("30")
+	invalidStringA := intstr.FromString("a")
+	invalidStringAPercent := intstr.FromString("a%")
+
+	testCases := []struct {
+		name            string
+		in              *intstr.IntOrString
+		expectedValue   int
+		expectedPercent bool
+		expectedError   error
+	}{
+		{
+			name:            "with a integer",
+			in:              &int10,
+			expectedValue:   10,
+			expectedPercent: false,
+			expectedError:   nil,
+		},
+		{
+			name:            "with a percentage",
+			in:              &percent20,
+			expectedValue:   20,
+			expectedPercent: true,
+			expectedError:   nil,
+		},
+		{
+			name:            "with an int in string",
+			in:              &intInString30,
+			expectedValue:   30,
+			expectedPercent: false,
+			expectedError:   nil,
+		},
+		{
+			name:            "with an 'a' string",
+			in:              &invalidStringA,
+			expectedValue:   0,
+			expectedPercent: false,
+			expectedError:   fmt.Errorf("invalid value \"a\": strconv.Atoi: parsing \"a\": invalid syntax"),
+		},
+		{
+			name:            "with an 'a%' string",
+			in:              &invalidStringAPercent,
+			expectedValue:   0,
+			expectedPercent: true,
+			expectedError:   fmt.Errorf("invalid value \"a%%\": strconv.Atoi: parsing \"a\": invalid syntax"),
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			value, percent, err := getIntOrPercentValue(tc.in)
+			// Check first if one is nil, and the other isn't, otherwise if not nil, do the messages match
+			if (tc.expectedError != nil) != (err != nil) || err != nil && tc.expectedError.Error() != err.Error() {
+				t.Errorf("Case: %s. Got: %v, expected: %v", tc.name, err, tc.expectedError)
+			}
+			if tc.expectedPercent != percent {
+				t.Errorf("Case: %s. Got: %v, expected: %v", tc.name, percent, tc.expectedPercent)
+			}
+			if tc.expectedValue != value {
+				t.Errorf("Case: %s. Got: %v, expected: %v", tc.name, value, tc.expectedValue)
 			}
 		})
 	}
