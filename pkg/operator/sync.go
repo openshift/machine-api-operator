@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/golang/glog"
+	"github.com/openshift/library-go/pkg/operator/events"
+	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -12,8 +14,6 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/pointer"
-
-	"github.com/openshift/cluster-version-operator/lib/resourceapply"
 )
 
 const (
@@ -62,13 +62,25 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 }
 
 func (optr *Operator) syncClusterAPIController(config *OperatorConfig) error {
-	controller := newDeployment(config, nil)
-	_, updated, err := resourceapply.ApplyDeployment(optr.kubeClient.AppsV1(), controller)
+	controllersDeployment := newDeployment(config, nil)
+	d, err := optr.deployLister.Deployments(controllersDeployment.GetNamespace()).Get(controllersDeployment.GetName())
+	generation := int64(-1)
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return err
+		}
+	}
+	if d != nil {
+		generation = d.Status.ObservedGeneration
+	}
+
+	_, updated, err := resourceapply.ApplyDeployment(optr.kubeClient.AppsV1(),
+		events.NewLoggingEventRecorder(optr.name), controllersDeployment, generation, false)
 	if err != nil {
 		return err
 	}
 	if updated {
-		return optr.waitForDeploymentRollout(controller)
+		return optr.waitForDeploymentRollout(controllersDeployment)
 	}
 	return nil
 }
@@ -87,7 +99,19 @@ func (optr *Operator) syncBaremetalControllers(config *OperatorConfig) error {
 	}
 
 	metal3Deployment := newMetal3Deployment(config, baremetalProvisioningConfig)
-	_, updated, err := resourceapply.ApplyDeployment(optr.kubeClient.AppsV1(), metal3Deployment)
+	generation := int64(-1)
+	d, err := optr.deployLister.Deployments(metal3Deployment.GetNamespace()).Get(metal3Deployment.GetName())
+	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return err
+		}
+	}
+	if d != nil {
+		generation = d.Status.ObservedGeneration
+	}
+
+	_, updated, err := resourceapply.ApplyDeployment(optr.kubeClient.AppsV1(),
+		events.NewLoggingEventRecorder(optr.name), metal3Deployment, generation, false)
 	if err != nil {
 		return err
 	}

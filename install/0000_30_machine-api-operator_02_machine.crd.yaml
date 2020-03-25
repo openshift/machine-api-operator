@@ -50,7 +50,7 @@ spec:
     listKind: MachineList
     plural: machines
     singular: machine
-  scope: ""
+  scope: Namespaced
   subresources:
     status: {}
   validation:
@@ -129,8 +129,7 @@ spec:
                     format: date-time
                     type: string
                   value:
-                    description: Required. The taint value corresponding to the taint
-                      key.
+                    description: The taint value corresponding to the taint key.
                     type: string
                 required:
                 - effect

@@ -100,7 +100,6 @@ type MachineHealthCheckStatus struct {
 	ExpectedMachines *int `json:"expectedMachines"`
 
 	// total number of machines counted by this machine health check
-	// +kubebuilder:default=0
 	// +kubebuilder:validation:Minimum=0
 	CurrentHealthy *int `json:"currentHealthy" protobuf:"varint,4,opt,name=currentHealthy"`
 }

@@ -802,6 +802,7 @@ var map_PlatformStatus = map[string]string{
 	"openstack": "OpenStack contains settings specific to the OpenStack infrastructure provider.",
 	"ovirt":     "Ovirt contains settings specific to the oVirt infrastructure provider.",
 	"vsphere":   "VSphere contains settings specific to the VSphere infrastructure provider.",
+	"ibmcloud":  "IBMCloud contains settings specific to the IBMCloud infrastructure provider.",
 }
 
 func (PlatformStatus) SwaggerDoc() map[string]string {
@@ -1220,7 +1221,7 @@ var map_ProxySpec = map[string]string{
 	"httpsProxy":         "httpsProxy is the URL of the proxy for HTTPS requests.  Empty means unset and will not result in an env var.",
 	"noProxy":            "noProxy is a comma-separated list of hostnames and/or CIDRs for which the proxy should not be used. Empty means unset and will not result in an env var.",
 	"readinessEndpoints": "readinessEndpoints is a list of endpoints used to verify readiness of the proxy.",
-	"trustedCA":          "trustedCA is a reference to a ConfigMap containing a CA certificate bundle used for client egress HTTPS connections. The certificate bundle must be from the CA that signed the proxy's certificate and be signed for everything. The trustedCA field should only be consumed by a proxy validator. The validator is responsible for reading the certificate bundle from required key \"ca-bundle.crt\" and copying it to a ConfigMap named \"trusted-ca-bundle\" in the \"openshift-config-managed\" namespace. The namespace for the ConfigMap referenced by trustedCA is \"openshift-config\". Here is an example ConfigMap (in yaml):\n\napiVersion: v1 kind: ConfigMap metadata:\n name: user-ca-bundle\n namespace: openshift-config\n data:\n   ca-bundle.crt: |",
+	"trustedCA":          "trustedCA is a reference to a ConfigMap containing a CA certificate bundle. The trustedCA field should only be consumed by a proxy validator. The validator is responsible for reading the certificate bundle from the required key \"ca-bundle.crt\", merging it with the system default trust bundle, and writing the merged trust bundle to a ConfigMap named \"trusted-ca-bundle\" in the \"openshift-config-managed\" namespace. Clients that expect to make proxy connections must use the trusted-ca-bundle for all HTTPS requests to the proxy, and may use the trusted-ca-bundle for non-proxy HTTPS requests as well.\n\nThe namespace for the ConfigMap referenced by trustedCA is \"openshift-config\". Here is an example ConfigMap (in yaml):\n\napiVersion: v1 kind: ConfigMap metadata:\n name: user-ca-bundle\n namespace: openshift-config\n data:\n   ca-bundle.crt: |",
 }
 
 func (ProxySpec) SwaggerDoc() map[string]string {

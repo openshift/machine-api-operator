@@ -31,6 +31,7 @@ spec:
     - mhcs
     singular: machinehealthcheck
   scope: Namespaced
+  preserveUnknownFields: false
   subresources:
     status: {}
   validation:
@@ -54,10 +55,11 @@ spec:
           properties:
             maxUnhealthy:
               anyOf:
-              - type: string
               - type: integer
+              - type: string
               description: Any farther remediation is only allowed if at most "MaxUnhealthy"
                 machines selected by "selector" are not healthy.
+              x-kubernetes-int-or-string: true
             nodeStartupTimeout:
               description: Machines older than this duration without a node will be
                 considered to have failed and will be remediated.
