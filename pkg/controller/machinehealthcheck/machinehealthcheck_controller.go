@@ -665,10 +665,9 @@ func hasMatchingLabels(machineHealthCheck *mapiv1.MachineHealthCheck, machine *m
 		glog.Warningf("unable to convert selector: %v", err)
 		return false
 	}
-	// If a deployment with a nil or empty selector creeps in, it should match nothing, not everything.
+	// If the selector is empty, all machines are considered to match
 	if selector.Empty() {
-		glog.V(3).Infof("%q machineHealthCheck has empty selector", machineHealthCheck.GetName())
-		return false
+		return true
 	}
 	if !selector.Matches(labels.Set(machine.Labels)) {
 		glog.V(4).Infof("%q machine has mismatched labels for MHC %q", machine.GetName(), machineHealthCheck.GetName())
