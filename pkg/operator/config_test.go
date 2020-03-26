@@ -206,6 +206,69 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 	}
 }
 
+func TestGetTerminationHandlerFromImages(t *testing.T) {
+	tests := []struct {
+		provider      configv1.PlatformType
+		expectedImage string
+	}{{
+		provider:      configv1.AWSPlatformType,
+		expectedImage: expectedAWSImage,
+	},
+		{
+			provider:      configv1.LibvirtPlatformType,
+			expectedImage: clusterAPIControllerNoOp,
+		},
+		{
+			provider:      configv1.OpenStackPlatformType,
+			expectedImage: clusterAPIControllerNoOp,
+		},
+		{
+			provider:      configv1.BareMetalPlatformType,
+			expectedImage: clusterAPIControllerNoOp,
+		},
+		{
+			provider:      configv1.AzurePlatformType,
+			expectedImage: clusterAPIControllerNoOp,
+		},
+		{
+			provider:      configv1.GCPPlatformType,
+			expectedImage: clusterAPIControllerNoOp,
+		},
+		{
+			provider:      kubemarkPlatform,
+			expectedImage: clusterAPIControllerNoOp,
+		},
+		{
+			provider:      configv1.VSpherePlatformType,
+			expectedImage: clusterAPIControllerNoOp,
+		},
+		{
+			provider:      configv1.NonePlatformType,
+			expectedImage: clusterAPIControllerNoOp,
+		},
+		{
+			provider:      configv1.OvirtPlatformType,
+			expectedImage: clusterAPIControllerNoOp,
+		},
+	}
+
+	imagesJSONFile := "fixtures/images.json"
+	img, err := getImagesFromJSONFile(imagesJSONFile)
+	if err != nil {
+		t.Errorf("failed getImagesFromJSONFile, %v", err)
+	}
+
+	for _, test := range tests {
+		res, err := getTerminationHandlerFromImages(test.provider, *img)
+		if err != nil {
+			t.Errorf("failed getTerminationHandlerFromImages: %v", err)
+		}
+		if test.expectedImage != res {
+			t.Errorf("failed getTerminationHandlerFromImages. Expected: %q, got: %q", test.expectedImage, res)
+		}
+	}
+}
+
 func TestGetMachineAPIOperatorFromImages(t *testing.T) {
 	imagesJSONFile := "fixtures/images.json"
 	img, err := getImagesFromJSONFile(imagesJSONFile)
