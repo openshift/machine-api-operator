@@ -30,31 +30,26 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 		glog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
 		return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
 	}
-	if config.Controllers.Provider != clusterAPIControllerNoOp {
-		if err := optr.syncClusterAPIController(config); err != nil {
-			if err := optr.statusDegraded(err.Error()); err != nil {
-				// Just log the error here.  We still want to
-				// return the outer error.
-				glog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
-			}
-			glog.Errorf("Error syncing machine-api-controller: %v", err)
-			return err
+
+	if config.Controllers.Provider == clusterAPIControllerNoOp {
+		glog.V(3).Info("Provider is NoOp, skipping synchronisation")
+		if err := optr.statusAvailable(); err != nil {
+			glog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
+			return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
 		}
-		glog.V(3).Info("Synced up all machine-api-controller components")
+		return nil
 	}
 
-	if config.Controllers.TerminationHandler != clusterAPIControllerNoOp {
-		if err := optr.syncTerminationHandler(config); err != nil {
-			if err := optr.statusDegraded(err.Error()); err != nil {
-				// Just log the error here.  We still want to
-				// return the outer error.
-				glog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
-			}
-			glog.Errorf("Error syncing machine-api-termination-handler: %v", err)
-			return err
+	if err := optr.syncClusterAPIController(config); err != nil {
+		if err := optr.statusDegraded(err.Error()); err != nil {
+			// Just log the error here.  We still want to
+			// return the outer error.
+			glog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
 		}
-		glog.V(3).Info("Synced up all machine-api-termination-handler components")
+		glog.Errorf("Error syncing machine-api-controller: %v", err)
+		return err
 	}
+	glog.V(3).Info("Synced up all machine-api-controller components")
 
 	// In addition, if the Provider is BareMetal, then bring up
 	// the baremetal-operator pod
@@ -97,7 +92,17 @@ func (optr *Operator) syncClusterAPIController(config *OperatorConfig) error {
 		return err
 	}
 	if updated {
-		return optr.waitForDeploymentRollout(controllersDeployment)
+		err := optr.waitForDeploymentRollout(controllersDeployment)
+		if err != nil {
+			return err
+		}
+	}
+
+	// Sync Termination Handler DaemonSet if supported
+	if config.Controllers.TerminationHandler != clusterAPIControllerNoOp {
+		if err := optr.syncTerminationHandler(config); err != nil {
+			return err
+		}
 	}
 	return nil
 }
