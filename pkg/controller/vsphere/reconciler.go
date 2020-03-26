@@ -10,6 +10,7 @@ import (
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	vspherev1 "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1alpha1"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
+	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
 	"github.com/pkg/errors"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/property"
@@ -126,6 +127,10 @@ func (r *Reconciler) update() error {
 		Context: r.machineScope.Context,
 		Obj:     object.NewVirtualMachine(r.machineScope.session.Client.Client, vmRef),
 		Ref:     vmRef,
+	}
+
+	if err := vm.reconcileTags(r.Context, r.session, r.machine); err != nil {
+		return errors.Wrapf(err, "failed to reconcile tags")
 	}
 
 	// TODO: we won't always want to reconcile power state
@@ -691,6 +696,29 @@ func (vm *virtualMachine) getPowerState() (types.VirtualMachinePowerState, error
 	default:
 		return "", errors.Errorf("unexpected power state %q for vm %v", powerState, vm)
 	}
+}
+
+// reconcileTags ensures that the required tags are present on the virtual machine, eg the Cluster ID
+// that is used by the installer on cluster deletion to ensure ther are no leaked resources.
+func (vm *virtualMachine) reconcileTags(ctx context.Context, session *session.Session, machine *machinev1.Machine) error {
+	if err := session.WithRestClient(vm.Context, func(c *rest.Client) error {
+		klog.Infof("%v: Reconciling attached tags", machine.GetName())
+
+		m := tags.NewManager(c)
+
+		clusterID := machine.Labels[machinev1.MachineClusterIDLabel]
+
+		// the tag should already be created by installer
+		if err := m.AttachTag(ctx, clusterID, vm.Ref); err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 type NetworkStatus struct {
