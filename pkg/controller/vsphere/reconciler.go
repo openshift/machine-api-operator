@@ -36,6 +36,7 @@ const (
 const (
 	GuestInfoIgnitionData     = "guestinfo.ignition.config.data"
 	GuestInfoIgnitionEncoding = "guestinfo.ignition.config.data.encoding"
+	GuestInfoHostname         = "guestinfo.hostname"
 )
 
 // Reconciler runs the logic to reconciles a machine resource towards its desired state
@@ -394,6 +395,14 @@ func clone(s *machineScope) error {
 	var deviceSpecs []types.BaseVirtualDeviceConfigSpec
 	deviceSpecs = append(deviceSpecs, networkDevices...)
 
+	extraConfig := []types.BaseOptionValue{}
+
+	extraConfig = append(extraConfig, IgnitionConfig(userData)...)
+	extraConfig = append(extraConfig, &types.OptionValue{
+		Key:   GuestInfoHostname,
+		Value: s.machine.GetName(),
+	})
+
 	spec := types.VirtualMachineCloneSpec{
 		Config: &types.VirtualMachineConfigSpec{
 			Annotation: s.machine.GetName(),
@@ -402,7 +411,7 @@ func clone(s *machineScope) error {
 			// the VM's UUID.
 			InstanceUuid: string(s.machine.UID),
 			Flags:        newVMFlagInfo(),
-			ExtraConfig:  IgnitionConfig(userData),
+			ExtraConfig:  extraConfig,
 			// TODO: set disk devices
 			DeviceChange:      deviceSpecs,
 			NumCPUs:           numCPUs,
