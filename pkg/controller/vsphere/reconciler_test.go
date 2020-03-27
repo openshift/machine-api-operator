@@ -204,7 +204,7 @@ func TestClone(t *testing.T) {
 			}
 			machineScope.providerSpec.Template = vm.Name
 
-			if err := clone(machineScope); (err != nil) != tc.expectError {
+			if _, err := clone(machineScope); (err != nil) != tc.expectError {
 				t.Errorf("Got: %v. Expected: %v", err, tc.expectError)
 			}
 			if tc.cloneVM {
@@ -1150,7 +1150,7 @@ func TestReconcileMachineWithCloudState(t *testing.T) {
 	}
 
 	reconciler := newReconciler(&machineScope)
-	if err := reconciler.reconcileMachineWithCloudState(vmWrapper); err != nil {
+	if err := reconciler.reconcileMachineWithCloudState(vmWrapper, task.Reference().Value); err != nil {
 		t.Fatalf("reconciler was not expected to return error: %v", err)
 	}
 

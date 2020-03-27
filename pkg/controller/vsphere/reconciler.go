@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	vspherev1 "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1alpha1"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/pkg/errors"
 	"github.com/vmware/govmomi/object"
@@ -70,12 +71,23 @@ func (r *Reconciler) create() error {
 	}
 
 	if _, err := findVM(r.machineScope); err != nil {
-		if !IsNotFound(err) {
+		if !isNotFound(err) {
 			return err
 		}
 		if r.machineScope.session.IsVC() {
 			klog.Infof("%v: cloning", r.machine.GetName())
-			return clone(r.machineScope)
+			task, err := clone(r.machineScope)
+			if err != nil {
+				conditionFailed := conditionFailed()
+				conditionFailed.Message = err.Error()
+				statusError := setProviderStatus(task, conditionFailed, r.machineScope, nil)
+				if statusError != nil {
+					return errors.Wrap(err, "Failed to set provider status")
+				}
+				return err
+			}
+
+			return setProviderStatus(task, conditionSuccess(), r.machineScope, nil)
 		}
 		return fmt.Errorf("%v: not connected to a vCenter", r.machine.GetName())
 	}
@@ -104,7 +116,7 @@ func (r *Reconciler) update() error {
 
 	vmRef, err := findVM(r.machineScope)
 	if err != nil {
-		if !IsNotFound(err) {
+		if !isNotFound(err) {
 			return err
 		}
 		return errors.Wrap(err, "vm not found on update")
@@ -118,10 +130,12 @@ func (r *Reconciler) update() error {
 
 	// TODO: we won't always want to reconcile power state
 	//  but as per comment in clone() function, powering on right on creation might be problematic
-	if ok, err := vm.reconcilePowerState(); err != nil || !ok {
+	ok, task, err := vm.reconcilePowerState()
+	if err != nil || !ok {
 		return err
 	}
-	return r.reconcileMachineWithCloudState(vm)
+
+	return r.reconcileMachineWithCloudState(vm, task)
 }
 
 // exists returns true if machine exists.
@@ -131,7 +145,7 @@ func (r *Reconciler) exists() (bool, error) {
 	}
 
 	if _, err := findVM(r.machineScope); err != nil {
-		if !IsNotFound(err) {
+		if !isNotFound(err) {
 			return false, err
 		}
 		klog.Infof("%v: does not exist", r.machine.GetName())
@@ -157,7 +171,7 @@ func (r *Reconciler) delete() error {
 
 	vmRef, err := findVM(r.machineScope)
 	if err != nil {
-		if !IsNotFound(err) {
+		if !isNotFound(err) {
 			return err
 		}
 		klog.Infof("%v: vm does not exist", r.machine.GetName())
@@ -178,13 +192,16 @@ func (r *Reconciler) delete() error {
 	if err != nil {
 		return fmt.Errorf("%v: failed to destroy vm: %v", r.machine.GetName(), err)
 	}
-	r.providerStatus.TaskRef = task.Reference().Value
+
+	if err := setProviderStatus(task.Reference().Value, conditionSuccess(), r.machineScope, vm); err != nil {
+		return errors.Wrap(err, "Failed to set provider status")
+	}
 
 	return fmt.Errorf("destroying vm in progress, reconciling")
 }
 
 // reconcileMachineWithCloudState reconcile machineSpec and status with the latest cloud state
-func (r *Reconciler) reconcileMachineWithCloudState(vm *virtualMachine) error {
+func (r *Reconciler) reconcileMachineWithCloudState(vm *virtualMachine, taskRef string) error {
 	klog.V(3).Infof("%v: reconciling machine with cloud state", r.machine.GetName())
 	// TODO: reconcile task
 
@@ -197,8 +214,13 @@ func (r *Reconciler) reconcileMachineWithCloudState(vm *virtualMachine) error {
 	if err := r.reconcileProviderID(vm); err != nil {
 		return err
 	}
+
 	klog.V(3).Infof("%v: reconciling network", r.machine.GetName())
-	return r.reconcileNetwork(vm)
+	if err := r.reconcileNetwork(vm); err != nil {
+		return err
+	}
+
+	return setProviderStatus(taskRef, conditionSuccess(), r.machineScope, vm)
 }
 
 // reconcileRegionAndZoneLabels reconciles the labels on the Machine containing
@@ -322,7 +344,7 @@ func (e errNotFound) Error() string {
 	return fmt.Sprintf("vm with bios uuid %s not found", e.uuid)
 }
 
-func IsNotFound(err error) bool {
+func isNotFound(err error) bool {
 	switch err.(type) {
 	case errNotFound, *errNotFound:
 		return true
@@ -335,15 +357,15 @@ func isRetrieveMONotFound(taskRef string, err error) bool {
 	return err.Error() == fmt.Sprintf("ServerFaultCode: The object 'vim.Task:%v' has already been deleted or has not been completely created", taskRef)
 }
 
-func clone(s *machineScope) error {
+func clone(s *machineScope) (string, error) {
 	userData, err := s.GetUserData()
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	vmTemplate, err := s.GetSession().FindVM(*s, s.providerSpec.Template)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	var folderPath, datastorePath, resourcepoolPath string
@@ -355,17 +377,17 @@ func clone(s *machineScope) error {
 
 	folder, err := s.GetSession().Finder.FolderOrDefault(s, folderPath)
 	if err != nil {
-		return errors.Wrapf(err, "unable to get folder for %q", folderPath)
+		return "", errors.Wrapf(err, "unable to get folder for %q", folderPath)
 	}
 
 	datastore, err := s.GetSession().Finder.DatastoreOrDefault(s, datastorePath)
 	if err != nil {
-		return errors.Wrapf(err, "unable to get datastore for %q", datastorePath)
+		return "", errors.Wrapf(err, "unable to get datastore for %q", datastorePath)
 	}
 
 	resourcepool, err := s.GetSession().Finder.ResourcePoolOrDefault(s, resourcepoolPath)
 	if err != nil {
-		return errors.Wrapf(err, "unable to get resource pool for %q", resourcepool)
+		return "", errors.Wrapf(err, "unable to get resource pool for %q", resourcepool)
 	}
 
 	numCPUs := s.providerSpec.NumCPUs
@@ -383,13 +405,13 @@ func clone(s *machineScope) error {
 
 	devices, err := vmTemplate.Device(s.Context)
 	if err != nil {
-		return fmt.Errorf("error getting devices %v", err)
+		return "", fmt.Errorf("error getting devices %v", err)
 	}
 
 	klog.V(3).Infof("Getting network devices")
 	networkDevices, err := getNetworkDevices(s, devices)
 	if err != nil {
-		return fmt.Errorf("error getting network specs: %v", err)
+		return "", fmt.Errorf("error getting network specs: %v", err)
 	}
 
 	var deviceSpecs []types.BaseVirtualDeviceConfigSpec
@@ -433,12 +455,11 @@ func clone(s *machineScope) error {
 
 	task, err := vmTemplate.Clone(s, folder, s.machine.GetName(), spec)
 	if err != nil {
-		return errors.Wrapf(err, "error triggering clone op for machine %v", s)
+		return "", errors.Wrapf(err, "error triggering clone op for machine %v", s)
 	}
 
-	s.providerStatus.TaskRef = task.Reference().Value
 	klog.V(3).Infof("%v: running task: %+v", s.machine.GetName(), s.providerStatus.TaskRef)
-	return nil
+	return task.Reference().Value, nil
 }
 
 func getNetworkDevices(s *machineScope, devices object.VirtualDeviceList) ([]types.BaseVirtualDeviceConfigSpec, error) {
@@ -518,6 +539,32 @@ func taskIsFinished(task *mo.Task) (bool, error) {
 	}
 }
 
+func setProviderStatus(taskRef string, condition vspherev1.VSphereMachineProviderCondition, scope *machineScope, vm *virtualMachine) error {
+	klog.Infof("%s: Updating provider status", scope.machine.Name)
+
+	if vm != nil {
+		id := vm.Obj.UUID(scope.Context)
+		scope.providerStatus.InstanceID = &id
+
+		// This can return an error if machine is being deleted
+		powerState, err := vm.getPowerState()
+		if err != nil {
+			klog.V(3).Infof("%s: Failed to get power state during provider status update: %v", scope.machine.Name, err)
+		} else {
+			powerStateString := string(powerState)
+			scope.providerStatus.InstanceState = &powerStateString
+		}
+	}
+
+	if taskRef != "" {
+		scope.providerStatus.TaskRef = taskRef
+	}
+
+	scope.providerStatus.Conditions = setVSphereMachineProviderConditions(condition, scope.providerStatus.Conditions)
+
+	return nil
+}
+
 type virtualMachine struct {
 	context.Context
 	Ref types.ManagedObjectReference
@@ -589,28 +636,27 @@ func (vm *virtualMachine) getRegionAndZone(c *rest.Client, regionLabel, zoneLabe
 	return result, nil
 }
 
-func (vm *virtualMachine) reconcilePowerState() (bool, error) {
+func (vm *virtualMachine) reconcilePowerState() (bool, string, error) {
 	powerState, err := vm.getPowerState()
 	if err != nil {
-		return false, err
+		return false, "", err
 	}
 	switch powerState {
 	case types.VirtualMachinePowerStatePoweredOff:
 		klog.Infof("%v: powering on", vm.Obj.Reference().Value)
-		_, err := vm.powerOnVM()
+		task, err := vm.powerOnVM()
 		if err != nil {
-			return false, errors.Wrapf(err, "failed to trigger power on op for vm %q", vm)
+			return false, "", errors.Wrapf(err, "failed to trigger power on op for vm %q", vm)
 		}
-		// TODO: store task in providerStatus/conditions?
+
 		klog.Infof("%v: requeue to wait for power on state", vm.Obj.Reference().Value)
-		return false, nil
+		return false, task, nil
 	case types.VirtualMachinePowerStatePoweredOn:
 		klog.Infof("%v: powered on", vm.Obj.Reference().Value)
+		return true, "", nil
 	default:
-		return false, errors.Errorf("unexpected power state %q for vm %q", powerState, vm)
+		return false, "", errors.Errorf("unexpected power state %q for vm %q", powerState, vm)
 	}
-
-	return true, nil
 }
 
 func (vm *virtualMachine) powerOnVM() (string, error) {

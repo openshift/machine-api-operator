@@ -104,11 +104,15 @@ func (s *machineScope) PatchMachine() error {
 	}
 	s.machine.Status.ProviderStatus = providerStatus
 
+	statusCopy := *s.machine.Status.DeepCopy()
+
 	// patch machine
 	if err := s.client.Patch(context.Background(), s.machine, s.machineToBePatched); err != nil {
 		klog.Errorf("Failed to patch machine %q: %v", s.machine.GetName(), err)
 		return err
 	}
+
+	s.machine.Status = statusCopy
 
 	// patch status
 	if err := s.client.Status().Patch(context.Background(), s.machine, s.machineToBePatched); err != nil {
