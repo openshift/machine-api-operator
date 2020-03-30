@@ -17,6 +17,7 @@ limitations under the License.
 package simulator
 
 import (
+	"log"
 	"strings"
 
 	"github.com/vmware/govmomi/simulator/esx"
@@ -47,6 +48,10 @@ func NewDatacenter(f *Folder) *Datacenter {
 	dc.createFolders()
 
 	return dc
+}
+
+func (dc *Datacenter) RenameTask(r *types.Rename_Task) soap.HasFault {
+	return RenameTask(dc, r)
 }
 
 // Create Datacenter Folders.
@@ -102,6 +107,33 @@ func (dc *Datacenter) createFolders() {
 
 func (dc *Datacenter) defaultNetwork() []types.ManagedObjectReference {
 	return dc.Network[:1] // VM Network
+}
+
+// folder returns the Datacenter folder that can contain the given object type
+func (dc *Datacenter) folder(obj mo.Entity) *Folder {
+	folders := []types.ManagedObjectReference{
+		dc.VmFolder,
+		dc.HostFolder,
+		dc.DatastoreFolder,
+		dc.NetworkFolder,
+	}
+	otype := getManagedObject(obj).Type()
+	rtype := obj.Reference().Type
+
+	for i := range folders {
+		folder := Map.Get(folders[i]).(*Folder)
+		for _, kind := range folder.ChildType {
+			if rtype == kind {
+				return folder
+			}
+			if f, ok := otype.FieldByName(kind); ok && f.Anonymous {
+				return folder
+			}
+		}
+	}
+
+	log.Panicf("failed to find folder for type=%s", rtype)
+	return nil
 }
 
 func datacenterEventArgument(obj mo.Entity) *types.DatacenterEventArgument {

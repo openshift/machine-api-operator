@@ -50,8 +50,16 @@ import (
 	"github.com/vmware/govmomi/vim25/xml"
 )
 
-// Trace when set to true, writes SOAP traffic to stderr
-var Trace = false
+var (
+	// Trace when set to true, writes SOAP traffic to stderr
+	Trace = false
+
+	// TraceFile is the output file when Trace = true
+	TraceFile = os.Stderr
+
+	// DefaultLogin for authentication
+	DefaultLogin = url.UserPassword("user", "pass")
+)
 
 // Method encapsulates a decoded SOAP client request
 type Method struct {
@@ -66,6 +74,7 @@ type Service struct {
 	client *vim25.Client
 	sm     *SessionManager
 	sdk    map[string]*Registry
+	funcs  []handleFunc
 	delay  *DelayConfig
 
 	readAll func(io.Reader) ([]byte, error)
@@ -73,6 +82,8 @@ type Service struct {
 	Listen   *url.URL
 	TLS      *tls.Config
 	ServeMux *http.ServeMux
+	// RegisterEndpoints will initialize any endpoints added via RegisterEndpoint
+	RegisterEndpoints bool
 }
 
 // Server provides a simulator Service over HTTP
@@ -122,6 +133,7 @@ func Fault(msg string, fault types.BaseMethodFault) *soap.Fault {
 func (s *Service) call(ctx *Context, method *Method) soap.HasFault {
 	handler := ctx.Map.Get(method.This)
 	session := ctx.Session
+	ctx.Caller = &method.This
 
 	if session == nil {
 		switch method.Name {
@@ -362,6 +374,14 @@ func (s *Service) About(w http.ResponseWriter, r *http.Request) {
 	_ = enc.Encode(&about)
 }
 
+var endpoints []func(*Service, *Registry)
+
+// RegisterEndpoint funcs are called after the Server is initialized if Service.RegisterEndpoints=true.
+// Such a func would typically register a SOAP endpoint via Service.RegisterSDK or REST endpoint via Service.Handle
+func RegisterEndpoint(endpoint func(*Service, *Registry)) {
+	endpoints = append(endpoints, endpoint)
+}
+
 // Handle registers the handler for the given pattern with Service.ServeMux.
 func (s *Service) Handle(pattern string, handler http.Handler) {
 	s.ServeMux.Handle(pattern, handler)
@@ -370,6 +390,21 @@ func (s *Service) Handle(pattern string, handler http.Handler) {
 	if m, ok := handler.(tagManager); ok {
 		s.sdk[vim25.Path].tagManager = m
 	}
+}
+
+type muxHandleFunc interface {
+	HandleFunc(string, func(http.ResponseWriter, *http.Request))
+}
+
+type handleFunc struct {
+	pattern string
+	handler func(http.ResponseWriter, *http.Request)
+}
+
+// HandleFunc dispatches to http.ServeMux.HandleFunc after all endpoints have been registered.
+// This allows dispatching to an endpoint's HandleFunc impl, such as vapi/simulator for example.
+func (s *Service) HandleFunc(pattern string, handler func(http.ResponseWriter, *http.Request)) {
+	s.funcs = append(s.funcs, handleFunc{pattern, handler})
 }
 
 // RegisterSDK adds an HTTP handler for the Registry's Path and Namespace.
@@ -382,10 +417,21 @@ func (s *Service) RegisterSDK(r *Registry) {
 	s.ServeMux.HandleFunc(r.Path, s.ServeSDK)
 }
 
+// StatusSDK can be used to simulate an /sdk HTTP response code other than 200.
+// The value of StatusSDK is restored to http.StatusOK after 1 response.
+// This can be useful to test vim25.Retry() for example.
+var StatusSDK = http.StatusOK
+
 // ServeSDK implements the http.Handler interface
 func (s *Service) ServeSDK(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	if StatusSDK != http.StatusOK {
+		w.WriteHeader(StatusSDK)
+		StatusSDK = http.StatusOK // reset
 		return
 	}
 
@@ -398,7 +444,7 @@ func (s *Service) ServeSDK(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if Trace {
-		fmt.Fprintf(os.Stderr, "Request: %s\n", string(body))
+		fmt.Fprintf(TraceFile, "Request: %s\n", string(body))
 	}
 
 	ctx := &Context{
@@ -469,7 +515,7 @@ func (s *Service) ServeSDK(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if Trace {
-		fmt.Fprintf(os.Stderr, "Response: %s\n", out.String())
+		fmt.Fprintf(TraceFile, "Response: %s\n", out.String())
 	}
 
 	_, _ = w.Write(out.Bytes())
@@ -619,6 +665,19 @@ func (s *Service) NewServer() *Server {
 
 	// Add vcsim config to OptionManager for use by SDK handlers (see lookup/simulator for example)
 	m := Map.OptionManager()
+	for i := range m.Setting {
+		setting := m.Setting[i].GetOptionValue()
+
+		if strings.HasSuffix(setting.Key, ".uri") {
+			// Rewrite any URIs with vcsim's host:port
+			endpoint, err := url.Parse(setting.Value.(string))
+			if err == nil {
+				endpoint.Scheme = u.Scheme
+				endpoint.Host = u.Host
+				setting.Value = endpoint.String()
+			}
+		}
+	}
 	m.Setting = append(m.Setting,
 		&types.OptionValue{
 			Key:   "vcsim.server.url",
@@ -628,7 +687,25 @@ func (s *Service) NewServer() *Server {
 
 	u.User = s.Listen.User
 	if u.User == nil {
-		u.User = url.UserPassword("user", "pass")
+		u.User = DefaultLogin
+	}
+	s.Listen = u
+
+	if s.RegisterEndpoints {
+		for i := range endpoints {
+			endpoints[i](s, Map)
+		}
+	}
+
+	for _, f := range s.funcs {
+		pattern := &url.URL{Path: f.pattern}
+		endpoint, _ := s.ServeMux.Handler(&http.Request{URL: pattern})
+
+		if mux, ok := endpoint.(muxHandleFunc); ok {
+			mux.HandleFunc(f.pattern, f.handler) // e.g. vapi/simulator
+		} else {
+			s.ServeMux.HandleFunc(f.pattern, f.handler)
+		}
 	}
 
 	if s.TLS != nil {

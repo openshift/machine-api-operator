@@ -63,7 +63,10 @@ func (f *Folder) update(o mo.Reference, u func(mo.Reference, *[]types.ManagedObj
 	}
 }
 
-func networkSummary(n *mo.Network) *types.NetworkSummary {
+func networkSummary(n *mo.Network) types.BaseNetworkSummary {
+	if n.Summary != nil {
+		return n.Summary
+	}
 	return &types.NetworkSummary{
 		Network:    &n.Self,
 		Name:       n.Name,
@@ -146,6 +149,15 @@ func (f *Folder) CreateFolder(c *types.CreateFolder) soap.HasFault {
 	r := &methods.CreateFolderBody{}
 
 	if f.hasChildType("Folder") {
+		if obj := Map.FindByName(c.Name, f.ChildEntity); obj != nil {
+			r.Fault_ = Fault("", &types.DuplicateName{
+				Name:   c.Name,
+				Object: f.Self,
+			})
+
+			return r
+		}
+
 		folder := &Folder{}
 
 		folder.Name = c.Name
@@ -172,6 +184,15 @@ func (f *Folder) CreateStoragePod(c *types.CreateStoragePod) soap.HasFault {
 	r := &methods.CreateStoragePodBody{}
 
 	if f.hasChildType("StoragePod") {
+		if obj := Map.FindByName(c.Name, f.ChildEntity); obj != nil {
+			r.Fault_ = Fault("", &types.DuplicateName{
+				Name:   c.Name,
+				Object: f.Self,
+			})
+
+			return r
+		}
+
 		pod := &StoragePod{}
 
 		pod.Name = c.Name
@@ -445,8 +466,6 @@ func (c *registerVM) Run(task *Task) (types.AnyType, types.BaseMethodFault) {
 }
 
 func (f *Folder) RegisterVMTask(ctx *Context, c *types.RegisterVM_Task) soap.HasFault {
-	ctx.Caller = &f.Self
-
 	return &methods.RegisterVM_TaskBody{
 		Res: &types.RegisterVM_TaskResponse{
 			Returnval: NewTask(&registerVM{f, ctx, c}).Run(),

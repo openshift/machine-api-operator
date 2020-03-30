@@ -20,11 +20,11 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"reflect"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/session"
 	"github.com/vmware/govmomi/vim25/methods"
 	"github.com/vmware/govmomi/vim25/mo"
@@ -41,12 +41,8 @@ type SessionManager struct {
 	sessions map[string]Session
 }
 
-func NewSessionManager(ref types.ManagedObjectReference) object.Reference {
-	s := &SessionManager{
-		sessions: make(map[string]Session),
-	}
-	s.Self = ref
-	return s
+func (m *SessionManager) init(*Registry) {
+	m.sessions = make(map[string]Session)
 }
 
 func createSession(ctx *Context, name string, locale string) types.UserSession {
@@ -80,7 +76,7 @@ func (s *SessionManager) validLogin(ctx *Context, req *types.Login) bool {
 		return false
 	}
 	user := ctx.svc.Listen.User
-	if user == nil {
+	if user == nil || user == DefaultLogin {
 		return req.UserName != "" && req.Password != ""
 	}
 	pass, _ := user.Password()
@@ -333,13 +329,20 @@ type Session struct {
 	*Registry
 }
 
-// Put wraps Registry.Put, setting the moref value to include the session key.
-func (s *Session) Put(item mo.Reference) mo.Reference {
+func (s *Session) setReference(item mo.Reference) {
 	ref := item.Reference()
 	if ref.Value == "" {
 		ref.Value = fmt.Sprintf("session[%s]%s", s.Key, uuid.New())
 	}
+	if ref.Type == "" {
+		ref.Type = typeName(item)
+	}
 	s.Registry.setReference(item, ref)
+}
+
+// Put wraps Registry.Put, setting the moref value to include the session key.
+func (s *Session) Put(item mo.Reference) mo.Reference {
+	s.setReference(item)
 	return s.Registry.Put(item)
 }
 
@@ -365,7 +368,13 @@ func (s *Session) Get(ref types.ManagedObjectReference) mo.Reference {
 		return &m
 	case "PropertyCollector":
 		if ref == Map.content().PropertyCollector {
-			return s.Put(NewPropertyCollector(ref))
+			// Per-session instance of the PropertyCollector singleton.
+			// Using reflection here as PropertyCollector might be wrapped with a custom type.
+			obj = Map.Get(ref)
+			pc := reflect.New(reflect.TypeOf(obj).Elem())
+			obj = pc.Interface().(mo.Reference)
+			s.Registry.setReference(obj, ref)
+			return s.Put(obj)
 		}
 	}
 

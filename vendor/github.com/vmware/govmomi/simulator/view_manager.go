@@ -19,7 +19,6 @@ package simulator
 import (
 	"reflect"
 
-	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/vim25/methods"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/soap"
@@ -54,25 +53,14 @@ var entities = []struct {
 	{reflect.TypeOf((*mo.VmwareDistributedVirtualSwitch)(nil)).Elem(), false},
 }
 
-func NewViewManager(ref types.ManagedObjectReference) object.Reference {
-	s := &ViewManager{
-		entities: make(map[string]bool),
-	}
-
-	s.Self = ref
-
+func (m *ViewManager) init(*Registry) {
+	m.entities = make(map[string]bool, len(entities))
 	for _, e := range entities {
-		s.entities[e.Type.Name()] = e.Container
+		m.entities[e.Type.Name()] = e.Container
 	}
-
-	return s
 }
 
 func destroyView(ref types.ManagedObjectReference) soap.HasFault {
-	m := Map.ViewManager()
-
-	RemoveReference(&m.ViewList, ref)
-
 	return &methods.DestroyViewBody{
 		Res: &types.DestroyViewResponse{},
 	}
@@ -117,9 +105,7 @@ func (m *ViewManager) CreateContainerView(ctx *Context, req *types.CreateContain
 		}
 	}
 
-	ctx.Session.Put(container)
-
-	m.ViewList = append(m.ViewList, container.Reference())
+	ctx.Session.setReference(container)
 
 	body.Res = &types.CreateContainerViewResponse{
 		Returnval: container.Self,
@@ -127,6 +113,8 @@ func (m *ViewManager) CreateContainerView(ctx *Context, req *types.CreateContain
 
 	seen := make(map[types.ManagedObjectReference]bool)
 	container.add(root, seen)
+
+	ctx.Session.Registry.Put(container)
 
 	return body
 }
