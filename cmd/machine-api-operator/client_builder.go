@@ -1,6 +1,8 @@
 package main
 
 import (
+	"errors"
+
 	"github.com/golang/glog"
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
 	mapiclientset "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
@@ -57,6 +59,9 @@ func getRestConfig(kubeconfig string) (*rest.Config, error) {
 	} else {
 		glog.V(4).Infof("Using in-cluster kube client config")
 		config, err = rest.InClusterConfig()
+		if err == rest.ErrNotInCluster {
+			return nil, errors.New("Not running in-cluster? Try using --kubeconfig")
+		}
 	}
 	return config, err
 }
