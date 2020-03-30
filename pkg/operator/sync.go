@@ -7,6 +7,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
+	"github.com/openshift/library-go/pkg/operator/resource/resourcemerge"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -75,23 +76,14 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 
 func (optr *Operator) syncClusterAPIController(config *OperatorConfig) error {
 	controllersDeployment := newDeployment(config, nil)
-	d, err := optr.deployLister.Deployments(controllersDeployment.GetNamespace()).Get(controllersDeployment.GetName())
-	generation := int64(-1)
-	if err != nil {
-		if !apierrors.IsNotFound(err) {
-			return err
-		}
-	}
-	if d != nil {
-		generation = d.Status.ObservedGeneration
-	}
-
-	_, updated, err := resourceapply.ApplyDeployment(optr.kubeClient.AppsV1(),
-		events.NewLoggingEventRecorder(optr.name), controllersDeployment, generation, false)
+	expectedGeneration := resourcemerge.ExpectedDeploymentGeneration(controllersDeployment, optr.generations)
+	d, updated, err := resourceapply.ApplyDeployment(optr.kubeClient.AppsV1(),
+		events.NewLoggingEventRecorder(optr.name), controllersDeployment, expectedGeneration, false)
 	if err != nil {
 		return err
 	}
 	if updated {
+		resourcemerge.SetDeploymentGeneration(&optr.generations, d)
 		err := optr.waitForDeploymentRollout(controllersDeployment)
 		if err != nil {
 			return err
@@ -109,23 +101,14 @@ func (optr *Operator) syncClusterAPIController(config *OperatorConfig) error {
 
 func (optr *Operator) syncTerminationHandler(config *OperatorConfig) error {
 	terminationDaemonSet := newTerminationDaemonSet(config)
-	ds, err := optr.daemonsetLister.DaemonSets(terminationDaemonSet.GetNamespace()).Get(terminationDaemonSet.GetName())
-	generation := int64(-1)
-	if err != nil {
-		if !apierrors.IsNotFound(err) {
-			return err
-		}
-	}
-	if ds != nil {
-		generation = ds.Status.ObservedGeneration
-	}
-
-	_, updated, err := resourceapply.ApplyDaemonSet(optr.kubeClient.AppsV1(),
-		events.NewLoggingEventRecorder(optr.name), terminationDaemonSet, generation, false)
+	expectedGeneration := resourcemerge.ExpectedDaemonSetGeneration(terminationDaemonSet, optr.generations)
+	ds, updated, err := resourceapply.ApplyDaemonSet(optr.kubeClient.AppsV1(),
+		events.NewLoggingEventRecorder(optr.name), terminationDaemonSet, expectedGeneration, false)
 	if err != nil {
 		return err
 	}
 	if updated {
+		resourcemerge.SetDaemonSetGeneration(&optr.generations, ds)
 		return optr.waitForDaemonSetRollout(terminationDaemonSet)
 	}
 	return nil
@@ -145,23 +128,14 @@ func (optr *Operator) syncBaremetalControllers(config *OperatorConfig) error {
 	}
 
 	metal3Deployment := newMetal3Deployment(config, baremetalProvisioningConfig)
-	generation := int64(-1)
-	d, err := optr.deployLister.Deployments(metal3Deployment.GetNamespace()).Get(metal3Deployment.GetName())
-	if err != nil {
-		if !apierrors.IsNotFound(err) {
-			return err
-		}
-	}
-	if d != nil {
-		generation = d.Status.ObservedGeneration
-	}
-
-	_, updated, err := resourceapply.ApplyDeployment(optr.kubeClient.AppsV1(),
-		events.NewLoggingEventRecorder(optr.name), metal3Deployment, generation, false)
+	expectedGeneration := resourcemerge.ExpectedDeploymentGeneration(metal3Deployment, optr.generations)
+	d, updated, err := resourceapply.ApplyDeployment(optr.kubeClient.AppsV1(),
+		events.NewLoggingEventRecorder(optr.name), metal3Deployment, expectedGeneration, false)
 	if err != nil {
 		return err
 	}
 	if updated {
+		resourcemerge.SetDeploymentGeneration(&optr.generations, d)
 		return optr.waitForDeploymentRollout(metal3Deployment)
 	}
 
