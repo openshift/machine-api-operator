@@ -1752,112 +1752,6 @@ func TestNeedsRemediation(t *testing.T) {
 	}
 }
 
-func TestIsMaster(t *testing.T) {
-	testCases := []struct {
-		testCase string
-		target   *target
-		expected bool
-	}{
-		{
-			testCase: "no master",
-			target: &target{
-				Machine: mapiv1beta1.Machine{
-					TypeMeta: metav1.TypeMeta{Kind: "Machine"},
-					ObjectMeta: metav1.ObjectMeta{
-						Annotations:     make(map[string]string),
-						Name:            "test",
-						Namespace:       namespace,
-						Labels:          map[string]string{"foo": "bar"},
-						OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
-					},
-					Spec:   mapiv1beta1.MachineSpec{},
-					Status: mapiv1beta1.MachineStatus{},
-				},
-				Node: &corev1.Node{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test",
-						Namespace: metav1.NamespaceNone,
-						Annotations: map[string]string{
-							machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "machine"),
-						},
-						Labels: map[string]string{},
-					},
-					TypeMeta: metav1.TypeMeta{
-						Kind: "Node",
-					},
-					Status: corev1.NodeStatus{},
-				},
-				MHC: mapiv1beta1.MachineHealthCheck{},
-			},
-		},
-		{
-			testCase: "node master",
-			target: &target{
-				Machine: mapiv1beta1.Machine{
-					TypeMeta: metav1.TypeMeta{Kind: "Machine"},
-					ObjectMeta: metav1.ObjectMeta{
-						Annotations:     make(map[string]string),
-						Name:            "test",
-						Namespace:       namespace,
-						Labels:          map[string]string{"foo": "bar"},
-						OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
-					},
-					Spec:   mapiv1beta1.MachineSpec{},
-					Status: mapiv1beta1.MachineStatus{},
-				},
-				Node: &corev1.Node{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test",
-						Namespace: metav1.NamespaceNone,
-						Annotations: map[string]string{
-							machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "machine"),
-						},
-						Labels: map[string]string{
-							nodeMasterLabel: "",
-						},
-					},
-					TypeMeta: metav1.TypeMeta{
-						Kind: "Node",
-					},
-					Status: corev1.NodeStatus{},
-				},
-				MHC: mapiv1beta1.MachineHealthCheck{},
-			},
-			expected: true,
-		},
-		{
-			testCase: "machine master",
-			target: &target{
-				Machine: mapiv1beta1.Machine{
-					TypeMeta: metav1.TypeMeta{Kind: "Machine"},
-					ObjectMeta: metav1.ObjectMeta{
-						Annotations: make(map[string]string),
-						Name:        "test",
-						Namespace:   namespace,
-						Labels: map[string]string{
-							machineRoleLabel: machineMasterRole,
-						},
-						OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
-					},
-					Spec:   mapiv1beta1.MachineSpec{},
-					Status: mapiv1beta1.MachineStatus{},
-				},
-				Node: &corev1.Node{},
-				MHC:  mapiv1beta1.MachineHealthCheck{},
-			},
-			expected: true,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.testCase, func(t *testing.T) {
-			if got := tc.target.isMaster(); got != tc.expected {
-				t.Errorf("Case: %v. Got: %v, expected error: %v", tc.testCase, got, tc.expected)
-			}
-		})
-	}
-}
-
 func TestMinDuration(t *testing.T) {
 	testCases := []struct {
 		testCase  string
@@ -1992,9 +1886,9 @@ func TestRemediate(t *testing.T) {
 				},
 				MHC: mapiv1beta1.MachineHealthCheck{},
 			},
-			deletion:       false,
+			deletion:       true,
 			expectedError:  false,
-			expectedEvents: []string{EventSkippedMaster},
+			expectedEvents: []string{EventMachineDeleted},
 		},
 		{
 			testCase: "machine master",
@@ -2019,9 +1913,9 @@ func TestRemediate(t *testing.T) {
 				Node: &corev1.Node{},
 				MHC:  mapiv1beta1.MachineHealthCheck{},
 			},
-			deletion:       false,
+			deletion:       true,
 			expectedError:  false,
-			expectedEvents: []string{EventSkippedMaster},
+			expectedEvents: []string{EventMachineDeleted},
 		},
 	}
 

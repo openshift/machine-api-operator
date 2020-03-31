@@ -447,17 +447,6 @@ func (t *target) remediate(r *ReconcileMachineHealthCheck) error {
 			return t.remediationStrategyExternal(r)
 		}
 	}
-	if t.isMaster() {
-		r.recorder.Eventf(
-			&t.Machine,
-			corev1.EventTypeNormal,
-			EventSkippedMaster,
-			"Machine %v is a master node, skipping remediation",
-			t.string(),
-		)
-		glog.Infof("%s: master node, skipping remediation", t.string())
-		return nil
-	}
 
 	glog.Infof("%s: deleting", t.string())
 	if err := r.client.Delete(context.TODO(), &t.Machine); err != nil {
@@ -542,21 +531,6 @@ func (t *target) nodeName() string {
 		return t.Node.GetName()
 	}
 	return ""
-}
-
-func (t *target) isMaster() bool {
-	if t.Node != nil {
-		if labels.Set(t.Node.Labels).Has(nodeMasterLabel) {
-			return true
-		}
-	}
-
-	// if the node is not found we fallback to check the machine
-	if labels.Set(t.Machine.Labels).Get(machineRoleLabel) == machineMasterRole {
-		return true
-	}
-
-	return false
 }
 
 func (t *target) needsRemediation(timeoutForMachineToHaveNode time.Duration) (bool, time.Duration, error) {
