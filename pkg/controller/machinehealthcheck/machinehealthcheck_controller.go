@@ -33,7 +33,6 @@ import (
 const (
 	machineAnnotationKey          = "machine.openshift.io/machine"
 	machineExternalAnnotationKey  = "host.metal3.io/external-remediation"
-	ownerControllerKind           = "MachineSet"
 	nodeMasterLabel               = "node-role.kubernetes.io/master"
 	machineRoleLabel              = "machine.openshift.io/cluster-api-machine-role"
 	machineMasterRole             = "master"
@@ -436,8 +435,8 @@ func (r *ReconcileMachineHealthCheck) mhcRequestsFromMachine(o handler.MapObject
 
 func (t *target) remediate(r *ReconcileMachineHealthCheck) error {
 	glog.Infof(" %s: start remediation logic", t.string())
-	if !t.hasMachineSetOwner() {
-		glog.Infof("%s: no machineSet controller owner, skipping remediation", t.string())
+	if !t.hasControllerOwner() {
+		glog.Infof("%s: no controller owner, skipping remediation", t.string())
 		return nil
 	}
 
@@ -595,14 +594,8 @@ func (t *target) needsRemediation(timeoutForMachineToHaveNode time.Duration) (bo
 	return false, minDuration(nextCheckTimes), nil
 }
 
-func (t *target) hasMachineSetOwner() bool {
-	ownerRefs := t.Machine.ObjectMeta.GetOwnerReferences()
-	for _, or := range ownerRefs {
-		if or.Kind == ownerControllerKind {
-			return true
-		}
-	}
-	return false
+func (t *target) hasControllerOwner() bool {
+	return metav1.GetControllerOf(&t.Machine) != nil
 }
 
 func derefStringPointer(stringPointer *string) string {
