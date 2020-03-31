@@ -33,7 +33,6 @@ import (
 const (
 	machineAnnotationKey          = "machine.openshift.io/machine"
 	machineExternalAnnotationKey  = "host.metal3.io/external-remediation"
-	ownerControllerKind           = "MachineSet"
 	nodeMasterLabel               = "node-role.kubernetes.io/master"
 	machineRoleLabel              = "machine.openshift.io/cluster-api-machine-role"
 	machineMasterRole             = "master"
@@ -436,8 +435,8 @@ func (r *ReconcileMachineHealthCheck) mhcRequestsFromMachine(o handler.MapObject
 
 func (t *target) remediate(r *ReconcileMachineHealthCheck) error {
 	glog.Infof(" %s: start remediation logic", t.string())
-	if !t.hasMachineSetOwner() {
-		glog.Infof("%s: no machineSet controller owner, skipping remediation", t.string())
+	if !t.hasControllerOwner() {
+		glog.Infof("%s: no controller owner, skipping remediation", t.string())
 		return nil
 	}
 
@@ -446,17 +445,6 @@ func (t *target) remediate(r *ReconcileMachineHealthCheck) error {
 		if mapiv1.RemediationStrategyType(remediationStrategy) == remediationStrategyExternal {
 			return t.remediationStrategyExternal(r)
 		}
-	}
-	if t.isMaster() {
-		r.recorder.Eventf(
-			&t.Machine,
-			corev1.EventTypeNormal,
-			EventSkippedMaster,
-			"Machine %v is a master node, skipping remediation",
-			t.string(),
-		)
-		glog.Infof("%s: master node, skipping remediation", t.string())
-		return nil
 	}
 
 	glog.Infof("%s: deleting", t.string())
@@ -544,21 +532,6 @@ func (t *target) nodeName() string {
 	return ""
 }
 
-func (t *target) isMaster() bool {
-	if t.Node != nil {
-		if labels.Set(t.Node.Labels).Has(nodeMasterLabel) {
-			return true
-		}
-	}
-
-	// if the node is not found we fallback to check the machine
-	if labels.Set(t.Machine.Labels).Get(machineRoleLabel) == machineMasterRole {
-		return true
-	}
-
-	return false
-}
-
 func (t *target) needsRemediation(timeoutForMachineToHaveNode time.Duration) (bool, time.Duration, error) {
 	var nextCheckTimes []time.Duration
 	now := time.Now()
@@ -621,14 +594,8 @@ func (t *target) needsRemediation(timeoutForMachineToHaveNode time.Duration) (bo
 	return false, minDuration(nextCheckTimes), nil
 }
 
-func (t *target) hasMachineSetOwner() bool {
-	ownerRefs := t.Machine.ObjectMeta.GetOwnerReferences()
-	for _, or := range ownerRefs {
-		if or.Kind == ownerControllerKind {
-			return true
-		}
-	}
-	return false
+func (t *target) hasControllerOwner() bool {
+	return metav1.GetControllerOf(&t.Machine) != nil
 }
 
 func derefStringPointer(stringPointer *string) string {

@@ -8,6 +8,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
+	"k8s.io/utils/pointer"
 )
 
 const (
@@ -74,12 +75,17 @@ func NewMachine(name string, nodeName string) *mapiv1.Machine {
 	m := &mapiv1.Machine{
 		TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 		ObjectMeta: metav1.ObjectMeta{
-			Annotations:     make(map[string]string),
-			Name:            name,
-			Namespace:       Namespace,
-			Labels:          FooBar(),
-			UID:             uuid.NewUUID(),
-			OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
+			Annotations: make(map[string]string),
+			Name:        name,
+			Namespace:   Namespace,
+			Labels:      FooBar(),
+			UID:         uuid.NewUUID(),
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					Kind:       "MachineSet",
+					Controller: pointer.BoolPtr(true),
+				},
+			},
 		},
 		Spec: mapiv1.MachineSpec{},
 	}
