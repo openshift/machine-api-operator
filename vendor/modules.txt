@@ -217,7 +217,7 @@ github.com/spf13/cobra
 github.com/spf13/pflag
 # github.com/stretchr/testify v1.4.0
 github.com/stretchr/testify/assert
-# github.com/vmware/govmomi v0.21.0
+# github.com/vmware/govmomi v0.22.2
 github.com/vmware/govmomi
 github.com/vmware/govmomi/find
 github.com/vmware/govmomi/list
@@ -232,8 +232,12 @@ github.com/vmware/govmomi/simulator/internal
 github.com/vmware/govmomi/simulator/vpx
 github.com/vmware/govmomi/task
 github.com/vmware/govmomi/vapi/internal
+github.com/vmware/govmomi/vapi/library
 github.com/vmware/govmomi/vapi/rest
+github.com/vmware/govmomi/vapi/simulator
 github.com/vmware/govmomi/vapi/tags
+github.com/vmware/govmomi/vapi/vcenter
+github.com/vmware/govmomi/view
 github.com/vmware/govmomi/vim25
 github.com/vmware/govmomi/vim25/debug
 github.com/vmware/govmomi/vim25/methods

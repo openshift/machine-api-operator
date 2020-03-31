@@ -18,18 +18,24 @@ package simulator
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path"
+	"path/filepath"
+	"reflect"
 
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/simulator/esx"
 	"github.com/vmware/govmomi/simulator/vpx"
 	"github.com/vmware/govmomi/vim25"
+	"github.com/vmware/govmomi/vim25/methods"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
+	"github.com/vmware/govmomi/vim25/xml"
 )
 
 type DelayConfig struct {
@@ -97,7 +103,7 @@ type Model struct {
 	Pod int
 
 	// Delay configurations
-	DelayConfig DelayConfig
+	DelayConfig DelayConfig `json:"-"`
 
 	// total number of inventory objects, set by Count()
 	total int
@@ -182,6 +188,183 @@ func (m *Model) Count() Model {
 
 func (*Model) fmtName(prefix string, num int) string {
 	return fmt.Sprintf("%s%d", prefix, num)
+}
+
+// kinds maps managed object types to their vcsim wrapper types
+var kinds = map[string]reflect.Type{
+	"AuthorizationManager":           reflect.TypeOf((*AuthorizationManager)(nil)).Elem(),
+	"ClusterComputeResource":         reflect.TypeOf((*ClusterComputeResource)(nil)).Elem(),
+	"CustomFieldsManager":            reflect.TypeOf((*CustomFieldsManager)(nil)).Elem(),
+	"CustomizationSpecManager":       reflect.TypeOf((*CustomizationSpecManager)(nil)).Elem(),
+	"Datacenter":                     reflect.TypeOf((*Datacenter)(nil)).Elem(),
+	"Datastore":                      reflect.TypeOf((*Datastore)(nil)).Elem(),
+	"DistributedVirtualPortgroup":    reflect.TypeOf((*DistributedVirtualPortgroup)(nil)).Elem(),
+	"DistributedVirtualSwitch":       reflect.TypeOf((*DistributedVirtualSwitch)(nil)).Elem(),
+	"EnvironmentBrowser":             reflect.TypeOf((*EnvironmentBrowser)(nil)).Elem(),
+	"EventManager":                   reflect.TypeOf((*EventManager)(nil)).Elem(),
+	"FileManager":                    reflect.TypeOf((*FileManager)(nil)).Elem(),
+	"Folder":                         reflect.TypeOf((*Folder)(nil)).Elem(),
+	"HostDatastoreBrowser":           reflect.TypeOf((*HostDatastoreBrowser)(nil)).Elem(),
+	"HostLocalAccountManager":        reflect.TypeOf((*HostLocalAccountManager)(nil)).Elem(),
+	"HostSystem":                     reflect.TypeOf((*HostSystem)(nil)).Elem(),
+	"IpPoolManager":                  reflect.TypeOf((*IpPoolManager)(nil)).Elem(),
+	"LicenseManager":                 reflect.TypeOf((*LicenseManager)(nil)).Elem(),
+	"OptionManager":                  reflect.TypeOf((*OptionManager)(nil)).Elem(),
+	"OvfManager":                     reflect.TypeOf((*OvfManager)(nil)).Elem(),
+	"PerformanceManager":             reflect.TypeOf((*PerformanceManager)(nil)).Elem(),
+	"PropertyCollector":              reflect.TypeOf((*PropertyCollector)(nil)).Elem(),
+	"ResourcePool":                   reflect.TypeOf((*ResourcePool)(nil)).Elem(),
+	"SearchIndex":                    reflect.TypeOf((*SearchIndex)(nil)).Elem(),
+	"SessionManager":                 reflect.TypeOf((*SessionManager)(nil)).Elem(),
+	"StoragePod":                     reflect.TypeOf((*StoragePod)(nil)).Elem(),
+	"StorageResourceManager":         reflect.TypeOf((*StorageResourceManager)(nil)).Elem(),
+	"TaskManager":                    reflect.TypeOf((*TaskManager)(nil)).Elem(),
+	"UserDirectory":                  reflect.TypeOf((*UserDirectory)(nil)).Elem(),
+	"VcenterVStorageObjectManager":   reflect.TypeOf((*VcenterVStorageObjectManager)(nil)).Elem(),
+	"ViewManager":                    reflect.TypeOf((*ViewManager)(nil)).Elem(),
+	"VirtualApp":                     reflect.TypeOf((*VirtualApp)(nil)).Elem(),
+	"VirtualDiskManager":             reflect.TypeOf((*VirtualDiskManager)(nil)).Elem(),
+	"VirtualMachine":                 reflect.TypeOf((*VirtualMachine)(nil)).Elem(),
+	"VmwareDistributedVirtualSwitch": reflect.TypeOf((*DistributedVirtualSwitch)(nil)).Elem(),
+}
+
+func loadObject(content types.ObjectContent) (mo.Reference, error) {
+	var obj mo.Reference
+	id := content.Obj
+
+	kind, ok := kinds[id.Type]
+	if ok {
+		obj = reflect.New(kind).Interface().(mo.Reference)
+	}
+
+	if obj == nil {
+		// No vcsim wrapper for this type, e.g. IoFilterManager
+		x, err := mo.ObjectContentToType(content, true)
+		if err != nil {
+			return nil, err
+		}
+		obj = x.(mo.Reference)
+	} else {
+		if len(content.PropSet) == 0 {
+			// via NewServiceInstance()
+			Map.setReference(obj, id)
+		} else {
+			// via Model.Load()
+			dst := getManagedObject(obj).Addr().Interface().(mo.Reference)
+			err := mo.LoadObjectContent([]types.ObjectContent{content}, dst)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if x, ok := obj.(interface{ init(*Registry) }); ok {
+			x.init(Map)
+		}
+	}
+
+	return obj, nil
+}
+
+// resolveReferences attempts to resolve any object references that were not included via Load()
+// example: Load's dir only contains a single OpaqueNetwork, we need to create a Datacenter and
+// place the OpaqueNetwork in the Datacenter's network folder.
+func (m *Model) resolveReferences() error {
+	dc, ok := Map.Any("Datacenter").(*Datacenter)
+	if !ok {
+		// Need to have at least 1 Datacenter
+		root := Map.Get(Map.content().RootFolder).(*Folder)
+		ref := root.CreateDatacenter(internalContext, &types.CreateDatacenter{
+			This: root.Self,
+			Name: "DC0",
+		}).(*methods.CreateDatacenterBody).Res.Returnval
+		dc = Map.Get(ref).(*Datacenter)
+	}
+
+	for ref, val := range Map.objects {
+		me, ok := val.(mo.Entity)
+		if !ok {
+			continue
+		}
+		e := me.Entity()
+		if e.Parent == nil || ref.Type == "Folder" {
+			continue
+		}
+		if Map.Get(*e.Parent) == nil {
+			// object was loaded without its parent, attempt to foster with another parent
+			switch e.Parent.Type {
+			case "Folder":
+				folder := dc.folder(me)
+				e.Parent = &folder.Self
+				log.Printf("%s adopted %s", e.Parent, ref)
+				folder.putChild(me)
+			default:
+				return fmt.Errorf("unable to foster %s with parent type=%s", ref, e.Parent.Type)
+			}
+		}
+		// TODO: resolve any remaining orphan references via mo.References()
+	}
+
+	return nil
+}
+
+// Load Model from the given directory, as created by the 'govc object.save' command.
+func (m *Model) Load(dir string) error {
+	var s *ServiceInstance
+
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		if filepath.Ext(path) != ".xml" {
+			return nil
+		}
+
+		f, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		defer func() { _ = f.Close() }()
+
+		dec := xml.NewDecoder(f)
+		dec.TypeFunc = types.TypeFunc()
+		var content types.ObjectContent
+		err = dec.Decode(&content)
+		if err != nil {
+			return err
+		}
+
+		if content.Obj == vim25.ServiceInstance {
+			s = new(ServiceInstance)
+			s.Self = content.Obj
+			Map = NewRegistry()
+			Map.Put(s)
+			return mo.LoadObjectContent([]types.ObjectContent{content}, &s.ServiceInstance)
+		}
+
+		if s == nil {
+			s = NewServiceInstance(m.ServiceContent, m.RootFolder)
+		}
+
+		obj, err := loadObject(content)
+		if err != nil {
+			return err
+		}
+
+		Map.Put(obj)
+
+		return nil
+	})
+
+	if err != nil {
+		return err
+	}
+
+	m.Service = New(s)
+
+	return m.resolveReferences()
 }
 
 // Create populates the Model with the given ModelConfig
@@ -516,6 +699,13 @@ func (m *Model) createLocalDatastore(dc string, name string, hosts []*object.Hos
 
 // Remove cleans up items created by the Model, such as local datastore directories
 func (m *Model) Remove() {
+	// Remove associated vm containers, if any
+	for _, obj := range Map.objects {
+		if vm, ok := obj.(*VirtualMachine); ok {
+			vm.run.remove(vm)
+		}
+	}
+
 	for _, dir := range m.dirs {
 		_ = os.RemoveAll(dir)
 	}
@@ -526,10 +716,16 @@ func (m *Model) Run(f func(context.Context, *vim25.Client) error) error {
 	ctx := context.Background()
 
 	defer m.Remove()
-	err := m.Create()
-	if err != nil {
-		return err
+
+	if m.Service == nil {
+		err := m.Create()
+		if err != nil {
+			return err
+		}
 	}
+
+	m.Service.TLS = new(tls.Config)
+	m.Service.RegisterEndpoints = true
 
 	s := m.Service.NewServer()
 	defer s.Close()
@@ -544,9 +740,9 @@ func (m *Model) Run(f func(context.Context, *vim25.Client) error) error {
 	return f(ctx, c.Client)
 }
 
-// Example calls Model.Run for each model and will panic if f returns an error.
+// Run calls Model.Run for each model and will panic if f returns an error.
 // If no model is specified, the VPX Model is used by default.
-func Example(f func(context.Context, *vim25.Client) error, model ...*Model) {
+func Run(f func(context.Context, *vim25.Client) error, model ...*Model) {
 	m := model
 	if len(m) == 0 {
 		m = []*Model{VPX()}
@@ -558,4 +754,12 @@ func Example(f func(context.Context, *vim25.Client) error, model ...*Model) {
 			panic(err)
 		}
 	}
+}
+
+// Test calls Run and expects the caller propagate any errors, via testing.T for example.
+func Test(f func(context.Context, *vim25.Client), model ...*Model) {
+	Run(func(ctx context.Context, c *vim25.Client) error {
+		f(ctx, c)
+		return nil
+	}, model...)
 }

@@ -27,6 +27,8 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/simulator"
+	"github.com/vmware/govmomi/vapi/rest"
+	"github.com/vmware/govmomi/vapi/tags"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
 	corev1 "k8s.io/api/core/v1"
@@ -34,6 +36,8 @@ import (
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	_ "github.com/vmware/govmomi/vapi/simulator"
 )
 
 func initSimulator(t *testing.T) (*simulator.Model, *session.Session, *simulator.Server) {
@@ -44,6 +48,7 @@ func initSimulator(t *testing.T) (*simulator.Model, *session.Session, *simulator
 		t.Fatal(err)
 	}
 	model.Service.TLS = new(tls.Config)
+	model.Service.RegisterEndpoints = true
 
 	server := model.Service.NewServer()
 	pass, _ := server.URL.User.Password()
@@ -559,6 +564,106 @@ func TestReconcileNetwork(t *testing.T) {
 	// TODO: add more cases by adding network devices to the NewVirtualMachine() object
 }
 
+func TestReconcileTags(t *testing.T) {
+	model, session, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	managedObj := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	managedObjRef := object.NewVirtualMachine(session.Client.Client, managedObj.Reference()).Reference()
+
+	vm := &virtualMachine{
+		Context: context.TODO(),
+		Obj:     object.NewVirtualMachine(session.Client.Client, managedObjRef),
+		Ref:     managedObjRef,
+	}
+
+	tagName := "CLUSTERID"
+
+	createTag := func() {
+		if err := session.WithRestClient(context.TODO(), func(c *rest.Client) error {
+			tagsMgr := tags.NewManager(c)
+
+			id, err := tagsMgr.CreateCategory(context.TODO(), &tags.Category{
+				AssociableTypes: []string{"VirtualMachine"},
+				Cardinality:     "SINGLE",
+				Name:            "CLUSTERID_CATEGORY",
+			})
+			if err != nil {
+				return err
+			}
+
+			_, err = tagsMgr.CreateTag(context.TODO(), &tags.Tag{
+				CategoryID: id,
+				Name:       tagName,
+			})
+			if err != nil {
+				return err
+			}
+
+			return nil
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	testCases := []struct {
+		name          string
+		expectedError bool
+	}{
+		{
+			name:          "Fail when tag doesn't exist",
+			expectedError: true,
+		},
+		{
+			name:          "Successfully attach a tag",
+			expectedError: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if !tc.expectedError {
+				createTag()
+			}
+
+			err := vm.reconcileTags(context.TODO(), session, &machinev1.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:   "machine",
+					Labels: map[string]string{machinev1.MachineClusterIDLabel: tagName},
+				},
+			})
+
+			if tc.expectedError {
+				if err == nil {
+					t.Fatal("Expected error")
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("Not expected error %v", err)
+				}
+				if err := session.WithRestClient(context.TODO(), func(c *rest.Client) error {
+					tagsMgr := tags.NewManager(c)
+
+					tags, err := tagsMgr.GetAttachedTags(context.TODO(), managedObjRef)
+					if err != nil {
+						return err
+					}
+
+					if tags[0].Name != tagName {
+						t.Fatalf("Expected tag %s, got %s", tagName, tags[0].Name)
+					}
+
+					return nil
+				}); err != nil {
+					t.Fatal(err)
+				}
+			}
+
+		})
+	}
+}
+
 func TestIgnitionConfig(t *testing.T) {
 	optionsForData := func(data []byte) []types.BaseOptionValue {
 		return []types.BaseOptionValue{
@@ -927,6 +1032,31 @@ func TestUpdate(t *testing.T) {
 	vmObj := object.NewVirtualMachine(session.Client.Client, vm.Reference())
 	task, err := vmObj.PowerOn(context.TODO())
 	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := session.WithRestClient(context.TODO(), func(c *rest.Client) error {
+		tagsMgr := tags.NewManager(c)
+
+		id, err := tagsMgr.CreateCategory(context.TODO(), &tags.Category{
+			AssociableTypes: []string{"VirtualMachine"},
+			Cardinality:     "SINGLE",
+			Name:            "CLUSTERID_CATEGORY",
+		})
+		if err != nil {
+			return err
+		}
+
+		_, err = tagsMgr.CreateTag(context.TODO(), &tags.Tag{
+			CategoryID: id,
+			Name:       "CLUSTERID",
+		})
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
 		t.Fatal(err)
 	}
 
