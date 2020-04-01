@@ -17,59 +17,70 @@ limitations under the License.
 package machineset
 
 import (
-	"log"
-	"os"
+	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
-	"github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
+	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog"
+	"k8s.io/klog/klogr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
-	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-var cfg *rest.Config
+func init() {
+	klog.InitFlags(nil)
+	logf.SetLogger(klogr.New())
 
-func TestMain(m *testing.M) {
-	t := &envtest.Environment{
+	// Register required object kinds with global scheme.
+	_ = machinev1.AddToScheme(scheme.Scheme)
+}
+
+const (
+	timeout = time.Second * 10
+)
+
+var (
+	cfg        *rest.Config
+	k8sClient  client.Client
+	testEnv    *envtest.Environment
+	mgr        manager.Manager
+	doneMgr    = make(chan struct{})
+	ctx        = context.Background()
+	reconciler *ReconcileMachineSet
+)
+
+func TestMachinesetController(t *testing.T) {
+	RegisterFailHandler(Fail)
+
+	RunSpecsWithDefaultAndCustomReporters(t,
+		"MachineSet Controller Suite",
+		[]Reporter{printer.NewlineReporter{}})
+}
+
+var _ = BeforeSuite(func(done Done) {
+	By("bootstrapping test environment")
+	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{filepath.Join("..", "..", "..", "install")},
 	}
-	v1beta1.AddToScheme(scheme.Scheme)
 
 	var err error
-	if cfg, err = t.Start(); err != nil {
-		log.Fatal(err)
-	}
+	cfg, err = testEnv.Start()
+	Expect(err).ToNot(HaveOccurred())
+	Expect(cfg).ToNot(BeNil())
 
-	code := m.Run()
-	t.Stop()
-	os.Exit(code)
-}
+	close(done)
+}, 60)
 
-// SetupTestReconcile returns a reconcile.Reconcile implementation that delegates to inner and
-// writes the request to requests after Reconcile is finished.
-func SetupTestReconcile(inner reconcile.Reconciler) (reconcile.Reconciler, chan reconcile.Request) {
-	requests := make(chan reconcile.Request)
-	fn := reconcile.Func(func(req reconcile.Request) (reconcile.Result, error) {
-		result, err := inner.Reconcile(req)
-		requests <- req
-		return result, err
-	})
-	return fn, requests
-}
-
-// StartTestManager adds recFn
-func StartTestManager(mgr manager.Manager, t *testing.T) (chan struct{}, chan error) {
-	t.Helper()
-
-	stop := make(chan struct{})
-	errs := make(chan error, 1)
-
-	go func() {
-		errs <- mgr.Start(stop)
-	}()
-
-	return stop, errs
-}
+var _ = AfterSuite(func() {
+	By("tearing down the test environment")
+	Expect(testEnv.Stop()).To(Succeed())
+})
