@@ -21,9 +21,13 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/gomega"
 	"github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
@@ -262,3 +266,76 @@ func TestAdoptOrphan(t *testing.T) {
 		}
 	}
 }
+
+var _ = Describe("MachineSet Reconcile", func() {
+	var r *ReconcileMachineSet
+	var result reconcile.Result
+	var reconcileErr error
+	var rec *record.FakeRecorder
+
+	BeforeEach(func() {
+		Expect(v1beta1.AddToScheme(scheme.Scheme)).To(Succeed())
+		rec = record.NewFakeRecorder(32)
+
+		r = &ReconcileMachineSet{
+			scheme:   scheme.Scheme,
+			recorder: rec,
+		}
+	})
+
+	JustBeforeEach(func() {
+		request := reconcile.Request{NamespacedName: types.NamespacedName{Name: "machineset1", Namespace: "default"}}
+		result, reconcileErr = r.Reconcile(request)
+	})
+
+	Context("ignore machine sets marked for deletion", func() {
+		BeforeEach(func() {
+			dt := metav1.Now()
+
+			ms := &v1beta1.MachineSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:              "machineset1",
+					Namespace:         "default",
+					DeletionTimestamp: &dt,
+				},
+				Spec: v1beta1.MachineSetSpec{
+					Template: v1beta1.MachineTemplateSpec{},
+				}}
+
+			r.Client = fake.NewFakeClientWithScheme(scheme.Scheme, ms)
+		})
+
+		It("returns an empty result", func() {
+			Expect(result).To(Equal(reconcile.Result{}))
+		})
+
+		It("does not return an error", func() {
+			Expect(reconcileErr).NotTo(HaveOccurred())
+		})
+	})
+
+	Context("record event if reconcile fails", func() {
+		BeforeEach(func() {
+			var replicas int32
+			ms := &v1beta1.MachineSet{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "machineset1",
+					Namespace: "default",
+				},
+				Spec: v1beta1.MachineSetSpec{
+					Replicas: &replicas,
+				},
+			}
+
+			ms.Spec.Selector.MatchLabels = map[string]string{
+				"--$-invalid": "true",
+			}
+
+			r.Client = fake.NewFakeClientWithScheme(scheme.Scheme, ms)
+		})
+
+		It("did something with events", func() {
+			Eventually(rec.Events).Should(Receive())
+		})
+	})
+})
