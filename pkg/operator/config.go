@@ -27,6 +27,7 @@ type OperatorConfig struct {
 
 type Controllers struct {
 	Provider           string
+	MachineSet         string
 	NodeLink           string
 	MachineHealthCheck string
 	TerminationHandler string
