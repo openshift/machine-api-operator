@@ -307,9 +307,18 @@ func (r *Reconciler) reconcileNetwork(vm *virtualMachine) error {
 		}
 	}
 
+	// Using Name() if InventoryPath is empty will return empty name
+	// see: https://github.com/vmware/govmomi/blob/master/object/common.go#L66-L75
+	// Using ObjectName() as it will query from VirtualMachine properties
+
+	vmName, err := vm.Obj.ObjectName(vm.Context)
+	if err != nil {
+		return fmt.Errorf("error getting virtual machine name: %v", err)
+	}
+
 	ipAddrs = append(ipAddrs, corev1.NodeAddress{
 		Type:    corev1.NodeInternalDNS,
-		Address: vm.Obj.Name(),
+		Address: vmName,
 	})
 
 	klog.V(3).Infof("%v: reconciling network: IP addresses: %v", r.machine.GetName(), ipAddrs)

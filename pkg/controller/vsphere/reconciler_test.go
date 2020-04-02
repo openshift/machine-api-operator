@@ -619,6 +619,11 @@ func TestReconcileNetwork(t *testing.T) {
 		Ref:     managedObjRef,
 	}
 
+	vmName, err := vm.Obj.ObjectName(vm.Context)
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	expectedAddresses := []corev1.NodeAddress{
 		{
 			Type:    corev1.NodeInternalIP,
@@ -626,7 +631,7 @@ func TestReconcileNetwork(t *testing.T) {
 		},
 		{
 			Type:    corev1.NodeInternalDNS,
-			Address: vm.Obj.Name(),
+			Address: vmName,
 		},
 	}
 	r := &Reconciler{
