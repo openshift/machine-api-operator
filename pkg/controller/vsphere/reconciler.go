@@ -24,13 +24,14 @@ import (
 )
 
 const (
-	minMemMB         = 2048
-	minCPU           = 2
-	diskMoveType     = string(types.VirtualMachineRelocateDiskMoveOptionsMoveAllDiskBackingsAndConsolidate)
-	ethCardType      = "vmxnet3"
-	providerIDPrefix = "vsphere://"
-	regionKey        = "region"
-	zoneKey          = "zone"
+	minMemMB              = 2048
+	minCPU                = 2
+	fullCloneDiskMoveType = string(types.VirtualMachineRelocateDiskMoveOptionsMoveAllDiskBackingsAndConsolidate)
+	linkCloneDiskMoveType = string(types.VirtualMachineRelocateDiskMoveOptionsCreateNewChildDiskBacking)
+	ethCardType           = "vmxnet3"
+	providerIDPrefix      = "vsphere://"
+	regionKey             = "region"
+	zoneKey               = "zone"
 )
 
 // These are the guestinfo variables used by Ignition.
@@ -373,6 +374,40 @@ func clone(s *machineScope) (string, error) {
 		return "", err
 	}
 
+	var snapshotRef *types.ManagedObjectReference
+
+	// If a linked clone is requested then a MoRef for a snapshot must be
+	// found with which to perform the linked clone.
+	// Empty clone mode is linked clone
+	if s.providerSpec.CloneMode == "" || s.providerSpec.CloneMode == vspherev1.LinkedClone {
+		if s.providerSpec.Snapshot == "" {
+			klog.V(3).Infof("%v: no snapshot name provided, getting snapshot using template", s.machine.GetName())
+			var vm mo.VirtualMachine
+			if err := vmTemplate.Properties(s.Context, vmTemplate.Reference(), []string{"snapshot"}, &vm); err != nil {
+				return "", errors.Wrapf(err, "error getting snapshot information for template %s", vmTemplate.Name())
+			}
+
+			if vm.Snapshot != nil {
+				snapshotRef = vm.Snapshot.CurrentSnapshot
+			}
+		} else {
+			klog.V(3).Infof("%v: searching for snapshot by name %s", s.machine.GetName(), s.providerSpec.Snapshot)
+			var err error
+			snapshotRef, err = vmTemplate.FindSnapshot(s.Context, s.providerSpec.Snapshot)
+			if err != nil {
+				klog.V(3).Infof("%v: failed to find snapshot %s", s.machine.GetName(), s.providerSpec.Snapshot)
+			}
+		}
+	}
+
+	// The type of clone operation depends on whether or not there is a snapshot
+	// from which to do a linked clone.
+	diskMoveType := fullCloneDiskMoveType
+	if snapshotRef != nil {
+		// TODO: write clone mode to status
+		diskMoveType = linkCloneDiskMoveType
+	}
+
 	var folderPath, datastorePath, resourcepoolPath string
 	if s.providerSpec.Workspace != nil {
 		folderPath = s.providerSpec.Workspace.Folder
@@ -413,13 +448,24 @@ func clone(s *machineScope) (string, error) {
 		return "", fmt.Errorf("error getting devices %v", err)
 	}
 
+	// Create a new list of device specs for cloning the VM.
+	deviceSpecs := []types.BaseVirtualDeviceConfigSpec{}
+
+	// Only non-linked clones may expand the size of the template's disk.
+	if snapshotRef == nil {
+		diskSpec, err := getDiskSpec(s, devices)
+		if err != nil {
+			return "", errors.Wrapf(err, "error getting disk spec for %q", s.providerSpec.Snapshot)
+		}
+		deviceSpecs = append(deviceSpecs, diskSpec)
+	}
+
 	klog.V(3).Infof("Getting network devices")
 	networkDevices, err := getNetworkDevices(s, devices)
 	if err != nil {
 		return "", fmt.Errorf("error getting network specs: %v", err)
 	}
 
-	var deviceSpecs []types.BaseVirtualDeviceConfigSpec
 	deviceSpecs = append(deviceSpecs, networkDevices...)
 
 	extraConfig := []types.BaseOptionValue{}
@@ -436,10 +482,9 @@ func clone(s *machineScope) (string, error) {
 			// Assign the clone's InstanceUUID the value of the Kubernetes Machine
 			// object's UID. This allows lookup of the cloned VM prior to knowing
 			// the VM's UUID.
-			InstanceUuid: string(s.machine.UID),
-			Flags:        newVMFlagInfo(),
-			ExtraConfig:  extraConfig,
-			// TODO: set disk devices
+			InstanceUuid:      string(s.machine.UID),
+			Flags:             newVMFlagInfo(),
+			ExtraConfig:       extraConfig,
 			DeviceChange:      deviceSpecs,
 			NumCPUs:           numCPUs,
 			NumCoresPerSocket: numCoresPerSocket,
@@ -447,15 +492,16 @@ func clone(s *machineScope) (string, error) {
 		},
 		Location: types.VirtualMachineRelocateSpec{
 			Datastore:    types.NewReference(datastore.Reference()),
-			DiskMoveType: diskMoveType,
 			Folder:       types.NewReference(folder.Reference()),
 			Pool:         types.NewReference(resourcepool.Reference()),
+			DiskMoveType: diskMoveType,
 		},
 		// This is implicit, but making it explicit as it is important to not
 		// power the VM on before its virtual hardware is created and the MAC
 		// address(es) used to build and inject the VM with cloud-init metadata
 		// are generated.
-		PowerOn: false,
+		PowerOn:  false,
+		Snapshot: snapshotRef,
 	}
 
 	task, err := vmTemplate.Clone(s, folder, s.machine.GetName(), spec)
@@ -465,6 +511,21 @@ func clone(s *machineScope) (string, error) {
 
 	klog.V(3).Infof("%v: running task: %+v", s.machine.GetName(), s.providerStatus.TaskRef)
 	return task.Reference().Value, nil
+}
+
+func getDiskSpec(s *machineScope, devices object.VirtualDeviceList) (types.BaseVirtualDeviceConfigSpec, error) {
+	disks := devices.SelectByType((*types.VirtualDisk)(nil))
+	if len(disks) != 1 {
+		return nil, errors.Errorf("invalid disk count: %d", len(disks))
+	}
+
+	disk := disks[0].(*types.VirtualDisk)
+	disk.CapacityInKB = int64(s.providerSpec.DiskGiB) * 1024 * 1024
+
+	return &types.VirtualDeviceConfigSpec{
+		Operation: types.VirtualDeviceConfigSpecOperationEdit,
+		Device:    disk,
+	}, nil
 }
 
 func getNetworkDevices(s *machineScope, devices object.VirtualDeviceList) ([]types.BaseVirtualDeviceConfigSpec, error) {

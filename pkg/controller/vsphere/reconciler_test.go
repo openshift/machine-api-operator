@@ -463,6 +463,99 @@ func TestGetNetworkDevices(t *testing.T) {
 	}
 }
 
+func TestGetDiskSpec(t *testing.T) {
+	model, session, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	managedObj := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	objVM := object.NewVirtualMachine(session.Client.Client, managedObj.Reference())
+
+	testCases := []struct {
+		name                 string
+		expectedError        error
+		devices              func() object.VirtualDeviceList
+		diskSize             int32
+		expectedCapacityInKB int64
+	}{
+		{
+			name: "Succefully get disk spec with disk size 1",
+			devices: func() object.VirtualDeviceList {
+				devices, err := objVM.Device(context.TODO())
+				if err != nil {
+					t.Fatal(err)
+				}
+				return devices
+			},
+			diskSize:             1,
+			expectedCapacityInKB: 1048576,
+		},
+		{
+			name: "Succefully get disk spec with disk size 3",
+			devices: func() object.VirtualDeviceList {
+				devices, err := objVM.Device(context.TODO())
+				if err != nil {
+					t.Fatal(err)
+				}
+				return devices
+			},
+			diskSize:             3,
+			expectedCapacityInKB: 3145728,
+		},
+		{
+			name: "Fail on invalid disk count",
+			devices: func() object.VirtualDeviceList {
+				devices, err := objVM.Device(context.TODO())
+				if err != nil {
+					t.Fatal(err)
+				}
+				devices = append(devices, &types.VirtualDisk{})
+				return devices
+			},
+			expectedError:        errors.New("invalid disk count: 2"),
+			diskSize:             1,
+			expectedCapacityInKB: 1048576,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			machineScope := &machineScope{
+				Context: context.TODO(),
+				providerSpec: &vsphereapi.VSphereMachineProviderSpec{
+					DiskGiB: tc.diskSize,
+				},
+				session: session,
+			}
+			diskSpec, err := getDiskSpec(machineScope, tc.devices())
+
+			if tc.expectedError == nil {
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				virtualDeviceConfigSpec := diskSpec.(*types.VirtualDeviceConfigSpec)
+				disk := virtualDeviceConfigSpec.Device.(*types.VirtualDisk)
+
+				if disk.CapacityInKB != tc.expectedCapacityInKB {
+					t.Fatalf("Expected disk capacity to be %v, got %v", disk.CapacityInKB, tc.expectedCapacityInKB)
+				}
+
+				if diskSpec.GetVirtualDeviceConfigSpec().Operation != types.VirtualDeviceConfigSpecOperationEdit {
+					t.Fatalf("Expected operation type to be %s, got %v", types.VirtualDeviceConfigSpecOperationEdit, diskSpec.GetVirtualDeviceConfigSpec().Operation)
+				}
+			} else {
+				if err == nil {
+					t.Fatal("getDiskSpec was expected to return an error")
+				}
+				if tc.expectedError.Error() != err.Error() {
+					t.Fatalf("Expected error %v , got %v", tc.expectedError, err)
+				}
+			}
+		})
+	}
+}
+
 func printOperations(networkDevices []types.BaseVirtualDeviceConfigSpec) string {
 	var output string
 	for i := range networkDevices {

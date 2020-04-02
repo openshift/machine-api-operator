@@ -184,6 +184,11 @@ func getCredentialsSecret(client runtimeclient.Client, namespace string, spec ap
 		return "", "", fmt.Errorf("error getting credentials secret %v/%v: %v", namespace, spec.CredentialsSecret.Name, err)
 	}
 
+	// TODO: add provider spec validation logic and move this check there
+	if spec.Workspace == nil {
+		return "", "", errors.New("no workspace")
+	}
+
 	credentialsSecretUser := fmt.Sprintf("%s.username", spec.Workspace.Server)
 	credentialsSecretPassword := fmt.Sprintf("%s.password", spec.Workspace.Server)
 
