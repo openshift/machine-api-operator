@@ -19,13 +19,19 @@ endif
 .PHONY: all
 all: check build test
 
+USE_PODMAN ?= 0
 NO_DOCKER ?= 0
 ifeq ($(NO_DOCKER), 1)
   DOCKER_CMD =
   IMAGE_BUILD_CMD = imagebuilder
 else
-  DOCKER_CMD := docker run --env GO111MODULE=$(GO111MODULE) --env GOFLAGS=$(GOFLAGS) --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z -w /go/src/github.com/openshift/machine-api-operator golang:1.13
-  IMAGE_BUILD_CMD = docker build
+  ifeq ($(USE_PODMAN), 1)
+	OCI_BINARY = podman
+  else
+	OCI_BINARY = docker
+  endif
+  DOCKER_CMD := $(OCI_BINARY) run --env GO111MODULE=$(GO111MODULE) --env GOFLAGS=$(GOFLAGS) --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z -w /go/src/github.com/openshift/machine-api-operator golang:1.13
+  IMAGE_BUILD_CMD = $(OCI_BINARY) build
 endif
 
 .PHONY: vendor

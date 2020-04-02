@@ -86,6 +86,11 @@ machine.openshift.io/cluster-api-machine-type: worker
   $ make image
   ```
 
+Please note that by default make will attempt to use the `docker` command
+to create binaries and images. If you would like to disable this behavior, set
+the environment variable `NO_DOCKER=1`. Alternatively if you woud like to use
+`podman`, set the environment variable `USE_PODMAN=1`.
+
 The Machine API Operator is designed to work in conjunction with the [Cluster Version Operator](https://github.com/openshift/cluster-version-operator).
 You can see it in action by running an [OpenShift Cluster deployed by the Installer](https://github.com/openshift/installer).
 
