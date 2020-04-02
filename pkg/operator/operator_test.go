@@ -2,17 +2,25 @@ package operator
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
+	"io/ioutil"
+	"os"
+	"syscall"
 	"testing"
 	"time"
 
+	. "github.com/onsi/gomega"
 	openshiftv1 "github.com/openshift/api/config/v1"
 	fakeos "github.com/openshift/client-go/config/clientset/versioned/fake"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions"
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
+	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/wait"
 	fakedynamic "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/informers"
@@ -232,6 +240,263 @@ func TestIsOwned(t *testing.T) {
 			if tc.expectedError != (err != nil) {
 				t.Errorf("ExpectedError: %v, got: %v", tc.expectedError, err)
 			}
+		})
+	}
+}
+
+// TestMAOConfigFromInfrastructure tests that the expected config comes back
+// for the given infrastructure
+func TestMAOConfigFromInfrastructure(t *testing.T) {
+	g := NewWithT(t)
+	file, err := ioutil.ReadFile("fixtures/images.json")
+	g.Expect(err).ToNot(HaveOccurred())
+	images := &Images{}
+	g.Expect(json.Unmarshal(file, images)).To(Succeed())
+	// Make sure the images struct has been populated
+	g.Expect(images.MachineAPIOperator).ToNot(BeEmpty())
+
+	infra := &openshiftv1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster",
+		},
+	}
+
+	testCases := []struct {
+		name           string
+		platform       openshiftv1.PlatformType
+		infra          *openshiftv1.Infrastructure
+		imagesFile     string
+		expectedConfig *OperatorConfig
+		expectedError  error
+	}{
+		{
+			name:     string(openshiftv1.AWSPlatformType),
+			platform: openshiftv1.AWSPlatformType,
+			infra:    infra,
+			expectedConfig: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				Controllers: Controllers{
+					Provider:           images.ClusterAPIControllerAWS,
+					MachineSet:         images.MachineAPIOperator,
+					NodeLink:           images.MachineAPIOperator,
+					MachineHealthCheck: images.MachineAPIOperator,
+					TerminationHandler: images.ClusterAPIControllerAWS,
+				},
+			},
+		},
+		{
+			name:     string(openshiftv1.LibvirtPlatformType),
+			platform: openshiftv1.LibvirtPlatformType,
+			infra:    infra,
+			expectedConfig: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				Controllers: Controllers{
+					Provider:           images.ClusterAPIControllerLibvirt,
+					MachineSet:         images.MachineAPIOperator,
+					NodeLink:           images.MachineAPIOperator,
+					MachineHealthCheck: images.MachineAPIOperator,
+					TerminationHandler: clusterAPIControllerNoOp,
+				},
+			},
+		},
+		{
+			name:     string(openshiftv1.OpenStackPlatformType),
+			platform: openshiftv1.OpenStackPlatformType,
+			infra:    infra,
+			expectedConfig: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				Controllers: Controllers{
+					Provider:           images.ClusterAPIControllerOpenStack,
+					MachineSet:         images.MachineAPIOperator,
+					NodeLink:           images.MachineAPIOperator,
+					MachineHealthCheck: images.MachineAPIOperator,
+					TerminationHandler: clusterAPIControllerNoOp,
+				},
+			},
+		},
+		{
+			name:     string(openshiftv1.AzurePlatformType),
+			platform: openshiftv1.AzurePlatformType,
+			infra:    infra,
+			expectedConfig: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				Controllers: Controllers{
+					Provider:           images.ClusterAPIControllerAzure,
+					MachineSet:         images.MachineAPIOperator,
+					NodeLink:           images.MachineAPIOperator,
+					MachineHealthCheck: images.MachineAPIOperator,
+					TerminationHandler: clusterAPIControllerNoOp,
+				},
+			},
+		},
+		{
+			name:     string(openshiftv1.BareMetalPlatformType),
+			platform: openshiftv1.BareMetalPlatformType,
+			infra:    infra,
+			expectedConfig: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				Controllers: Controllers{
+					Provider:           images.ClusterAPIControllerBareMetal,
+					MachineSet:         images.MachineAPIOperator,
+					NodeLink:           images.MachineAPIOperator,
+					MachineHealthCheck: images.MachineAPIOperator,
+					TerminationHandler: clusterAPIControllerNoOp,
+				},
+				BaremetalControllers: BaremetalControllers{
+					BaremetalOperator:         images.BaremetalOperator,
+					Ironic:                    images.BaremetalIronic,
+					IronicInspector:           images.BaremetalIronicInspector,
+					IronicIpaDownloader:       images.BaremetalIpaDownloader,
+					IronicMachineOsDownloader: images.BaremetalMachineOsDownloader,
+					IronicStaticIpManager:     images.BaremetalStaticIpManager,
+				},
+			},
+		},
+		{
+			name:     string(openshiftv1.GCPPlatformType),
+			platform: openshiftv1.GCPPlatformType,
+			infra:    infra,
+			expectedConfig: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				Controllers: Controllers{
+					Provider:           images.ClusterAPIControllerGCP,
+					MachineSet:         images.MachineAPIOperator,
+					NodeLink:           images.MachineAPIOperator,
+					MachineHealthCheck: images.MachineAPIOperator,
+					TerminationHandler: clusterAPIControllerNoOp,
+				},
+			},
+		},
+		{
+			name:     string(kubemarkPlatform),
+			platform: kubemarkPlatform,
+			infra:    infra,
+			expectedConfig: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				Controllers: Controllers{
+					Provider:           clusterAPIControllerKubemark,
+					MachineSet:         images.MachineAPIOperator,
+					NodeLink:           images.MachineAPIOperator,
+					MachineHealthCheck: images.MachineAPIOperator,
+					TerminationHandler: clusterAPIControllerNoOp,
+				},
+			},
+		},
+		{
+			name:     string(openshiftv1.VSpherePlatformType),
+			platform: openshiftv1.VSpherePlatformType,
+			infra:    infra,
+			expectedConfig: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				Controllers: Controllers{
+					Provider:           images.ClusterAPIControllerVSphere,
+					MachineSet:         images.MachineAPIOperator,
+					NodeLink:           images.MachineAPIOperator,
+					MachineHealthCheck: images.MachineAPIOperator,
+					TerminationHandler: clusterAPIControllerNoOp,
+				},
+			},
+		},
+		{
+			name:     string(openshiftv1.OvirtPlatformType),
+			platform: openshiftv1.OvirtPlatformType,
+			infra:    infra,
+			expectedConfig: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				Controllers: Controllers{
+					Provider:           images.ClusterAPIControllerOvirt,
+					MachineSet:         images.MachineAPIOperator,
+					NodeLink:           images.MachineAPIOperator,
+					MachineHealthCheck: images.MachineAPIOperator,
+					TerminationHandler: clusterAPIControllerNoOp,
+				},
+			},
+		},
+		{
+			name:     string(openshiftv1.NonePlatformType),
+			platform: openshiftv1.NonePlatformType,
+			infra:    infra,
+			expectedConfig: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				Controllers: Controllers{
+					Provider:           clusterAPIControllerNoOp,
+					MachineSet:         images.MachineAPIOperator,
+					NodeLink:           images.MachineAPIOperator,
+					MachineHealthCheck: images.MachineAPIOperator,
+					TerminationHandler: clusterAPIControllerNoOp,
+				},
+			},
+		},
+		{
+			name:     "bad-platform",
+			platform: "bad-platform",
+			infra:    infra,
+			expectedConfig: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				Controllers: Controllers{
+					Provider:           clusterAPIControllerNoOp,
+					MachineSet:         images.MachineAPIOperator,
+					NodeLink:           images.MachineAPIOperator,
+					MachineHealthCheck: images.MachineAPIOperator,
+					TerminationHandler: clusterAPIControllerNoOp,
+				},
+			},
+		},
+		{
+			name:           "no-infra",
+			platform:       "no-infra",
+			infra:          nil,
+			expectedConfig: nil,
+			expectedError:  kerrors.NewNotFound(schema.GroupResource{Group: "config.openshift.io", Resource: "infrastructures"}, "cluster"),
+		},
+		{
+			name:           "no-platform",
+			platform:       "",
+			infra:          infra,
+			expectedConfig: nil,
+			expectedError:  errors.New("no platform provider found on install config"),
+		},
+		{
+			name:           "no-images-file",
+			platform:       openshiftv1.NonePlatformType,
+			infra:          infra,
+			imagesFile:     "fixtures/not-found.json",
+			expectedConfig: nil,
+			expectedError:  &os.PathError{Op: "open", Path: "fixtures/not-found.json", Err: syscall.ENOENT},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			objects := []runtime.Object{}
+			if tc.infra != nil {
+				inf := tc.infra.DeepCopy()
+				// Ensure platform is correct on infrastructure
+				inf.Status.Platform = tc.platform
+				objects = append(objects, inf)
+			}
+
+			stopCh := make(<-chan struct{})
+			optr := newFakeOperator(nil, objects, stopCh)
+			optr.queue.Add("trigger")
+
+			if tc.imagesFile != "" {
+				optr.imagesFile = tc.imagesFile
+			}
+
+			go optr.Run(1, stopCh)
+
+			config, err := optr.maoConfigFromInfrastructure()
+
+			if tc.expectedError != nil {
+				g.Expect(err).To(MatchError(tc.expectedError))
+			} else {
+				g.Expect(err).To(BeNil())
+			}
+
+			g.Expect(config).To(Equal(tc.expectedConfig))
 		})
 	}
 }

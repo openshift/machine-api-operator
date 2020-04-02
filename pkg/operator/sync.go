@@ -297,7 +297,7 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 	containers := []corev1.Container{
 		{
 			Name:      "controller-manager",
-			Image:     config.Controllers.Provider,
+			Image:     config.Controllers.MachineSet,
 			Command:   []string{"/manager"},
 			Args:      args,
 			Resources: resources,

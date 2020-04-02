@@ -298,6 +298,7 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 		TargetNamespace: optr.namespace,
 		Controllers: Controllers{
 			Provider:           providerControllerImage,
+			MachineSet:         machineAPIOperatorImage,
 			NodeLink:           machineAPIOperatorImage,
 			MachineHealthCheck: machineAPIOperatorImage,
 			TerminationHandler: terminationHandlerImage,
