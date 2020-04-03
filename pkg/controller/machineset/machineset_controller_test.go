@@ -75,7 +75,7 @@ var _ = Describe("MachineSet Reconciler", func() {
 					MatchLabels: labels,
 				},
 				Template: machinev1.MachineTemplateSpec{
-					ObjectMeta: metav1.ObjectMeta{
+					ObjectMeta: machinev1.ObjectMeta{
 						Labels: labels,
 					},
 				},
