@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
-	apivsphere "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1alpha1"
+	apivsphere "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
 	machineapierros "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
 	"github.com/pkg/errors"

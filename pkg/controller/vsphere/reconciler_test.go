@@ -23,7 +23,7 @@ import (
 	"testing"
 
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
-	vsphereapi "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1alpha1"
+	vsphereapi "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/simulator"
