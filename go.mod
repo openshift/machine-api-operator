@@ -9,6 +9,7 @@ require (
 	github.com/google/uuid v1.1.1
 	github.com/hashicorp/golang-lru v0.5.3 // indirect
 	github.com/imdario/mergo v0.3.8 // indirect
+	github.com/onsi/ginkgo v1.12.0
 	github.com/onsi/gomega v1.8.1
 	github.com/openshift/api v0.0.0-20200323095748-e7041f8762a3
 	github.com/openshift/client-go v0.0.0-20200320150128-a906f3d8e723
