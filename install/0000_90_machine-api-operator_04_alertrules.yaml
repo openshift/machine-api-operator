@@ -29,7 +29,7 @@ spec:
           labels:
             severity: critical
           annotations:
-            message: "machine {{ $labels.name }} is in phase: {{ $labels.phase }}"
+            message: "machine {{ $labels.name }} is not in \"Running\" phase. {{ $labels.phase }}"
     - name: machine-api-operator-metrics-collector-up
       rules:
         - alert: MachineAPIOperatorMetricsCollectionFailing
