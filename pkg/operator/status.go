@@ -191,12 +191,6 @@ func (optr *Operator) relatedObjects() []osconfigv1.ObjectReference {
 			Resource: "clusterroles",
 			Name:     "machine-api-controllers",
 		},
-		{
-			Group:     "rbac.authorization.k8s.io",
-			Resource:  "roles",
-			Name:      "cloud-provider-config-reader",
-			Namespace: "openshift-config",
-		},
 	}
 }
 
