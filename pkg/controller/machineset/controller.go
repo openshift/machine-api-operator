@@ -349,8 +349,11 @@ func (r *ReconcileMachineSet) createMachine(machineSet *machinev1beta1.MachineSe
 			Kind:       gv.WithKind("Machine").Kind,
 			APIVersion: gv.String(),
 		},
-		ObjectMeta: machineSet.Spec.Template.ObjectMeta,
-		Spec:       machineSet.Spec.Template.Spec,
+		ObjectMeta: metav1.ObjectMeta{
+			Labels:      machineSet.Spec.Template.ObjectMeta.Labels,
+			Annotations: machineSet.Spec.Template.ObjectMeta.Annotations,
+		},
+		Spec: machineSet.Spec.Template.Spec,
 	}
 	machine.ObjectMeta.GenerateName = fmt.Sprintf("%s-", machineSet.Name)
 	machine.ObjectMeta.OwnerReferences = []metav1.OwnerReference{*metav1.NewControllerRef(machineSet, controllerKind)}
