@@ -248,51 +248,28 @@ func newMetal3Containers(config *OperatorConfig, baremetalProvisioningConfig Bar
 	//Starting off with the metal3-baremetal-operator container
 	containers := []corev1.Container{
 		{
-			Name:  "metal3-baremetal-operator",
-			Image: config.BaremetalControllers.BaremetalOperator,
-			Ports: []corev1.ContainerPort{
-				{
-					Name:          "metrics",
-					ContainerPort: 60000,
-				},
-			},
-			Command:         []string{"/baremetal-operator"},
+			Name:            "metal3-dnsmasq",
+			Image:           config.BaremetalControllers.Ironic,
 			ImagePullPolicy: "IfNotPresent",
+			SecurityContext: &corev1.SecurityContext{
+				Privileged: pointer.BoolPtr(true),
+			},
+			Command:      []string{"/bin/rundnsmasq"},
+			VolumeMounts: volumeMounts,
 			Env: []corev1.EnvVar{
-				{
-					Name: "WATCH_NAMESPACE",
-					ValueFrom: &corev1.EnvVarSource{
-						FieldRef: &corev1.ObjectFieldSelector{
-							FieldPath: "metadata.namespace",
-						},
-					},
-				},
-				{
-					Name: "POD_NAME",
-					ValueFrom: &corev1.EnvVarSource{
-						FieldRef: &corev1.ObjectFieldSelector{
-							FieldPath: "metadata.name",
-						},
-					},
-				},
-				{
-					Name:  "OPERATOR_NAME",
-					Value: "baremetal-operator",
-				},
-				buildEnvVar("DEPLOY_KERNEL_URL", "deploy_kernel_url", baremetalProvisioningConfig),
-				buildEnvVar("DEPLOY_RAMDISK_URL", "deploy_ramdisk_url", baremetalProvisioningConfig),
-				buildEnvVar("IRONIC_ENDPOINT", "ironic_endpoint", baremetalProvisioningConfig),
-				buildEnvVar("IRONIC_INSPECTOR_ENDPOINT", "ironic_inspector_endpoint", baremetalProvisioningConfig),
+				buildEnvVar("HTTP_PORT", "http_port", baremetalProvisioningConfig),
+				buildEnvVar("PROVISIONING_INTERFACE", "provisioning_interface", baremetalProvisioningConfig),
+				buildEnvVar("DHCP_RANGE", "dhcp_range", baremetalProvisioningConfig),
 			},
 		},
 	}
-	containers = append(containers, createContainerMetal3Dnsmasq(config, baremetalProvisioningConfig))
 	containers = append(containers, createContainerMetal3Mariadb(config))
 	containers = append(containers, createContainerMetal3Httpd(config, baremetalProvisioningConfig))
 	containers = append(containers, createContainerMetal3IronicConductor(config, baremetalProvisioningConfig))
 	containers = append(containers, createContainerMetal3IronicApi(config, baremetalProvisioningConfig))
 	containers = append(containers, createContainerMetal3IronicInspector(config, baremetalProvisioningConfig))
 	containers = append(containers, createContainerMetal3StaticIpManager(config, baremetalProvisioningConfig))
+	containers = append(containers, createContainerMetal3BaremetalOperator(config, baremetalProvisioningConfig))
 	return containers
 }
 
@@ -423,6 +400,49 @@ func createContainerMetal3StaticIpManager(config *OperatorConfig, baremetalProvi
 		Env: []corev1.EnvVar{
 			buildEnvVar("PROVISIONING_IP", "provisioning_ip", baremetalProvisioningConfig),
 			buildEnvVar("PROVISIONING_INTERFACE", "provisioning_interface", baremetalProvisioningConfig),
+		},
+	}
+	return container
+}
+
+func createContainerMetal3BaremetalOperator(config *OperatorConfig, baremetalProvisioningConfig BaremetalProvisioningConfig) corev1.Container {
+
+	container := corev1.Container{
+		Name:  "metal3-baremetal-operator",
+		Image: config.BaremetalControllers.BaremetalOperator,
+		Ports: []corev1.ContainerPort{
+			{
+				Name:          "metrics",
+				ContainerPort: 60000,
+			},
+		},
+		Command:         []string{"/baremetal-operator"},
+		ImagePullPolicy: "IfNotPresent",
+		Env: []corev1.EnvVar{
+			{
+				Name: "WATCH_NAMESPACE",
+				ValueFrom: &corev1.EnvVarSource{
+					FieldRef: &corev1.ObjectFieldSelector{
+						FieldPath: "metadata.namespace",
+					},
+				},
+			},
+			{
+				Name: "POD_NAME",
+				ValueFrom: &corev1.EnvVarSource{
+					FieldRef: &corev1.ObjectFieldSelector{
+						FieldPath: "metadata.name",
+					},
+				},
+			},
+			{
+				Name:  "OPERATOR_NAME",
+				Value: "baremetal-operator",
+			},
+			buildEnvVar("DEPLOY_KERNEL_URL", "deploy_kernel_url", baremetalProvisioningConfig),
+			buildEnvVar("DEPLOY_RAMDISK_URL", "deploy_ramdisk_url", baremetalProvisioningConfig),
+			buildEnvVar("IRONIC_ENDPOINT", "ironic_endpoint", baremetalProvisioningConfig),
+			buildEnvVar("IRONIC_INSPECTOR_ENDPOINT", "ironic_inspector_endpoint", baremetalProvisioningConfig),
 		},
 	}
 	return container
