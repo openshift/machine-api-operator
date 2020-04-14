@@ -198,6 +198,14 @@ rules:
     verbs:
       - list
       - delete
+  - apiGroups:
+      - security.openshift.io
+    resourceNames:
+      - hostnetwork
+    resources:
+      - securitycontextconstraints
+    verbs:
+      - use
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
