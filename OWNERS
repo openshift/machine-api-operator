@@ -4,3 +4,5 @@ approvers:
   - JoelSpeed
   - elmiko
   - alexander-demichev
+
+component: "Cloud Compute"
