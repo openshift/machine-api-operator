@@ -899,7 +899,7 @@ func TestDelete(t *testing.T) {
 	password, _ := server.URL.User.Password()
 	namespace := "test"
 	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
-	instanceUUID := "instanceUUID"
+	instanceUUID := "a5764857-ae35-34dc-8f25-a9c9e73aa898"
 	vm.Config.InstanceUuid = instanceUUID
 	credentialsSecret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -997,10 +997,11 @@ func TestCreate(t *testing.T) {
 	defer server.Close()
 	credentialsSecretUsername := fmt.Sprintf("%s.username", server.URL.Host)
 	credentialsSecretPassword := fmt.Sprintf("%s.password", server.URL.Host)
-
 	password, _ := server.URL.User.Password()
+	vmName := "testName"
 	namespace := "test"
 	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	vm.Name = vmName
 
 	credentialsSecret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1029,7 +1030,7 @@ func TestCreate(t *testing.T) {
 		{
 			name: "Successfully create machine",
 			providerSpec: vsphereapi.VSphereMachineProviderSpec{
-				Template: vm.Name,
+				Template: vmName,
 			},
 		},
 		{
@@ -1038,14 +1039,14 @@ func TestCreate(t *testing.T) {
 				machinev1.MachineClusterIDLabel: "",
 			},
 			providerSpec: vsphereapi.VSphereMachineProviderSpec{
-				Template: vm.Name,
+				Template: vmName,
 			},
 			expectedError: errors.New("test: failed validating machine provider spec: test: missing \"machine.openshift.io/cluster-api-cluster\" label"),
 		},
 		{
 			name: "Fail on not connected to vCenter",
 			providerSpec: vsphereapi.VSphereMachineProviderSpec{
-				Template: vm.Name,
+				Template: vmName,
 			},
 			expectedError:         errors.New("test: not connected to a vCenter"),
 			notConnectedToVCenter: true,
@@ -1085,18 +1086,18 @@ func TestCreate(t *testing.T) {
 
 			reconciler := newReconciler(&machineScope)
 
-			err := reconciler.create()
+			err = reconciler.create()
 
 			if tc.expectedError != nil {
 				if err == nil {
-					t.Error("reconciler was expected to return error")
+					t.Fatal("reconciler was expected to return error")
 				}
 				if err.Error() != tc.expectedError.Error() {
-					t.Errorf("Expected: %v, got %v", tc.expectedError, err)
+					t.Fatalf("Expected: %v, got %v", tc.expectedError, err)
 				}
 			} else {
 				if err != nil {
-					t.Errorf("reconciler was not expected to return error: %v", err)
+					t.Fatalf("reconciler was not expected to return error: %v", err)
 				}
 			}
 		})
@@ -1113,7 +1114,7 @@ func TestUpdate(t *testing.T) {
 	password, _ := server.URL.User.Password()
 	namespace := "test"
 	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
-	instanceUUID := "instanceUUID"
+	instanceUUID := "a5764857-ae35-34dc-8f25-a9c9e73aa898"
 	vm.Config.InstanceUuid = instanceUUID
 
 	credentialsSecret := corev1.Secret{
@@ -1254,7 +1255,7 @@ func TestExists(t *testing.T) {
 	password, _ := server.URL.User.Password()
 	namespace := "test"
 	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
-	instanceUUID := "instanceUUID"
+	instanceUUID := "a5764857-ae35-34dc-8f25-a9c9e73aa898"
 	vm.Config.InstanceUuid = instanceUUID
 
 	credentialsSecret := corev1.Secret{
@@ -1335,7 +1336,7 @@ func TestReconcileMachineWithCloudState(t *testing.T) {
 	defer server.Close()
 
 	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
-	instanceUUID := "instanceUUID"
+	instanceUUID := "a5764857-ae35-34dc-8f25-a9c9e73aa898"
 	vm.Config.InstanceUuid = instanceUUID
 
 	vmObj := object.NewVirtualMachine(session.Client.Client, vm.Reference())

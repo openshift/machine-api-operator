@@ -106,20 +106,20 @@ func GetOrCreate(
 	return &session, nil
 }
 
-func (s *Session) FindVM(ctx context.Context, ID string) (*object.VirtualMachine, error) {
-	if !isValidUUID(ID) {
-		klog.V(3).Infof("Find template by instance uuid %v", ID)
-		ref, err := s.FindRefByInstanceUUID(ctx, ID)
-		if err != nil {
-			return nil, fmt.Errorf("error querying template by instance UUID: %w", err)
-		}
-		if ref != nil {
-			return object.NewVirtualMachine(s.Client.Client, ref.Reference()), nil
-		}
+func (s *Session) FindVM(ctx context.Context, UUID, name string) (*object.VirtualMachine, error) {
+	if !isValidUUID(UUID) {
+		klog.V(3).Infof("Invalid UUID for VM %q: %s, trying to find by name", name, UUID)
+		return s.findVMByName(ctx, name)
 	}
-
-	klog.V(3).Infof("Find template by name %v", ID)
-	return s.findVMByName(ctx, ID)
+	klog.V(3).Infof("Find template by instance uuid: %s", UUID)
+	ref, err := s.FindRefByInstanceUUID(ctx, UUID)
+	if ref != nil && err == nil {
+		return object.NewVirtualMachine(s.Client.Client, ref.Reference()), nil
+	}
+	if err != nil {
+		klog.V(3).Infof("Instance not found by UUID: %s, trying to find by name %q", err, name)
+	}
+	return s.findVMByName(ctx, name)
 }
 
 // FindByInstanceUUID finds an object by its instance UUID.
@@ -142,9 +142,21 @@ func (s *Session) findRefByUUID(ctx context.Context, UUID string, findByInstance
 func (s *Session) findVMByName(ctx context.Context, ID string) (*object.VirtualMachine, error) {
 	tpl, err := s.Finder.VirtualMachine(ctx, ID)
 	if err != nil {
+		if isNotFound(err) {
+			return nil, err
+		}
 		return nil, fmt.Errorf("unable to find template by name %q: %w", ID, err)
 	}
 	return tpl, nil
+}
+
+func isNotFound(err error) bool {
+	switch err.(type) {
+	case *find.NotFoundError:
+		return true
+	default:
+		return false
+	}
 }
 
 func isValidUUID(str string) bool {
