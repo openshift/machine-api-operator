@@ -18,6 +18,7 @@ package machine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -405,10 +406,10 @@ func delayIfRequeueAfterError(err error) (reconcile.Result, error) {
 }
 
 func isInvalidMachineConfigurationError(err error) bool {
-	switch t := err.(type) {
-	case *MachineError:
-		if t.Reason == machinev1.InvalidConfigurationMachineError {
-			klog.Infof("Actuator returned invalid configuration error: %v", err)
+	var machineError *MachineError
+	if errors.As(err, &machineError) {
+		if machineError.Reason == machinev1.InvalidConfigurationMachineError {
+			klog.Infof("Actuator returned invalid configuration error: %v", machineError)
 			return true
 		}
 	}

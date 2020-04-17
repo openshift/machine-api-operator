@@ -18,6 +18,7 @@ package machine
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"testing"
 
@@ -559,6 +560,56 @@ func TestNodeIsUnreachable(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if actual := nodeIsUnreachable(tc.node); actual != tc.expected {
 				t.Errorf("Expected: %v, got: %v", actual, tc.expected)
+			}
+		})
+	}
+}
+
+func TestIsInvalidMachineConfigurationError(t *testing.T) {
+	invalidMachineConfigurationError := InvalidMachineConfiguration("invalidConfiguration")
+	createError := CreateMachine("createFailed")
+
+	testCases := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "With an InvalidMachineConfigurationError",
+			err:      invalidMachineConfigurationError,
+			expected: true,
+		},
+		{
+			name:     "With a CreateError",
+			err:      createError,
+			expected: false,
+		},
+		{
+			name:     "With a wrapped InvalidMachineConfigurationError",
+			err:      fmt.Errorf("Wrap: %w", invalidMachineConfigurationError),
+			expected: true,
+		},
+		{
+			name:     "With a wrapped CreateError",
+			err:      fmt.Errorf("Wrap: %w", createError),
+			expected: false,
+		},
+		{
+			name:     "With a double wrapped InvalidMachineConfigurationError",
+			err:      fmt.Errorf("Wrap: %w", fmt.Errorf("Wrap: %w", invalidMachineConfigurationError)),
+			expected: true,
+		},
+		{
+			name:     "With a double wrapped CreateError",
+			err:      fmt.Errorf("Wrap: %w", fmt.Errorf("Wrap: %w", createError)),
+			expected: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if actual := isInvalidMachineConfigurationError(tc.err); actual != tc.expected {
+				t.Errorf("Case: %s, got: %v, expected: %v", tc.name, actual, tc.expected)
 			}
 		})
 	}
