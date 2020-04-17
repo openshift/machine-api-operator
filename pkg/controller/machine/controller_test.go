@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"reflect"
 	"testing"
+	"time"
 
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
@@ -610,6 +611,88 @@ func TestIsInvalidMachineConfigurationError(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			if actual := isInvalidMachineConfigurationError(tc.err); actual != tc.expected {
 				t.Errorf("Case: %s, got: %v, expected: %v", tc.name, actual, tc.expected)
+			}
+		})
+	}
+}
+
+func TestDelayIfRequeueAfterError(t *testing.T) {
+	requeueAfter30s := &RequeueAfterError{RequeueAfter: 30 * time.Second}
+	requeueAfter1m := &RequeueAfterError{RequeueAfter: time.Minute}
+	createError := CreateMachine("createFailed")
+	wrappedCreateError := fmt.Errorf("Wrap: %w", createError)
+	doubleWrappedCreateError := fmt.Errorf("Wrap: %w", fmt.Errorf("Wrap: %w", createError))
+
+	testCases := []struct {
+		name           string
+		err            error
+		expectedErr    error
+		expectedResult reconcile.Result
+	}{
+		{
+			name:           "with a RequeAfterError (30s)",
+			err:            requeueAfter30s,
+			expectedErr:    nil,
+			expectedResult: reconcile.Result{Requeue: true, RequeueAfter: 30 * time.Second},
+		},
+		{
+			name:           "with a RequeAfterError (1m)",
+			err:            requeueAfter1m,
+			expectedErr:    nil,
+			expectedResult: reconcile.Result{Requeue: true, RequeueAfter: time.Minute},
+		},
+		{
+			name:           "with a CreateError",
+			err:            createError,
+			expectedErr:    createError,
+			expectedResult: reconcile.Result{},
+		},
+		{
+			name:           "with a wrapped RequeAfterError (30s)",
+			err:            fmt.Errorf("Wrap: %w", requeueAfter30s),
+			expectedErr:    nil,
+			expectedResult: reconcile.Result{Requeue: true, RequeueAfter: 30 * time.Second},
+		},
+		{
+			name:           "with a wrapped RequeAfterError (1m)",
+			err:            fmt.Errorf("Wrap: %w", requeueAfter1m),
+			expectedErr:    nil,
+			expectedResult: reconcile.Result{Requeue: true, RequeueAfter: time.Minute},
+		},
+		{
+			name:           "with a wrapped CreateError",
+			err:            wrappedCreateError,
+			expectedErr:    wrappedCreateError,
+			expectedResult: reconcile.Result{},
+		},
+		{
+			name:           "with a double wrapped RequeAfterError (30s)",
+			err:            fmt.Errorf("Wrap: %w", fmt.Errorf("Wrap: %w", requeueAfter30s)),
+			expectedErr:    nil,
+			expectedResult: reconcile.Result{Requeue: true, RequeueAfter: 30 * time.Second},
+		},
+		{
+			name:           "with a double wrapped RequeAfterError (1m)",
+			err:            fmt.Errorf("Wrap: %w", fmt.Errorf("Wrap: %w", requeueAfter1m)),
+			expectedErr:    nil,
+			expectedResult: reconcile.Result{Requeue: true, RequeueAfter: time.Minute},
+		},
+		{
+			name:           "with a double wrapped CreateError",
+			err:            doubleWrappedCreateError,
+			expectedErr:    doubleWrappedCreateError,
+			expectedResult: reconcile.Result{},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := delayIfRequeueAfterError(tc.err)
+			if err != tc.expectedErr {
+				t.Errorf("Case: %s, got: %v, expected: %v", tc.name, err, tc.expectedErr)
+			}
+			if result != tc.expectedResult {
+				t.Errorf("Case: %s, got: %v, expected: %v", tc.name, result, tc.expectedResult)
 			}
 		})
 	}
