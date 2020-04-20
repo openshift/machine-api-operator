@@ -2648,6 +2648,7 @@ func TestGetIntOrPercentValue(t *testing.T) {
 	intInString30 := intstr.FromString("30")
 	invalidStringA := intstr.FromString("a")
 	invalidStringAPercent := intstr.FromString("a%")
+	invalidStringNumericPercent := intstr.FromString("1%0")
 
 	testCases := []struct {
 		name            string
@@ -2690,6 +2691,13 @@ func TestGetIntOrPercentValue(t *testing.T) {
 			expectedValue:   0,
 			expectedPercent: true,
 			expectedError:   fmt.Errorf("invalid value \"a%%\": strconv.Atoi: parsing \"a\": invalid syntax"),
+		},
+		{
+			name:            "with an '1%0' string",
+			in:              &invalidStringNumericPercent,
+			expectedValue:   0,
+			expectedPercent: false,
+			expectedError:   fmt.Errorf("invalid value \"1%%0\": strconv.Atoi: parsing \"1%%0\": invalid syntax"),
 		},
 	}
 
