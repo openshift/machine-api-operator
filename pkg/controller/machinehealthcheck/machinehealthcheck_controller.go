@@ -692,9 +692,9 @@ func getIntOrPercentValue(intOrStr *intstr.IntOrString) (int, bool, error) {
 	case intstr.String:
 		isPercent := false
 		s := intOrStr.StrVal
-		if strings.Contains(s, "%") {
+		if strings.HasSuffix(s, "%") {
 			isPercent = true
-			s = strings.Replace(intOrStr.StrVal, "%", "", -1)
+			s = strings.TrimSuffix(intOrStr.StrVal, "%")
 		}
 		v, err := strconv.Atoi(s)
 		if err != nil {
