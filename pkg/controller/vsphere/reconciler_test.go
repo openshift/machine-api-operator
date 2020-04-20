@@ -762,6 +762,89 @@ func TestReconcileTags(t *testing.T) {
 	}
 }
 
+func TestCheckAttachedTag(t *testing.T) {
+	model, session, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	managedObj := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	managedObjRef := object.NewVirtualMachine(session.Client.Client, managedObj.Reference()).Reference()
+
+	vm := &virtualMachine{
+		Context: context.TODO(),
+		Obj:     object.NewVirtualMachine(session.Client.Client, managedObjRef),
+		Ref:     managedObjRef,
+	}
+
+	tagName := "CLUSTERID"
+
+	if err := session.WithRestClient(context.TODO(), func(c *rest.Client) error {
+		tagsMgr := tags.NewManager(c)
+
+		id, err := tagsMgr.CreateCategory(context.TODO(), &tags.Category{
+			AssociableTypes: []string{"VirtualMachine"},
+			Cardinality:     "SINGLE",
+			Name:            "CLUSTERID_CATEGORY",
+		})
+		if err != nil {
+			return err
+		}
+
+		_, err = tagsMgr.CreateTag(context.TODO(), &tags.Tag{
+			CategoryID: id,
+			Name:       tagName,
+		})
+		if err != nil {
+			return err
+		}
+
+		if err := tagsMgr.AttachTag(context.TODO(), tagName, vm.Ref); err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	testCases := []struct {
+		name    string
+		findTag bool
+		tagName string
+	}{
+		{
+			name:    "Successfully find a tag",
+			findTag: true,
+			tagName: tagName,
+		},
+		{
+			name:    "Fail to find a tag",
+			tagName: "non existent tag",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			if err := session.WithRestClient(context.TODO(), func(c *rest.Client) error {
+				tagsMgr := tags.NewManager(c)
+
+				attached, err := vm.checkAttachedTag(context.TODO(), tc.tagName, tagsMgr)
+				if err != nil {
+					return fmt.Errorf("Not expected error %v", err)
+				}
+
+				if attached != tc.findTag {
+					return fmt.Errorf("Failed to find attached tag: got %v, expected %v", attached, tc.findTag)
+				}
+
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func TestIgnitionConfig(t *testing.T) {
 	optionsForData := func(data []byte) []types.BaseOptionValue {
 		return []types.BaseOptionValue{
