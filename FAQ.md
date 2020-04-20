@@ -142,7 +142,7 @@ Yes, though consider carefully before doing so.  Inspect the Match Labels from t
 # Machine Deployments
 
 ## Upstream kubernetes cluster-api project is utilizing MachineDeployments, why isn’t OpenShift?
-Any change to a MachineDeployment will result in an immediate removal and replacement of an entire MachineSet.  This is a much more costly operation that making changes to an instance in-place.  In particular RHEL CoreOS allows the VM to boot into an entirely updated operating system without having to perform a reinstallation.
+Any change to a MachineDeployment will result in an immediate removal and replacement of an entire MachineSet.  This is a much more costly operation that making changes to an instance in-place; for example, all cached container images need to be re-pulled.  For OpenShift 4, the [machine config operator](https://github.com/openshift/machine-config-operator/) performs upgrades in place, while still preserving the "image like" aspect of replacing the whole OS as one transactional unit.  More information in [OSUpgrades.md](https://github.com/openshift/machine-config-operator/blob/master/docs/OSUpgrades.md).
 
 # Cluster Autoscaler
 
