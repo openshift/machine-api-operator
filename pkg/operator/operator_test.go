@@ -25,7 +25,7 @@ import (
 	fakedynamic "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/informers"
 	fakekube "k8s.io/client-go/kubernetes/fake"
-	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 )
@@ -40,7 +40,7 @@ const (
 func newFakeOperator(kubeObjects []runtime.Object, osObjects []runtime.Object, stopCh <-chan struct{}) *Operator {
 	kubeClient := fakekube.NewSimpleClientset(kubeObjects...)
 	osClient := fakeos.NewSimpleClientset(osObjects...)
-	dynamicClient := fakedynamic.NewSimpleDynamicClient(clientgoscheme.Scheme, kubeObjects...)
+	dynamicClient := fakedynamic.NewSimpleDynamicClient(scheme.Scheme, kubeObjects...)
 	kubeNamespacedSharedInformer := informers.NewSharedInformerFactoryWithOptions(kubeClient, 2*time.Minute, informers.WithNamespace(targetNamespace))
 	configSharedInformer := configinformersv1.NewSharedInformerFactoryWithOptions(osClient, 2*time.Minute)
 	featureGateInformer := configSharedInformer.Config().V1().FeatureGates()
