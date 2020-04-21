@@ -17,11 +17,11 @@ limitations under the License.
 package machineset
 
 import (
+	"fmt"
 	"math"
 	"sort"
 
 	"github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
-	"github.com/pkg/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -129,6 +129,6 @@ func getDeletePriorityFunc(ms *v1beta1.MachineSet) (deletePriorityFunc, error) {
 	case "":
 		return randomDeletePolicy, nil
 	default:
-		return nil, errors.Errorf("Unsupported delete policy %s. Must be one of 'Random', 'Newest', or 'Oldest'", msdp)
+		return nil, fmt.Errorf("Unsupported delete policy %s. Must be one of 'Random', 'Newest', or 'Oldest'", msdp)
 	}
 }

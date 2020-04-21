@@ -18,6 +18,7 @@ package machineset
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -26,7 +27,6 @@ import (
 
 	machinev1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/util"
-	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -182,18 +182,18 @@ func (r *ReconcileMachineSet) reconcile(ctx context.Context, machineSet *machine
 	allMachines := &machinev1beta1.MachineList{}
 
 	if err := r.Client.List(context.Background(), allMachines, client.InNamespace(machineSet.Namespace)); err != nil {
-		return reconcile.Result{}, errors.Wrap(err, "failed to list machines")
+		return reconcile.Result{}, fmt.Errorf("failed to list machines: %w", err)
 	}
 
 	// Make sure that label selector can match template's labels.
 	// TODO(vincepri): Move to a validation (admission) webhook when supported.
 	selector, err := metav1.LabelSelectorAsSelector(&machineSet.Spec.Selector)
 	if err != nil {
-		return reconcile.Result{}, errors.Wrapf(err, "failed to parse MachineSet %q label selector", machineSet.Name)
+		return reconcile.Result{}, fmt.Errorf("failed to parse MachineSet %q label selector: %w", machineSet.Name, err)
 	}
 
 	if !selector.Matches(labels.Set(machineSet.Spec.Template.Labels)) {
-		return reconcile.Result{}, errors.Errorf("failed validation on MachineSet %q label selector, cannot match any machines ", machineSet.Name)
+		return reconcile.Result{}, fmt.Errorf("failed validation on MachineSet %q label selector, cannot match any machines ", machineSet.Name)
 	}
 
 	// Filter out irrelevant machines (deleting/mismatch labels) and claim orphaned machines.
@@ -232,13 +232,13 @@ func (r *ReconcileMachineSet) reconcile(ctx context.Context, machineSet *machine
 	updatedMS, err := updateMachineSetStatus(r.Client, machineSet, newStatus)
 	if err != nil {
 		if syncErr != nil {
-			return reconcile.Result{}, errors.Wrapf(err, "failed to sync machines: %v. failed to update machine set status", syncErr)
+			return reconcile.Result{}, fmt.Errorf("failed to sync machines: %v. failed to update machine set status: %w", syncErr, err)
 		}
-		return reconcile.Result{}, errors.Wrap(err, "failed to update machine set status")
+		return reconcile.Result{}, fmt.Errorf("failed to update machine set status: %w", err)
 	}
 
 	if syncErr != nil {
-		return reconcile.Result{}, errors.Wrapf(syncErr, "failed to sync machines")
+		return reconcile.Result{}, fmt.Errorf("failed to sync machines: %w", syncErr)
 	}
 
 	var replicas int32
@@ -266,7 +266,7 @@ func (r *ReconcileMachineSet) reconcile(ctx context.Context, machineSet *machine
 // syncReplicas essentially scales machine resources up and down.
 func (r *ReconcileMachineSet) syncReplicas(ms *machinev1beta1.MachineSet, machines []*machinev1beta1.Machine) error {
 	if ms.Spec.Replicas == nil {
-		return errors.Errorf("the Replicas field in Spec for machineset %v is nil, this should not be allowed", ms.Name)
+		return fmt.Errorf("the Replicas field in Spec for machineset %v is nil, this should not be allowed", ms.Name)
 	}
 
 	diff := len(machines) - int(*(ms.Spec.Replicas))
@@ -405,7 +405,7 @@ func (r *ReconcileMachineSet) waitForMachineCreation(machineList []*machinev1bet
 
 		if pollErr != nil {
 			klog.Error(pollErr)
-			return errors.Wrap(pollErr, "failed waiting for machine object to be created")
+			return fmt.Errorf("failed waiting for machine object to be created: %w", pollErr)
 		}
 	}
 
@@ -428,7 +428,7 @@ func (r *ReconcileMachineSet) waitForMachineDeletion(machineList []*machinev1bet
 
 		if pollErr != nil {
 			klog.Error(pollErr)
-			return errors.Wrap(pollErr, "failed waiting for machine object to be deleted")
+			return fmt.Errorf("failed waiting for machine object to be deleted: %w", pollErr)
 		}
 	}
 	return nil
