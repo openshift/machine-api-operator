@@ -9,6 +9,7 @@ import (
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 	"github.com/openshift/library-go/pkg/operator/resource/resourcemerge"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
+	"github.com/openshift/machine-api-operator/pkg/util/conditions"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -19,11 +20,12 @@ import (
 )
 
 const (
-	deploymentRolloutPollInterval = time.Second
-	deploymentRolloutTimeout      = 5 * time.Minute
-	daemonsetRolloutPollInterval  = time.Second
-	daemonsetRolloutTimeout       = 5 * time.Minute
-	machineAPITerminationHandler  = "machine-api-termination-handler"
+	deploymentRolloutPollInterval     = time.Second
+	deploymentRolloutTimeout          = 5 * time.Minute
+	deploymentMinimumAvailabilityTime = 3 * time.Minute
+	daemonsetRolloutPollInterval      = time.Second
+	daemonsetRolloutTimeout           = 5 * time.Minute
+	machineAPITerminationHandler      = "machine-api-termination-handler"
 )
 
 func (optr *Operator) syncAll(config *OperatorConfig) error {
@@ -84,7 +86,7 @@ func (optr *Operator) syncClusterAPIController(config *OperatorConfig) error {
 	}
 	if updated {
 		resourcemerge.SetDeploymentGeneration(&optr.generations, d)
-		err := optr.waitForDeploymentRollout(controllersDeployment)
+		err := optr.waitForDeploymentRollout(controllersDeployment, deploymentRolloutPollInterval, deploymentRolloutTimeout)
 		if err != nil {
 			return err
 		}
@@ -136,17 +138,19 @@ func (optr *Operator) syncBaremetalControllers(config *OperatorConfig) error {
 	}
 	if updated {
 		resourcemerge.SetDeploymentGeneration(&optr.generations, d)
-		return optr.waitForDeploymentRollout(metal3Deployment)
+		return optr.waitForDeploymentRollout(metal3Deployment, deploymentRolloutPollInterval, deploymentRolloutTimeout)
 	}
 
 	return nil
 }
 
-func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment) error {
+func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment, pollInterval, rolloutTimeout time.Duration) error {
 	var lastError error
-	err := wait.Poll(deploymentRolloutPollInterval, deploymentRolloutTimeout, func() (bool, error) {
+	err := wait.Poll(pollInterval, rolloutTimeout, func() (bool, error) {
 		d, err := optr.deployLister.Deployments(resource.Namespace).Get(resource.Name)
 		if apierrors.IsNotFound(err) {
+			lastError = fmt.Errorf("deployment %s is not found", d.GetName())
+			glog.Error(lastError)
 			return false, nil
 		}
 		if err != nil {
@@ -163,9 +167,27 @@ func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment) erro
 		}
 
 		if d.Generation <= d.Status.ObservedGeneration && d.Status.UpdatedReplicas == d.Status.Replicas && d.Status.UnavailableReplicas == 0 {
+			c := conditions.GetDeploymentCondition(d, appsv1.DeploymentAvailable)
+			if c == nil {
+				lastError = fmt.Errorf("deployment %s is not reporting available yet", d.GetName())
+				glog.V(4).Info(lastError)
+				return false, nil
+			}
+			if c.Status == corev1.ConditionFalse {
+				lastError = fmt.Errorf("deployment %s is reporting available=false", d.GetName())
+				glog.V(4).Info(lastError)
+				return false, nil
+			}
+			if c.LastTransitionTime.Time.Add(deploymentMinimumAvailabilityTime).After(time.Now()) {
+				lastError = fmt.Errorf("deployment %s has been available for less than 3 min", d.GetName())
+				glog.V(4).Info(lastError)
+				return false, nil
+			}
+
 			lastError = nil
 			return true, nil
 		}
+
 		lastError = fmt.Errorf("deployment %s is not ready. status: (replicas: %d, updated: %d, ready: %d, unavailable: %d)", d.Name, d.Status.Replicas, d.Status.UpdatedReplicas, d.Status.ReadyReplicas, d.Status.UnavailableReplicas)
 		glog.V(4).Info(lastError)
 		return false, nil
