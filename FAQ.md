@@ -43,7 +43,7 @@ These terms, while obviously related, are not interchangeable.  Oftentimes, peop
 # Machines
 
 ## Machine Phases?
-Please see docs for Machine phases: https://github.com/openshift/enhancements/blob/master/enhancements/Machine-api/Machine-instance-lifecycle.md
+Please see docs for Machine phases: https://github.com/openshift/enhancements/blob/master/enhancements/machine-api/machine-instance-lifecycle.md
 
 ## Can I change a Machine’s Spec?
 It will have no effect, and may have negative results.  For example, if you remove a master Machine’s load balancer entries, the Machine will not be removed from the load balancer, and when the Machine is deleted, the instance will not be removed from the load balancer prior to deletion.  Changes to other attributes such as image-id or instance type will have no effect.
