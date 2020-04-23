@@ -219,9 +219,9 @@ func TestGetTask(t *testing.T) {
 			found:       true,
 		},
 		{
-			testCase:    "empty string",
+			testCase:    "fail on empty string",
 			taskRef:     "",
-			expectError: false,
+			expectError: true,
 			found:       false,
 		},
 		{

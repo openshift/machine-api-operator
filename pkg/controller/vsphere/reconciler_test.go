@@ -1014,12 +1014,6 @@ func TestCreate(t *testing.T) {
 		},
 	}
 
-	vmObj := object.NewVirtualMachine(session.Client.Client, vm.Reference())
-	task, err := vmObj.PowerOn(context.TODO())
-	if err != nil {
-		t.Fatal(err)
-	}
-
 	cases := []struct {
 		name                  string
 		expectedError         error
@@ -1076,17 +1070,15 @@ func TestCreate(t *testing.T) {
 						Labels:    labels,
 					},
 				},
-				providerSpec: &tc.providerSpec,
-				session:      session,
-				providerStatus: &vsphereapi.VSphereMachineProviderStatus{
-					TaskRef: task.Reference().Value,
-				},
-				client: fake.NewFakeClientWithScheme(scheme.Scheme, &credentialsSecret),
+				providerSpec:   &tc.providerSpec,
+				session:        session,
+				providerStatus: &vsphereapi.VSphereMachineProviderStatus{},
+				client:         fake.NewFakeClientWithScheme(scheme.Scheme, &credentialsSecret),
 			}
 
 			reconciler := newReconciler(&machineScope)
 
-			err = reconciler.create()
+			err := reconciler.create()
 
 			if tc.expectedError != nil {
 				if err == nil {
@@ -1126,12 +1118,6 @@ func TestUpdate(t *testing.T) {
 			credentialsSecretUsername: []byte(server.URL.User.Username()),
 			credentialsSecretPassword: []byte(password),
 		},
-	}
-
-	vmObj := object.NewVirtualMachine(session.Client.Client, vm.Reference())
-	task, err := vmObj.PowerOn(context.TODO())
-	if err != nil {
-		t.Fatal(err)
 	}
 
 	if err := session.WithRestClient(context.TODO(), func(c *rest.Client) error {
@@ -1217,12 +1203,10 @@ func TestUpdate(t *testing.T) {
 						UID:       apimachinerytypes.UID(instanceUUID),
 					},
 				},
-				providerSpec: &tc.providerSpec,
-				session:      session,
-				providerStatus: &vsphereapi.VSphereMachineProviderStatus{
-					TaskRef: task.Reference().Value,
-				},
-				client: fake.NewFakeClientWithScheme(scheme.Scheme, &credentialsSecret),
+				providerSpec:   &tc.providerSpec,
+				session:        session,
+				providerStatus: &vsphereapi.VSphereMachineProviderStatus{},
+				client:         fake.NewFakeClientWithScheme(scheme.Scheme, &credentialsSecret),
 			}
 
 			reconciler := newReconciler(&machineScope)

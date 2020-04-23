@@ -166,7 +166,7 @@ func isValidUUID(str string) bool {
 
 func (s *Session) GetTask(ctx context.Context, taskRef string) (*mo.Task, error) {
 	if taskRef == "" {
-		return nil, nil
+		return nil, errors.New("taskRef can't be empty")
 	}
 	var obj mo.Task
 	moRef := types.ManagedObjectReference{
