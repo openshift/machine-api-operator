@@ -24,6 +24,7 @@ import (
 
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	vsphereapi "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
+	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/simulator"
@@ -678,33 +679,6 @@ func TestReconcileTags(t *testing.T) {
 
 	tagName := "CLUSTERID"
 
-	createTag := func() {
-		if err := session.WithRestClient(context.TODO(), func(c *rest.Client) error {
-			tagsMgr := tags.NewManager(c)
-
-			id, err := tagsMgr.CreateCategory(context.TODO(), &tags.Category{
-				AssociableTypes: []string{"VirtualMachine"},
-				Cardinality:     "SINGLE",
-				Name:            "CLUSTERID_CATEGORY",
-			})
-			if err != nil {
-				return err
-			}
-
-			_, err = tagsMgr.CreateTag(context.TODO(), &tags.Tag{
-				CategoryID: id,
-				Name:       tagName,
-			})
-			if err != nil {
-				return err
-			}
-
-			return nil
-		}); err != nil {
-			t.Fatal(err)
-		}
-	}
-
 	testCases := []struct {
 		name          string
 		expectedError bool
@@ -722,7 +696,7 @@ func TestReconcileTags(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			if !tc.expectedError {
-				createTag()
+				createTagAndCategory(session, "CLUSTERID_CATEGORY", tagName)
 			}
 
 			err := vm.reconcileTags(context.TODO(), session, &machinev1.Machine{
@@ -1203,30 +1177,7 @@ func TestUpdate(t *testing.T) {
 		},
 	}
 
-	if err := session.WithRestClient(context.TODO(), func(c *rest.Client) error {
-		tagsMgr := tags.NewManager(c)
-
-		id, err := tagsMgr.CreateCategory(context.TODO(), &tags.Category{
-			AssociableTypes: []string{"VirtualMachine"},
-			Cardinality:     "SINGLE",
-			Name:            "CLUSTERID_CATEGORY",
-		})
-		if err != nil {
-			return err
-		}
-
-		_, err = tagsMgr.CreateTag(context.TODO(), &tags.Tag{
-			CategoryID: id,
-			Name:       "CLUSTERID",
-		})
-		if err != nil {
-			return err
-		}
-
-		return nil
-	}); err != nil {
-		t.Fatal(err)
-	}
+	createTagAndCategory(session, "CLUSTERID_CATEGORY", "CLUSTERID")
 
 	cases := []struct {
 		name          string
@@ -1412,6 +1363,27 @@ func TestReconcileMachineWithCloudState(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	createTagAndCategory(session, zoneKey, testZone)
+	createTagAndCategory(session, regionKey, testRegion)
+
+	if err := session.WithRestClient(context.TODO(), func(c *rest.Client) error {
+		tagsMgr := tags.NewManager(c)
+
+		err = tagsMgr.AttachTag(context.TODO(), testZone, vmObj.Reference())
+		if err != nil {
+			return err
+		}
+
+		err = tagsMgr.AttachTag(context.TODO(), testRegion, vmObj.Reference())
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
 	machineScope := machineScope{
 		Context: context.TODO(),
 		machine: &machinev1.Machine{
@@ -1427,7 +1399,7 @@ func TestReconcileMachineWithCloudState(t *testing.T) {
 			Template: vm.Name,
 			Network: vsphereapi.NetworkSpec{
 				Devices: []vsphereapi.NetworkDeviceSpec{
-					vsphereapi.NetworkDeviceSpec{
+					{
 						NetworkName: "test",
 					},
 				},
@@ -1436,6 +1408,15 @@ func TestReconcileMachineWithCloudState(t *testing.T) {
 		session: session,
 		providerStatus: &vsphereapi.VSphereMachineProviderStatus{
 			TaskRef: task.Reference().Value,
+		},
+		vSphereConfig: &vSphereConfig{
+			Labels: struct {
+				Zone   string "gcfg:\"zone\""
+				Region string "gcfg:\"region\""
+			}{
+				Zone:   zoneKey,
+				Region: regionKey,
+			},
 		},
 	}
 
@@ -1459,7 +1440,47 @@ func TestReconcileMachineWithCloudState(t *testing.T) {
 		t.Errorf("Expected: %s, got: %s", expectedProviderID, *reconciler.machine.Spec.ProviderID)
 	}
 
-	// TODO: add zones and networks
+	labels := reconciler.machine.Labels
+	if labels == nil {
+		t.Error("Machine is expected to have labels")
+	}
+
+	if testZone != labels[machinecontroller.MachineAZLabelName] {
+		t.Errorf("Expected zone name: %s, got: %s", testZone, labels[machinecontroller.MachineAZLabelName])
+	}
+
+	if testRegion != labels[machinecontroller.MachineRegionLabelName] {
+		t.Errorf("Expected region name: %s, got: %s", testRegion, labels[machinecontroller.MachineRegionLabelName])
+	}
+}
+
+func createTagAndCategory(session *session.Session, categoryName, tagName string) error {
+	if err := session.WithRestClient(context.TODO(), func(c *rest.Client) error {
+		tagsMgr := tags.NewManager(c)
+
+		id, err := tagsMgr.CreateCategory(context.TODO(), &tags.Category{
+			AssociableTypes: []string{"VirtualMachine"},
+			Cardinality:     "SINGLE",
+			Name:            categoryName,
+		})
+		if err != nil {
+			return err
+		}
+
+		_, err = tagsMgr.CreateTag(context.TODO(), &tags.Tag{
+			CategoryID: id,
+			Name:       tagName,
+		})
+		if err != nil {
+			return err
+		}
+
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // See https://github.com/vmware/govmomi/blob/master/simulator/example_extend_test.go#L33:6 for extending behaviour example
