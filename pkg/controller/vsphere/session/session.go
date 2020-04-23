@@ -18,6 +18,8 @@ package session
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"net/url"
 	"sync"
 
@@ -26,7 +28,6 @@ import (
 	"github.com/vmware/govmomi/vim25/types"
 
 	"github.com/google/uuid"
-	"github.com/pkg/errors"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
@@ -69,10 +70,10 @@ func GetOrCreate(
 
 	soapURL, err := soap.ParseURL(server)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error parsing vSphere URL %q", server)
+		return nil, fmt.Errorf("error parsing vSphere URL %q: %w", server, err)
 	}
 	if soapURL == nil {
-		return nil, errors.Errorf("error parsing vSphere URL %q", server)
+		return nil, fmt.Errorf("error parsing vSphere URL %q", server)
 	}
 
 	soapURL.User = url.UserPassword(username, password)
@@ -80,7 +81,7 @@ func GetOrCreate(
 	// TODO: drop insecure flag
 	client, err := govmomi.NewClient(ctx, soapURL, true)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error setting up new vSphere SOAP client")
+		return nil, fmt.Errorf("error setting up new vSphere SOAP client: %w", err)
 	}
 
 	session := Session{
@@ -94,7 +95,7 @@ func GetOrCreate(
 
 	dc, err := session.Finder.DatacenterOrDefault(ctx, datacenter)
 	if err != nil {
-		return nil, errors.Wrapf(err, "unable to find datacenter %q", datacenter)
+		return nil, fmt.Errorf("unable to find datacenter %q: %w", datacenter, err)
 	}
 	session.Datacenter = dc
 	session.Finder.SetDatacenter(dc)
@@ -110,7 +111,7 @@ func (s *Session) FindVM(ctx context.Context, ID string) (*object.VirtualMachine
 		klog.V(3).Infof("Find template by instance uuid %v", ID)
 		ref, err := s.FindRefByInstanceUUID(ctx, ID)
 		if err != nil {
-			return nil, errors.Wrap(err, "error querying template by instance UUID")
+			return nil, fmt.Errorf("error querying template by instance UUID: %w", err)
 		}
 		if ref != nil {
 			return object.NewVirtualMachine(s.Client.Client, ref.Reference()), nil
@@ -133,7 +134,7 @@ func (s *Session) findRefByUUID(ctx context.Context, UUID string, findByInstance
 	si := object.NewSearchIndex(s.Client.Client)
 	ref, err := si.FindByUuid(ctx, s.Datacenter, UUID, true, &findByInstanceUUID)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error finding object by uuid %q", UUID)
+		return nil, fmt.Errorf("error finding object by uuid %q: %w", UUID, err)
 	}
 	return ref, nil
 }
@@ -141,7 +142,7 @@ func (s *Session) findRefByUUID(ctx context.Context, UUID string, findByInstance
 func (s *Session) findVMByName(ctx context.Context, ID string) (*object.VirtualMachine, error) {
 	tpl, err := s.Finder.VirtualMachine(ctx, ID)
 	if err != nil {
-		return nil, errors.Wrapf(err, "unable to find template by name %q", ID)
+		return nil, fmt.Errorf("unable to find template by name %q: %w", ID, err)
 	}
 	return tpl, nil
 }

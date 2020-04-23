@@ -3,6 +3,7 @@ package vsphere
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -11,7 +12,6 @@ import (
 	vspherev1 "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
-	"github.com/pkg/errors"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/property"
 	"github.com/vmware/govmomi/vapi/rest"
@@ -84,7 +84,7 @@ func (r *Reconciler) create() error {
 				conditionFailed.Message = err.Error()
 				statusError := setProviderStatus(task, conditionFailed, r.machineScope, nil)
 				if statusError != nil {
-					return errors.Wrap(err, "Failed to set provider status")
+					return fmt.Errorf("Failed to set provider status: %w", err)
 				}
 				return err
 			}
@@ -121,7 +121,7 @@ func (r *Reconciler) update() error {
 		if !isNotFound(err) {
 			return err
 		}
-		return errors.Wrap(err, "vm not found on update")
+		return fmt.Errorf("vm not found on update: %w", err)
 	}
 
 	vm := &virtualMachine{
@@ -131,7 +131,7 @@ func (r *Reconciler) update() error {
 	}
 
 	if err := vm.reconcileTags(r.Context, r.session, r.machine); err != nil {
-		return errors.Wrapf(err, "failed to reconcile tags")
+		return fmt.Errorf("failed to reconcile tags: %w", err)
 	}
 
 	// TODO: we won't always want to reconcile power state
@@ -200,7 +200,7 @@ func (r *Reconciler) delete() error {
 	}
 
 	if err := setProviderStatus(task.Reference().Value, conditionSuccess(), r.machineScope, vm); err != nil {
-		return errors.Wrap(err, "Failed to set provider status")
+		return fmt.Errorf("Failed to set provider status: %w", err)
 	}
 
 	return fmt.Errorf("destroying vm in progress, reconciling")
@@ -294,7 +294,7 @@ func (r *Reconciler) reconcileNetwork(vm *virtualMachine) error {
 	//networks have IP addresses.
 	expectNetworkLen, currentNetworkLen := len(r.providerSpec.Network.Devices), len(currentNetworkStatusList)
 	if expectNetworkLen != currentNetworkLen {
-		return errors.Errorf("invalid network count: expected=%d current=%d", expectNetworkLen, currentNetworkLen)
+		return fmt.Errorf("invalid network count: expected=%d current=%d", expectNetworkLen, currentNetworkLen)
 	}
 
 	var ipAddrs []corev1.NodeAddress
@@ -393,7 +393,7 @@ func clone(s *machineScope) (string, error) {
 			klog.V(3).Infof("%v: no snapshot name provided, getting snapshot using template", s.machine.GetName())
 			var vm mo.VirtualMachine
 			if err := vmTemplate.Properties(s.Context, vmTemplate.Reference(), []string{"snapshot"}, &vm); err != nil {
-				return "", errors.Wrapf(err, "error getting snapshot information for template %s", vmTemplate.Name())
+				return "", fmt.Errorf("error getting snapshot information for template %s: %w", vmTemplate.Name(), err)
 			}
 
 			if vm.Snapshot != nil {
@@ -426,17 +426,17 @@ func clone(s *machineScope) (string, error) {
 
 	folder, err := s.GetSession().Finder.FolderOrDefault(s, folderPath)
 	if err != nil {
-		return "", errors.Wrapf(err, "unable to get folder for %q", folderPath)
+		return "", fmt.Errorf("unable to get folder for %q: %w", folderPath, err)
 	}
 
 	datastore, err := s.GetSession().Finder.DatastoreOrDefault(s, datastorePath)
 	if err != nil {
-		return "", errors.Wrapf(err, "unable to get datastore for %q", datastorePath)
+		return "", fmt.Errorf("unable to get datastore for %q: %w", datastorePath, err)
 	}
 
 	resourcepool, err := s.GetSession().Finder.ResourcePoolOrDefault(s, resourcepoolPath)
 	if err != nil {
-		return "", errors.Wrapf(err, "unable to get resource pool for %q", resourcepool)
+		return "", fmt.Errorf("unable to get resource pool for %q: %w", resourcepool, err)
 	}
 
 	numCPUs := s.providerSpec.NumCPUs
@@ -464,7 +464,7 @@ func clone(s *machineScope) (string, error) {
 	if snapshotRef == nil {
 		diskSpec, err := getDiskSpec(s, devices)
 		if err != nil {
-			return "", errors.Wrapf(err, "error getting disk spec for %q", s.providerSpec.Snapshot)
+			return "", fmt.Errorf("error getting disk spec for %q: %w", s.providerSpec.Snapshot, err)
 		}
 		deviceSpecs = append(deviceSpecs, diskSpec)
 	}
@@ -515,7 +515,7 @@ func clone(s *machineScope) (string, error) {
 
 	task, err := vmTemplate.Clone(s, folder, s.machine.GetName(), spec)
 	if err != nil {
-		return "", errors.Wrapf(err, "error triggering clone op for machine %v", s)
+		return "", fmt.Errorf("error triggering clone op for machine %v: %w", s, err)
 	}
 
 	klog.V(3).Infof("%v: running task: %+v", s.machine.GetName(), s.providerStatus.TaskRef)
@@ -525,7 +525,7 @@ func clone(s *machineScope) (string, error) {
 func getDiskSpec(s *machineScope, devices object.VirtualDeviceList) (types.BaseVirtualDeviceConfigSpec, error) {
 	disks := devices.SelectByType((*types.VirtualDisk)(nil))
 	if len(disks) != 1 {
-		return nil, errors.Errorf("invalid disk count: %d", len(disks))
+		return nil, fmt.Errorf("invalid disk count: %d", len(disks))
 	}
 
 	disk := disks[0].(*types.VirtualDisk)
@@ -554,17 +554,17 @@ func getNetworkDevices(s *machineScope, devices object.VirtualDeviceList) ([]typ
 
 		ref, err := s.GetSession().Finder.Network(s.Context, netSpec.NetworkName)
 		if err != nil {
-			return nil, errors.Wrapf(err, "unable to find network %q", netSpec.NetworkName)
+			return nil, fmt.Errorf("unable to find network %q: %w", netSpec.NetworkName, err)
 		}
 
 		backing, err := ref.EthernetCardBackingInfo(s.Context)
 		if err != nil {
-			return nil, errors.Wrapf(err, "unable to create new ethernet card backing info for network %q", netSpec.NetworkName)
+			return nil, fmt.Errorf("unable to create new ethernet card backing info for network %q: %w", netSpec.NetworkName, err)
 		}
 
 		dev, err := object.EthernetCardTypes().CreateEthernetCard(ethCardType, backing)
 		if err != nil {
-			return nil, errors.Wrapf(err, "unable to create new ethernet card %q for network %q", ethCardType, netSpec.NetworkName)
+			return nil, fmt.Errorf("unable to create new ethernet card %q for network %q: %w", ethCardType, netSpec.NetworkName, err)
 		}
 
 		// Get the actual NIC object. This is safe to assert without a check
@@ -610,7 +610,7 @@ func taskIsFinished(task *mo.Task) (bool, error) {
 	case types.TaskInfoStateError:
 		return true, nil
 	default:
-		return false, errors.Errorf("task: %v, unknown state %v", task.Reference().Value, task.Info.State)
+		return false, fmt.Errorf("task: %v, unknown state %v", task.Reference().Value, task.Info.State)
 	}
 }
 
@@ -721,7 +721,7 @@ func (vm *virtualMachine) reconcilePowerState() (bool, string, error) {
 		klog.Infof("%v: powering on", vm.Obj.Reference().Value)
 		task, err := vm.powerOnVM()
 		if err != nil {
-			return false, "", errors.Wrapf(err, "failed to trigger power on op for vm %q", vm)
+			return false, "", fmt.Errorf("failed to trigger power on op for vm %q: %w", vm, err)
 		}
 
 		klog.Infof("%v: requeue to wait for power on state", vm.Obj.Reference().Value)
@@ -730,7 +730,7 @@ func (vm *virtualMachine) reconcilePowerState() (bool, string, error) {
 		klog.Infof("%v: powered on", vm.Obj.Reference().Value)
 		return true, "", nil
 	default:
-		return false, "", errors.Errorf("unexpected power state %q for vm %q", powerState, vm)
+		return false, "", fmt.Errorf("unexpected power state %q for vm %q", powerState, vm)
 	}
 }
 
@@ -764,7 +764,7 @@ func (vm *virtualMachine) getPowerState() (types.VirtualMachinePowerState, error
 	case types.VirtualMachinePowerStateSuspended:
 		return types.VirtualMachinePowerStateSuspended, nil
 	default:
-		return "", errors.Errorf("unexpected power state %q for vm %v", powerState, vm)
+		return "", fmt.Errorf("unexpected power state %q for vm %v", powerState, vm)
 	}
 }
 
@@ -815,7 +815,7 @@ func (vm *virtualMachine) getNetworkStatusList(client *vim25.Client) ([]NetworkS
 	}
 
 	if err := pc.RetrieveOne(vm.Context, vm.Ref, props, &obj); err != nil {
-		return nil, errors.Wrapf(err, "unable to fetch props %v for vm %v", props, vm.Ref)
+		return nil, fmt.Errorf("unable to fetch props %v for vm %v: %w", props, vm.Ref, err)
 	}
 	klog.V(3).Infof("Getting network status: object reference: %v", obj.Reference().Value)
 	if obj.Config == nil {
