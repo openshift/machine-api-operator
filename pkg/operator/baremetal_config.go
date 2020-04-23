@@ -131,7 +131,11 @@ func getIronicInspectorEndpoint(baremetalConfig BaremetalProvisioningConfig) *st
 }
 
 func getProvisioningDHCPRange(baremetalConfig BaremetalProvisioningConfig) *string {
+	// When the DHCP server is external, it is OK for the DHCP range in the CR
+	// to be empty.
 	if baremetalConfig.ProvisioningDHCPRange != "" {
+		return &(baremetalConfig.ProvisioningDHCPRange)
+	} else if baremetalConfig.ProvisioningDHCPExternal {
 		return &(baremetalConfig.ProvisioningDHCPRange)
 	}
 	return nil
