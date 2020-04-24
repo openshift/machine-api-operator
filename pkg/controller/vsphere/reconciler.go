@@ -12,6 +12,7 @@ import (
 	vspherev1 "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
+	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/property"
 	"github.com/vmware/govmomi/vapi/rest"
@@ -336,14 +337,20 @@ func validateMachine(machine machinev1.Machine) error {
 
 func findVM(s *machineScope) (types.ManagedObjectReference, error) {
 	uuid := string(s.machine.UID)
-	objRef, err := s.GetSession().FindRefByInstanceUUID(s, uuid)
+
+	vm, err := s.GetSession().FindVM(s.Context, uuid, s.machine.Name)
 	if err != nil {
+		if isNotFound(err) {
+			return types.ManagedObjectReference{}, errNotFound{instanceUUID: true, uuid: uuid}
+		}
 		return types.ManagedObjectReference{}, err
 	}
-	if objRef == nil {
+
+	if vm == nil {
 		return types.ManagedObjectReference{}, errNotFound{instanceUUID: true, uuid: uuid}
 	}
-	return objRef.Reference(), nil
+
+	return vm.Reference(), nil
 }
 
 // errNotFound is returned by the findVM function when a VM is not found.
@@ -361,7 +368,7 @@ func (e errNotFound) Error() string {
 
 func isNotFound(err error) bool {
 	switch err.(type) {
-	case errNotFound, *errNotFound:
+	case errNotFound, *errNotFound, *find.NotFoundError:
 		return true
 	default:
 		return false
@@ -378,7 +385,7 @@ func clone(s *machineScope) (string, error) {
 		return "", err
 	}
 
-	vmTemplate, err := s.GetSession().FindVM(*s, s.providerSpec.Template)
+	vmTemplate, err := s.GetSession().FindVM(*s, "", s.providerSpec.Template)
 	if err != nil {
 		return "", err
 	}

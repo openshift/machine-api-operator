@@ -139,28 +139,39 @@ func TestFindVM(t *testing.T) {
 	defer model.Remove()
 	defer server.Close()
 	simulatorVM := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
-	instanceUUID := "instanceUUID"
+	instanceUUID := "a5764857-ae35-34dc-8f25-a9c9e73aa898"
+	invalidInstanceUUID := "a5764857-ae35-34dc-8f25-a9c9e73aa899"
 	simulatorVM.Config.InstanceUuid = instanceUUID
 
 	testCases := []struct {
 		testCase    string
 		ID          string
+		name        string
 		expectError bool
 		found       bool
 	}{
 		{
 			testCase: "found by instanceUUID",
 			ID:       instanceUUID,
+			name:     "invalid",
 			found:    true,
 		},
 		{
-			testCase: "found by name",
-			ID:       simulatorVM.Name,
+			testCase: "invalid UUID, fallback on looking by name",
+			ID:       "invalid",
+			name:     simulatorVM.Name,
+			found:    true,
+		},
+		{
+			testCase: "fail to find by UUID, find by name",
+			ID:       invalidInstanceUUID,
+			name:     simulatorVM.Name,
 			found:    true,
 		},
 		{
 			testCase:    "not found",
-			ID:          "notFound",
+			ID:          "invalid",
+			name:        "invalid",
 			expectError: true,
 			found:       false,
 		},
@@ -168,7 +179,7 @@ func TestFindVM(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
-			ref, err := session.FindVM(context.TODO(), tc.ID)
+			ref, err := session.FindVM(context.TODO(), tc.ID, tc.name)
 			if (err != nil) != tc.expectError {
 				t.Errorf("Expected error: %v, got: %v", tc.expectError, err)
 			}
