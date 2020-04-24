@@ -17,12 +17,21 @@ limitations under the License.
 package v1beta1
 
 import (
+	"encoding/json"
+	"math/rand"
 	"reflect"
 	"testing"
+	"time"
 
+	. "github.com/onsi/gomega"
 	"golang.org/x/net/context"
+	"k8s.io/apimachinery/pkg/api/apitesting/fuzzer"
+	metafuzzer "k8s.io/apimachinery/pkg/apis/meta/fuzzer"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/kubernetes/scheme"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 func TestStorageMachineSet(t *testing.T) {
@@ -73,5 +82,57 @@ func TestDefaults(t *testing.T) {
 	got := ms.Spec.DeletePolicy
 	if got != expected {
 		t.Errorf("expected default machineset delete policy '%s', got '%s'", expected, got)
+	}
+}
+
+func TestRoundTripMachineSet(t *testing.T) {
+	codecs := serializer.NewCodecFactory(scheme.Scheme)
+	seed := time.Now().UnixNano()
+	fuzzer := fuzzer.FuzzerFor(fuzzer.MergeFuzzerFuncs(metafuzzer.Funcs, machineFuzzerFuncs), rand.NewSource(seed), codecs)
+	ctx := context.Background()
+	g := NewWithT(t)
+
+	for i := 0; i < 100; i++ {
+		machineSet := &MachineSet{
+			ObjectMeta: metav1.ObjectMeta{
+				GenerateName: "machineset-round-trip-test-",
+				Namespace:    "default",
+			},
+		}
+		// Fuzz the spec and status as those are the ones we need to check aren't
+		// losing data
+		spec := &MachineSetSpec{}
+		status := &MachineSetStatus{}
+		fuzzer.Fuzz(spec)
+		fuzzer.Fuzz(status)
+
+		machineSet.Spec = *spec.DeepCopy()
+		g.Expect(c.Create(ctx, machineSet)).To(Succeed())
+		machineSet.Status = *status.DeepCopy()
+		g.Expect(c.Status().Update(ctx, machineSet)).To(Succeed())
+
+		// Check the spec and status weren't modified during create
+		//
+		// Use JSON representation as order of fields in RawExtensions may change
+		// during a round trip
+		machineSetSpecJSON, err := json.Marshal(machineSet.Spec)
+		g.Expect(err).ToNot(HaveOccurred())
+		specJSON, err := json.Marshal(*spec)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(machineSetSpecJSON).To(MatchJSON(specJSON))
+
+		machineSetStatusJSON, err := json.Marshal(machineSet.Status)
+		g.Expect(err).ToNot(HaveOccurred())
+		statusJSON, err := json.Marshal(*status)
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(machineSetStatusJSON).To(MatchJSON(statusJSON))
+
+		fetched := &MachineSet{}
+		key := client.ObjectKey{Namespace: machineSet.Namespace, Name: machineSet.Name}
+		g.Expect(c.Get(ctx, key, fetched)).To(Succeed())
+
+		// Check the spec and status haven't changed server side
+		g.Expect(fetched.Spec).To(Equal(machineSet.Spec))
+		g.Expect(fetched.Status).To(Equal(machineSet.Status))
 	}
 }

@@ -26,6 +26,7 @@ cp go.mod go.sum $dir/src/github.com/openshift/machine-api-operator/
 cwd=$(pwd)
 pushd $dir/src/github.com/openshift/machine-api-operator
 GOPATH=$dir ${cwd}/bin/controller-gen crd \
+    crd:crdVersions=v1 \
     paths=$dir/src/github.com/openshift/machine-api-operator/pkg/apis/... \
     output:crd:dir=$dir/src/github.com/openshift/machine-api-operator/config/crds/
 

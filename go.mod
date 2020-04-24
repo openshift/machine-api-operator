@@ -6,6 +6,7 @@ require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/golang/groupcache v0.0.0-20191002201903-404acd9df4cc // indirect
+	github.com/google/gofuzz v1.1.0
 	github.com/google/uuid v1.1.1
 	github.com/hashicorp/golang-lru v0.5.3 // indirect
 	github.com/imdario/mergo v0.3.8 // indirect
@@ -26,16 +27,16 @@ require (
 	google.golang.org/appengine v1.6.4 // indirect
 	gopkg.in/gcfg.v1 v1.2.3
 	gopkg.in/warnings.v0 v0.1.2 // indirect
-	k8s.io/api v0.18.0-rc.1
-	k8s.io/apimachinery v0.18.0-rc.1
-	k8s.io/client-go v0.18.0-rc.1
-	k8s.io/code-generator v0.18.0-rc.1
+	k8s.io/api v0.18.0
+	k8s.io/apimachinery v0.18.0
+	k8s.io/client-go v0.18.0
+	k8s.io/code-generator v0.18.0
 	k8s.io/klog v1.0.0
 	k8s.io/kube-aggregator v0.18.0-rc.1 // indirect
 	k8s.io/kubectl v0.18.0-rc.1
-	k8s.io/utils v0.0.0-20200229041039-0a110f9eb7ab
+	k8s.io/utils v0.0.0-20200324210504-a9aa75ae1b89
 	sigs.k8s.io/controller-runtime v0.3.1-0.20191016212439-2df793d02076
-	sigs.k8s.io/controller-tools v0.2.8
+	sigs.k8s.io/controller-tools v0.2.9-0.20200331153640-3c5446d407dd
 	sigs.k8s.io/yaml v1.2.0
 )
 
