@@ -35,7 +35,7 @@ spec:
         - alert: MachineAPIOperatorMetricsCollectionFailing
           expr: |
              mapi_mao_collector_up == 0
-          for: 3m
+          for: 5m
           labels:
             severity: critical
           annotations:
@@ -45,7 +45,7 @@ spec:
         - alert: MachineAPIOperatorDown
           expr: |
              absent(up{job="machine-api-operator"} == 1)
-          for: 3m
+          for: 5m
           labels:
             severity: critical
           annotations:
