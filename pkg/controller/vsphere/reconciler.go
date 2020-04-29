@@ -791,9 +791,17 @@ func (vm *virtualMachine) reconcileTags(ctx context.Context, session *session.Se
 
 		clusterID := machine.Labels[machinev1.MachineClusterIDLabel]
 
-		// the tag should already be created by installer
-		if err := m.AttachTag(ctx, clusterID, vm.Ref); err != nil {
+		attached, err := vm.checkAttachedTag(ctx, clusterID, m)
+		if err != nil {
 			return err
+		}
+
+		if !attached {
+			klog.Infof("%v: Attaching %s tag to vm", machine.GetName(), clusterID)
+			// the tag should already be created by installer
+			if err := m.AttachTag(ctx, clusterID, vm.Ref); err != nil {
+				return err
+			}
 		}
 
 		return nil
@@ -802,6 +810,22 @@ func (vm *virtualMachine) reconcileTags(ctx context.Context, session *session.Se
 	}
 
 	return nil
+}
+
+// checkAttachedTag returns true if tag is already attached to a vm
+func (vm *virtualMachine) checkAttachedTag(ctx context.Context, tagName string, m *tags.Manager) (bool, error) {
+	tags, err := m.GetAttachedTags(ctx, vm.Ref)
+	if err != nil {
+		return false, err
+	}
+
+	for _, tag := range tags {
+		if tag.Name == tagName {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 type NetworkStatus struct {
