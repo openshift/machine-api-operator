@@ -60,17 +60,19 @@ func (r *Reconciler) create() error {
 		return fmt.Errorf("%v: failed validating machine provider spec: %v", r.machine.GetName(), err)
 	}
 
-	moTask, err := r.session.GetTask(r.Context, r.providerStatus.TaskRef)
-	if err != nil {
-		if !isRetrieveMONotFound(r.providerStatus.TaskRef, err) {
+	if r.providerStatus.TaskRef != "" {
+		moTask, err := r.session.GetTask(r.Context, r.providerStatus.TaskRef)
+		if err != nil {
+			if !isRetrieveMONotFound(r.providerStatus.TaskRef, err) {
+				return err
+			}
+		}
+		if taskIsFinished, err := taskIsFinished(moTask); err != nil || !taskIsFinished {
+			if !taskIsFinished {
+				return fmt.Errorf("task %v has not finished", moTask.Reference().Value)
+			}
 			return err
 		}
-	}
-	if taskIsFinished, err := taskIsFinished(moTask); err != nil || !taskIsFinished {
-		if !taskIsFinished {
-			return fmt.Errorf("task %v has not finished", moTask.Reference().Value)
-		}
-		return err
 	}
 
 	if _, err := findVM(r.machineScope); err != nil {
@@ -104,17 +106,19 @@ func (r *Reconciler) update() error {
 		return fmt.Errorf("%v: failed validating machine provider spec: %v", r.machine.GetName(), err)
 	}
 
-	motask, err := r.session.GetTask(r.Context, r.providerStatus.TaskRef)
-	if err != nil {
-		if !isRetrieveMONotFound(r.providerStatus.TaskRef, err) {
+	if r.providerStatus.TaskRef != "" {
+		motask, err := r.session.GetTask(r.Context, r.providerStatus.TaskRef)
+		if err != nil {
+			if !isRetrieveMONotFound(r.providerStatus.TaskRef, err) {
+				return err
+			}
+		}
+		if taskIsFinished, err := taskIsFinished(motask); err != nil || !taskIsFinished {
+			if !taskIsFinished {
+				return fmt.Errorf("task %v has not finished", motask.Reference().Value)
+			}
 			return err
 		}
-	}
-	if taskIsFinished, err := taskIsFinished(motask); err != nil || !taskIsFinished {
-		if !taskIsFinished {
-			return fmt.Errorf("task %v has not finished", motask.Reference().Value)
-		}
-		return err
 	}
 
 	vmRef, err := findVM(r.machineScope)
@@ -163,17 +167,19 @@ func (r *Reconciler) exists() (bool, error) {
 }
 
 func (r *Reconciler) delete() error {
-	moTask, err := r.session.GetTask(r.Context, r.providerStatus.TaskRef)
-	if err != nil {
-		if !isRetrieveMONotFound(r.providerStatus.TaskRef, err) {
+	if r.providerStatus.TaskRef != "" {
+		moTask, err := r.session.GetTask(r.Context, r.providerStatus.TaskRef)
+		if err != nil {
+			if !isRetrieveMONotFound(r.providerStatus.TaskRef, err) {
+				return err
+			}
+		}
+		if taskIsFinished, err := taskIsFinished(moTask); err != nil || !taskIsFinished {
+			if !taskIsFinished {
+				return fmt.Errorf("task %v has not finished", moTask.Reference().Value)
+			}
 			return err
 		}
-	}
-	if taskIsFinished, err := taskIsFinished(moTask); err != nil || !taskIsFinished {
-		if !taskIsFinished {
-			return fmt.Errorf("task %v has not finished", moTask.Reference().Value)
-		}
-		return err
 	}
 
 	vmRef, err := findVM(r.machineScope)
