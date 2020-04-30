@@ -139,14 +139,7 @@ func (r *Reconciler) update() error {
 		return fmt.Errorf("failed to reconcile tags: %w", err)
 	}
 
-	// TODO: we won't always want to reconcile power state
-	//  but as per comment in clone() function, powering on right on creation might be problematic
-	ok, task, err := vm.reconcilePowerState()
-	if err != nil || !ok {
-		return err
-	}
-
-	return r.reconcileMachineWithCloudState(vm, task)
+	return r.reconcileMachineWithCloudState(vm, r.providerStatus.TaskRef)
 }
 
 // exists returns true if machine exists.
@@ -518,11 +511,7 @@ func clone(s *machineScope) (string, error) {
 			Pool:         types.NewReference(resourcepool.Reference()),
 			DiskMoveType: diskMoveType,
 		},
-		// This is implicit, but making it explicit as it is important to not
-		// power the VM on before its virtual hardware is created and the MAC
-		// address(es) used to build and inject the VM with cloud-init metadata
-		// are generated.
-		PowerOn:  false,
+		PowerOn:  true,
 		Snapshot: snapshotRef,
 	}
 
@@ -722,29 +711,6 @@ func (vm *virtualMachine) getRegionAndZone(c *rest.Client, regionLabel, zoneLabe
 	}
 
 	return result, nil
-}
-
-func (vm *virtualMachine) reconcilePowerState() (bool, string, error) {
-	powerState, err := vm.getPowerState()
-	if err != nil {
-		return false, "", err
-	}
-	switch powerState {
-	case types.VirtualMachinePowerStatePoweredOff:
-		klog.Infof("%v: powering on", vm.Obj.Reference().Value)
-		task, err := vm.powerOnVM()
-		if err != nil {
-			return false, "", fmt.Errorf("failed to trigger power on op for vm %q: %w", vm, err)
-		}
-
-		klog.Infof("%v: requeue to wait for power on state", vm.Obj.Reference().Value)
-		return false, task, nil
-	case types.VirtualMachinePowerStatePoweredOn:
-		klog.Infof("%v: powered on", vm.Obj.Reference().Value)
-		return true, "", nil
-	default:
-		return false, "", fmt.Errorf("unexpected power state %q for vm %q", powerState, vm)
-	}
 }
 
 func (vm *virtualMachine) powerOnVM() (string, error) {
