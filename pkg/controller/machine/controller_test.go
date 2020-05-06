@@ -356,7 +356,7 @@ func TestSetPhase(t *testing.T) {
 		t.Fatal("Got phase nil")
 	}
 	if *got.Status.Phase != phaseRunning {
-		t.Errorf("Got: %v, expected: %v", *got.Status.Phase, phaseRunning)
+		t.Errorf("Expected: %v, got: %v", phaseRunning, *got.Status.Phase)
 	}
 	lastUpdated := got.Status.LastUpdated
 	if lastUpdated == nil {
@@ -364,7 +364,7 @@ func TestSetPhase(t *testing.T) {
 	}
 	// validate passed object
 	if *machine.Status.Phase != phaseRunning {
-		t.Errorf("Got: %v, expected: %v", *machine.Status.Phase, phaseRunning)
+		t.Errorf("Expected: %v, got: %v", phaseRunning, *machine.Status.Phase)
 	}
 	objectLastUpdated := machine.Status.LastUpdated
 	if objectLastUpdated == nil {
@@ -391,6 +391,8 @@ func TestSetPhase(t *testing.T) {
 
 	// Set phaseFailed with an errorMessage should store the message
 	expecterErrorMessage := "test"
+	// Set phaseFailed will result to force Unknown state for VM state display
+	expectedInstanceState := "Unknown"
 	if err := reconciler.setPhase(machine, phaseFailed, expecterErrorMessage); err != nil {
 		t.Fatal(err)
 	}
@@ -406,6 +408,15 @@ func TestSetPhase(t *testing.T) {
 	// validate passed object
 	if expecterErrorMessage != *machine.Status.ErrorMessage {
 		t.Errorf("Expected: %v, got: %v", expecterErrorMessage, *machine.Status.ErrorMessage)
+	}
+	if got.Status.Phase == nil {
+		t.Fatal("Got phase nil")
+	}
+	if *got.Status.Phase != phaseFailed {
+		t.Errorf("Expected: %v, got: %v", phaseFailed, *got.Status.Phase)
+	}
+	if got.Annotations[MachineInstanceStateAnnotationName] != expectedInstanceState {
+		t.Errorf("Expected VM to go into: %v state, got: %v", expectedInstanceState, got.Annotations[MachineInstanceStateAnnotationName])
 	}
 }
 
