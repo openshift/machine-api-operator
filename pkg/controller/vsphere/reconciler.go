@@ -226,6 +226,11 @@ func (r *Reconciler) reconcileMachineWithCloudState(vm *virtualMachine, taskRef 
 		return err
 	}
 
+	klog.V(3).Infof("%v: reconciling powerstate annotation", r.machine.GetName())
+	if err := r.reconcilePowerStateAnnontation(vm); err != nil {
+		return err
+	}
+
 	return setProviderStatus(taskRef, conditionSuccess(), r.machineScope, vm)
 }
 
@@ -323,6 +328,25 @@ func (r *Reconciler) reconcileNetwork(vm *virtualMachine) error {
 
 	klog.V(3).Infof("%v: reconciling network: IP addresses: %v", r.machine.GetName(), ipAddrs)
 	r.machine.Status.Addresses = ipAddrs
+	return nil
+}
+
+func (r *Reconciler) reconcilePowerStateAnnontation(vm *virtualMachine) error {
+	if vm == nil {
+		return errors.New("provided VM is nil")
+	}
+
+	// This can return an error if machine is being deleted
+	powerState, err := vm.getPowerState()
+	if err != nil {
+		return err
+	}
+
+	if r.machine.Annotations == nil {
+		r.machine.Annotations = map[string]string{}
+	}
+	r.machine.Annotations[machinecontroller.MachineInstanceStateAnnotationName] = string(powerState)
+
 	return nil
 }
 

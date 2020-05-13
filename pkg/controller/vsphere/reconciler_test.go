@@ -41,6 +41,8 @@ import (
 	_ "github.com/vmware/govmomi/vapi/simulator"
 )
 
+const poweredOnState = "poweredOn"
+
 func initSimulator(t *testing.T) (*simulator.Model, *session.Session, *simulator.Server) {
 	model := simulator.VPX()
 	model.Host = 0
@@ -290,7 +292,7 @@ func TestTaskIsFinished(t *testing.T) {
 
 	obj := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
 	// Validate VM is powered on
-	if obj.Runtime.PowerState != "poweredOn" {
+	if obj.Runtime.PowerState != poweredOnState {
 		t.Fatal(obj.Runtime.PowerState)
 	}
 	vm := object.NewVirtualMachine(session.Client.Client, obj.Reference())
@@ -1437,7 +1439,12 @@ func TestReconcileMachineWithCloudState(t *testing.T) {
 	}
 
 	if expectedProviderID != *reconciler.machine.Spec.ProviderID {
-		t.Errorf("Expected: %s, got: %s", expectedProviderID, *reconciler.machine.Spec.ProviderID)
+		t.Errorf("Expected providerId: %s, got: %s", expectedProviderID, *reconciler.machine.Spec.ProviderID)
+	}
+
+	actualPowerState := reconciler.machine.Annotations[machinecontroller.MachineInstanceStateAnnotationName]
+	if poweredOnState != actualPowerState {
+		t.Errorf("Expected power state annotation: %s, got: %s", poweredOnState, actualPowerState)
 	}
 
 	labels := reconciler.machine.Labels
@@ -1481,6 +1488,78 @@ func createTagAndCategory(session *session.Session, categoryName, tagName string
 	}
 
 	return nil
+}
+
+func TestReconcilePowerStateAnnontation(t *testing.T) {
+	model, session, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	simulatorVM := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	managedObjRef := simulatorVM.VirtualMachine.Reference()
+	vmObj := object.NewVirtualMachine(session.Client.Client, simulatorVM.Reference())
+	_, err := vmObj.PowerOn(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	vm := &virtualMachine{
+		Context: context.Background(),
+		Obj:     object.NewVirtualMachine(session.Client.Client, managedObjRef),
+		Ref:     managedObjRef,
+	}
+
+	testCases := []struct {
+		name          string
+		vm            *virtualMachine
+		expectedError bool
+	}{
+		{
+			name: "Succefully reconcile annotation",
+			vm:   vm,
+		},
+		{
+			name:          "Error on nil VM",
+			vm:            nil,
+			expectedError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			r := &Reconciler{
+				machineScope: &machineScope{
+					machine: &machinev1.Machine{
+						ObjectMeta: metav1.ObjectMeta{
+							Annotations: map[string]string{},
+						},
+					},
+				},
+			}
+
+			err := r.reconcilePowerStateAnnontation(tc.vm)
+
+			if tc.expectedError {
+				if err == nil {
+					t.Errorf("reconcilePowerStateAnnontation is expected to return an error")
+				}
+
+				actualPowerState := r.machine.Annotations[machinecontroller.MachineInstanceStateAnnotationName]
+				if actualPowerState != "" {
+					t.Errorf("Expected power state annotation to be empty, got: %s", actualPowerState)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("reconcilePowerStateAnnontation is not expected to return an error")
+				}
+
+				actualPowerState := r.machine.Annotations[machinecontroller.MachineInstanceStateAnnotationName]
+				if poweredOnState != actualPowerState {
+					t.Errorf("Expected power state annotation: %s, got: %s", poweredOnState, actualPowerState)
+				}
+			}
+		})
+	}
 }
 
 // See https://github.com/vmware/govmomi/blob/master/simulator/example_extend_test.go#L33:6 for extending behaviour example
