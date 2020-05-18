@@ -19,6 +19,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"reflect"
 	"testing"
 
@@ -77,7 +78,7 @@ func initSimulator(t *testing.T) (*simulator.Model, *session.Session, *simulator
 }
 
 func TestClone(t *testing.T) {
-	model, _, server := initSimulator(t)
+	model, session, server := initSimulator(t)
 	defer model.Remove()
 	defer server.Close()
 	credentialsSecretUsername := fmt.Sprintf("%s.username", server.URL.Host)
@@ -98,128 +99,230 @@ func TestClone(t *testing.T) {
 	}
 
 	testCases := []struct {
-		testCase    string
-		machine     func(t *testing.T) *machinev1.Machine
-		expectError bool
-		cloneVM     bool
+		testCase              string
+		cloneVM               bool
+		expectedError         error
+		setupFailureCondition func() error
+		providerSpec          vsphereapi.VSphereMachineProviderSpec
+		machineName           string
 	}{
 		{
 			testCase: "clone machine from default values",
-			machine: func(t *testing.T) *machinev1.Machine {
-				providerSpec := vsphereapi.VSphereMachineProviderSpec{
-					CredentialsSecret: &corev1.LocalObjectReference{
-						Name: "test",
-					},
-					Workspace: &vsphereapi.Workspace{
-						Server: server.URL.Host,
-					},
-				}
-				raw, err := vsphereapi.RawExtensionFromProviderSpec(&providerSpec)
-				if err != nil {
-					t.Fatal(err)
-				}
-				return &machinev1.Machine{
-					ObjectMeta: metav1.ObjectMeta{
-						UID:       "1",
-						Name:      "defaultFolder",
-						Namespace: namespace,
-					},
-					Spec: machinev1.MachineSpec{
-						ProviderSpec: machinev1.ProviderSpec{
-							Value: raw,
-						},
-					},
-				}
+			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: "test",
+				},
+				Workspace: &vsphereapi.Workspace{
+					Server: server.URL.Host,
+				},
 			},
-			expectError: false,
 			cloneVM:     true,
-		},
-		{
-			testCase: "does not clone machine if folder does not exist",
-			machine: func(t *testing.T) *machinev1.Machine {
-				providerSpec := vsphereapi.VSphereMachineProviderSpec{
-					CredentialsSecret: &corev1.LocalObjectReference{
-						Name: "test",
-					},
-					Workspace: &vsphereapi.Workspace{
-						Server: server.URL.Host,
-						Folder: "does-not-exists",
-					},
-				}
-				raw, err := vsphereapi.RawExtensionFromProviderSpec(&providerSpec)
-				if err != nil {
-					t.Fatal(err)
-				}
-				return &machinev1.Machine{
-					ObjectMeta: metav1.ObjectMeta{
-						UID:       "2",
-						Name:      "missingFolder",
-						Namespace: namespace,
-					},
-					Spec: machinev1.MachineSpec{
-						ProviderSpec: machinev1.ProviderSpec{
-							Value: raw,
-						},
-					},
-				}
-			},
-			expectError: true,
+			machineName: "test0",
 		},
 		{
 			testCase: "clone machine in specific folder",
-			machine: func(t *testing.T) *machinev1.Machine {
-				providerSpec := vsphereapi.VSphereMachineProviderSpec{
-					CredentialsSecret: &corev1.LocalObjectReference{
-						Name: "test",
-					},
-
-					Workspace: &vsphereapi.Workspace{
-						Server: server.URL.Host,
-						Folder: "custom-folder",
-					},
-				}
-				raw, err := vsphereapi.RawExtensionFromProviderSpec(&providerSpec)
-				if err != nil {
-					t.Fatal(err)
-				}
-				return &machinev1.Machine{
-					ObjectMeta: metav1.ObjectMeta{
-						UID:       "3",
-						Name:      "customFolder",
-						Namespace: namespace,
-					},
-					Spec: machinev1.MachineSpec{
-						ProviderSpec: machinev1.ProviderSpec{
-							Value: raw,
-						},
-					},
-				}
+			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: "test",
+				},
+				Workspace: &vsphereapi.Workspace{
+					Server: server.URL.Host,
+					Folder: "custom-folder",
+				},
 			},
-			expectError: false,
 			cloneVM:     true,
+			machineName: "test1",
+		},
+		{
+			testCase: "fail on invalid resource pool",
+			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: "test",
+				},
+				Workspace: &vsphereapi.Workspace{
+					Server:       server.URL.Host,
+					ResourcePool: "invalid",
+				},
+			},
+			expectedError: errors.New("resource pool not found, specify valid value"),
+		},
+		{
+			testCase: "fail on multiple resource pools",
+			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: "test",
+				},
+				Workspace: &vsphereapi.Workspace{
+					Server:       server.URL.Host,
+					ResourcePool: "/DC0/host/DC0_C0/Resources/...",
+				},
+			},
+			expectedError: errors.New("multiple resource pools found, specify one in config"),
+			setupFailureCondition: func() error {
+				// Create resource pools
+				defaultResourcePool, err := session.Finder.ResourcePool(context.Background(), "/DC0/host/DC0_C0/Resources")
+				if err != nil {
+					return err
+				}
+				spec := types.DefaultResourceConfigSpec()
+				_, err = defaultResourcePool.Create(context.Background(), "resourcePool1", spec)
+				if err != nil {
+					return err
+				}
+				_, err = defaultResourcePool.Create(context.Background(), "resourcePool2", spec)
+				if err != nil {
+					return err
+				}
+				return nil
+			},
+		},
+		{
+			testCase:      "fail on invalid folder",
+			expectedError: errors.New("folder not found, specify valid value"),
+			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: "test",
+				},
+				Workspace: &vsphereapi.Workspace{
+					Server: server.URL.Host,
+					Folder: "invalid",
+				},
+			},
+		},
+		{
+			testCase: "fail on multiple folders",
+			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: "test",
+				},
+				Workspace: &vsphereapi.Workspace{
+					Server: server.URL.Host,
+					Folder: "/DC0/vm/...",
+				},
+			},
+			expectedError: errors.New("multiple folders found, specify one in config"),
+			setupFailureCondition: func() error {
+				// Create folders
+				defaultFolder, err := session.Finder.Folder(context.Background(), "/DC0/vm")
+				if err != nil {
+					return err
+				}
+				_, err = defaultFolder.CreateFolder(context.Background(), "folder1")
+				if err != nil {
+					return err
+				}
+				_, err = defaultFolder.CreateFolder(context.Background(), "folder2")
+				if err != nil {
+					return err
+				}
+				return nil
+			},
+		},
+		{
+			testCase: "fail on invalid datastore",
+			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: "test",
+				},
+				Workspace: &vsphereapi.Workspace{
+					Server:    server.URL.Host,
+					Datastore: "invalid",
+				},
+			},
+			expectedError: errors.New("datastore not found, specify valid value"),
+		},
+		{
+			testCase: "fail on multiple datastores",
+			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: "test",
+				},
+				Workspace: &vsphereapi.Workspace{
+					Server:    server.URL.Host,
+					Datastore: "/DC0/...",
+				},
+			},
+			expectedError: errors.New("multiple datastores found, specify one in config"),
+			setupFailureCondition: func() error {
+				// Create datastores
+				hostSystem, err := session.Finder.HostSystem(context.Background(), "/DC0/host/DC0_C0/DC0_C0_H0")
+				if err != nil {
+					return err
+				}
+				dss, err := hostSystem.ConfigManager().DatastoreSystem(context.Background())
+				if err != nil {
+					return err
+				}
+				dir, err := ioutil.TempDir("", fmt.Sprintf("tmpdir"))
+				if err != nil {
+					return err
+				}
+				_, err = dss.CreateLocalDatastore(context.Background(), "datastore1", dir)
+				if err != nil {
+					return err
+				}
+				_, err = dss.CreateLocalDatastore(context.Background(), "datastore2", dir)
+				if err != nil {
+					return err
+				}
+				return nil
+			},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
-			machineScope, err := newMachineScope(machineScopeParams{
-				client:  fake.NewFakeClientWithScheme(scheme.Scheme, &credentialsSecret),
-				Context: context.TODO(),
-				machine: tc.machine(t),
-			})
-			if err != nil {
-				t.Fatal(err)
+			if tc.setupFailureCondition != nil {
+				if err := tc.setupFailureCondition(); err != nil {
+					t.Fatal(err)
+				}
 			}
+
+			machineScope := machineScope{
+				Context: context.TODO(),
+				machine: &machinev1.Machine{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: "test",
+						Labels: map[string]string{
+							machinev1.MachineClusterIDLabel: "CLUSTERID",
+						},
+					},
+				},
+				providerSpec:   &tc.providerSpec,
+				session:        session,
+				providerStatus: &vsphereapi.VSphereMachineProviderStatus{},
+				client:         fake.NewFakeClientWithScheme(scheme.Scheme, &credentialsSecret),
+			}
+
 			machineScope.providerSpec.Template = vm.Name
 
-			if _, err := clone(machineScope); (err != nil) != tc.expectError {
-				t.Errorf("Got: %v. Expected: %v", err, tc.expectError)
+			if tc.machineName != "" {
+				machineScope.machine.Name = tc.machineName
 			}
+
+			taskRef, err := clone(&machineScope)
+
+			if tc.expectedError != nil {
+				if taskRef != "" {
+					t.Fatalf("task reference was expected to be empty, got: %s", taskRef)
+				}
+				if err == nil {
+					t.Fatal("clone() was expected to return error")
+				}
+				if err.Error() != tc.expectedError.Error() {
+					t.Fatalf("expected: %v, got %v", tc.expectedError, err)
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("clone() was not expected to return error: %v", err)
+				}
+			}
+
 			if tc.cloneVM {
-				model.Machine++
-			}
-			if model.Machine != model.Count().Machine {
-				t.Errorf("Unexpected number of machines. Expected: %v, got: %v", model.Machine, model.Count().Machine)
+				if taskRef == "" {
+					t.Fatal("task reference was not expected to be empty")
+				}
 			}
 		})
 	}
