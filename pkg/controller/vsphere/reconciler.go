@@ -466,6 +466,17 @@ func clone(s *machineScope) (string, error) {
 
 	resourcepool, err := s.GetSession().Finder.ResourcePoolOrDefault(s, resourcepoolPath)
 	if err != nil {
+		// TODO: move error checks to provider spec validation
+		var multipleFoundError *find.MultipleFoundError
+		if errors.As(err, &multipleFoundError) {
+			return "", machinecontroller.InvalidMachineConfiguration("multiple resource pools found, specify one in config")
+		}
+
+		var notFoundError *find.NotFoundError
+		if errors.As(err, &notFoundError) {
+			return "", machinecontroller.InvalidMachineConfiguration("resource pool not found, specify valid value")
+		}
+
 		return "", fmt.Errorf("unable to get resource pool for %q: %w", resourcepool, err)
 	}
 
