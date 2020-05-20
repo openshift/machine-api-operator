@@ -80,7 +80,7 @@ func (optr *Operator) syncClusterAPIController(config *OperatorConfig) error {
 	controllersDeployment := newDeployment(config, nil)
 	expectedGeneration := resourcemerge.ExpectedDeploymentGeneration(controllersDeployment, optr.generations)
 	d, updated, err := resourceapply.ApplyDeployment(optr.kubeClient.AppsV1(),
-		events.NewLoggingEventRecorder(optr.name), controllersDeployment, expectedGeneration, false)
+		events.NewLoggingEventRecorder(optr.name), controllersDeployment, expectedGeneration)
 	if err != nil {
 		return err
 	}
@@ -105,7 +105,7 @@ func (optr *Operator) syncTerminationHandler(config *OperatorConfig) error {
 	terminationDaemonSet := newTerminationDaemonSet(config)
 	expectedGeneration := resourcemerge.ExpectedDaemonSetGeneration(terminationDaemonSet, optr.generations)
 	ds, updated, err := resourceapply.ApplyDaemonSet(optr.kubeClient.AppsV1(),
-		events.NewLoggingEventRecorder(optr.name), terminationDaemonSet, expectedGeneration, false)
+		events.NewLoggingEventRecorder(optr.name), terminationDaemonSet, expectedGeneration)
 	if err != nil {
 		return err
 	}
@@ -132,7 +132,7 @@ func (optr *Operator) syncBaremetalControllers(config *OperatorConfig) error {
 	metal3Deployment := newMetal3Deployment(config, baremetalProvisioningConfig)
 	expectedGeneration := resourcemerge.ExpectedDeploymentGeneration(metal3Deployment, optr.generations)
 	d, updated, err := resourceapply.ApplyDeployment(optr.kubeClient.AppsV1(),
-		events.NewLoggingEventRecorder(optr.name), metal3Deployment, expectedGeneration, false)
+		events.NewLoggingEventRecorder(optr.name), metal3Deployment, expectedGeneration)
 	if err != nil {
 		return err
 	}
