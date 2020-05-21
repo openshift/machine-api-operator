@@ -456,28 +456,26 @@ func clone(s *machineScope) (string, error) {
 
 	folder, err := s.GetSession().Finder.FolderOrDefault(s, folderPath)
 	if err != nil {
-		return "", fmt.Errorf("unable to get folder for %q: %w", folderPath, err)
+		multipleFoundMsg := "multiple folders found, specify one in config"
+		notFoundMsg := "folder not found, specify valid value"
+		defaultError := fmt.Errorf("unable to get folder for %q: %w", folderPath, err)
+		return "", handleVSphereError(multipleFoundMsg, notFoundMsg, defaultError, err)
 	}
 
 	datastore, err := s.GetSession().Finder.DatastoreOrDefault(s, datastorePath)
 	if err != nil {
-		return "", fmt.Errorf("unable to get datastore for %q: %w", datastorePath, err)
+		multipleFoundMsg := "multiple datastores found, specify one in config"
+		notFoundMsg := "datastore not found, specify valid value"
+		defaultError := fmt.Errorf("unable to get datastore for %q: %w", datastorePath, err)
+		return "", handleVSphereError(multipleFoundMsg, notFoundMsg, defaultError, err)
 	}
 
 	resourcepool, err := s.GetSession().Finder.ResourcePoolOrDefault(s, resourcepoolPath)
 	if err != nil {
-		// TODO: move error checks to provider spec validation
-		var multipleFoundError *find.MultipleFoundError
-		if errors.As(err, &multipleFoundError) {
-			return "", machinecontroller.InvalidMachineConfiguration("multiple resource pools found, specify one in config")
-		}
-
-		var notFoundError *find.NotFoundError
-		if errors.As(err, &notFoundError) {
-			return "", machinecontroller.InvalidMachineConfiguration("resource pool not found, specify valid value")
-		}
-
-		return "", fmt.Errorf("unable to get resource pool for %q: %w", resourcepool, err)
+		multipleFoundMsg := "multiple resource pools found, specify one in config"
+		notFoundMsg := "resource pool not found, specify valid value"
+		defaultError := fmt.Errorf("unable to get resource pool for %q: %w", resourcepool, err)
+		return "", handleVSphereError(multipleFoundMsg, notFoundMsg, defaultError, err)
 	}
 
 	numCPUs := s.providerSpec.NumCPUs
@@ -675,6 +673,20 @@ func setProviderStatus(taskRef string, condition vspherev1.VSphereMachineProvide
 	scope.providerStatus.Conditions = setVSphereMachineProviderConditions(condition, scope.providerStatus.Conditions)
 
 	return nil
+}
+
+func handleVSphereError(multipleFoundMsg, notFoundMsg string, defaultError, vsphereError error) error {
+	var multipleFoundError *find.MultipleFoundError
+	if errors.As(vsphereError, &multipleFoundError) {
+		return machinecontroller.InvalidMachineConfiguration(multipleFoundMsg)
+	}
+
+	var notFoundError *find.NotFoundError
+	if errors.As(vsphereError, &notFoundError) {
+		return machinecontroller.InvalidMachineConfiguration(notFoundMsg)
+	}
+
+	return defaultError
 }
 
 type virtualMachine struct {
