@@ -25,10 +25,26 @@ const (
 // duplicating part of the type and parsing it ourselves using the same gcfg
 // library for now.
 type vSphereConfig struct {
-	Labels struct {
-		Zone   string `gcfg:"zone"`
-		Region string `gcfg:"region"`
-	}
+	// Global is the vSphere cloud provider's global configuration.
+	Labels Labels `gcfg:"Labels"`
+	// Global is the vSphere cloud provider's global configuration.
+	Global Global `gcfg:"Global"`
+}
+
+// Labels is the vSphere cloud provider's zone and region configuration.
+type Labels struct {
+	// Zone is the zone in which VMs are created/located.
+	Zone string `gcfg:"zone"`
+	// Region is the region in which VMs are created/located.
+	Region string `gcfg:"region"`
+}
+
+// Global is the vSphere cloud provider's global configuration.
+type Global struct {
+	// Port is the port on which the vSphere endpoint is listening.
+	// Defaults to 443.
+	// Has string type because we need empty string value for formatting
+	Port string `gcfg:"port"`
 }
 
 func getInfrastructure(c runtimeclient.Reader) (*configv1.Infrastructure, error) {
@@ -146,4 +162,11 @@ func conditionFailed() vspherev1.VSphereMachineProviderCondition {
 		Status: corev1.ConditionFalse,
 		Reason: vspherev1.MachineCreationFailed,
 	}
+}
+
+func getPortFromConfig(config *vSphereConfig) string {
+	if config != nil {
+		return config.Global.Port
+	}
+	return ""
 }

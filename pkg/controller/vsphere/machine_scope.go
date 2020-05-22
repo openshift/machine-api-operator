@@ -74,8 +74,10 @@ func newMachineScope(params machineScopeParams) (*machineScope, error) {
 	if providerSpec.Workspace == nil {
 		return nil, fmt.Errorf("%v: no workspace provided", params.machine.GetName())
 	}
-	authSession, err := session.GetOrCreate(context.TODO(),
-		providerSpec.Workspace.Server, providerSpec.Workspace.Datacenter,
+
+	server := fmt.Sprintf("%s:%s", providerSpec.Workspace.Server, getPortFromConfig(vSphereConfig))
+	authSession, err := session.GetOrCreate(params.Context,
+		server, providerSpec.Workspace.Datacenter,
 		user, password)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create vSphere session: %w", err)

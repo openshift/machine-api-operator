@@ -20,9 +20,11 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"reflect"
 	"testing"
 
+	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	vsphereapi "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
@@ -43,6 +45,11 @@ import (
 )
 
 const poweredOnState = "poweredOn"
+
+func init() {
+	// Add types to scheme
+	configv1.AddToScheme(scheme.Scheme)
+}
 
 func initSimulator(t *testing.T) (*simulator.Model, *session.Session, *simulator.Server) {
 	model := simulator.VPX()
@@ -1055,14 +1062,20 @@ func TestDelete(t *testing.T) {
 	model, _, server := initSimulator(t)
 	defer model.Remove()
 	defer server.Close()
-	credentialsSecretUsername := fmt.Sprintf("%s.username", server.URL.Host)
-	credentialsSecretPassword := fmt.Sprintf("%s.password", server.URL.Host)
+	host, port, err := net.SplitHostPort(server.URL.Host)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	credentialsSecretUsername := fmt.Sprintf("%s.username", host)
+	credentialsSecretPassword := fmt.Sprintf("%s.password", host)
 
 	password, _ := server.URL.User.Password()
 	namespace := "test"
 	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
 	instanceUUID := "a5764857-ae35-34dc-8f25-a9c9e73aa898"
 	vm.Config.InstanceUuid = instanceUUID
+
 	credentialsSecret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test",
@@ -1071,6 +1084,29 @@ func TestDelete(t *testing.T) {
 		Data: map[string][]byte{
 			credentialsSecretUsername: []byte(server.URL.User.Username()),
 			credentialsSecretPassword: []byte(password),
+		},
+	}
+
+	testConfig := fmt.Sprintf(testConfigFmt, port)
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "testName",
+			Namespace: openshiftConfigNamespace,
+		},
+		Data: map[string]string{
+			"testKey": testConfig,
+		},
+	}
+
+	infra := &configv1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: globalInfrastuctureName,
+		},
+		Spec: configv1.InfrastructureSpec{
+			CloudConfig: configv1.ConfigMapFileReference{
+				Name: "testName",
+				Key:  "testKey",
+			},
 		},
 	}
 
@@ -1086,7 +1122,7 @@ func TestDelete(t *testing.T) {
 						Name: "test",
 					},
 					Workspace: &vsphereapi.Workspace{
-						Server: server.URL.Host,
+						Server: host,
 					},
 				}
 				raw, err := vsphereapi.RawExtensionFromProviderSpec(&providerSpec)
@@ -1115,10 +1151,16 @@ func TestDelete(t *testing.T) {
 	machinev1.AddToScheme(scheme.Scheme)
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
+			client := fake.NewFakeClientWithScheme(scheme.Scheme,
+				&credentialsSecret,
+				tc.machine(t),
+				configMap,
+				infra)
 			machineScope, err := newMachineScope(machineScopeParams{
-				client:  fake.NewFakeClientWithScheme(scheme.Scheme, &credentialsSecret, tc.machine(t)),
-				Context: context.TODO(),
-				machine: tc.machine(t),
+				client:    client,
+				Context:   context.Background(),
+				machine:   tc.machine(t),
+				apiReader: client,
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -1157,15 +1199,20 @@ func TestCreate(t *testing.T) {
 	model, session, server := initSimulator(t)
 	defer model.Remove()
 	defer server.Close()
-	credentialsSecretUsername := fmt.Sprintf("%s.username", server.URL.Host)
-	credentialsSecretPassword := fmt.Sprintf("%s.password", server.URL.Host)
+	host, port, err := net.SplitHostPort(server.URL.Host)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	credentialsSecretUsername := fmt.Sprintf("%s.username", host)
+	credentialsSecretPassword := fmt.Sprintf("%s.password", host)
 	password, _ := server.URL.User.Password()
 	vmName := "testName"
 	namespace := "test"
 	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
 	vm.Name = vmName
 
-	credentialsSecret := corev1.Secret{
+	credentialsSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test",
 			Namespace: namespace,
@@ -1173,6 +1220,29 @@ func TestCreate(t *testing.T) {
 		Data: map[string][]byte{
 			credentialsSecretUsername: []byte(server.URL.User.Username()),
 			credentialsSecretPassword: []byte(password),
+		},
+	}
+
+	testConfig := fmt.Sprintf(testConfigFmt, port)
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "testName",
+			Namespace: openshiftConfigNamespace,
+		},
+		Data: map[string]string{
+			"testKey": testConfig,
+		},
+	}
+
+	infra := &configv1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: globalInfrastuctureName,
+		},
+		Spec: configv1.InfrastructureSpec{
+			CloudConfig: configv1.ConfigMapFileReference{
+				Name: "testName",
+				Key:  "testKey",
+			},
 		},
 	}
 
@@ -1187,6 +1257,12 @@ func TestCreate(t *testing.T) {
 			name: "Successfully create machine",
 			providerSpec: vsphereapi.VSphereMachineProviderSpec{
 				Template: vmName,
+				Workspace: &vsphereapi.Workspace{
+					Server: host,
+				},
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: "test",
+				},
 			},
 		},
 		{
@@ -1196,6 +1272,12 @@ func TestCreate(t *testing.T) {
 			},
 			providerSpec: vsphereapi.VSphereMachineProviderSpec{
 				Template: vmName,
+				Workspace: &vsphereapi.Workspace{
+					Server: host,
+				},
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: "test",
+				},
 			},
 			expectedError: errors.New("test: failed validating machine provider spec: test: missing \"machine.openshift.io/cluster-api-cluster\" label"),
 		},
@@ -1203,6 +1285,12 @@ func TestCreate(t *testing.T) {
 			name: "Fail on not connected to vCenter",
 			providerSpec: vsphereapi.VSphereMachineProviderSpec{
 				Template: vmName,
+				Workspace: &vsphereapi.Workspace{
+					Server: host,
+				},
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: "test",
+				},
 			},
 			expectedError:         errors.New("test: not connected to a vCenter"),
 			notConnectedToVCenter: true,
@@ -1223,24 +1311,40 @@ func TestCreate(t *testing.T) {
 				session.Client.ServiceContent.About.ApiType = ""
 			}
 
-			machineScope := machineScope{
-				Context: context.TODO(),
+			client := fake.NewFakeClientWithScheme(scheme.Scheme,
+				credentialsSecret,
+				configMap,
+				infra)
+
+			rawProviderSpec, err := vsphereapi.RawExtensionFromProviderSpec(&tc.providerSpec)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			machineScope, err := newMachineScope(machineScopeParams{
+				client:  client,
+				Context: context.Background(),
 				machine: &machinev1.Machine{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test",
 						Namespace: "test",
 						Labels:    labels,
 					},
+					Spec: machinev1.MachineSpec{
+						ProviderSpec: machinev1.ProviderSpec{
+							Value: rawProviderSpec,
+						},
+					},
 				},
-				providerSpec:   &tc.providerSpec,
-				session:        session,
-				providerStatus: &vsphereapi.VSphereMachineProviderStatus{},
-				client:         fake.NewFakeClientWithScheme(scheme.Scheme, &credentialsSecret),
+				apiReader: client,
+			})
+			if err != nil {
+				t.Fatal(err)
 			}
 
-			reconciler := newReconciler(&machineScope)
+			reconciler := newReconciler(machineScope)
 
-			err := reconciler.create()
+			err = reconciler.create()
 
 			if tc.expectedError != nil {
 				if err == nil {
@@ -1262,8 +1366,13 @@ func TestUpdate(t *testing.T) {
 	model, session, server := initSimulator(t)
 	defer model.Remove()
 	defer server.Close()
-	credentialsSecretUsername := fmt.Sprintf("%s.username", server.URL.Host)
-	credentialsSecretPassword := fmt.Sprintf("%s.password", server.URL.Host)
+	host, port, err := net.SplitHostPort(server.URL.Host)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	credentialsSecretUsername := fmt.Sprintf("%s.username", host)
+	credentialsSecretPassword := fmt.Sprintf("%s.password", host)
 
 	password, _ := server.URL.User.Password()
 	namespace := "test"
@@ -1271,7 +1380,7 @@ func TestUpdate(t *testing.T) {
 	instanceUUID := "a5764857-ae35-34dc-8f25-a9c9e73aa898"
 	vm.Config.InstanceUuid = instanceUUID
 
-	credentialsSecret := corev1.Secret{
+	credentialsSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test",
 			Namespace: namespace,
@@ -1279,6 +1388,29 @@ func TestUpdate(t *testing.T) {
 		Data: map[string][]byte{
 			credentialsSecretUsername: []byte(server.URL.User.Username()),
 			credentialsSecretPassword: []byte(password),
+		},
+	}
+
+	testConfig := fmt.Sprintf(testConfigFmt, port)
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "testName",
+			Namespace: openshiftConfigNamespace,
+		},
+		Data: map[string]string{
+			"testKey": testConfig,
+		},
+	}
+
+	infra := &configv1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: globalInfrastuctureName,
+		},
+		Spec: configv1.InfrastructureSpec{
+			CloudConfig: configv1.ConfigMapFileReference{
+				Name: "testName",
+				Key:  "testKey",
+			},
 		},
 	}
 
@@ -1293,6 +1425,12 @@ func TestUpdate(t *testing.T) {
 		{
 			name: "Successfully update machine",
 			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+				Workspace: &vsphereapi.Workspace{
+					Server: host,
+				},
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: "test",
+				},
 				Template: vm.Name,
 				Network: vsphereapi.NetworkSpec{
 					Devices: []vsphereapi.NetworkDeviceSpec{
@@ -1309,6 +1447,12 @@ func TestUpdate(t *testing.T) {
 				machinev1.MachineClusterIDLabel: "",
 			},
 			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+				Workspace: &vsphereapi.Workspace{
+					Server: host,
+				},
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: "test",
+				},
 				Template: vm.Name,
 				Network: vsphereapi.NetworkSpec{
 					Devices: []vsphereapi.NetworkDeviceSpec{
@@ -1332,8 +1476,19 @@ func TestUpdate(t *testing.T) {
 				labels = tc.labels
 			}
 
-			machineScope := machineScope{
-				Context: context.TODO(),
+			client := fake.NewFakeClientWithScheme(scheme.Scheme,
+				credentialsSecret,
+				configMap,
+				infra)
+
+			rawProviderSpec, err := vsphereapi.RawExtensionFromProviderSpec(&tc.providerSpec)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			machineScope, err := newMachineScope(machineScopeParams{
+				client:  client,
+				Context: context.Background(),
 				machine: &machinev1.Machine{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test",
@@ -1341,16 +1496,21 @@ func TestUpdate(t *testing.T) {
 						Labels:    labels,
 						UID:       apimachinerytypes.UID(instanceUUID),
 					},
+					Spec: machinev1.MachineSpec{
+						ProviderSpec: machinev1.ProviderSpec{
+							Value: rawProviderSpec,
+						},
+					},
 				},
-				providerSpec:   &tc.providerSpec,
-				session:        session,
-				providerStatus: &vsphereapi.VSphereMachineProviderStatus{},
-				client:         fake.NewFakeClientWithScheme(scheme.Scheme, &credentialsSecret),
+				apiReader: client,
+			})
+			if err != nil {
+				t.Fatal(err)
 			}
 
-			reconciler := newReconciler(&machineScope)
+			reconciler := newReconciler(machineScope)
 
-			err := reconciler.update()
+			err = reconciler.update()
 
 			if tc.expectedError != nil {
 				if err == nil {
@@ -1515,10 +1675,7 @@ func TestReconcileMachineWithCloudState(t *testing.T) {
 			TaskRef: task.Reference().Value,
 		},
 		vSphereConfig: &vSphereConfig{
-			Labels: struct {
-				Zone   string "gcfg:\"zone\""
-				Region string "gcfg:\"region\""
-			}{
+			Labels: Labels{
 				Zone:   zoneKey,
 				Region: regionKey,
 			},
