@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"testing"
 
+	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	vspherev1 "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
 	corev1 "k8s.io/api/core/v1"
@@ -296,6 +297,29 @@ func TestPatchMachine(t *testing.T) {
 		},
 	}
 
+	testConfig := fmt.Sprintf(testConfigFmt, "")
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "testName",
+			Namespace: openshiftConfigNamespace,
+		},
+		Data: map[string]string{
+			"testKey": testConfig,
+		},
+	}
+
+	infra := &configv1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: globalInfrastuctureName,
+		},
+		Spec: configv1.InfrastructureSpec{
+			CloudConfig: configv1.ConfigMapFileReference{
+				Name: "testName",
+				Key:  "testKey",
+			},
+		},
+	}
+
 	// original objects
 	originalProviderSpec := vspherev1.VSphereMachineProviderSpec{
 		CredentialsSecret: &corev1.LocalObjectReference{
@@ -362,11 +386,16 @@ func TestPatchMachine(t *testing.T) {
 	if err := machinev1.AddToScheme(scheme.Scheme); err != nil {
 		t.Fatal(err)
 	}
-	fakeClient := fake.NewFakeClientWithScheme(scheme.Scheme, credentialsSecret, originalMachine)
+	fakeClient := fake.NewFakeClientWithScheme(scheme.Scheme,
+		credentialsSecret,
+		originalMachine,
+		configMap,
+		infra)
 	machineScope, err := newMachineScope(machineScopeParams{
-		client:  fakeClient,
-		Context: context.TODO(),
-		machine: originalMachine,
+		client:    fakeClient,
+		Context:   context.TODO(),
+		machine:   originalMachine,
+		apiReader: fakeClient,
 	})
 	if err != nil {
 		t.Fatal(err)

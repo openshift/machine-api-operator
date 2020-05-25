@@ -40,7 +40,7 @@ func initSimulator(t *testing.T) (*simulator.Model, *Session, *simulator.Server)
 	authSession, err := GetOrCreate(
 		context.TODO(),
 		server.URL.Host, "",
-		server.URL.User.Username(), pass)
+		server.URL.User.Username(), pass, true)
 	if err != nil {
 		t.Fatal(err)
 	}
