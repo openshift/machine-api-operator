@@ -1,6 +1,7 @@
 package vsphere
 
 import (
+	"fmt"
 	"testing"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -11,17 +12,20 @@ import (
 )
 
 const (
-	testRegion = "testRegion"
-	testZone   = "testZone"
-)
-
-func TestGetVSphereConfig(t *testing.T) {
-	testConfig := `
+	testRegion    = "testRegion"
+	testZone      = "testZone"
+	testPort      = "443"
+	testConfigFmt = `
     [Labels]
 		zone = "testZone"
 		region = "testRegion"
+		[Global]
+		port = %s
 `
+)
 
+func TestGetVSphereConfig(t *testing.T) {
+	testConfig := fmt.Sprintf(testConfigFmt, "443")
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testName",
@@ -58,5 +62,9 @@ func TestGetVSphereConfig(t *testing.T) {
 
 	if vSphereConfig.Labels.Zone != testZone {
 		t.Errorf("Expected zone %s, got %s", testZone, vSphereConfig.Labels.Zone)
+	}
+
+	if vSphereConfig.Global.Port != testPort {
+		t.Errorf("Expected zone %s, got %s", testZone, vSphereConfig.Global.Port)
 	}
 }
