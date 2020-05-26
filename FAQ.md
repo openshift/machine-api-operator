@@ -27,6 +27,7 @@ This document consists of frequently asked questions intended for users.
 - [Machine Deployments](#machine-deployments)
   - [Upstream kubernetes cluster-api project is utilizing MachineDeployments, why isn’t OpenShift?](#upstream-kubernetes-cluster-api-project-is-utilizing-machinedeployments-why-isnt-openshift)
 - [Cluster Autoscaler](#cluster-autoscaler)
+  - [What is the difference between the ClusterAutoscaler and MachineAutoscaler resources?](#what-is-the-difference-between-the-clusterautoscaler-and-machineautoscaler-resources)
   - [Cluster AutoScaler won’t scale up](#cluster-autoscaler-wont-scale-up)
 <!-- /toc -->
 
@@ -145,6 +146,13 @@ Yes, though consider carefully before doing so.  Inspect the Match Labels from t
 Any change to a MachineDeployment will result in an immediate removal and replacement of an entire MachineSet.  This is a much more costly operation that making changes to an instance in-place.  In particular RHEL CoreOS allows the VM to boot into an entirely updated operating system without having to perform a reinstallation.
 
 # Cluster Autoscaler
+
+## What is the difference between the ClusterAutoscaler and MachineAutoscaler resources?
+The ClusterAutoscaler resource is used to manage the lifecycle of the Kubernetes cluster autoscaler. It can be used to specify how the cluster autoscaler should be deployed and what global system limits it should respect. You can only create one of this resource.
+([ClusterAutoscaler example](https://github.com/openshift/cluster-autoscaler-operator/blob/master/examples/clusterautoscaler.yaml))
+
+The MachineAutoscaler resource is used to inform the cluster autoscaler that a MachineSet should be considered for autoscaling. Each MachineAutoscaler can be used to specify a single MachineSet as well as the minimum and maximum sizes for the set. You may create many of these resources depending on the topology of your cluster and your desired scaling needs.
+([MachineAutoscaler example](https://github.com/openshift/cluster-autoscaler-operator/blob/master/examples/machineautoscaler.yaml))
 
 ## Cluster AutoScaler won’t scale up
 For the most part, this happens when scaling up a MachineSet results in violating the one of the max resource quotas you have configured.  For example, Max CPU is the aggregate for all Machines in a MachineSet, not just one.  So, if your max replicas is set to 50, max CPU needs to be at minimum 50 * (instance-type-CPU).
