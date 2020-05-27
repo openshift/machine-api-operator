@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/onsi/gomega"
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -30,6 +31,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/utils/pointer"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
@@ -323,100 +325,104 @@ func TestReconcileRequest(t *testing.T) {
 }
 
 func TestSetPhase(t *testing.T) {
-	name := "test"
-	namespace := "test"
-	namespacedName := types.NamespacedName{
-		Namespace: namespace,
-		Name:      name,
-	}
-
-	machine := &machinev1.Machine{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: namespace,
+	testCases := []struct {
+		name         string
+		phase        string
+		errorMessage string
+		annotations  map[string]string
+	}{
+		{
+			name:         "when updating the phase to Running",
+			phase:        phaseRunning,
+			errorMessage: "",
+			annotations:  nil,
 		},
-		Status: machinev1.MachineStatus{},
-	}
-	machinev1.AddToScheme(scheme.Scheme)
-	reconciler := &ReconcileMachine{
-		Client: fake.NewFakeClientWithScheme(scheme.Scheme, machine),
-		scheme: scheme.Scheme,
-	}
-
-	if err := reconciler.setPhase(machine, phaseRunning, ""); err != nil {
-		t.Fatal(err)
-	}
-	// validate persisted object
-	got := machinev1.Machine{}
-	err := reconciler.Client.Get(context.TODO(), namespacedName, &got)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got.Status.Phase == nil {
-		t.Fatal("Got phase nil")
-	}
-	if *got.Status.Phase != phaseRunning {
-		t.Errorf("Expected: %v, got: %v", phaseRunning, *got.Status.Phase)
-	}
-	lastUpdated := got.Status.LastUpdated
-	if lastUpdated == nil {
-		t.Errorf("Expected lastUpdated field to be updated")
-	}
-	// validate passed object
-	if *machine.Status.Phase != phaseRunning {
-		t.Errorf("Expected: %v, got: %v", phaseRunning, *machine.Status.Phase)
-	}
-	objectLastUpdated := machine.Status.LastUpdated
-	if objectLastUpdated == nil {
-		t.Errorf("Expected lastUpdated field to be updated")
+		{
+			name:         "when updating the phase to Failed",
+			phase:        phaseFailed,
+			errorMessage: "test",
+			annotations: map[string]string{
+				MachineInstanceStateAnnotationName: unknownInstanceState,
+			},
+		},
 	}
 
-	// Set the same phase should not modify lastUpdated
-	if err := reconciler.setPhase(machine, phaseRunning, ""); err != nil {
-		t.Fatal(err)
-	}
-	// validate persisted object
-	got = machinev1.Machine{}
-	err = reconciler.Client.Get(context.TODO(), namespacedName, &got)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if *lastUpdated != *got.Status.LastUpdated {
-		t.Errorf("Expected: %v, got: %v", *lastUpdated, *got.Status.LastUpdated)
-	}
-	// validate passed object
-	if *objectLastUpdated != *machine.Status.LastUpdated {
-		t.Errorf("Expected: %v, got: %v", *objectLastUpdated, *machine.Status.LastUpdated)
-	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
 
-	// Set phaseFailed with an errorMessage should store the message
-	expecterErrorMessage := "test"
-	// Set phaseFailed will result to force Unknown state for VM state display
-	expectedInstanceState := "Unknown"
-	if err := reconciler.setPhase(machine, phaseFailed, expecterErrorMessage); err != nil {
-		t.Fatal(err)
-	}
-	got = machinev1.Machine{}
-	err = reconciler.Client.Get(context.TODO(), namespacedName, &got)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// validate persisted object
-	if expecterErrorMessage != *got.Status.ErrorMessage {
-		t.Errorf("Expected: %v, got: %v", expecterErrorMessage, *got.Status.ErrorMessage)
-	}
-	// validate passed object
-	if expecterErrorMessage != *machine.Status.ErrorMessage {
-		t.Errorf("Expected: %v, got: %v", expecterErrorMessage, *machine.Status.ErrorMessage)
-	}
-	if got.Status.Phase == nil {
-		t.Fatal("Got phase nil")
-	}
-	if *got.Status.Phase != phaseFailed {
-		t.Errorf("Expected: %v, got: %v", phaseFailed, *got.Status.Phase)
-	}
-	if got.Annotations[MachineInstanceStateAnnotationName] != expectedInstanceState {
-		t.Errorf("Expected VM to go into: %v state, got: %v", expectedInstanceState, got.Annotations[MachineInstanceStateAnnotationName])
+			k8sClient, err := client.New(cfg, client.Options{})
+			g.Expect(err).ToNot(HaveOccurred())
+			machinev1.AddToScheme(scheme.Scheme)
+			reconciler := &ReconcileMachine{
+				Client: k8sClient,
+				scheme: scheme.Scheme,
+			}
+
+			// Set up the test namespace
+			name := "test"
+			namespace := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: name,
+				},
+			}
+			g.Expect(k8sClient.Create(ctx, namespace)).To(Succeed())
+
+			// Set up the test machine
+			machine := &machinev1.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: name,
+					Namespace:    namespace.Name,
+				},
+				Status: machinev1.MachineStatus{},
+			}
+			g.Expect(k8sClient.Create(ctx, machine)).To(Succeed())
+
+			namespacedName := types.NamespacedName{
+				Namespace: machine.Namespace,
+				Name:      machine.Name,
+			}
+
+			// Set the phase to Running initially
+			g.Expect(reconciler.setPhase(machine, phaseRunning, "")).To(Succeed())
+			// validate persisted object
+			got := machinev1.Machine{}
+			g.Expect(reconciler.Client.Get(context.TODO(), namespacedName, &got)).To(Succeed())
+			g.Expect(got.Status.Phase).ToNot(BeNil())
+			g.Expect(*got.Status.Phase).To(Equal(phaseRunning))
+			lastUpdated := got.Status.LastUpdated
+			g.Expect(lastUpdated).ToNot(BeNil())
+			// validate passed object
+			g.Expect(machine.Status.Phase).ToNot(BeNil())
+			g.Expect(*machine.Status.Phase).To(Equal(phaseRunning))
+			objectLastUpdated := machine.Status.LastUpdated
+			g.Expect(objectLastUpdated).ToNot(BeNil())
+
+			// Modify the phase and verify the result
+			g.Expect(reconciler.setPhase(machine, tc.phase, tc.errorMessage)).To(Succeed())
+			// validate the persisted object
+			got = machinev1.Machine{}
+			g.Expect(reconciler.Client.Get(context.TODO(), namespacedName, &got)).To(Succeed())
+
+			if tc.phase == phaseRunning {
+				// The phase hasn't changed so the lastUpdated shouldn't either
+				g.Expect(*got.Status.LastUpdated).To(Equal(*lastUpdated))
+				g.Expect(*machine.Status.LastUpdated).To(Equal(*objectLastUpdated))
+			}
+
+			if tc.errorMessage != "" {
+				g.Expect(got.Status.ErrorMessage).ToNot(BeNil())
+				g.Expect(*got.Status.ErrorMessage).To(Equal(tc.errorMessage))
+				g.Expect(machine.Status.ErrorMessage).ToNot(BeNil())
+				g.Expect(*machine.Status.ErrorMessage).To(Equal(tc.errorMessage))
+			}
+
+			g.Expect(*got.Status.Phase).To(Equal(tc.phase))
+			g.Expect(*machine.Status.Phase).To(Equal(tc.phase))
+
+			g.Expect(got.GetAnnotations()).To(Equal(tc.annotations))
+			g.Expect(machine.GetAnnotations()).To(Equal(tc.annotations))
+		})
 	}
 }
 

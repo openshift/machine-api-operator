@@ -17,6 +17,7 @@ limitations under the License.
 package machine
 
 import (
+	"context"
 	"log"
 	"os"
 	"path/filepath"
@@ -30,7 +31,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-var cfg *rest.Config
+var (
+	cfg *rest.Config
+	ctx = context.Background()
+)
 
 func TestMain(m *testing.M) {
 	t := &envtest.Environment{
