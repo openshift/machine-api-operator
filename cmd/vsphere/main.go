@@ -14,6 +14,7 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/version"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/signals"
 )
@@ -26,6 +27,11 @@ func main() {
 	watchNamespace := flag.String("namespace", "", "Namespace that the controller watches to reconcile machine-api objects. If unspecified, the controller watches for machine-api objects across all namespaces.")
 	metricsAddress := flag.String("metrics-bind-address", metrics.DefaultMachineMetricsAddress, "Address for hosting metrics")
 	flag.Set("logtostderr", "true")
+	healthAddr := flag.String(
+		"health-addr",
+		":9440",
+		"The address for health checking.",
+	)
 	flag.Parse()
 
 	if printVersion {
@@ -34,9 +40,9 @@ func main() {
 	}
 
 	cfg := config.GetConfigOrDie()
-
 	opts := manager.Options{
-		MetricsBindAddress: *metricsAddress,
+		MetricsBindAddress:     *metricsAddress,
+		HealthProbeBindAddress: *healthAddr,
 	}
 	if *watchNamespace != "" {
 		opts.Namespace = *watchNamespace
@@ -69,6 +75,14 @@ func main() {
 	}
 
 	capimachine.AddWithActuator(mgr, machineActuator)
+
+	if err := mgr.AddReadyzCheck("ping", healthz.Ping); err != nil {
+		klog.Fatal(err)
+	}
+
+	if err := mgr.AddHealthzCheck("ping", healthz.Ping); err != nil {
+		klog.Fatal(err)
+	}
 
 	if err := mgr.Start(signals.SetupSignalHandler()); err != nil {
 		klog.Fatalf("Failed to run manager: %v", err)
