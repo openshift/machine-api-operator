@@ -5,11 +5,8 @@ go 1.13
 require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
-	github.com/golang/groupcache v0.0.0-20191002201903-404acd9df4cc // indirect
 	github.com/google/gofuzz v1.1.0
 	github.com/google/uuid v1.1.1
-	github.com/hashicorp/golang-lru v0.5.3 // indirect
-	github.com/imdario/mergo v0.3.8 // indirect
 	github.com/onsi/ginkgo v1.12.0
 	github.com/onsi/gomega v1.8.1
 	github.com/openshift/api v0.0.0-20200424083944-0422dc17083e
@@ -17,26 +14,24 @@ require (
 	github.com/openshift/library-go v0.0.0-20200512120242-21a1ff978534
 	github.com/operator-framework/operator-sdk v0.5.1-0.20190301204940-c2efe6f74e7b
 	github.com/prometheus/client_golang v1.1.0
-	github.com/prometheus/common v0.7.0 // indirect
-	github.com/prometheus/procfs v0.0.5 // indirect
 	github.com/spf13/cobra v0.0.5
 	github.com/stretchr/testify v1.4.0
 	github.com/vmware/govmomi v0.22.2
 	golang.org/x/net v0.0.0-20200421231249-e086a090c8fd
-	golang.org/x/time v0.0.0-20190921001708-c4c64cad1fd0 // indirect
-	google.golang.org/appengine v1.6.4 // indirect
 	gopkg.in/gcfg.v1 v1.2.3
-	gopkg.in/warnings.v0 v0.1.2 // indirect
 	k8s.io/api v0.18.2
 	k8s.io/apimachinery v0.18.2
 	k8s.io/client-go v0.18.2
 	k8s.io/code-generator v0.18.2
 	k8s.io/klog v1.0.0
 	k8s.io/kubectl v0.18.0-rc.1
-	k8s.io/utils v0.0.0-20200324210504-a9aa75ae1b89
-	sigs.k8s.io/controller-runtime v0.3.1-0.20191016212439-2df793d02076
+	k8s.io/utils v0.0.0-20200327001022-6496210b90e8
+	sigs.k8s.io/cluster-api-provider-aws v0.0.0-00010101000000-000000000000
+	sigs.k8s.io/controller-runtime v0.5.1-0.20200330174416-a11a908d91e0
 	sigs.k8s.io/controller-tools v0.2.9-0.20200331153640-3c5446d407dd
 	sigs.k8s.io/yaml v1.2.0
 )
 
 replace sigs.k8s.io/controller-runtime => github.com/munnerz/controller-runtime v0.1.8-0.20200318092001-e22ac1073450
+
+replace sigs.k8s.io/cluster-api-provider-aws => github.com/openshift/cluster-api-provider-aws v0.2.1-0.20200520125206-5e266b553d8e
