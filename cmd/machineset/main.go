@@ -29,6 +29,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/signals"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
+)
+
+const (
+	defaultWebhookPort    = 8443
+	defaultWebhookCertdir = "/etc/machine-api-operator/tls"
 )
 
 func main() {
@@ -37,10 +43,20 @@ func main() {
 	watchNamespace := flag.String("namespace", "",
 		"Namespace that the controller watches to reconcile cluster-api objects. If unspecified, the controller watches for cluster-api objects across all namespaces.")
 
+	webhookEnabled := flag.Bool("webhook-enabled", true,
+		"Webhook server, enabled by default. When enabled, the manager will run a webhook server.")
+
+	webhookPort := flag.Int("webhook-port", defaultWebhookPort,
+		"Webhook Server port, only used when webhook-enabled is true.")
+
+	webhookCertdir := flag.String("webhook-cert-dir", defaultWebhookCertdir,
+		"Webhook cert dir, only used when webhook-enabled is true.")
+
 	flag.Parse()
 	if *watchNamespace != "" {
 		log.Printf("Watching cluster-api objects only in namespace %q for reconciliation.", *watchNamespace)
 	}
+
 	log.Printf("Registering Components.")
 	// Get a config to talk to the apiserver
 	cfg, err := config.GetConfig()
@@ -56,9 +72,28 @@ func main() {
 		SyncPeriod:         &syncPeriod,
 		Namespace:          *watchNamespace,
 	}
+
 	mgr, err := manager.New(cfg, opts)
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	// Enable defaulting and validating webhooks
+	defaulter, err := v1beta1.NewMachineDefaulter()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	validator, err := v1beta1.NewMachineValidator()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if *webhookEnabled {
+		mgr.GetWebhookServer().Port = *webhookPort
+		mgr.GetWebhookServer().CertDir = *webhookCertdir
+		mgr.GetWebhookServer().Register("/mutate-machine-openshift-io-v1beta1-machine", &webhook.Admission{Handler: defaulter})
+		mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machine", &webhook.Admission{Handler: validator})
 	}
 
 	log.Printf("Registering Components.")
@@ -72,6 +107,7 @@ func main() {
 	if err := controller.AddToManager(mgr, opts, machineset.Add); err != nil {
 		log.Fatal(err)
 	}
+
 	log.Printf("Starting the Cmd.")
 
 	// Start the Cmd
