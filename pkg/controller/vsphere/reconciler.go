@@ -743,7 +743,7 @@ func (vm *virtualMachine) getRegionAndZone(c *rest.Client, regionLabel, zoneLabe
 				result[regionKey] = tag.Name
 				klog.V(2).Infof("%s has region tag (%s) with value %s",
 					vm.Ref, category.Name, tag.Name)
-
+				fallthrough
 			case zoneLabel != "" && category.Name == zoneLabel:
 				result[zoneKey] = tag.Name
 				klog.V(2).Infof("%s has zone tag (%s) with value %s",
