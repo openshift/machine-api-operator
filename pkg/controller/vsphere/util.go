@@ -44,7 +44,8 @@ type Global struct {
 	// Port is the port on which the vSphere endpoint is listening.
 	// Defaults to 443.
 	// Has string type because we need empty string value for formatting
-	Port string `gcfg:"port"`
+	Port         string `gcfg:"port"`
+	InsecureFlag string `gcfg:"insecure-flag"`
 }
 
 func getInfrastructure(c runtimeclient.Reader) (*configv1.Infrastructure, error) {
@@ -169,4 +170,12 @@ func getPortFromConfig(config *vSphereConfig) string {
 		return config.Global.Port
 	}
 	return ""
+}
+
+// getInsecureFlagFromConfig get insecure flag from config and default to false
+func getInsecureFlagFromConfig(config *vSphereConfig) bool {
+	if config != nil && config.Global.InsecureFlag == "1" {
+		return true
+	}
+	return false
 }

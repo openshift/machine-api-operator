@@ -12,15 +12,17 @@ import (
 )
 
 const (
-	testRegion    = "testRegion"
-	testZone      = "testZone"
-	testPort      = "443"
-	testConfigFmt = `
+	testRegion       = "testRegion"
+	testZone         = "testZone"
+	testPort         = "443"
+	testInsecureFlag = "1"
+	testConfigFmt    = `
     [Labels]
 		zone = "testZone"
 		region = "testRegion"
 		[Global]
 		port = %s
+		insecure-flag="1"
 `
 )
 
@@ -66,5 +68,9 @@ func TestGetVSphereConfig(t *testing.T) {
 
 	if vSphereConfig.Global.Port != testPort {
 		t.Errorf("Expected zone %s, got %s", testZone, vSphereConfig.Global.Port)
+	}
+
+	if vSphereConfig.Global.InsecureFlag != testInsecureFlag {
+		t.Errorf("Expected insecure flag %s, got %s", testInsecureFlag, vSphereConfig.Global.InsecureFlag)
 	}
 }

@@ -67,7 +67,7 @@ func initSimulator(t *testing.T) (*simulator.Model, *session.Session, *simulator
 	authSession, err := session.GetOrCreate(
 		context.TODO(),
 		server.URL.Host, "",
-		server.URL.User.Username(), pass)
+		server.URL.User.Username(), pass, true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -88,6 +88,7 @@ func TestClone(t *testing.T) {
 	model, session, server := initSimulator(t)
 	defer model.Remove()
 	defer server.Close()
+
 	credentialsSecretUsername := fmt.Sprintf("%s.username", server.URL.Host)
 	credentialsSecretPassword := fmt.Sprintf("%s.password", server.URL.Host)
 
