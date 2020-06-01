@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
@@ -40,9 +41,12 @@ func main() {
 	}
 
 	cfg := config.GetConfigOrDie()
+	syncPeriod := 10 * time.Minute
+
 	opts := manager.Options{
 		MetricsBindAddress:     *metricsAddress,
 		HealthProbeBindAddress: *healthAddr,
+		SyncPeriod:             &syncPeriod,
 	}
 	if *watchNamespace != "" {
 		opts.Namespace = *watchNamespace
