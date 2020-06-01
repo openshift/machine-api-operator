@@ -717,7 +717,7 @@ func TestUpdateNodeRef(t *testing.T) {
 		nodeReadinessCache map[string]bool
 	}{
 		{
-			machine: machine("", "", nil, nil),
+			machine: machine("fakeMachine", "", nil, nil),
 			node:    node("newNode", "", nil, nil),
 			nodeRef: &corev1.ObjectReference{
 				Kind: "Node",
@@ -727,7 +727,7 @@ func TestUpdateNodeRef(t *testing.T) {
 			nodeReadinessCache: map[string]bool{},
 		},
 		{
-			machine: machine("", "", nil, nil),
+			machine: machine("fakeMachine", "", nil, nil),
 			node:    node("readinessChangedNode", "", nil, nil),
 			nodeRef: &corev1.ObjectReference{
 				Kind: "Node",
@@ -737,7 +737,7 @@ func TestUpdateNodeRef(t *testing.T) {
 			nodeReadinessCache: map[string]bool{"readinessChangedNode": false},
 		},
 		{
-			machine:            machine("", "", nil, nil),
+			machine:            machine("fakeMachine", "", nil, nil),
 			node:               node("deleting", "", nil, nil),
 			nodeRef:            nil,
 			nodeReadinessCache: map[string]bool{},
