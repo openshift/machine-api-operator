@@ -8,6 +8,7 @@ import (
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	apivsphere "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
 	machineapierros "github.com/openshift/machine-api-operator/pkg/controller/machine"
+	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
 	apicorev1 "k8s.io/api/core/v1"
 	apimachineryerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -133,7 +134,7 @@ func (s *machineScope) GetSession() *session.Session {
 // provider spec, if one is set.
 func (s *machineScope) GetUserData() ([]byte, error) {
 	if s.providerSpec == nil || s.providerSpec.UserDataSecret == nil {
-		return nil, nil
+		return nil, machinecontroller.InvalidMachineConfiguration("user data secret is missing in provider spec")
 	}
 
 	userDataSecret := &apicorev1.Secret{}
