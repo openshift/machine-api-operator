@@ -345,6 +345,8 @@ github.com/openshift/cluster-api-provider-aws v0.2.1-0.20200520125206-5e266b553d
 github.com/openshift/cluster-api-provider-aws v0.2.1-0.20200520125206-5e266b553d8e/go.mod h1:Z0RqvUxrmZ/89KuAYqWv9JImdXr5OZOZS8xDZYCnV+c=
 github.com/openshift/cluster-api-provider-azure v0.1.0-alpha.3.0.20200529030741-17d4edc5142f h1:gOziy5pyOa50I9N4ftspKfNdX6QgbE35h0ph9FQDZwc=
 github.com/openshift/cluster-api-provider-azure v0.1.0-alpha.3.0.20200529030741-17d4edc5142f/go.mod h1:XTKOAoCAzFtgljQ9HUs4KeTyczeFUoXa0S9+0R2WCmk=
+github.com/openshift/cluster-api-provider-gcp v0.0.1-0.20200528175251-4f2fdeb49fe1 h1:E5wSq/eguS4BDC0EtYEW+RNBT72ZNNkvcT6Ft9xN240=
+github.com/openshift/cluster-api-provider-gcp v0.0.1-0.20200528175251-4f2fdeb49fe1/go.mod h1:A6bXymTnVOtsWcSasO+FWThJg3lobV0MI24pbCkqhF8=
 github.com/openshift/library-go v0.0.0-20200512120242-21a1ff978534 h1:RhurNEKr5RBIcnddxfoLVuB86TZRdNq8PH51/1ZAxv4=
 github.com/openshift/library-go v0.0.0-20200512120242-21a1ff978534/go.mod h1:2kWwXTkpoQJUN3jZ3QW88EIY1hdRMqxgRs2hheEW/pg=
 github.com/openshift/machine-api-operator v0.2.1-0.20200520080344-fe76daf636f4/go.mod h1:YKEQMHjXzrzm4fQGTyHBafFfQ/Yq/FrV+1YcGdPCp+0=
