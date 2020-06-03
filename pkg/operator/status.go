@@ -21,9 +21,10 @@ type StatusReason string
 
 // The default set of status change reasons.
 const (
-	ReasonEmpty      StatusReason = ""
-	ReasonSyncing    StatusReason = "SyncingResources"
-	ReasonSyncFailed StatusReason = "SyncingFailed"
+	ReasonAsExpected   StatusReason = "AsExpected"
+	ReasonInitializing StatusReason = "Initializing"
+	ReasonSyncing      StatusReason = "SyncingResources"
+	ReasonSyncFailed   StatusReason = "SyncingFailed"
 )
 
 const (
@@ -81,10 +82,10 @@ func (optr *Operator) statusProgressing() error {
 // and message, and sets both the Progressing and Degraded conditions to False.
 func (optr *Operator) statusAvailable() error {
 	conds := []osconfigv1.ClusterOperatorStatusCondition{
-		newClusterOperatorStatusCondition(osconfigv1.OperatorAvailable, osconfigv1.ConditionTrue, string(ReasonEmpty),
+		newClusterOperatorStatusCondition(osconfigv1.OperatorAvailable, osconfigv1.ConditionTrue, string(ReasonAsExpected),
 			fmt.Sprintf("Cluster Machine API Operator is available at %s", optr.printOperandVersions())),
-		newClusterOperatorStatusCondition(osconfigv1.OperatorProgressing, osconfigv1.ConditionFalse, "", ""),
-		newClusterOperatorStatusCondition(osconfigv1.OperatorDegraded, osconfigv1.ConditionFalse, "", ""),
+		newClusterOperatorStatusCondition(osconfigv1.OperatorProgressing, osconfigv1.ConditionFalse, string(ReasonAsExpected), ""),
+		newClusterOperatorStatusCondition(osconfigv1.OperatorDegraded, osconfigv1.ConditionFalse, string(ReasonAsExpected), ""),
 		operatorUpgradeable,
 	}
 
@@ -197,22 +198,23 @@ func (optr *Operator) relatedObjects() []osconfigv1.ObjectReference {
 // defaultStatusConditions returns the default set of status conditions for the
 // ClusterOperator resource used on first creation of the ClusterOperator.
 func (optr *Operator) defaultStatusConditions() []osconfigv1.ClusterOperatorStatusCondition {
-	// All conditions default to False with no message.
 	return []osconfigv1.ClusterOperatorStatusCondition{
 		newClusterOperatorStatusCondition(
 			osconfigv1.OperatorProgressing,
-			osconfigv1.ConditionFalse,
-			"", "",
+			osconfigv1.ConditionTrue,
+			string(ReasonInitializing),
+			"Operator is initializing",
 		),
 		newClusterOperatorStatusCondition(
 			osconfigv1.OperatorDegraded,
 			osconfigv1.ConditionFalse,
-			"", "",
+			string(ReasonAsExpected), "",
 		),
 		newClusterOperatorStatusCondition(
 			osconfigv1.OperatorAvailable,
 			osconfigv1.ConditionFalse,
-			"", "",
+			string(ReasonInitializing),
+			"Operator is initializing",
 		),
 	}
 }

@@ -149,18 +149,20 @@ func TestGetOrCreateClusterOperator(t *testing.T) {
 	var defaultConditions = []osconfigv1.ClusterOperatorStatusCondition{
 		newClusterOperatorStatusCondition(
 			osconfigv1.OperatorProgressing,
-			osconfigv1.ConditionFalse,
-			"", "",
+			osconfigv1.ConditionTrue,
+			string(ReasonInitializing),
+			"Operator is initializing",
 		),
 		newClusterOperatorStatusCondition(
 			osconfigv1.OperatorDegraded,
 			osconfigv1.ConditionFalse,
-			"", "",
+			string(ReasonAsExpected), "",
 		),
 		newClusterOperatorStatusCondition(
 			osconfigv1.OperatorAvailable,
 			osconfigv1.ConditionFalse,
-			"", "",
+			string(ReasonInitializing),
+			"Operator is initializing",
 		),
 	}
 
