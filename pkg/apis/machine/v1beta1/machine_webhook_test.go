@@ -11,6 +11,7 @@ import (
 	"k8s.io/utils/pointer"
 	aws "sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsprovider/v1beta1"
 	azure "sigs.k8s.io/cluster-api-provider-azure/pkg/apis/azureprovider/v1beta1"
+	gcp "sigs.k8s.io/cluster-api-provider-gcp/pkg/apis/gcpprovider/v1beta1"
 	yaml "sigs.k8s.io/yaml"
 )
 
@@ -202,7 +203,8 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 		},
 	}
 
-	h := createMachineDefaulter(osconfigv1.AWSPlatformType, clusterID)
+	platformStatus := &osconfigv1.PlatformStatus{Type: osconfigv1.AWSPlatformType}
+	h := createMachineDefaulter(platformStatus, clusterID)
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
@@ -521,7 +523,8 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 		},
 	}
 
-	h := createMachineDefaulter(osconfigv1.AzurePlatformType, clusterID)
+	platformStatus := &osconfigv1.PlatformStatus{Type: osconfigv1.AzurePlatformType}
+	h := createMachineDefaulter(platformStatus, clusterID)
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
@@ -566,6 +569,384 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 			}
 
 			gotProviderSpec := new(azure.AzureMachineProviderSpec)
+			if err := yaml.Unmarshal(m.Spec.ProviderSpec.Value.Raw, &gotProviderSpec); err != nil {
+				t.Fatal(err)
+			}
+
+			if !equality.Semantic.DeepEqual(defaultProviderSpec, gotProviderSpec) {
+				t.Errorf("expected: %+v, got: %+v", defaultProviderSpec, gotProviderSpec)
+			}
+			if err == nil {
+				if tc.expectedError != "" {
+					t.Errorf("expected: %q, got: %v", tc.expectedError, err)
+				}
+			} else {
+				if err.Error() != tc.expectedError {
+					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
+				}
+			}
+		})
+	}
+}
+
+func TestValidateGCPProviderSpec(t *testing.T) {
+
+	testCases := []struct {
+		testCase      string
+		modifySpec    func(*gcp.GCPMachineProviderSpec)
+		expectedError string
+		expectedOk    bool
+	}{
+		{
+			testCase: "with no region",
+			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+				p.Region = ""
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.region: Required value: region is required",
+		},
+		{
+			testCase: "with no zone",
+			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+				p.Zone = ""
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.zone: Invalid value: \"\": zone not in configured region (region)",
+		},
+		{
+			testCase: "with an invalid zone",
+			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+				p.Zone = "zone"
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.zone: Invalid value: \"zone\": zone not in configured region (region)",
+		},
+		{
+			testCase: "with no machine type",
+			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+				p.MachineType = ""
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.machineType: Required value: machineType should be set to one of the supported GCP machine types",
+		},
+		{
+			testCase: "with no network interfaces",
+			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+				p.NetworkInterfaces = nil
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.networkInterfaces: Required value: at least 1 network interface is required",
+		},
+		{
+			testCase: "with a network interfaces is missing the network",
+			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+				p.NetworkInterfaces = []*gcp.GCPNetworkInterface{
+					{
+						Network:    "network",
+						Subnetwork: "subnetwork",
+					},
+					{
+						Subnetwork: "subnetwork",
+					},
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.networkInterfaces[1].network: Required value: network is required",
+		},
+		{
+			testCase: "with a network interfaces is missing the subnetwork",
+			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+				p.NetworkInterfaces = []*gcp.GCPNetworkInterface{
+					{
+						Network:    "network",
+						Subnetwork: "subnetwork",
+					},
+					{
+						Network: "network",
+					},
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.networkInterfaces[1].subnetwork: Required value: subnetwork is required",
+		},
+		{
+			testCase: "with no disks",
+			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+				p.Disks = nil
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.disks: Required value: at least 1 disk is required",
+		},
+		{
+			testCase: "with a disk that is too small",
+			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+				p.Disks = []*gcp.GCPDisk{
+					{
+						SizeGb: 1,
+					},
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.disks[0].sizeGb: Invalid value: 1: must be at least 16GB in size",
+		},
+		{
+			testCase: "with a disk that is too large",
+			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+				p.Disks = []*gcp.GCPDisk{
+					{
+						SizeGb: 100000,
+					},
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.disks[0].sizeGb: Invalid value: 100000: exceeding maximum GCP disk size limit, must be below 65536",
+		},
+		{
+			testCase: "with a disk type that is not supported",
+			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+				p.Disks = []*gcp.GCPDisk{
+					{
+						SizeGb: 16,
+						Type:   "invalid",
+					},
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.disks[0].type: Unsupported value: \"invalid\": supported values: \"pd-ssd\", \"pd-standard\"",
+		},
+		{
+			testCase: "with multiple service accounts",
+			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+				p.ServiceAccounts = []gcp.GCPServiceAccount{
+					{},
+					{},
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.serviceAccounts: Invalid value: \"2 service accounts supplied\": exactly 1 service account must be supplied",
+		},
+		{
+			testCase: "with the service account's email missing",
+			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+				p.ServiceAccounts = []gcp.GCPServiceAccount{
+					{
+						Scopes: []string{"scope"},
+					},
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.serviceAccounts[0].email: Required value: email is required",
+		},
+		{
+			testCase: "with the service account's with no scopes",
+			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+				p.ServiceAccounts = []gcp.GCPServiceAccount{
+					{
+						Email: "email",
+					},
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.serviceAccounts[0].scopes: Required value: at least 1 scope is required",
+		},
+		{
+			testCase: "with no user data secret",
+			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+				p.UserDataSecret = nil
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.userDataSecret: Required value: userDataSecret must be provided",
+		},
+		{
+			testCase: "with no user data secret name",
+			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+				p.UserDataSecret = &corev1.LocalObjectReference{}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.userDataSecret.name: Required value: name must be provided",
+		},
+		{
+			testCase: "with no credentials data secret",
+			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+				p.CredentialsSecret = nil
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.credentialsSecret: Required value: credentialsSecret must be provided",
+		},
+		{
+			testCase: "with no user data secret name",
+			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+				p.CredentialsSecret = &corev1.LocalObjectReference{}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.credentialsSecret.name: Required value: name must be provided",
+		},
+		{
+			testCase:      "with all required fields it succeeds",
+			expectedOk:    true,
+			expectedError: "",
+		},
+	}
+
+	h := createMachineValidator(osconfigv1.GCPPlatformType, "clusterID")
+
+	for _, tc := range testCases {
+		providerSpec := &gcp.GCPMachineProviderSpec{
+			Region:      "region",
+			Zone:        "region-zone",
+			ProjectID:   "projectID",
+			MachineType: "machineType",
+			NetworkInterfaces: []*gcp.GCPNetworkInterface{
+				{
+					Network:    "network",
+					Subnetwork: "subnetwork",
+				},
+			},
+			Disks: []*gcp.GCPDisk{
+				{
+					SizeGb: 16,
+				},
+			},
+			ServiceAccounts: []gcp.GCPServiceAccount{
+				{
+					Email:  "email",
+					Scopes: []string{"scope"},
+				},
+			},
+			UserDataSecret: &corev1.LocalObjectReference{
+				Name: "name",
+			},
+			CredentialsSecret: &corev1.LocalObjectReference{
+				Name: "name",
+			},
+		}
+		if tc.modifySpec != nil {
+			tc.modifySpec(providerSpec)
+		}
+
+		t.Run(tc.testCase, func(t *testing.T) {
+			m := &Machine{}
+			rawBytes, err := json.Marshal(providerSpec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
+
+			ok, err := h.webhookOperations(h, m)
+			if ok != tc.expectedOk {
+				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
+			}
+
+			if err == nil {
+				if tc.expectedError != "" {
+					t.Errorf("expected: %q, got: %v", tc.expectedError, err)
+				}
+			} else {
+				if err.Error() != tc.expectedError {
+					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
+				}
+			}
+		})
+	}
+}
+
+func TestDefaultGCPProviderSpec(t *testing.T) {
+
+	clusterID := "clusterID"
+	projectID := "projectID"
+	testCases := []struct {
+		testCase      string
+		providerSpec  *gcp.GCPMachineProviderSpec
+		modifyDefault func(*gcp.GCPMachineProviderSpec)
+		expectedError string
+		expectedOk    bool
+	}{
+		{
+			testCase:      "it defaults defaultable fields",
+			providerSpec:  &gcp.GCPMachineProviderSpec{},
+			expectedOk:    true,
+			expectedError: "",
+		},
+		{
+			testCase: "it does not overwrite disks which already have fields set",
+			providerSpec: &gcp.GCPMachineProviderSpec{
+				Disks: []*gcp.GCPDisk{
+					{
+						AutoDelete: false,
+						Boot:       false,
+						SizeGb:     32,
+					},
+				},
+			},
+			modifyDefault: func(p *gcp.GCPMachineProviderSpec) {
+				p.Disks = []*gcp.GCPDisk{
+					{
+						AutoDelete: false,
+						Boot:       false,
+						SizeGb:     32,
+						Type:       defaultGCPDiskType,
+						Image:      defaultGCPDiskImage(clusterID),
+					},
+				}
+			},
+			expectedOk:    true,
+			expectedError: "",
+		},
+	}
+
+	platformStatus := &osconfigv1.PlatformStatus{
+		Type: osconfigv1.GCPPlatformType,
+		GCP: &osconfigv1.GCPPlatformStatus{
+			ProjectID: projectID,
+		},
+	}
+	h := createMachineDefaulter(platformStatus, clusterID)
+
+	for _, tc := range testCases {
+		defaultProviderSpec := &gcp.GCPMachineProviderSpec{
+			MachineType: defaultGCPMachineType,
+			NetworkInterfaces: []*gcp.GCPNetworkInterface{
+				{
+					Network:    defaultGCPNetwork(clusterID),
+					Subnetwork: defaultGCPSubnetwork(clusterID),
+				},
+			},
+			Disks: []*gcp.GCPDisk{
+				{
+					AutoDelete: true,
+					Boot:       true,
+					SizeGb:     defaultGCPDiskSizeGb,
+					Type:       defaultGCPDiskType,
+					Image:      defaultGCPDiskImage(clusterID),
+				},
+			},
+			ServiceAccounts: defaultGCPServiceAccounts(clusterID, projectID),
+			Tags:            defaultGCPTags(clusterID),
+			UserDataSecret: &corev1.LocalObjectReference{
+				Name: defaultUserDataSecret,
+			},
+			CredentialsSecret: &corev1.LocalObjectReference{
+				Name: defaultGCPCredentialsSecret,
+			},
+		}
+		if tc.modifyDefault != nil {
+			tc.modifyDefault(defaultProviderSpec)
+		}
+
+		t.Run(tc.testCase, func(t *testing.T) {
+			m := &Machine{}
+			rawBytes, err := json.Marshal(tc.providerSpec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
+
+			ok, err := h.webhookOperations(h, m)
+			if ok != tc.expectedOk {
+				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
+			}
+
+			gotProviderSpec := new(gcp.GCPMachineProviderSpec)
 			if err := yaml.Unmarshal(m.Spec.ProviderSpec.Value.Raw, &gotProviderSpec); err != nil {
 				t.Fatal(err)
 			}
