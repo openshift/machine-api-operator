@@ -72,7 +72,7 @@ Finally, the finalizer is removed from the Machine object and the Machine object
 ## I want to skip draining when I delete a Machine
 This is not recommended for most cases, especially Master Machines.  Properly draining Machines will respect PodDisruptionBudgets and prevent the cluster and workloads from going into an unhealthy state.
 
-You can optionally set an **annotation** **"Machine.openshift.io/exclude-Node-draining"** on each Machine object you wish for draining to be skipped.  Annotations take the form of key/value pairs.
+You can optionally set an **annotation** **"machine.openshift.io/exclude-node-draining"** on each Machine object you wish for draining to be skipped.  Annotations take the form of key/value pairs.
 This annotation does not require any specific value, merely the key being present will disable
 draining (even with a value of 'false' or similar).  This can be applied or removed at any time.
 
@@ -118,7 +118,7 @@ There is a limited number of features we support on each cloud provider that are
 # MachineSets
 
 ## What decides which Machines to destroy when a MachineSet is scaled down?
-By default, it selects a Machine at random.  You can set **Spec.DeletePolicy** to **“Random”, “Oldest”, or “Newest”**.  You can also designate Machines with an annotation which will override all other selection criteria: **"Machine.openshift.io/cluster-api-delete-Machine"**
+By default, it selects a Machine at random.  You can set **Spec.DeletePolicy** to **“Random”, “Oldest”, or “Newest”**.  You can also designate Machines with an annotation which will override all other selection criteria: **"machine.openshift.io/cluster-api-delete-machine"**
 
 ## What Happens if I change a MachineSet
 You are free to edit a MachineSet at any time.  Any changes you make will not affect existing Machines, only Machines created after the changes are made.
