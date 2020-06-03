@@ -4,6 +4,9 @@ The Machine API Operator manages the lifecycle of specific purpose CRDs, control
 This allows to convey desired state of machines in a cluster in a declarative fashion.
 
 See https://github.com/openshift/enhancements/tree/master/enhancements/machine-api for more details.
+
+Have a question? See our [Frequently Asked Questions](FAQ.md) for common inquiries.
+
 ## Architecture
 
 ![Machine API Operator overview](machine-api-operator.png)
