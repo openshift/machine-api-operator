@@ -3,12 +3,12 @@
 set -eu
 
 function annotate_crd() {
-  script='/^metadata:/a\
-\ \ annotations:\
+  script1='/^  annotations:/a\
 \ \ \ \ exclude.release.openshift.io/internal-openshift-hosted: "true"'
+  script2='/^    controller-gen.kubebuilder.io\/version: (devel)/d'
   input="${1}"
   output="${2}"
-  sed -e "${script}" "${input}" > "${output}"
+  sed -e "${script1}" -e "${script2}" "${input}" > "${output}"
 }
 
 echo "Building controller-gen tool..."
