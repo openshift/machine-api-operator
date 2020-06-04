@@ -21,6 +21,7 @@ import (
 	"time"
 
 	. "github.com/onsi/gomega"
+	configv1 "github.com/openshift/api/config/v1"
 	machinev1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	"golang.org/x/net/context"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -52,6 +53,15 @@ func TestReconcile(t *testing.T) {
 		},
 	}
 
+	infra := &configv1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: globalInfrastuctureName,
+		},
+		Status: configv1.InfrastructureStatus{
+			InfrastructureName: "test-id",
+		},
+	}
+
 	// Setup the Manager and Controller.  Wrap the Controller Reconcile function so it writes each request to a
 	// channel when it is finished.
 	mgr, err := manager.New(cfg, manager.Options{MetricsBindAddress: "0"})
@@ -73,6 +83,11 @@ func TestReconcile(t *testing.T) {
 			t.Fatalf("error starting test manager: %v", err)
 		}
 	}()
+
+	if err := c.Create(context.TODO(), infra); err != nil {
+		t.Fatalf("error creating instance: %v", err)
+	}
+	defer c.Delete(context.TODO(), infra)
 
 	// Create the Machine object and expect Reconcile and the actuator to be called
 	if err := c.Create(context.TODO(), instance); err != nil {
