@@ -13,5 +13,6 @@
   "baremetalIronicInspector": "quay.io/openshift/origin-ironic-inspector:v4.2.0",
   "baremetalIpaDownloader": "quay.io/openshift/origin-ironic-ipa-downloader:v4.2.0",
   "baremetalMachineOsDownloader": "quay.io/openshift/origin-ironic-machine-os-downloader:v4.3.0",
-  "baremetalStaticIpManager": "quay.io/openshift/origin-ironic-static-ip-manager:v4.2.0"
+  "baremetalStaticIpManager": "quay.io/openshift/origin-ironic-static-ip-manager:v4.2.0",
+  "kubeRBACProxy": "docker.io/openshift/origin-kube-rbac-proxy:v4.0.0"
 }

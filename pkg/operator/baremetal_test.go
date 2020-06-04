@@ -55,6 +55,7 @@ func newOperatorWithBaremetalConfig() *OperatorConfig {
 			"docker.io/openshift/origin-machine-api-operator:v4.0.0",
 			"docker.io/openshift/origin-machine-api-operator:v4.0.0",
 			"docker.io/openshift/origin-machine-api-operator:v4.0.0",
+			"docker.io/openshift/origin-kube-rbac-proxy:v4.0.0",
 			"docker.io/openshift/origin-aws-machine-controllers:v4.0.0",
 		},
 		BaremetalControllers{

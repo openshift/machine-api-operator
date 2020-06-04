@@ -7,6 +7,7 @@ data:
   images.json: >
     {
       "machineAPIOperator": "registry.svc.ci.openshift.org/openshift:machine-api-operator",
+      "kubeRBACProxy": "registry.svc.ci.openshift.org/openshift:kube-rbac-proxy",
       "clusterAPIControllerAWS": "registry.svc.ci.openshift.org/openshift:aws-machine-controllers",
       "clusterAPIControllerOpenStack": "registry.svc.ci.openshift.org/openshift:openstack-machine-controllers",
       "clusterAPIControllerLibvirt": "registry.svc.ci.openshift.org/openshift:libvirt-machine-controllers",

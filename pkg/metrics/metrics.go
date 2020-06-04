@@ -1,12 +1,19 @@
 package metrics
 
 import (
-	"github.com/golang/glog"
 	mapiv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	machineinformers "github.com/openshift/machine-api-operator/pkg/generated/informers/externalversions/machine/v1beta1"
 	machinelisters "github.com/openshift/machine-api-operator/pkg/generated/listers/machine/v1beta1"
 	"github.com/prometheus/client_golang/prometheus"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/klog"
+	"sigs.k8s.io/controller-runtime/pkg/metrics"
+)
+
+const (
+	DefaultHealthCheckMetricsAddress = ":8083"
+	DefaultMachineSetMetricsAddress  = ":8082"
+	DefaultMachineMetricsAddress     = ":8081"
 )
 
 var (
@@ -33,10 +40,36 @@ var (
 		Name: "mapi_mao_collector_up",
 		Help: "Machine API Operator metrics are being collected and reported successfully",
 	}, []string{"kind"})
+
+	failedInstanceCreateCount = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "mapi_instance_create_failed",
+			Help: "Number of times provider instance create has failed.",
+		}, []string{"name", "namespace", "reason"},
+	)
+
+	failedInstanceUpdateCount = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "mapi_instance_update_failed",
+			Help: "Number of times provider instance update has failed.",
+		}, []string{"name", "namespace", "reason"},
+	)
+
+	failedInstanceDeleteCount = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "mapi_instance_delete_failed",
+			Help: "Number of times provider instance delete has failed.",
+		}, []string{"name", "namespace", "reason"},
+	)
 )
 
 func init() {
 	prometheus.MustRegister(MachineCollectorUp)
+	metrics.Registry.MustRegister(
+		failedInstanceCreateCount,
+		failedInstanceUpdateCount,
+		failedInstanceDeleteCount,
+	)
 }
 
 // MachineCollector is implementing prometheus.Collector interface.
@@ -44,6 +77,13 @@ type MachineCollector struct {
 	machineLister    machinelisters.MachineLister
 	machineSetLister machinelisters.MachineSetLister
 	namespace        string
+}
+
+// MachineLabels is the group of labels that are applied to the machine metrics
+type MachineLabels struct {
+	Name      string
+	Namespace string
+	Reason    string
 }
 
 func NewMachineCollector(machineInformer machineinformers.MachineInformer, machinesetInformer machineinformers.MachineSetInformer, namespace string) *MachineCollector {
@@ -95,7 +135,7 @@ func (mc MachineCollector) collectMachineMetrics(ch chan<- prometheus.Metric) {
 	}
 
 	ch <- prometheus.MustNewConstMetric(MachineCountDesc, prometheus.GaugeValue, float64(len(machineList)))
-	glog.V(4).Infof("collectmachineMetrics exit")
+	klog.V(4).Infof("collectmachineMetrics exit")
 }
 
 func stringPointerDeref(stringPointer *string) string {
@@ -150,4 +190,28 @@ func (mc MachineCollector) listMachines() ([]*mapiv1beta1.Machine, error) {
 
 func (mc MachineCollector) listMachineSets() ([]*mapiv1beta1.MachineSet, error) {
 	return mc.machineSetLister.MachineSets(mc.namespace).List(labels.Everything())
+}
+
+func RegisterFailedInstanceCreate(labels *MachineLabels) {
+	failedInstanceCreateCount.With(prometheus.Labels{
+		"name":      labels.Name,
+		"namespace": labels.Namespace,
+		"reason":    labels.Reason,
+	}).Inc()
+}
+
+func RegisterFailedInstanceUpdate(labels *MachineLabels) {
+	failedInstanceCreateCount.With(prometheus.Labels{
+		"name":      labels.Name,
+		"namespace": labels.Namespace,
+		"reason":    labels.Reason,
+	}).Inc()
+}
+
+func RegisterFailedInstanceDelete(labels *MachineLabels) {
+	failedInstanceDeleteCount.With(prometheus.Labels{
+		"name":      labels.Name,
+		"namespace": labels.Namespace,
+		"reason":    labels.Reason,
+	}).Inc()
 }

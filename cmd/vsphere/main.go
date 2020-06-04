@@ -4,13 +4,13 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	vsphereapis "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider"
 	capimachine "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	machine "github.com/openshift/machine-api-operator/pkg/controller/vsphere"
+	"github.com/openshift/machine-api-operator/pkg/metrics"
 	"github.com/openshift/machine-api-operator/pkg/version"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -24,6 +24,7 @@ func main() {
 
 	klog.InitFlags(nil)
 	watchNamespace := flag.String("namespace", "", "Namespace that the controller watches to reconcile machine-api objects. If unspecified, the controller watches for machine-api objects across all namespaces.")
+	metricsAddress := flag.String("metrics-bind-address", metrics.DefaultMachineMetricsAddress, "Address for hosting metrics")
 	flag.Set("logtostderr", "true")
 	flag.Parse()
 
@@ -33,12 +34,9 @@ func main() {
 	}
 
 	cfg := config.GetConfigOrDie()
-	syncPeriod := 10 * time.Minute
 
 	opts := manager.Options{
-		// Disable metrics serving
-		MetricsBindAddress: "0",
-		SyncPeriod:         &syncPeriod,
+		MetricsBindAddress: *metricsAddress,
 	}
 	if *watchNamespace != "" {
 		opts.Namespace = *watchNamespace
