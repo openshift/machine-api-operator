@@ -299,6 +299,27 @@ func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev
 			NodeSelector:       map[string]string{"node-role.kubernetes.io/master": ""},
 			ServiceAccountName: "machine-api-controllers",
 			Tolerations:        tolerations,
+			Volumes: []corev1.Volume{
+				{
+					Name: "cert",
+					VolumeSource: corev1.VolumeSource{
+						Secret: &corev1.SecretVolumeSource{
+							SecretName:  "machine-api-operator-webhook-cert",
+							DefaultMode: pointer.Int32Ptr(420),
+							Items: []corev1.KeyToPath{
+								{
+									Key:  "tls.crt",
+									Path: "tls.crt",
+								},
+								{
+									Key:  "tls.key",
+									Path: "tls.key",
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 }
@@ -323,6 +344,19 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 			Command:   []string{"/machineset-controller"},
 			Args:      args,
 			Resources: resources,
+			Ports: []corev1.ContainerPort{
+				{
+					Name:          "webhook-server",
+					ContainerPort: 8443,
+				},
+			},
+			VolumeMounts: []corev1.VolumeMount{
+				{
+					MountPath: "/etc/machine-api-operator/tls",
+					Name:      "cert",
+					ReadOnly:  true,
+				},
+			},
 		},
 		{
 			Name:      "machine-controller",
