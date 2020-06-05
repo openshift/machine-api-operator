@@ -197,11 +197,6 @@ func defaultAWS(h *defaulterHandler, m *Machine) (bool, utilerrors.Aggregate) {
 		return false, utilerrors.NewAggregate(errs)
 	}
 
-	if m.GetLabels() == nil {
-		m.Labels = make(map[string]string)
-	}
-	m.Labels["machine.openshift.io/cluster-api-cluster"] = h.clusterID
-
 	if providerSpec.InstanceType == "" {
 		providerSpec.InstanceType = defaultAWSInstanceType
 	}
