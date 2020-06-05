@@ -117,28 +117,32 @@ func indexMachineByInternalIP(object runtime.Object) []string {
 // newReconciler returns a new reconcile.Reconciler
 func newReconciler(mgr manager.Manager) (*ReconcileNodeLink, error) {
 	// set convenient indexers
-	if err := mgr.GetCache().IndexField(&corev1.Node{},
+	if err := mgr.GetCache().IndexField(context.TODO(),
+		&corev1.Node{},
 		nodeProviderIDIndex,
 		indexNodeByProviderID,
 	); err != nil {
 		return nil, fmt.Errorf("error setting index fields: %v", err)
 	}
 
-	if err := mgr.GetCache().IndexField(&mapiv1beta1.Machine{},
+	if err := mgr.GetCache().IndexField(context.TODO(),
+		&mapiv1beta1.Machine{},
 		machineProviderIDIndex,
 		indexMachineByProvider,
 	); err != nil {
 		return nil, fmt.Errorf("error setting index fields: %v", err)
 	}
 
-	if err := mgr.GetCache().IndexField(&corev1.Node{},
+	if err := mgr.GetCache().IndexField(context.TODO(),
+		&corev1.Node{},
 		nodeInternalIPIndex,
 		indexNodeByInternalIP,
 	); err != nil {
 		return nil, fmt.Errorf("error setting index fields: %v", err)
 	}
 
-	if err := mgr.GetCache().IndexField(&mapiv1beta1.Machine{},
+	if err := mgr.GetCache().IndexField(context.TODO(),
+		&mapiv1beta1.Machine{},
 		machineInternalIPIndex,
 		indexMachineByInternalIP,
 	); err != nil {

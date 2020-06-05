@@ -27,11 +27,9 @@ require (
 	k8s.io/kubectl v0.18.0-rc.1
 	k8s.io/utils v0.0.0-20200327001022-6496210b90e8
 	sigs.k8s.io/cluster-api-provider-aws v0.0.0-00010101000000-000000000000
-	sigs.k8s.io/controller-runtime v0.5.1-0.20200330174416-a11a908d91e0
-	sigs.k8s.io/controller-tools v0.2.9-0.20200331153640-3c5446d407dd
+	sigs.k8s.io/controller-runtime v0.6.0
+	sigs.k8s.io/controller-tools v0.3.0
 	sigs.k8s.io/yaml v1.2.0
 )
-
-replace sigs.k8s.io/controller-runtime => github.com/munnerz/controller-runtime v0.1.8-0.20200318092001-e22ac1073450
 
 replace sigs.k8s.io/cluster-api-provider-aws => github.com/openshift/cluster-api-provider-aws v0.2.1-0.20200520125206-5e266b553d8e

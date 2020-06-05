@@ -80,7 +80,8 @@ func Add(mgr manager.Manager, opts manager.Options) error {
 
 // newReconciler returns a new reconcile.Reconciler
 func newReconciler(mgr manager.Manager, opts manager.Options) (*ReconcileMachineHealthCheck, error) {
-	if err := mgr.GetCache().IndexField(&mapiv1.Machine{},
+	if err := mgr.GetCache().IndexField(context.TODO(),
+		&mapiv1.Machine{},
 		machineNodeNameIndex,
 		indexMachineByNodeName,
 	); err != nil {
