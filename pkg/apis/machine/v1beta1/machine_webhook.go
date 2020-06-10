@@ -9,6 +9,7 @@ import (
 
 	osconfigv1 "github.com/openshift/api/config/v1"
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
+	vsphere "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -101,6 +102,12 @@ const (
 	defaultGCPCredentialsSecret = "gcp-cloud-credentials"
 	defaultGCPDiskSizeGb        = 128
 	defaultGCPDiskType          = "pd-standard"
+
+	// vSphere Defaults
+	defaultVSphereCredentialsSecret = "vsphere-cloud-credentials"
+	// Minimum vSphere values taken from vSphere reconciler
+	minVSphereCPU       = 2
+	minVSphereMemoryMiB = 2048
 )
 
 func getInfra() (*osconfigv1.Infrastructure, error) {
@@ -162,6 +169,8 @@ func createMachineValidator(platform osconfigv1.PlatformType, clusterID string) 
 		h.webhookOperations = validateAzure
 	case osconfigv1.GCPPlatformType:
 		h.webhookOperations = validateGCP
+	case osconfigv1.VSpherePlatformType:
+		h.webhookOperations = validateVSphere
 	default:
 		// just no-op
 		h.webhookOperations = func(h *validatorHandler, m *Machine) (bool, utilerrors.Aggregate) {
@@ -193,6 +202,8 @@ func createMachineDefaulter(platformStatus *osconfigv1.PlatformStatus, clusterID
 		h.webhookOperations = defaultAzure
 	case osconfigv1.GCPPlatformType:
 		h.webhookOperations = gcpDefaulter{projectID: platformStatus.GCP.ProjectID}.defaultGCP
+	case osconfigv1.VSpherePlatformType:
+		h.webhookOperations = defaultVSphere
 	default:
 		// just no-op
 		h.webhookOperations = func(h *defaulterHandler, m *Machine) (bool, utilerrors.Aggregate) {
@@ -758,5 +769,121 @@ func validateGCPServiceAccounts(serviceAccounts []gcp.GCPServiceAccount, parentP
 			errs = append(errs, field.Required(fldPath.Child("scopes"), "at least 1 scope is required"))
 		}
 	}
+	return errs
+}
+
+func defaultVSphere(h *defaulterHandler, m *Machine) (bool, utilerrors.Aggregate) {
+	klog.V(3).Infof("Defaulting vSphere providerSpec")
+
+	var errs []error
+	providerSpec := new(vsphere.VSphereMachineProviderSpec)
+	if err := unmarshalInto(m, providerSpec); err != nil {
+		errs = append(errs, err)
+		return false, utilerrors.NewAggregate(errs)
+	}
+
+	if providerSpec.UserDataSecret == nil {
+		providerSpec.UserDataSecret = &corev1.LocalObjectReference{Name: defaultUserDataSecret}
+	}
+
+	if providerSpec.CredentialsSecret == nil {
+		providerSpec.CredentialsSecret = &corev1.LocalObjectReference{Name: defaultVSphereCredentialsSecret}
+	}
+
+	rawBytes, err := json.Marshal(providerSpec)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	if len(errs) > 0 {
+		return false, utilerrors.NewAggregate(errs)
+	}
+
+	m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
+	return true, nil
+}
+
+func validateVSphere(h *validatorHandler, m *Machine) (bool, utilerrors.Aggregate) {
+	klog.V(3).Infof("Validating vSphere providerSpec")
+
+	var errs []error
+	providerSpec := new(vsphere.VSphereMachineProviderSpec)
+	if err := unmarshalInto(m, providerSpec); err != nil {
+		errs = append(errs, err)
+		return false, utilerrors.NewAggregate(errs)
+	}
+
+	if providerSpec.Template == "" {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "template"), "template must be provided"))
+	}
+
+	errs = append(errs, validateVSphereWorkspace(providerSpec.Workspace, field.NewPath("providerSpec", "workspace"))...)
+	errs = append(errs, validateVSphereNetwork(providerSpec.Network, field.NewPath("providerSpec", "network"))...)
+
+	if providerSpec.NumCPUs != 0 && providerSpec.NumCPUs < minVSphereCPU {
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "numCPUs"), providerSpec.NumCPUs, fmt.Sprintf("numCPUs is below minimum value (%d)", minVSphereCPU)))
+	}
+	if providerSpec.MemoryMiB != 0 && providerSpec.MemoryMiB < minVSphereMemoryMiB {
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "memoryMiB"), providerSpec.MemoryMiB, fmt.Sprintf("memoryMiB is below minimum value (%d)", minVSphereMemoryMiB)))
+	}
+
+	if providerSpec.UserDataSecret == nil {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret"), "userDataSecret must be provided"))
+	} else {
+		if providerSpec.UserDataSecret.Name == "" {
+			errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret", "name"), "name must be provided"))
+		}
+	}
+
+	if providerSpec.CredentialsSecret == nil {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret"), "credentialsSecret must be provided"))
+	} else {
+		if providerSpec.CredentialsSecret.Name == "" {
+			errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret", "name"), "name must be provided"))
+		}
+	}
+
+	if len(errs) > 0 {
+		return false, utilerrors.NewAggregate(errs)
+	}
+	return true, nil
+}
+
+func validateVSphereWorkspace(workspace *vsphere.Workspace, parentPath *field.Path) []error {
+	if workspace == nil {
+		return []error{field.Required(parentPath, "workspace must be provided")}
+	}
+
+	var errs []error
+	if workspace.Server == "" {
+		errs = append(errs, field.Required(parentPath.Child("server"), "server must be provided"))
+	}
+	if workspace.Datacenter == "" {
+		errs = append(errs, field.Required(parentPath.Child("datacenter"), "datacenter must be provided"))
+	}
+	if workspace.Folder != "" {
+		expectedPrefix := fmt.Sprintf("/%s/vm/", workspace.Datacenter)
+		if !strings.HasPrefix(workspace.Folder, expectedPrefix) {
+			errMsg := fmt.Sprintf("folder must be absolute path: expected prefix %q", expectedPrefix)
+			errs = append(errs, field.Invalid(parentPath.Child("folder"), workspace.Folder, errMsg))
+		}
+	}
+
+	return errs
+}
+
+func validateVSphereNetwork(network vsphere.NetworkSpec, parentPath *field.Path) []error {
+	if len(network.Devices) == 0 {
+		return []error{field.Required(parentPath.Child("devices"), "at least 1 network device must be provided")}
+	}
+
+	var errs []error
+	for i, spec := range network.Devices {
+		fldPath := parentPath.Child("devices").Index(i)
+		if spec.NetworkName == "" {
+			errs = append(errs, field.Required(fldPath.Child("networkName"), "networkName must be provided"))
+		}
+	}
+
 	return errs
 }
