@@ -205,7 +205,11 @@ func getMachineDefaulterOperation(platformStatus *osconfigv1.PlatformStatus) mac
 	case osconfigv1.AzurePlatformType:
 		return defaultAzure
 	case osconfigv1.GCPPlatformType:
-		return gcpDefaulter{projectID: platformStatus.GCP.ProjectID}.defaultGCP
+		projectID := ""
+		if platformStatus.GCP != nil {
+			projectID = platformStatus.GCP.ProjectID
+		}
+		return gcpDefaulter{projectID: projectID}.defaultGCP
 	case osconfigv1.VSpherePlatformType:
 		return defaultVSphere
 	default:
