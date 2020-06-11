@@ -24,6 +24,7 @@ import (
 	"time"
 
 	. "github.com/onsi/gomega"
+	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,7 +41,20 @@ var (
 	_ reconcile.Reconciler = &ReconcileMachine{}
 )
 
+func init() {
+	configv1.AddToScheme(scheme.Scheme)
+}
+
 func TestReconcileRequest(t *testing.T) {
+	infra := configv1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: globalInfrastuctureName,
+		},
+		Status: configv1.InfrastructureStatus{
+			InfrastructureName: "test-id",
+		},
+	}
+
 	machineProvisioning := machinev1.Machine{
 		TypeMeta: metav1.TypeMeta{
 			Kind: "Machine",
@@ -278,6 +292,7 @@ func TestReconcileRequest(t *testing.T) {
 				&machineDeleting,
 				&machineFailed,
 				&machineRunning,
+				&infra,
 			),
 			scheme:   scheme.Scheme,
 			actuator: act,
@@ -712,5 +727,33 @@ func TestDelayIfRequeueAfterError(t *testing.T) {
 				t.Errorf("Case: %s, got: %v, expected: %v", tc.name, result, tc.expectedResult)
 			}
 		})
+	}
+}
+
+func TestSetClusterIDLabel(t *testing.T) {
+	clusterID := "test-id"
+	infra := &configv1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: globalInfrastuctureName,
+		},
+		Status: configv1.InfrastructureStatus{
+			InfrastructureName: clusterID,
+		},
+	}
+
+	machine := &machinev1.Machine{}
+
+	reconciler := &ReconcileMachine{
+		Client: fake.NewFakeClientWithScheme(scheme.Scheme, infra),
+		scheme: scheme.Scheme,
+	}
+
+	if err := reconciler.setClusterIDLabel(ctx, machine); err != nil {
+		t.Fatal(err)
+	}
+
+	actualClusterID := machine.Labels[machinev1.MachineClusterIDLabel]
+	if actualClusterID != clusterID {
+		t.Fatalf("Expected clusterID %s, got %s", clusterID, actualClusterID)
 	}
 }
