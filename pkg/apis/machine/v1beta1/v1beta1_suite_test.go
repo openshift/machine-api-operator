@@ -17,13 +17,17 @@ limitations under the License.
 package v1beta1
 
 import (
+	"context"
+	"crypto/tls"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	fuzz "github.com/google/gofuzz"
+	osconfigv1 "github.com/openshift/api/config/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	runtimeserializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -32,12 +36,29 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 )
 
-var cfg *rest.Config
-var c client.Client
+var (
+	cfg                *rest.Config
+	c                  client.Client
+	ctx                = context.Background()
+	testEnv            *envtest.Environment
+	insecureHTTPClient = http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
+)
 
 func TestMain(m *testing.M) {
-	t := &envtest.Environment{
-		CRDDirectoryPaths: []string{filepath.Join("..", "..", "..", "..", "install")},
+	testEnv = &envtest.Environment{
+		CRDDirectoryPaths: []string{
+			filepath.Join("..", "..", "..", "..", "install"),
+			filepath.Join("..", "..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1"),
+		},
+		WebhookInstallOptions: envtest.WebhookInstallOptions{
+			DirectoryPaths: []string{filepath.Join("..", "..", "..", "..", "install")},
+		},
 	}
 
 	err := SchemeBuilder.AddToScheme(scheme.Scheme)
@@ -45,7 +66,12 @@ func TestMain(m *testing.M) {
 		log.Fatal(err)
 	}
 
-	if cfg, err = t.Start(); err != nil {
+	err = osconfigv1.AddToScheme(scheme.Scheme)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	if cfg, err = testEnv.Start(); err != nil {
 		log.Fatal(err)
 	}
 
@@ -54,7 +80,7 @@ func TestMain(m *testing.M) {
 	}
 
 	code := m.Run()
-	t.Stop()
+	testEnv.Stop()
 	os.Exit(code)
 }
 
