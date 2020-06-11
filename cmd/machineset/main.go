@@ -88,12 +88,22 @@ func main() {
 	}
 
 	// Enable defaulting and validating webhooks
-	defaulter, err := v1beta1.NewMachineDefaulter()
+	machineDefaulter, err := v1beta1.NewMachineDefaulter()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	validator, err := v1beta1.NewMachineValidator()
+	machineValidator, err := v1beta1.NewMachineValidator()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	machineSetDefaulter, err := v1beta1.NewMachineSetDefaulter()
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	machineSetValidator, err := v1beta1.NewMachineSetValidator()
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -101,8 +111,10 @@ func main() {
 	if *webhookEnabled {
 		mgr.GetWebhookServer().Port = *webhookPort
 		mgr.GetWebhookServer().CertDir = *webhookCertdir
-		mgr.GetWebhookServer().Register("/mutate-machine-openshift-io-v1beta1-machine", &webhook.Admission{Handler: defaulter})
-		mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machine", &webhook.Admission{Handler: validator})
+		mgr.GetWebhookServer().Register("/mutate-machine-openshift-io-v1beta1-machine", &webhook.Admission{Handler: machineDefaulter})
+		mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machine", &webhook.Admission{Handler: machineValidator})
+		mgr.GetWebhookServer().Register("/mutate-machine-openshift-io-v1beta1-machineset", &webhook.Admission{Handler: machineSetDefaulter})
+		mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machineset", &webhook.Admission{Handler: machineSetValidator})
 	}
 
 	log.Printf("Registering Components.")

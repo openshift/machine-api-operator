@@ -28,6 +28,26 @@ webhooks:
         resources:
           - machines
     sideEffects: None
+  - clientConfig:
+      service:
+        name: machine-api-operator-webhook
+        namespace: openshift-machine-api
+        path: /mutate-machine-openshift-io-v1beta1-machineset
+    # failurePolicy is ignore so we don't want to block machine lifecycle on the webhook operational aspects.
+    # This would be particularly problematic for chicken egg issues when bootstrapping a cluster.
+    failurePolicy: Ignore
+    matchPolicy: Equivalent
+    name: default.machineset.machine.openshift.io
+    rules:
+      - apiGroups:
+          - machine.openshift.io
+        apiVersions:
+          - v1beta1
+        operations:
+          - CREATE
+        resources:
+          - machinesets
+    sideEffects: None
 ---
 apiVersion: admissionregistration.k8s.io/v1beta1
 kind: ValidatingWebhookConfiguration
@@ -58,4 +78,25 @@ webhooks:
           - UPDATE
         resources:
           - machines
+    sideEffects: None
+  - clientConfig:
+      service:
+        name: machine-api-operator-webhook
+        namespace: openshift-machine-api
+        path: /validate-machine-openshift-io-v1beta1-machineset
+    # failurePolicy is ignore so we don't want to block machine lifecycle on the webhook operational aspects.
+    # This would be particularly problematic for chicken egg issues when bootstrapping a cluster.
+    failurePolicy: Ignore
+    matchPolicy: Equivalent
+    name: validation.machineset.machine.openshift.io
+    rules:
+      - apiGroups:
+          - machine.openshift.io
+        apiVersions:
+          - v1beta1
+        operations:
+          - CREATE
+          - UPDATE
+        resources:
+          - machinesets
     sideEffects: None
