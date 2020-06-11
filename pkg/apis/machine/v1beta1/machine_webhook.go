@@ -119,29 +119,28 @@ func getInfra() (*osconfigv1.Infrastructure, error) {
 	return infra, nil
 }
 
-type handlerValidationFn func(h *validatorHandler, m *Machine) (bool, utilerrors.Aggregate)
-type handlerMutationFn func(h *defaulterHandler, m *Machine) (bool, utilerrors.Aggregate)
+type machineAdmissionFn func(m *Machine, clusterID string) (bool, utilerrors.Aggregate)
 
-// validatorHandler validates Machine API resources.
+// machineValidatorHandler validates Machine API resources.
 // implements type Handler interface.
 // https://godoc.org/github.com/kubernetes-sigs/controller-runtime/pkg/webhook/admission#Handler
-type validatorHandler struct {
+type machineValidatorHandler struct {
 	clusterID         string
-	webhookOperations handlerValidationFn
+	webhookOperations machineAdmissionFn
 	decoder           *admission.Decoder
 }
 
-// defaulterHandler defaults Machine API resources.
+// machineDefaulterHandler defaults Machine API resources.
 // implements type Handler interface.
 // https://godoc.org/github.com/kubernetes-sigs/controller-runtime/pkg/webhook/admission#Handler
-type defaulterHandler struct {
+type machineDefaulterHandler struct {
 	clusterID         string
-	webhookOperations handlerMutationFn
+	webhookOperations machineAdmissionFn
 	decoder           *admission.Decoder
 }
 
-// NewValidator returns a new validatorHandler.
-func NewMachineValidator() (*validatorHandler, error) {
+// NewValidator returns a new machineValidatorHandler.
+func NewMachineValidator() (*machineValidatorHandler, error) {
 	infra, err := getInfra()
 	if err != nil {
 		return nil, err
@@ -150,29 +149,31 @@ func NewMachineValidator() (*validatorHandler, error) {
 	return createMachineValidator(infra.Status.PlatformStatus.Type, infra.Status.InfrastructureName), nil
 }
 
-func createMachineValidator(platform osconfigv1.PlatformType, clusterID string) *validatorHandler {
-	h := &validatorHandler{
-		clusterID: clusterID,
+func createMachineValidator(platform osconfigv1.PlatformType, clusterID string) *machineValidatorHandler {
+	return &machineValidatorHandler{
+		clusterID:         clusterID,
+		webhookOperations: getMachineValidatorOperation(platform),
 	}
+}
 
+func getMachineValidatorOperation(platform osconfigv1.PlatformType) machineAdmissionFn {
 	switch platform {
 	case osconfigv1.AWSPlatformType:
-		h.webhookOperations = validateAWS
+		return validateAWS
 	case osconfigv1.AzurePlatformType:
-		h.webhookOperations = validateAzure
+		return validateAzure
 	case osconfigv1.GCPPlatformType:
-		h.webhookOperations = validateGCP
+		return validateGCP
 	default:
 		// just no-op
-		h.webhookOperations = func(h *validatorHandler, m *Machine) (bool, utilerrors.Aggregate) {
+		return func(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
 			return true, nil
 		}
 	}
-	return h
 }
 
-// NewDefaulter returns a new defaulterHandler.
-func NewMachineDefaulter() (*defaulterHandler, error) {
+// NewDefaulter returns a new machineDefaulterHandler.
+func NewMachineDefaulter() (*machineDefaulterHandler, error) {
 	infra, err := getInfra()
 	if err != nil {
 		return nil, err
@@ -181,41 +182,43 @@ func NewMachineDefaulter() (*defaulterHandler, error) {
 	return createMachineDefaulter(infra.Status.PlatformStatus, infra.Status.InfrastructureName), nil
 }
 
-func createMachineDefaulter(platformStatus *osconfigv1.PlatformStatus, clusterID string) *defaulterHandler {
-	h := &defaulterHandler{
-		clusterID: clusterID,
+func createMachineDefaulter(platformStatus *osconfigv1.PlatformStatus, clusterID string) *machineDefaulterHandler {
+	return &machineDefaulterHandler{
+		clusterID:         clusterID,
+		webhookOperations: getMachineDefaulterOperation(platformStatus),
 	}
+}
 
+func getMachineDefaulterOperation(platformStatus *osconfigv1.PlatformStatus) machineAdmissionFn {
 	switch platformStatus.Type {
 	case osconfigv1.AWSPlatformType:
-		h.webhookOperations = defaultAWS
+		return defaultAWS
 	case osconfigv1.AzurePlatformType:
-		h.webhookOperations = defaultAzure
+		return defaultAzure
 	case osconfigv1.GCPPlatformType:
-		h.webhookOperations = gcpDefaulter{projectID: platformStatus.GCP.ProjectID}.defaultGCP
+		return gcpDefaulter{projectID: platformStatus.GCP.ProjectID}.defaultGCP
 	default:
 		// just no-op
-		h.webhookOperations = func(h *defaulterHandler, m *Machine) (bool, utilerrors.Aggregate) {
+		return func(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
 			return true, nil
 		}
 	}
-	return h
 }
 
 // InjectDecoder injects the decoder.
-func (v *validatorHandler) InjectDecoder(d *admission.Decoder) error {
+func (v *machineValidatorHandler) InjectDecoder(d *admission.Decoder) error {
 	v.decoder = d
 	return nil
 }
 
 // InjectDecoder injects the decoder.
-func (v *defaulterHandler) InjectDecoder(d *admission.Decoder) error {
+func (v *machineDefaulterHandler) InjectDecoder(d *admission.Decoder) error {
 	v.decoder = d
 	return nil
 }
 
 // Handle handles HTTP requests for admission webhook servers.
-func (h *validatorHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (h *machineValidatorHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	m := &Machine{}
 
 	if err := h.decoder.Decode(req, m); err != nil {
@@ -224,7 +227,7 @@ func (h *validatorHandler) Handle(ctx context.Context, req admission.Request) ad
 
 	klog.V(3).Infof("Validate webhook called for Machine: %s", m.GetName())
 
-	if ok, err := h.webhookOperations(h, m); !ok {
+	if ok, err := h.webhookOperations(m, h.clusterID); !ok {
 		return admission.Denied(err.Error())
 	}
 
@@ -232,7 +235,7 @@ func (h *validatorHandler) Handle(ctx context.Context, req admission.Request) ad
 }
 
 // Handle handles HTTP requests for admission webhook servers.
-func (h *defaulterHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+func (h *machineDefaulterHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	m := &Machine{}
 
 	if err := h.decoder.Decode(req, m); err != nil {
@@ -241,7 +244,7 @@ func (h *defaulterHandler) Handle(ctx context.Context, req admission.Request) ad
 
 	klog.V(3).Infof("Mutate webhook called for Machine: %s", m.GetName())
 
-	if ok, err := h.webhookOperations(h, m); !ok {
+	if ok, err := h.webhookOperations(m, h.clusterID); !ok {
 		return admission.Denied(err.Error())
 	}
 
@@ -252,7 +255,7 @@ func (h *defaulterHandler) Handle(ctx context.Context, req admission.Request) ad
 	return admission.PatchResponseFromRaw(req.Object.Raw, marshaledMachine)
 }
 
-func defaultAWS(h *defaulterHandler, m *Machine) (bool, utilerrors.Aggregate) {
+func defaultAWS(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
 	klog.V(3).Infof("Defaulting AWS providerSpec")
 
 	var errs []error
@@ -266,7 +269,7 @@ func defaultAWS(h *defaulterHandler, m *Machine) (bool, utilerrors.Aggregate) {
 		providerSpec.InstanceType = defaultAWSInstanceType
 	}
 	if providerSpec.IAMInstanceProfile == nil {
-		providerSpec.IAMInstanceProfile = &aws.AWSResourceReference{ID: defaultAWSIAMInstanceProfile(h.clusterID)}
+		providerSpec.IAMInstanceProfile = &aws.AWSResourceReference{ID: defaultAWSIAMInstanceProfile(clusterID)}
 	}
 	if providerSpec.UserDataSecret == nil {
 		providerSpec.UserDataSecret = &corev1.LocalObjectReference{Name: defaultUserDataSecret}
@@ -282,7 +285,7 @@ func defaultAWS(h *defaulterHandler, m *Machine) (bool, utilerrors.Aggregate) {
 				Filters: []aws.Filter{
 					{
 						Name:   "tag:Name",
-						Values: []string{defaultAWSSecurityGroup(h.clusterID)},
+						Values: []string{defaultAWSSecurityGroup(clusterID)},
 					},
 				},
 			},
@@ -293,7 +296,7 @@ func defaultAWS(h *defaulterHandler, m *Machine) (bool, utilerrors.Aggregate) {
 		providerSpec.Subnet.Filters = []aws.Filter{
 			{
 				Name:   "tag:Name",
-				Values: []string{defaultAWSSubnet(h.clusterID, providerSpec.Placement.AvailabilityZone)},
+				Values: []string{defaultAWSSubnet(clusterID, providerSpec.Placement.AvailabilityZone)},
 			},
 		}
 	}
@@ -318,7 +321,7 @@ func unmarshalInto(m *Machine, providerSpec interface{}) error {
 	return nil
 }
 
-func validateAWS(h *validatorHandler, m *Machine) (bool, utilerrors.Aggregate) {
+func validateAWS(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
 	klog.V(3).Infof("Validating AWS providerSpec")
 
 	var errs []error
@@ -407,7 +410,7 @@ func validateAWS(h *validatorHandler, m *Machine) (bool, utilerrors.Aggregate) {
 	return true, nil
 }
 
-func defaultAzure(h *defaulterHandler, m *Machine) (bool, utilerrors.Aggregate) {
+func defaultAzure(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
 	klog.V(3).Infof("Defaulting Azure providerSpec")
 
 	var errs []error
@@ -423,26 +426,26 @@ func defaultAzure(h *defaulterHandler, m *Machine) (bool, utilerrors.Aggregate) 
 
 	// Vnet and Subnet need to be provided together by the user
 	if providerSpec.Vnet == "" && providerSpec.Subnet == "" {
-		providerSpec.Vnet = defaultAzureVnet(h.clusterID)
-		providerSpec.Subnet = defaultAzureSubnet(h.clusterID)
+		providerSpec.Vnet = defaultAzureVnet(clusterID)
+		providerSpec.Subnet = defaultAzureSubnet(clusterID)
 
 		// NetworkResourceGroup can be set by the user without Vnet and Subnet,
 		// only override if they didn't set it
 		if providerSpec.NetworkResourceGroup == "" {
-			providerSpec.NetworkResourceGroup = defaultAzureNetworkResourceGroup(h.clusterID)
+			providerSpec.NetworkResourceGroup = defaultAzureNetworkResourceGroup(clusterID)
 		}
 	}
 
 	if providerSpec.Image.ResourceID == "" {
-		providerSpec.Image.ResourceID = defaultAzureImageResourceID(h.clusterID)
+		providerSpec.Image.ResourceID = defaultAzureImageResourceID(clusterID)
 	}
 
 	if providerSpec.ManagedIdentity == "" {
-		providerSpec.ManagedIdentity = defaultAzureManagedIdentiy(h.clusterID)
+		providerSpec.ManagedIdentity = defaultAzureManagedIdentiy(clusterID)
 	}
 
 	if providerSpec.ResourceGroup == "" {
-		providerSpec.ResourceGroup = defaultAzureResourceGroup(h.clusterID)
+		providerSpec.ResourceGroup = defaultAzureResourceGroup(clusterID)
 	}
 
 	if providerSpec.UserDataSecret == nil {
@@ -483,7 +486,7 @@ func defaultAzure(h *defaulterHandler, m *Machine) (bool, utilerrors.Aggregate) 
 	return true, nil
 }
 
-func validateAzure(h *validatorHandler, m *Machine) (bool, utilerrors.Aggregate) {
+func validateAzure(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
 	klog.V(3).Infof("Validating Azure providerSpec")
 
 	var errs []error
@@ -566,7 +569,7 @@ type gcpDefaulter struct {
 	projectID string
 }
 
-func (g gcpDefaulter) defaultGCP(h *defaulterHandler, m *Machine) (bool, utilerrors.Aggregate) {
+func (g gcpDefaulter) defaultGCP(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
 	klog.V(3).Infof("Defaulting GCP providerSpec")
 
 	var errs []error
@@ -582,15 +585,15 @@ func (g gcpDefaulter) defaultGCP(h *defaulterHandler, m *Machine) (bool, utilerr
 
 	if len(providerSpec.NetworkInterfaces) == 0 {
 		providerSpec.NetworkInterfaces = append(providerSpec.NetworkInterfaces, &gcp.GCPNetworkInterface{
-			Network:    defaultGCPNetwork(h.clusterID),
-			Subnetwork: defaultGCPSubnetwork(h.clusterID),
+			Network:    defaultGCPNetwork(clusterID),
+			Subnetwork: defaultGCPSubnetwork(clusterID),
 		})
 	}
 
-	providerSpec.Disks = defaultGCPDisks(providerSpec.Disks, h.clusterID)
+	providerSpec.Disks = defaultGCPDisks(providerSpec.Disks, clusterID)
 
 	if len(providerSpec.Tags) == 0 {
-		providerSpec.Tags = defaultGCPTags(h.clusterID)
+		providerSpec.Tags = defaultGCPTags(clusterID)
 	}
 
 	if providerSpec.UserDataSecret == nil {
@@ -602,7 +605,7 @@ func (g gcpDefaulter) defaultGCP(h *defaulterHandler, m *Machine) (bool, utilerr
 	}
 
 	if len(providerSpec.ServiceAccounts) == 0 {
-		providerSpec.ServiceAccounts = defaultGCPServiceAccounts(h.clusterID, g.projectID)
+		providerSpec.ServiceAccounts = defaultGCPServiceAccounts(clusterID, g.projectID)
 	}
 
 	rawBytes, err := json.Marshal(providerSpec)
@@ -644,7 +647,7 @@ func defaultGCPDisks(disks []*gcp.GCPDisk, clusterID string) []*gcp.GCPDisk {
 	return disks
 }
 
-func validateGCP(h *validatorHandler, m *Machine) (bool, utilerrors.Aggregate) {
+func validateGCP(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
 	klog.V(3).Infof("Validating GCP providerSpec")
 
 	var errs []error
