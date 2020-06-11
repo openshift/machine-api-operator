@@ -17,65 +17,78 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 
 	testCases := []struct {
 		testCase      string
-		providerSpec  *aws.AWSMachineProviderConfig
+		modifySpec    func(*aws.AWSMachineProviderConfig)
 		expectedError string
 		expectedOk    bool
 	}{
 		{
 			testCase: "with no ami values it fails",
-			providerSpec: &aws.AWSMachineProviderConfig{
-				AMI:          aws.AWSResourceReference{},
-				InstanceType: "m4.large",
-				IAMInstanceProfile: &aws.AWSResourceReference{
-					ID: pointer.StringPtr("profileID"),
-				},
-				UserDataSecret: &corev1.LocalObjectReference{
-					Name: "secret",
-				},
-				CredentialsSecret: &corev1.LocalObjectReference{
-					Name: "secret",
-				},
-				SecurityGroups: []aws.AWSResourceReference{
-					{
-						ID: pointer.StringPtr("sg"),
-					},
-				},
-				Subnet: aws.AWSResourceReference{
-					ID: pointer.StringPtr("subnet"),
-				},
+			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+				p.AMI = aws.AWSResourceReference{}
 			},
 			expectedOk:    false,
 			expectedError: "providerSpec.ami: Required value: expected either providerSpec.ami.arn or providerSpec.ami.filters or providerSpec.ami.id to be populated",
 		},
 		{
-			testCase: "with no ami values and no instanceType it fails",
-			providerSpec: &aws.AWSMachineProviderConfig{
-				AMI:          aws.AWSResourceReference{},
-				InstanceType: "",
-				IAMInstanceProfile: &aws.AWSResourceReference{
-					ID: pointer.StringPtr("profileID"),
-				},
-				UserDataSecret: &corev1.LocalObjectReference{
-					Name: "secret",
-				},
-				CredentialsSecret: &corev1.LocalObjectReference{
-					Name: "secret",
-				},
-				SecurityGroups: []aws.AWSResourceReference{
-					{
-						ID: pointer.StringPtr("sg"),
-					},
-				},
-				Subnet: aws.AWSResourceReference{
-					ID: pointer.StringPtr("subnet"),
-				},
+			testCase: "with no instanceType it fails",
+			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+				p.InstanceType = ""
 			},
 			expectedOk:    false,
-			expectedError: "[providerSpec.ami: Required value: expected either providerSpec.ami.arn or providerSpec.ami.filters or providerSpec.ami.id to be populated, providerSpec.instanceType: Required value: expected providerSpec.instanceType to be populated]",
+			expectedError: "providerSpec.instanceType: Required value: expected providerSpec.instanceType to be populated",
 		},
 		{
-			testCase: "with all required values it succeeds",
-			providerSpec: &aws.AWSMachineProviderConfig{
+			testCase: "with no iam instance profile it fails",
+			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+				p.IAMInstanceProfile = nil
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.iamInstanceProfile: Required value: expected providerSpec.iamInstanceProfile to be populated",
+		},
+		{
+			testCase: "with no user data secret it fails",
+			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+				p.UserDataSecret = nil
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.userDataSecret: Required value: expected providerSpec.userDataSecret to be populated",
+		},
+		{
+			testCase: "with no credentials secret it fails",
+			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+				p.CredentialsSecret = nil
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.credentialsSecret: Required value: expected providerSpec.credentialsSecret to be populated",
+		},
+		{
+			testCase: "with no security groups it fails",
+			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+				p.SecurityGroups = nil
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.securityGroups: Required value: expected providerSpec.securityGroups to be populated",
+		},
+		{
+			testCase: "with no subnet values it fails",
+			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+				p.Subnet = aws.AWSResourceReference{}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.subnet: Required value: expected either providerSpec.subnet.arn or providerSpec.subnet.id or providerSpec.subnet.filters or providerSpec.placement.availabilityZone to be populated",
+		},
+		{
+			testCase:      "with all required values it succeeds",
+			expectedOk:    true,
+			expectedError: "",
+		},
+	}
+
+	h := createMachineValidator(osconfigv1.AWSPlatformType, "clusterID")
+
+	for _, tc := range testCases {
+		t.Run(tc.testCase, func(t *testing.T) {
+			providerSpec := &aws.AWSMachineProviderConfig{
 				AMI: aws.AWSResourceReference{
 					ID: pointer.StringPtr("ami"),
 				},
@@ -97,18 +110,13 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 				Subnet: aws.AWSResourceReference{
 					ID: pointer.StringPtr("subnet"),
 				},
-			},
-			expectedOk:    true,
-			expectedError: "",
-		},
-	}
+			}
+			if tc.modifySpec != nil {
+				tc.modifySpec(providerSpec)
+			}
 
-	h := createMachineValidator(osconfigv1.AWSPlatformType, "clusterID")
-
-	for _, tc := range testCases {
-		t.Run(tc.testCase, func(t *testing.T) {
 			m := &Machine{}
-			rawBytes, err := json.Marshal(tc.providerSpec)
+			rawBytes, err := json.Marshal(providerSpec)
 			if err != nil {
 				t.Fatal(err)
 			}
