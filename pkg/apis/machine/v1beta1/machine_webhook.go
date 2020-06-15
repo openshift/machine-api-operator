@@ -409,14 +409,9 @@ func defaultAzure(h *defaulterHandler, m *Machine) (bool, utilerrors.Aggregate) 
 	}
 
 	if providerSpec.UserDataSecret == nil {
-		providerSpec.UserDataSecret = &corev1.SecretReference{Name: defaultUserDataSecret, Namespace: defaultSecretNamespace}
-	} else {
-		if providerSpec.UserDataSecret.Namespace == "" {
-			providerSpec.UserDataSecret.Namespace = defaultSecretNamespace
-		}
-		if providerSpec.UserDataSecret.Name == "" {
-			providerSpec.UserDataSecret.Name = defaultUserDataSecret
-		}
+		providerSpec.UserDataSecret = &corev1.SecretReference{Name: defaultUserDataSecret}
+	} else if providerSpec.UserDataSecret.Name == "" {
+		providerSpec.UserDataSecret.Name = defaultUserDataSecret
 	}
 
 	if providerSpec.CredentialsSecret == nil {
@@ -498,13 +493,8 @@ func validateAzure(h *validatorHandler, m *Machine) (bool, utilerrors.Aggregate)
 
 	if providerSpec.UserDataSecret == nil {
 		errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret"), "userDataSecret must be provided"))
-	} else {
-		if providerSpec.UserDataSecret.Namespace == "" {
-			errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret", "namespace"), "namespace must be provided"))
-		}
-		if providerSpec.UserDataSecret.Name == "" {
-			errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret", "name"), "name must be provided"))
-		}
+	} else if providerSpec.UserDataSecret.Name == "" {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret", "name"), "name must be provided"))
 	}
 
 	if providerSpec.CredentialsSecret == nil {
