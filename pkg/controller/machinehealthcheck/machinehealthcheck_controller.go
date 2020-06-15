@@ -436,16 +436,17 @@ func (r *ReconcileMachineHealthCheck) mhcRequestsFromMachine(o handler.MapObject
 
 func (t *target) remediate(r *ReconcileMachineHealthCheck) error {
 	glog.Infof(" %s: start remediation logic", t.string())
-	if !t.hasControllerOwner() {
-		glog.Infof("%s: no controller owner, skipping remediation", t.string())
-		return nil
-	}
 
 	remediationStrategy, ok := t.MHC.Annotations[remediationStrategyAnnotation]
 	if ok {
 		if mapiv1.RemediationStrategyType(remediationStrategy) == remediationStrategyExternal {
 			return t.remediationStrategyExternal(r)
 		}
+	}
+
+	if !t.hasControllerOwner() {
+		glog.Infof("%s: no controller owner, skipping remediation", t.string())
+		return nil
 	}
 
 	glog.Infof("%s: deleting", t.string())
