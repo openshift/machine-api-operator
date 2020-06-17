@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
@@ -12,11 +13,13 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/klog"
 	"k8s.io/utils/pointer"
 	aws "sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsprovider/v1beta1"
 	azure "sigs.k8s.io/cluster-api-provider-azure/pkg/apis/azureprovider/v1beta1"
+	gcp "sigs.k8s.io/cluster-api-provider-gcp/pkg/apis/gcpprovider/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 	yaml "sigs.k8s.io/yaml"
@@ -53,6 +56,30 @@ var (
 	defaultAzureResourceGroup = func(clusterID string) string {
 		return fmt.Sprintf("%s-rg", clusterID)
 	}
+
+	// GCP Defaults
+	defaultGCPNetwork = func(clusterID string) string {
+		return fmt.Sprintf("%s-network", clusterID)
+	}
+	defaultGCPSubnetwork = func(clusterID string) string {
+		return fmt.Sprintf("%s-worker-subnet", clusterID)
+	}
+	defaultGCPDiskImage = func(clusterID string) string {
+		return fmt.Sprintf("%s-rhcos-image", clusterID)
+	}
+	defaultGCPTags = func(clusterID string) []string {
+		return []string{fmt.Sprintf("%s-worker", clusterID)}
+	}
+	defaultGCPServiceAccounts = func(clusterID, projectID string) []gcp.GCPServiceAccount {
+		if clusterID == "" || projectID == "" {
+			return []gcp.GCPServiceAccount{}
+		}
+
+		return []gcp.GCPServiceAccount{{
+			Email:  fmt.Sprintf("%s-w@%s.iam.gserviceaccount.com", clusterID, projectID),
+			Scopes: []string{"https://www.googleapis.com/auth/cloud-platform"},
+		}}
+	}
 )
 
 const (
@@ -68,6 +95,12 @@ const (
 	defaultAzureCredentialsSecret = "azure-cloud-credentials"
 	defaultAzureOSDiskOSType      = "Linux"
 	defaultAzureOSDiskStorageType = "Premium_LRS"
+
+	// GCP Defaults
+	defaultGCPMachineType       = "n1-standard-4"
+	defaultGCPCredentialsSecret = "gcp-cloud-credentials"
+	defaultGCPDiskSizeGb        = 128
+	defaultGCPDiskType          = "pd-standard"
 )
 
 func getInfra() (*osconfigv1.Infrastructure, error) {
@@ -127,6 +160,8 @@ func createMachineValidator(platform osconfigv1.PlatformType, clusterID string) 
 		h.webhookOperations = validateAWS
 	case osconfigv1.AzurePlatformType:
 		h.webhookOperations = validateAzure
+	case osconfigv1.GCPPlatformType:
+		h.webhookOperations = validateGCP
 	default:
 		// just no-op
 		h.webhookOperations = func(h *validatorHandler, m *Machine) (bool, utilerrors.Aggregate) {
@@ -143,19 +178,21 @@ func NewMachineDefaulter() (*defaulterHandler, error) {
 		return nil, err
 	}
 
-	return createMachineDefaulter(infra.Status.PlatformStatus.Type, infra.Status.InfrastructureName), nil
+	return createMachineDefaulter(infra.Status.PlatformStatus, infra.Status.InfrastructureName), nil
 }
 
-func createMachineDefaulter(platform osconfigv1.PlatformType, clusterID string) *defaulterHandler {
+func createMachineDefaulter(platformStatus *osconfigv1.PlatformStatus, clusterID string) *defaulterHandler {
 	h := &defaulterHandler{
 		clusterID: clusterID,
 	}
 
-	switch platform {
+	switch platformStatus.Type {
 	case osconfigv1.AWSPlatformType:
 		h.webhookOperations = defaultAWS
 	case osconfigv1.AzurePlatformType:
 		h.webhookOperations = defaultAzure
+	case osconfigv1.GCPPlatformType:
+		h.webhookOperations = gcpDefaulter{projectID: platformStatus.GCP.ProjectID}.defaultGCP
 	default:
 		// just no-op
 		h.webhookOperations = func(h *defaulterHandler, m *Machine) (bool, utilerrors.Aggregate) {
@@ -523,4 +560,203 @@ func validateAzure(h *validatorHandler, m *Machine) (bool, utilerrors.Aggregate)
 		return false, utilerrors.NewAggregate(errs)
 	}
 	return true, nil
+}
+
+type gcpDefaulter struct {
+	projectID string
+}
+
+func (g gcpDefaulter) defaultGCP(h *defaulterHandler, m *Machine) (bool, utilerrors.Aggregate) {
+	klog.V(3).Infof("Defaulting GCP providerSpec")
+
+	var errs []error
+	providerSpec := new(gcp.GCPMachineProviderSpec)
+	if err := unmarshalInto(m, providerSpec); err != nil {
+		errs = append(errs, err)
+		return false, utilerrors.NewAggregate(errs)
+	}
+
+	if providerSpec.MachineType == "" {
+		providerSpec.MachineType = defaultGCPMachineType
+	}
+
+	if len(providerSpec.NetworkInterfaces) == 0 {
+		providerSpec.NetworkInterfaces = append(providerSpec.NetworkInterfaces, &gcp.GCPNetworkInterface{
+			Network:    defaultGCPNetwork(h.clusterID),
+			Subnetwork: defaultGCPSubnetwork(h.clusterID),
+		})
+	}
+
+	providerSpec.Disks = defaultGCPDisks(providerSpec.Disks, h.clusterID)
+
+	if len(providerSpec.Tags) == 0 {
+		providerSpec.Tags = defaultGCPTags(h.clusterID)
+	}
+
+	if providerSpec.UserDataSecret == nil {
+		providerSpec.UserDataSecret = &corev1.LocalObjectReference{Name: defaultUserDataSecret}
+	}
+
+	if providerSpec.CredentialsSecret == nil {
+		providerSpec.CredentialsSecret = &corev1.LocalObjectReference{Name: defaultGCPCredentialsSecret}
+	}
+
+	if len(providerSpec.ServiceAccounts) == 0 {
+		providerSpec.ServiceAccounts = defaultGCPServiceAccounts(h.clusterID, g.projectID)
+	}
+
+	rawBytes, err := json.Marshal(providerSpec)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	if len(errs) > 0 {
+		return false, utilerrors.NewAggregate(errs)
+	}
+
+	m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
+	return true, nil
+}
+
+func defaultGCPDisks(disks []*gcp.GCPDisk, clusterID string) []*gcp.GCPDisk {
+	if len(disks) == 0 {
+		return []*gcp.GCPDisk{
+			{
+				AutoDelete: true,
+				Boot:       true,
+				SizeGb:     defaultGCPDiskSizeGb,
+				Type:       defaultGCPDiskType,
+				Image:      defaultGCPDiskImage(clusterID),
+			},
+		}
+	}
+
+	for _, disk := range disks {
+		if disk.Type == "" {
+			disk.Type = defaultGCPDiskType
+		}
+
+		if disk.Image == "" {
+			disk.Image = defaultGCPDiskImage(clusterID)
+		}
+	}
+
+	return disks
+}
+
+func validateGCP(h *validatorHandler, m *Machine) (bool, utilerrors.Aggregate) {
+	klog.V(3).Infof("Validating GCP providerSpec")
+
+	var errs []error
+	providerSpec := new(gcp.GCPMachineProviderSpec)
+	if err := unmarshalInto(m, providerSpec); err != nil {
+		errs = append(errs, err)
+		return false, utilerrors.NewAggregate(errs)
+	}
+
+	if providerSpec.Region == "" {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "region"), "region is required"))
+	}
+
+	if !strings.HasPrefix(providerSpec.Zone, providerSpec.Region) {
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "zone"), providerSpec.Zone, fmt.Sprintf("zone not in configured region (%s)", providerSpec.Region)))
+	}
+
+	if providerSpec.MachineType == "" {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "machineType"), "machineType should be set to one of the supported GCP machine types"))
+	}
+
+	errs = append(errs, validateGCPNetworkInterfaces(providerSpec.NetworkInterfaces, field.NewPath("providerSpec", "networkInterfaces"))...)
+	errs = append(errs, validateGCPDisks(providerSpec.Disks, field.NewPath("providerSpec", "disks"))...)
+	errs = append(errs, validateGCPServiceAccounts(providerSpec.ServiceAccounts, field.NewPath("providerSpec", "serviceAccounts"))...)
+
+	if providerSpec.UserDataSecret == nil {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret"), "userDataSecret must be provided"))
+	} else {
+		if providerSpec.UserDataSecret.Name == "" {
+			errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret", "name"), "name must be provided"))
+		}
+	}
+
+	if providerSpec.CredentialsSecret == nil {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret"), "credentialsSecret must be provided"))
+	} else {
+		if providerSpec.CredentialsSecret.Name == "" {
+			errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret", "name"), "name must be provided"))
+		}
+	}
+
+	if len(errs) > 0 {
+		return false, utilerrors.NewAggregate(errs)
+	}
+	return true, nil
+}
+
+func validateGCPNetworkInterfaces(networkInterfaces []*gcp.GCPNetworkInterface, parentPath *field.Path) []error {
+	if len(networkInterfaces) == 0 {
+		return []error{field.Required(parentPath, "at least 1 network interface is required")}
+	}
+
+	var errs []error
+	for i, ni := range networkInterfaces {
+		fldPath := parentPath.Index(i)
+
+		if ni.Network == "" {
+			errs = append(errs, field.Required(fldPath.Child("network"), "network is required"))
+		}
+
+		if ni.Subnetwork == "" {
+			errs = append(errs, field.Required(fldPath.Child("subnetwork"), "subnetwork is required"))
+		}
+	}
+
+	return errs
+}
+
+func validateGCPDisks(disks []*gcp.GCPDisk, parentPath *field.Path) []error {
+	if len(disks) == 0 {
+		return []error{field.Required(parentPath, "at least 1 disk is required")}
+	}
+
+	var errs []error
+	for i, disk := range disks {
+		fldPath := parentPath.Index(i)
+
+		if disk.SizeGb != 0 {
+			if disk.SizeGb < 16 {
+				errs = append(errs, field.Invalid(fldPath.Child("sizeGb"), disk.SizeGb, "must be at least 16GB in size"))
+			} else if disk.SizeGb > 65536 {
+				errs = append(errs, field.Invalid(fldPath.Child("sizeGb"), disk.SizeGb, "exceeding maximum GCP disk size limit, must be below 65536"))
+			}
+		}
+
+		if disk.Type != "" {
+			diskTypes := sets.NewString("pd-standard", "pd-ssd")
+			if !diskTypes.Has(disk.Type) {
+				errs = append(errs, field.NotSupported(fldPath.Child("type"), disk.Type, diskTypes.List()))
+			}
+		}
+	}
+
+	return errs
+}
+
+func validateGCPServiceAccounts(serviceAccounts []gcp.GCPServiceAccount, parentPath *field.Path) []error {
+	if len(serviceAccounts) != 1 {
+		return []error{field.Invalid(parentPath, fmt.Sprintf("%d service accounts supplied", len(serviceAccounts)), "exactly 1 service account must be supplied")}
+	}
+
+	var errs []error
+	for i, serviceAccount := range serviceAccounts {
+		fldPath := parentPath.Index(i)
+
+		if serviceAccount.Email == "" {
+			errs = append(errs, field.Required(fldPath.Child("email"), "email is required"))
+		}
+
+		if len(serviceAccount.Scopes) == 0 {
+			errs = append(errs, field.Required(fldPath.Child("scopes"), "at least 1 scope is required"))
+		}
+	}
+	return errs
 }

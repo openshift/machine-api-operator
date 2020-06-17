@@ -28,6 +28,7 @@ require (
 	k8s.io/utils v0.0.0-20200327001022-6496210b90e8
 	sigs.k8s.io/cluster-api-provider-aws v0.0.0-00010101000000-000000000000
 	sigs.k8s.io/cluster-api-provider-azure v0.0.0-00010101000000-000000000000
+	sigs.k8s.io/cluster-api-provider-gcp v0.0.0-00010101000000-000000000000
 	sigs.k8s.io/controller-runtime v0.6.0
 	sigs.k8s.io/controller-tools v0.3.0
 	sigs.k8s.io/yaml v1.2.0
@@ -36,3 +37,5 @@ require (
 replace sigs.k8s.io/cluster-api-provider-aws => github.com/openshift/cluster-api-provider-aws v0.2.1-0.20200520125206-5e266b553d8e
 
 replace sigs.k8s.io/cluster-api-provider-azure => github.com/openshift/cluster-api-provider-azure v0.1.0-alpha.3.0.20200529030741-17d4edc5142f
+
+replace sigs.k8s.io/cluster-api-provider-gcp => github.com/openshift/cluster-api-provider-gcp v0.0.1-0.20200528175251-4f2fdeb49fe1
