@@ -148,6 +148,10 @@ INFO: For development and testing purposes only
    $ kubectl apply -f config/kubemark-config-infra.yaml
    ```
 
+## OpenShift Bugzilla
+
+The Bugzilla product for this repository is "Cloud Compute" under [OpenShift Container Platform](https://bugzilla.redhat.com/enter_bug.cgi?product=OpenShift%20Container%20Platform).
+
 ## CI & tests
 
 Run unit test:
