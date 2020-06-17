@@ -326,21 +326,9 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 			expectedError: "providerSpec.userDataSecret: Required value: userDataSecret must be provided",
 		},
 		{
-			testCase: "with no user data secret namespace it fails",
-			modifySpec: func(p *azure.AzureMachineProviderSpec) {
-				p.UserDataSecret = &corev1.SecretReference{
-					Name: "name",
-				}
-			},
-			expectedOk:    false,
-			expectedError: "providerSpec.userDataSecret.namespace: Required value: namespace must be provided",
-		},
-		{
 			testCase: "with no user data secret name it fails",
 			modifySpec: func(p *azure.AzureMachineProviderSpec) {
-				p.UserDataSecret = &corev1.SecretReference{
-					Namespace: "namespace",
-				}
+				p.UserDataSecret = &corev1.SecretReference{}
 			},
 			expectedOk:    false,
 			expectedError: "providerSpec.userDataSecret.name: Required value: name must be provided",
@@ -431,8 +419,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 				ManagedIdentity: "managedIdentity",
 				ResourceGroup:   "resourceGroup",
 				UserDataSecret: &corev1.SecretReference{
-					Name:      "name",
-					Namespace: "namespace",
+					Name: "name",
 				},
 				CredentialsSecret: &corev1.SecretReference{
 					Name:      "name",
@@ -503,17 +490,13 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 			expectedError: "",
 		},
 		{
-			testCase: "does not overwrite the secret namespaces if they already exist",
+			testCase: "does not overwrite the credentials secret namespace if they already exist",
 			providerSpec: &azure.AzureMachineProviderSpec{
-				UserDataSecret: &corev1.SecretReference{
-					Namespace: "foo",
-				},
 				CredentialsSecret: &corev1.SecretReference{
 					Namespace: "foo",
 				},
 			},
 			modifyDefault: func(p *azure.AzureMachineProviderSpec) {
-				p.UserDataSecret.Namespace = "foo"
 				p.CredentialsSecret.Namespace = "foo"
 			},
 			expectedOk:    true,
@@ -553,8 +536,7 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 				ManagedIdentity: defaultAzureManagedIdentiy(clusterID),
 				ResourceGroup:   defaultAzureResourceGroup(clusterID),
 				UserDataSecret: &corev1.SecretReference{
-					Name:      defaultUserDataSecret,
-					Namespace: defaultSecretNamespace,
+					Name: defaultUserDataSecret,
 				},
 				CredentialsSecret: &corev1.SecretReference{
 					Name:      defaultAzureCredentialsSecret,
