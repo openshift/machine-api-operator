@@ -12,6 +12,7 @@ import (
 	vspherev1 "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
+	"github.com/openshift/machine-api-operator/pkg/metrics"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/property"
@@ -67,6 +68,13 @@ func (r *Reconciler) create() error {
 				return err
 			}
 		}
+		if moTask.Info.State == types.TaskInfoStateError {
+			metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
+				Name:      r.machine.Name,
+				Namespace: r.machine.Namespace,
+				Reason:    fmt.Sprintf("Create machine task finished with error: %+v", moTask.Info.Error),
+			})
+		}
 		if taskIsFinished, err := taskIsFinished(moTask); err != nil || !taskIsFinished {
 			if !taskIsFinished {
 				return fmt.Errorf("task %v has not finished", moTask.Reference().Value)
@@ -112,6 +120,13 @@ func (r *Reconciler) update() error {
 			if !isRetrieveMONotFound(r.providerStatus.TaskRef, err) {
 				return err
 			}
+		}
+		if motask.Info.State == types.TaskInfoStateError {
+			metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
+				Name:      r.machine.Name,
+				Namespace: r.machine.Namespace,
+				Reason:    fmt.Sprintf("Create machine task finished with error: %+v", motask.Info.Error),
+			})
 		}
 		if taskIsFinished, err := taskIsFinished(motask); err != nil || !taskIsFinished {
 			if !taskIsFinished {
@@ -167,6 +182,13 @@ func (r *Reconciler) delete() error {
 				return err
 			}
 		}
+		if moTask.Info.State == types.TaskInfoStateError {
+			metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
+				Name:      r.machine.Name,
+				Namespace: r.machine.Namespace,
+				Reason:    fmt.Sprintf("Create machine task finished with error: %+v", moTask.Info.Error),
+			})
+		}
 		if taskIsFinished, err := taskIsFinished(moTask); err != nil || !taskIsFinished {
 			if !taskIsFinished {
 				return fmt.Errorf("task %v has not finished", moTask.Reference().Value)
@@ -178,6 +200,11 @@ func (r *Reconciler) delete() error {
 	vmRef, err := findVM(r.machineScope)
 	if err != nil {
 		if !isNotFound(err) {
+			metrics.RegisterFailedInstanceDelete(&metrics.MachineLabels{
+				Name:      r.machine.Name,
+				Namespace: r.machine.Namespace,
+				Reason:    err.Error(),
+			})
 			return err
 		}
 		klog.Infof("%v: vm does not exist", r.machine.GetName())
@@ -196,6 +223,11 @@ func (r *Reconciler) delete() error {
 
 	task, err := vm.Obj.Destroy(r.Context)
 	if err != nil {
+		metrics.RegisterFailedInstanceDelete(&metrics.MachineLabels{
+			Name:      r.machine.Name,
+			Namespace: r.machine.Namespace,
+			Reason:    err.Error(),
+		})
 		return fmt.Errorf("%v: failed to destroy vm: %v", r.machine.GetName(), err)
 	}
 
@@ -258,6 +290,11 @@ func (r *Reconciler) reconcileRegionAndZoneLabels(vm *virtualMachine) error {
 	})
 
 	if err != nil {
+		metrics.RegisterFailedInstanceUpdate(&metrics.MachineLabels{
+			Name:      r.machine.Name,
+			Namespace: r.machine.Namespace,
+			Reason:    err.Error(),
+		})
 		return err
 	}
 
@@ -550,7 +587,13 @@ func clone(s *machineScope) (string, error) {
 
 	task, err := vmTemplate.Clone(s, folder, s.machine.GetName(), spec)
 	if err != nil {
-		return "", fmt.Errorf("error triggering clone op for machine %v: %w", s, err)
+		err = fmt.Errorf("error triggering clone op for machine %v: %w", s, err)
+		metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
+			Name:      s.machine.Name,
+			Namespace: s.machine.Namespace,
+			Reason:    err.Error(),
+		})
+		return "", err
 	}
 
 	klog.V(3).Infof("%v: running task: %+v", s.machine.GetName(), s.providerStatus.TaskRef)
@@ -813,6 +856,11 @@ func (vm *virtualMachine) reconcileTags(ctx context.Context, session *session.Se
 			klog.Infof("%v: Attaching %s tag to vm", machine.GetName(), clusterID)
 			// the tag should already be created by installer
 			if err := m.AttachTag(ctx, clusterID, vm.Ref); err != nil {
+				metrics.RegisterFailedInstanceUpdate(&metrics.MachineLabels{
+					Name:      machine.Name,
+					Namespace: machine.Namespace,
+					Reason:    err.Error(),
+				})
 				return err
 			}
 		}

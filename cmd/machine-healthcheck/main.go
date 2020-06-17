@@ -5,6 +5,7 @@ import (
 	"runtime"
 
 	"github.com/openshift/machine-api-operator/pkg/controller/machinehealthcheck"
+	"github.com/openshift/machine-api-operator/pkg/metrics"
 
 	"github.com/golang/glog"
 	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
@@ -24,6 +25,7 @@ func printVersion() {
 
 func main() {
 	watchNamespace := flag.String("namespace", "", "Namespace that the controller watches to reconcile machine-api objects. If unspecified, the controller watches for machine-api objects across all namespaces.")
+	metricsAddress := flag.String("metrics-bind-address", metrics.DefaultHealthCheckMetricsAddress, "Address for hosting metrics")
 	flag.Parse()
 	printVersion()
 
@@ -34,8 +36,7 @@ func main() {
 	}
 
 	opts := manager.Options{
-		// Disable metrics serving
-		MetricsBindAddress: "0",
+		MetricsBindAddress: *metricsAddress,
 	}
 	if *watchNamespace != "" {
 		opts.Namespace = *watchNamespace

@@ -18,3 +18,29 @@ spec:
   selector:
     k8s-app: machine-api-operator
   sessionAffinity: None
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: machine-api-controllers
+  namespace: openshift-machine-api
+  annotations:
+    service.alpha.openshift.io/serving-cert-secret-name: machine-api-controllers-tls
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
+  labels:
+    k8s-app: controller
+spec:
+  type: ClusterIP
+  ports:
+  - name: machine-mtrc
+    targetPort: machine-mtrc
+    port: 8441
+  - name: machineset-mtrc
+    targetPort: machineset-mtrc
+    port: 8442
+  - name: mhc-mtrc
+    targetPort: mhc-mtrc
+    port: 8444
+  selector:
+    k8s-app: controller
+  sessionAffinity: None

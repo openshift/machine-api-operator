@@ -24,6 +24,7 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/controller"
 	"github.com/openshift/machine-api-operator/pkg/controller/machineset"
+	"github.com/openshift/machine-api-operator/pkg/metrics"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -42,6 +43,7 @@ func main() {
 	klog.InitFlags(nil)
 	watchNamespace := flag.String("namespace", "",
 		"Namespace that the controller watches to reconcile cluster-api objects. If unspecified, the controller watches for cluster-api objects across all namespaces.")
+	metricsAddress := flag.String("metrics-bind-address", metrics.DefaultMachineSetMetricsAddress, "Address for hosting metrics")
 
 	webhookEnabled := flag.Bool("webhook-enabled", true,
 		"Webhook server, enabled by default. When enabled, the manager will run a webhook server.")
@@ -67,8 +69,7 @@ func main() {
 	// Create a new Cmd to provide shared dependencies and start components
 	syncPeriod := 10 * time.Minute
 	opts := manager.Options{
-		// Disable metrics serving
-		MetricsBindAddress: "0",
+		MetricsBindAddress: *metricsAddress,
 		SyncPeriod:         &syncPeriod,
 		Namespace:          *watchNamespace,
 	}
