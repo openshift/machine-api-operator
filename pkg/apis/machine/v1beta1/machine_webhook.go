@@ -121,22 +121,30 @@ func getInfra() (*osconfigv1.Infrastructure, error) {
 
 type machineAdmissionFn func(m *Machine, clusterID string) (bool, utilerrors.Aggregate)
 
+type admissionHandler struct {
+	clusterID         string
+	webhookOperations machineAdmissionFn
+	decoder           *admission.Decoder
+}
+
+// InjectDecoder injects the decoder.
+func (a *admissionHandler) InjectDecoder(d *admission.Decoder) error {
+	a.decoder = d
+	return nil
+}
+
 // machineValidatorHandler validates Machine API resources.
 // implements type Handler interface.
 // https://godoc.org/github.com/kubernetes-sigs/controller-runtime/pkg/webhook/admission#Handler
 type machineValidatorHandler struct {
-	clusterID         string
-	webhookOperations machineAdmissionFn
-	decoder           *admission.Decoder
+	*admissionHandler
 }
 
 // machineDefaulterHandler defaults Machine API resources.
 // implements type Handler interface.
 // https://godoc.org/github.com/kubernetes-sigs/controller-runtime/pkg/webhook/admission#Handler
 type machineDefaulterHandler struct {
-	clusterID         string
-	webhookOperations machineAdmissionFn
-	decoder           *admission.Decoder
+	*admissionHandler
 }
 
 // NewValidator returns a new machineValidatorHandler.
@@ -151,8 +159,10 @@ func NewMachineValidator() (*machineValidatorHandler, error) {
 
 func createMachineValidator(platform osconfigv1.PlatformType, clusterID string) *machineValidatorHandler {
 	return &machineValidatorHandler{
-		clusterID:         clusterID,
-		webhookOperations: getMachineValidatorOperation(platform),
+		admissionHandler: &admissionHandler{
+			clusterID:         clusterID,
+			webhookOperations: getMachineValidatorOperation(platform),
+		},
 	}
 }
 
@@ -184,8 +194,10 @@ func NewMachineDefaulter() (*machineDefaulterHandler, error) {
 
 func createMachineDefaulter(platformStatus *osconfigv1.PlatformStatus, clusterID string) *machineDefaulterHandler {
 	return &machineDefaulterHandler{
-		clusterID:         clusterID,
-		webhookOperations: getMachineDefaulterOperation(platformStatus),
+		admissionHandler: &admissionHandler{
+			clusterID:         clusterID,
+			webhookOperations: getMachineDefaulterOperation(platformStatus),
+		},
 	}
 }
 
@@ -207,18 +219,6 @@ func getMachineDefaulterOperation(platformStatus *osconfigv1.PlatformStatus) mac
 			return true, nil
 		}
 	}
-}
-
-// InjectDecoder injects the decoder.
-func (v *machineValidatorHandler) InjectDecoder(d *admission.Decoder) error {
-	v.decoder = d
-	return nil
-}
-
-// InjectDecoder injects the decoder.
-func (v *machineDefaulterHandler) InjectDecoder(d *admission.Decoder) error {
-	v.decoder = d
-	return nil
 }
 
 // Handle handles HTTP requests for admission webhook servers.
