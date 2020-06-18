@@ -1,6 +1,7 @@
 package v1beta1
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -19,6 +20,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
 func TestMachineSetCreation(t *testing.T) {
@@ -160,6 +162,8 @@ func TestMachineSetCreation(t *testing.T) {
 			machineSetValidator := createMachineSetValidator(platformStatus.Type, tc.clusterID)
 			mgr.GetWebhookServer().Register("/mutate-machine-openshift-io-v1beta1-machineset", &webhook.Admission{Handler: machineSetDefaulter})
 			mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machineset", &webhook.Admission{Handler: machineSetValidator})
+			mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machineset-cp-delete", &webhook.Admission{Handler: createMachineSetMockHandler(true)})
+			mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machineset-cp-update", &webhook.Admission{Handler: createMachineSetMockHandler(true)})
 
 			done := make(chan struct{})
 			stopped := make(chan struct{})
@@ -562,6 +566,8 @@ func TestMachineSetUpdate(t *testing.T) {
 			machineSetValidator := createMachineSetValidator(platformStatus.Type, tc.clusterID)
 			mgr.GetWebhookServer().Register("/mutate-machine-openshift-io-v1beta1-machineset", &webhook.Admission{Handler: machineSetDefaulter})
 			mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machineset", &webhook.Admission{Handler: machineSetValidator})
+			mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machineset-cp-delete", &webhook.Admission{Handler: createMachineSetMockHandler(true)})
+			mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machineset-cp-update", &webhook.Admission{Handler: createMachineSetMockHandler(true)})
 
 			done := make(chan struct{})
 			stopped := make(chan struct{})
@@ -613,4 +619,319 @@ func TestMachineSetUpdate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestCPMachineSetDelete(t *testing.T) {
+	g := NewWithT(t)
+
+	// Override config getter
+	ctrl.GetConfig = func() (*rest.Config, error) {
+		return cfg, nil
+	}
+	defer func() {
+		ctrl.GetConfig = config.GetConfig
+	}()
+
+	namespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "machineset-cp-delete-test",
+		},
+	}
+	g.Expect(c.Create(ctx, namespace)).To(Succeed())
+	defer func() {
+		g.Expect(c.Delete(ctx, namespace)).To(Succeed())
+	}()
+
+	testCases := []struct {
+		name          string
+		expectedError string
+		objectMeta    ObjectMeta
+	}{
+		{
+			name:          "is not CP MachineSet",
+			expectedError: "",
+			objectMeta: ObjectMeta{
+				Labels: map[string]string{
+					"machine.openshift.io/cluster-api-machine-role": "worker",
+				},
+			},
+		},
+		{
+			name:          "is not CP MachineSet, no labels",
+			expectedError: "",
+			objectMeta:    ObjectMeta{},
+		},
+		{
+			name:          "is CP MachineSet",
+			expectedError: "Requested DELETE of Control Plane MachineSet Not Allowed.",
+			objectMeta: ObjectMeta{
+				Labels: map[string]string{
+					"machine.openshift.io/cluster-api-machine-role": "master",
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			gs := NewWithT(t)
+
+			mgr, err := manager.New(cfg, manager.Options{
+				MetricsBindAddress: "0",
+				Port:               testEnv.WebhookInstallOptions.LocalServingPort,
+				CertDir:            testEnv.WebhookInstallOptions.LocalServingCertDir,
+			})
+			gs.Expect(err).ToNot(HaveOccurred())
+
+			machineSetCPDeletionValidator, err := NewMachineSetCPValidator()
+			gs.Expect(err).ToNot(HaveOccurred())
+			mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machineset-cp-delete", &webhook.Admission{Handler: machineSetCPDeletionValidator})
+			mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machineset-cp-update", &webhook.Admission{Handler: createMachineSetMockHandler(true)})
+
+			done := make(chan struct{})
+			stopped := make(chan struct{})
+			go func() {
+				gs.Expect(mgr.Start(done)).To(Succeed())
+				close(stopped)
+			}()
+			defer func() {
+				close(done)
+				<-stopped
+			}()
+
+			ms := &MachineSet{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "machineset-cp-deletion-",
+					Namespace:    namespace.Name,
+				},
+				Spec: MachineSetSpec{
+					Template: MachineTemplateSpec{
+						Spec: MachineSpec{},
+					},
+				},
+			}
+
+			ms.Spec.Template.ObjectMeta = tc.objectMeta
+			gs.Expect(c.Create(ctx, ms)).To(Succeed())
+
+			err = c.Delete(ctx, ms)
+
+			if tc.expectedError != "" {
+				defer func() {
+					ms.Spec.Template.ObjectMeta.Labels["machine.openshift.io/cluster-api-machine-role"] = "worker"
+					gs.Expect(c.Update(ctx, ms)).To(Succeed())
+					gs.Expect(c.Delete(ctx, ms)).To(Succeed())
+				}()
+				gs.Expect(err).ToNot(BeNil())
+				gs.Expect(apierrors.ReasonForError(err)).To(BeEquivalentTo(tc.expectedError))
+			} else {
+				gs.Expect(err).To(BeNil())
+			}
+		})
+	}
+}
+
+func TestCPMachineSetUpdate(t *testing.T) {
+	g := NewWithT(t)
+
+	// Override config getter
+	ctrl.GetConfig = func() (*rest.Config, error) {
+		return cfg, nil
+	}
+	defer func() {
+		ctrl.GetConfig = config.GetConfig
+	}()
+
+	namespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "machineset-cp-update-test",
+		},
+	}
+	g.Expect(c.Create(ctx, namespace)).To(Succeed())
+	defer func() {
+		g.Expect(c.Delete(ctx, namespace)).To(Succeed())
+	}()
+
+	testCases := []struct {
+		name          string
+		expectedError string
+		originalMeta  ObjectMeta
+		updateMeta    ObjectMeta
+	}{
+		{
+			name:          "is not CP MachineSet, not becoming CP",
+			expectedError: "",
+			originalMeta: ObjectMeta{
+				Labels: map[string]string{
+					"machine.openshift.io/cluster-api-machine-role": "worker",
+				},
+			},
+			updateMeta: ObjectMeta{
+				Labels: map[string]string{
+					"machine.openshift.io/cluster-api-machine-role": "worker2",
+				},
+			},
+		},
+		{
+			name:          "is not CP MachineSet, labels removed",
+			expectedError: "",
+			originalMeta: ObjectMeta{
+				Labels: map[string]string{
+					"machine.openshift.io/cluster-api-machine-role": "worker",
+				},
+			},
+			updateMeta: ObjectMeta{
+				Labels: nil,
+			},
+		},
+		{
+			name:          "no Lables (non-CP) to non-CP labels",
+			expectedError: "",
+			originalMeta: ObjectMeta{
+				Labels: nil,
+			},
+			updateMeta: ObjectMeta{
+				Labels: map[string]string{
+					"machine.openshift.io/cluster-api-machine-role": "worker",
+				},
+			},
+		},
+		{
+			name:          "CP MachineSet, add another label",
+			expectedError: "",
+			originalMeta: ObjectMeta{
+				Labels: map[string]string{
+					"machine.openshift.io/cluster-api-machine-role": "master",
+				},
+			},
+			updateMeta: ObjectMeta{
+				Labels: map[string]string{
+					"machine.openshift.io/cluster-api-machine-role": "master",
+					"secondlabel": "second label value",
+				},
+			},
+		},
+		{
+			name:          "CP MachineSet, try to change role",
+			expectedError: "Requested UPDATE of Control Plane MachineSet Not Allowed.",
+			originalMeta: ObjectMeta{
+				Labels: map[string]string{
+					"machine.openshift.io/cluster-api-machine-role": "master",
+				},
+			},
+			updateMeta: ObjectMeta{
+				Labels: map[string]string{
+					"machine.openshift.io/cluster-api-machine-role": "worker",
+				},
+			},
+		},
+		{
+			name:          "CP MachineSet, try to remove labels",
+			expectedError: "Requested UPDATE of Control Plane MachineSet Not Allowed.",
+			originalMeta: ObjectMeta{
+				Labels: map[string]string{
+					"machine.openshift.io/cluster-api-machine-role": "master",
+				},
+			},
+			updateMeta: ObjectMeta{
+				Labels: nil,
+			},
+		},
+		{
+			name:          "Non CP become CP",
+			expectedError: "Requested UPDATE of Control Plane MachineSet Not Allowed.",
+			originalMeta: ObjectMeta{
+				Labels: map[string]string{
+					"machine.openshift.io/cluster-api-machine-role": "worker",
+				},
+			},
+			updateMeta: ObjectMeta{
+				Labels: map[string]string{
+					"machine.openshift.io/cluster-api-machine-role": "master",
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			gs := NewWithT(t)
+
+			mgr, err := manager.New(cfg, manager.Options{
+				MetricsBindAddress: "0",
+				Port:               testEnv.WebhookInstallOptions.LocalServingPort,
+				CertDir:            testEnv.WebhookInstallOptions.LocalServingCertDir,
+			})
+			gs.Expect(err).ToNot(HaveOccurred())
+
+			machineSetCPUpdateValidator, err := NewMachineSetCPValidator()
+			gs.Expect(err).ToNot(HaveOccurred())
+			mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machineset-cp-delete", &webhook.Admission{Handler: createMachineSetMockHandler(true)})
+			mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machineset-cp-update", &webhook.Admission{Handler: machineSetCPUpdateValidator})
+
+			done := make(chan struct{})
+			stopped := make(chan struct{})
+			go func() {
+				gs.Expect(mgr.Start(done)).To(Succeed())
+				close(stopped)
+			}()
+			defer func() {
+				close(done)
+				<-stopped
+			}()
+
+			ms := &MachineSet{
+				ObjectMeta: metav1.ObjectMeta{
+					GenerateName: "machineset-cp-update-",
+					Namespace:    namespace.Name,
+				},
+				Spec: MachineSetSpec{
+					Template: MachineTemplateSpec{
+						Spec: MachineSpec{},
+					},
+				},
+			}
+
+			ms.Spec.Template.ObjectMeta = tc.originalMeta
+			err = c.Create(ctx, ms)
+			gs.Expect(err).ToNot(HaveOccurred())
+			defer func() {
+				gs.Expect(c.Delete(ctx, ms)).To(Succeed())
+			}()
+
+			ms.Spec.Template.ObjectMeta = tc.updateMeta
+
+			err = c.Update(ctx, ms)
+
+			if tc.expectedError != "" {
+				gs.Expect(err).ToNot(BeNil())
+				gs.Expect(apierrors.ReasonForError(err)).To(BeEquivalentTo(tc.expectedError))
+			} else {
+				gs.Expect(err).To(BeNil())
+			}
+		})
+	}
+}
+
+type MachineSetMockHandler struct {
+	decoder     *admission.Decoder
+	shouldAdmit bool
+}
+
+func createMachineSetMockHandler(shouldAdmit bool) *MachineSetMockHandler {
+	return &MachineSetMockHandler{shouldAdmit: shouldAdmit}
+}
+
+// InjectDecoder injects the decoder.
+func (h *MachineSetMockHandler) InjectDecoder(d *admission.Decoder) error {
+	h.decoder = d
+	return nil
+}
+
+// Handle handles HTTP requests for admission webhook servers.
+func (h *MachineSetMockHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
+	if h.shouldAdmit {
+		return admission.Allowed("OK")
+	}
+	return admission.Denied("Not OK")
 }

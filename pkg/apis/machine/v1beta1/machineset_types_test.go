@@ -32,11 +32,38 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+
+	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
 func TestStorageMachineSet(t *testing.T) {
 	key := types.NamespacedName{Name: "foo", Namespace: "default"}
 	created := &MachineSet{ObjectMeta: metav1.ObjectMeta{Name: "foo", Namespace: "default"}}
+
+	gs := NewWithT(t)
+
+	mgr, err := manager.New(cfg, manager.Options{
+		MetricsBindAddress: "0",
+		Port:               testEnv.WebhookInstallOptions.LocalServingPort,
+		CertDir:            testEnv.WebhookInstallOptions.LocalServingCertDir,
+	})
+
+	gs.Expect(err).ToNot(HaveOccurred())
+
+	mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machineset-cp-delete", &webhook.Admission{Handler: createMachineSetMockHandler(true)})
+	mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machineset-cp-update", &webhook.Admission{Handler: createMachineSetMockHandler(true)})
+
+	done := make(chan struct{})
+	stopped := make(chan struct{})
+	go func() {
+		gs.Expect(mgr.Start(done)).To(Succeed())
+		close(stopped)
+	}()
+	defer func() {
+		close(done)
+		<-stopped
+	}()
 
 	// Test Create
 	fetched := &MachineSet{}

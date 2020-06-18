@@ -100,3 +100,43 @@ webhooks:
         resources:
           - machinesets
     sideEffects: None
+  - clientConfig:
+      service:
+        name: machine-api-operator-webhook
+        namespace: openshift-machine-api
+        path: /validate-machine-openshift-io-v1beta1-machineset-cp-delete
+    # failurePolicy is Fail so we ensure control plane machinesets are never
+    # deleted.
+    failurePolicy: Fail
+    matchPolicy: Equivalent
+    name: delete.cp.validation.machineset.machine.openshift.io
+    rules:
+      - apiGroups:
+          - machine.openshift.io
+        apiVersions:
+          - v1beta1
+        operations:
+          - DELETE
+        resources:
+          - machinesets
+    sideEffects: None
+  - clientConfig:
+      service:
+        name: machine-api-operator-webhook
+        namespace: openshift-machine-api
+        path: /validate-machine-openshift-io-v1beta1-machineset-cp-update
+    # failurePolicy is Fail so we ensure control plane machinesets are never
+    # made non-CP machinesets.
+    failurePolicy: Fail
+    matchPolicy: Equivalent
+    name: update.cp.validation.machineset.machine.openshift.io
+    rules:
+      - apiGroups:
+          - machine.openshift.io
+        apiVersions:
+          - v1beta1
+        operations:
+          - UPDATE
+        resources:
+          - machinesets
+    sideEffects: None
