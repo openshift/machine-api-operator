@@ -44,16 +44,6 @@ func TestMachineCreation(t *testing.T) {
 		g.Expect(c.Delete(ctx, namespace)).To(Succeed())
 	}()
 
-	infra := &osconfigv1.Infrastructure{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "cluster",
-		},
-	}
-	g.Expect(c.Create(ctx, infra)).To(Succeed())
-	defer func() {
-		g.Expect(c.Delete(ctx, infra)).To(Succeed())
-	}()
-
 	testCases := []struct {
 		name              string
 		platformType      osconfigv1.PlatformType
@@ -167,21 +157,15 @@ func TestMachineCreation(t *testing.T) {
 			}()
 			defer close(done)
 
-			infra.Status = osconfigv1.InfrastructureStatus{
-				InfrastructureName: tc.clusterID,
-				PlatformStatus: &osconfigv1.PlatformStatus{
-					Type: tc.platformType,
-					GCP: &osconfigv1.GCPPlatformStatus{
-						ProjectID: "gcp-project-id",
-					},
+			platformStatus := &osconfigv1.PlatformStatus{
+				Type: tc.platformType,
+				GCP: &osconfigv1.GCPPlatformStatus{
+					ProjectID: "gcp-project-id",
 				},
 			}
-			gs.Expect(c.Status().Update(ctx, infra)).To(Succeed())
 
-			machineDefaulter, err := NewMachineDefaulter()
-			gs.Expect(err).ToNot(HaveOccurred())
-			machineValidator, err := NewMachineValidator()
-			gs.Expect(err).ToNot(HaveOccurred())
+			machineDefaulter := createMachineDefaulter(platformStatus, tc.clusterID)
+			machineValidator := createMachineValidator(platformStatus.Type, tc.clusterID)
 			mgr.GetWebhookServer().Register("/mutate-machine-openshift-io-v1beta1-machine", &webhook.Admission{Handler: machineDefaulter})
 			mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machine", &webhook.Admission{Handler: machineValidator})
 
@@ -327,16 +311,6 @@ func TestMachineUpdate(t *testing.T) {
 	g.Expect(c.Create(ctx, namespace)).To(Succeed())
 	defer func() {
 		g.Expect(c.Delete(ctx, namespace)).To(Succeed())
-	}()
-
-	infra := &osconfigv1.Infrastructure{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "cluster",
-		},
-	}
-	g.Expect(c.Create(ctx, infra)).To(Succeed())
-	defer func() {
-		g.Expect(c.Delete(ctx, infra)).To(Succeed())
 	}()
 
 	testCases := []struct {
@@ -568,21 +542,15 @@ func TestMachineUpdate(t *testing.T) {
 			}()
 			defer close(done)
 
-			infra.Status = osconfigv1.InfrastructureStatus{
-				InfrastructureName: tc.clusterID,
-				PlatformStatus: &osconfigv1.PlatformStatus{
-					Type: tc.platformType,
-					GCP: &osconfigv1.GCPPlatformStatus{
-						ProjectID: gcpProjectID,
-					},
+			platformStatus := &osconfigv1.PlatformStatus{
+				Type: tc.platformType,
+				GCP: &osconfigv1.GCPPlatformStatus{
+					ProjectID: gcpProjectID,
 				},
 			}
-			gs.Expect(c.Status().Update(ctx, infra)).To(Succeed())
 
-			machineDefaulter, err := NewMachineDefaulter()
-			gs.Expect(err).ToNot(HaveOccurred())
-			machineValidator, err := NewMachineValidator()
-			gs.Expect(err).ToNot(HaveOccurred())
+			machineDefaulter := createMachineDefaulter(platformStatus, tc.clusterID)
+			machineValidator := createMachineValidator(platformStatus.Type, tc.clusterID)
 			mgr.GetWebhookServer().Register("/mutate-machine-openshift-io-v1beta1-machine", &webhook.Admission{Handler: machineDefaulter})
 			mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machine", &webhook.Admission{Handler: machineValidator})
 
