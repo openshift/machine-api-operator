@@ -152,10 +152,15 @@ func TestMachineCreation(t *testing.T) {
 			gs.Expect(err).ToNot(HaveOccurred())
 
 			done := make(chan struct{})
+			stopped := make(chan struct{})
 			go func() {
 				gs.Expect(mgr.Start(done)).To(Succeed())
+				close(stopped)
 			}()
-			defer close(done)
+			defer func() {
+				close(done)
+				<-stopped
+			}()
 
 			platformStatus := &osconfigv1.PlatformStatus{
 				Type: tc.platformType,
@@ -537,10 +542,15 @@ func TestMachineUpdate(t *testing.T) {
 			gs.Expect(err).ToNot(HaveOccurred())
 
 			done := make(chan struct{})
+			stopped := make(chan struct{})
 			go func() {
 				gs.Expect(mgr.Start(done)).To(Succeed())
+				close(stopped)
 			}()
-			defer close(done)
+			defer func() {
+				close(done)
+				<-stopped
+			}()
 
 			platformStatus := &osconfigv1.PlatformStatus{
 				Type: tc.platformType,
