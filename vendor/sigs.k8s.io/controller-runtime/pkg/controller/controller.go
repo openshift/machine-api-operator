@@ -102,12 +102,7 @@ func NewUnmanaged(name string, mgr manager.Manager, options Options) (Controller
 
 	// Create controller with dependencies set
 	c := &controller.Controller{
-		Do:       options.Reconciler,
-		Cache:    mgr.GetCache(),
-		Config:   mgr.GetConfig(),
-		Scheme:   mgr.GetScheme(),
-		Client:   mgr.GetClient(),
-		Recorder: mgr.GetEventRecorderFor(name),
+		Do: options.Reconciler,
 		MakeQueue: func() workqueue.RateLimitingInterface {
 			return workqueue.NewNamedRateLimitingQueue(options.RateLimiter, name)
 		},

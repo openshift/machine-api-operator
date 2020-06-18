@@ -39,3 +39,5 @@ replace sigs.k8s.io/cluster-api-provider-aws => github.com/openshift/cluster-api
 replace sigs.k8s.io/cluster-api-provider-azure => github.com/openshift/cluster-api-provider-azure v0.1.0-alpha.3.0.20200529030741-17d4edc5142f
 
 replace sigs.k8s.io/cluster-api-provider-gcp => github.com/openshift/cluster-api-provider-gcp v0.0.1-0.20200528175251-4f2fdeb49fe1
+
+replace sigs.k8s.io/controller-runtime => github.com/mgugino-upstream-stage/controller-runtime v0.6.1-0.20200618201807-9d82bf2a7266
