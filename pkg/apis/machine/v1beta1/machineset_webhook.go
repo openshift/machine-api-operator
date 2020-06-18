@@ -15,18 +15,14 @@ import (
 // implements type Handler interface.
 // https://godoc.org/github.com/kubernetes-sigs/controller-runtime/pkg/webhook/admission#Handler
 type machineSetValidatorHandler struct {
-	clusterID         string
-	webhookOperations machineAdmissionFn
-	decoder           *admission.Decoder
+	*admissionHandler
 }
 
 // machineSetDefaulterHandler defaults MachineSet API resources.
 // implements type Handler interface.
 // https://godoc.org/github.com/kubernetes-sigs/controller-runtime/pkg/webhook/admission#Handler
 type machineSetDefaulterHandler struct {
-	clusterID         string
-	webhookOperations machineAdmissionFn
-	decoder           *admission.Decoder
+	*admissionHandler
 }
 
 // NewMachineSetValidator returns a new machineSetValidatorHandler.
@@ -41,8 +37,10 @@ func NewMachineSetValidator() (*machineSetValidatorHandler, error) {
 
 func createMachineSetValidator(platform osconfigv1.PlatformType, clusterID string) *machineSetValidatorHandler {
 	return &machineSetValidatorHandler{
-		clusterID:         clusterID,
-		webhookOperations: getMachineValidatorOperation(platform),
+		admissionHandler: &admissionHandler{
+			clusterID:         clusterID,
+			webhookOperations: getMachineValidatorOperation(platform),
+		},
 	}
 }
 
@@ -58,21 +56,11 @@ func NewMachineSetDefaulter() (*machineSetDefaulterHandler, error) {
 
 func createMachineSetDefaulter(platformStatus *osconfigv1.PlatformStatus, clusterID string) *machineSetDefaulterHandler {
 	return &machineSetDefaulterHandler{
-		clusterID:         clusterID,
-		webhookOperations: getMachineDefaulterOperation(platformStatus),
+		admissionHandler: &admissionHandler{
+			clusterID:         clusterID,
+			webhookOperations: getMachineDefaulterOperation(platformStatus),
+		},
 	}
-}
-
-// InjectDecoder injects the decoder.
-func (v *machineSetValidatorHandler) InjectDecoder(d *admission.Decoder) error {
-	v.decoder = d
-	return nil
-}
-
-// InjectDecoder injects the decoder.
-func (v *machineSetDefaulterHandler) InjectDecoder(d *admission.Decoder) error {
-	v.decoder = d
-	return nil
 }
 
 // Handle handles HTTP requests for admission webhook servers.
