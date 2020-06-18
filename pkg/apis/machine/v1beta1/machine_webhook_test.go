@@ -167,8 +167,8 @@ func TestMachineCreation(t *testing.T) {
 			done := make(chan struct{})
 			stopped := make(chan struct{})
 			go func() {
+				defer close(stopped)
 				gs.Expect(mgr.Start(done)).To(Succeed())
-				close(stopped)
 			}()
 			defer func() {
 				close(done)
@@ -565,8 +565,8 @@ func TestMachineUpdate(t *testing.T) {
 			done := make(chan struct{})
 			stopped := make(chan struct{})
 			go func() {
+				defer close(stopped)
 				gs.Expect(mgr.Start(done)).To(Succeed())
-				close(stopped)
 			}()
 			defer func() {
 				close(done)

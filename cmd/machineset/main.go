@@ -100,6 +100,8 @@ func main() {
 		log.Fatal(err)
 	}
 
+	machineSetCPValidator := v1beta1.NewMachineSetCPValidator()
+
 	if *webhookEnabled {
 		mgr.GetWebhookServer().Port = *webhookPort
 		mgr.GetWebhookServer().CertDir = *webhookCertdir
@@ -107,6 +109,8 @@ func main() {
 		mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machine", &webhook.Admission{Handler: machineValidator})
 		mgr.GetWebhookServer().Register("/mutate-machine-openshift-io-v1beta1-machineset", &webhook.Admission{Handler: machineSetDefaulter})
 		mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machineset", &webhook.Admission{Handler: machineSetValidator})
+		mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machineset-cp-delete", &webhook.Admission{Handler: machineSetCPValidator})
+		mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machineset-cp-update", &webhook.Admission{Handler: machineSetCPValidator})
 	}
 
 	log.Printf("Registering Components.")
