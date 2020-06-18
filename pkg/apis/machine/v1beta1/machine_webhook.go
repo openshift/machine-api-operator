@@ -319,6 +319,10 @@ func defaultAWS(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
 }
 
 func unmarshalInto(m *Machine, providerSpec interface{}) error {
+	if m.Spec.ProviderSpec.Value == nil {
+		return field.Required(field.NewPath("providerSpec", "value"), "a value must be provided")
+	}
+
 	if err := yaml.Unmarshal(m.Spec.ProviderSpec.Value.Raw, &providerSpec); err != nil {
 		return field.Invalid(field.NewPath("providerSpec", "value"), providerSpec, err.Error())
 	}

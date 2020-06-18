@@ -62,6 +62,13 @@ func TestMachineCreation(t *testing.T) {
 		providerSpecValue *runtime.RawExtension
 	}{
 		{
+			name:              "with AWS and a nil provider spec value",
+			platformType:      osconfigv1.AWSPlatformType,
+			clusterID:         "aws-cluster",
+			providerSpecValue: nil,
+			expectedError:     "providerSpec.value: Required value: a value must be provided",
+		},
+		{
 			name:         "with AWS and no fields set",
 			platformType: osconfigv1.AWSPlatformType,
 			clusterID:    "aws-cluster",
@@ -82,6 +89,13 @@ func TestMachineCreation(t *testing.T) {
 				},
 			},
 			expectedError: "",
+		},
+		{
+			name:              "with Azure and a nil provider spec value",
+			platformType:      osconfigv1.AzurePlatformType,
+			clusterID:         "azure-cluster",
+			providerSpecValue: nil,
+			expectedError:     "providerSpec.value: Required value: a value must be provided",
 		},
 		{
 			name:         "with Azure and no fields set",
@@ -105,6 +119,13 @@ func TestMachineCreation(t *testing.T) {
 				},
 			},
 			expectedError: "",
+		},
+		{
+			name:              "with GCP and a nil provider spec value",
+			platformType:      osconfigv1.GCPPlatformType,
+			clusterID:         "gcp-cluster",
+			providerSpecValue: nil,
+			expectedError:     "providerSpec.value: Required value: a value must be provided",
 		},
 		{
 			name:         "with GCP and no fields set",
