@@ -18,7 +18,9 @@ package v1beta1
 
 import (
 	"context"
+	"crypto/tls"
 	"log"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
@@ -35,10 +37,17 @@ import (
 )
 
 var (
-	cfg     *rest.Config
-	c       client.Client
-	ctx     = context.Background()
-	testEnv *envtest.Environment
+	cfg                *rest.Config
+	c                  client.Client
+	ctx                = context.Background()
+	testEnv            *envtest.Environment
+	insecureHTTPClient = http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		},
+	}
 )
 
 func TestMain(m *testing.M) {

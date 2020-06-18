@@ -2,6 +2,7 @@ package v1beta1
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -151,17 +152,6 @@ func TestMachineCreation(t *testing.T) {
 			})
 			gs.Expect(err).ToNot(HaveOccurred())
 
-			done := make(chan struct{})
-			stopped := make(chan struct{})
-			go func() {
-				gs.Expect(mgr.Start(done)).To(Succeed())
-				close(stopped)
-			}()
-			defer func() {
-				close(done)
-				<-stopped
-			}()
-
 			platformStatus := &osconfigv1.PlatformStatus{
 				Type: tc.platformType,
 				GCP: &osconfigv1.GCPPlatformStatus{
@@ -173,6 +163,25 @@ func TestMachineCreation(t *testing.T) {
 			machineValidator := createMachineValidator(platformStatus.Type, tc.clusterID)
 			mgr.GetWebhookServer().Register("/mutate-machine-openshift-io-v1beta1-machine", &webhook.Admission{Handler: machineDefaulter})
 			mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machine", &webhook.Admission{Handler: machineValidator})
+
+			done := make(chan struct{})
+			stopped := make(chan struct{})
+			go func() {
+				gs.Expect(mgr.Start(done)).To(Succeed())
+				close(stopped)
+			}()
+			defer func() {
+				close(done)
+				<-stopped
+			}()
+
+			gs.Eventually(func() (bool, error) {
+				resp, err := insecureHTTPClient.Get(fmt.Sprintf("https://127.0.0.1:%d", testEnv.WebhookInstallOptions.LocalServingPort))
+				if err != nil {
+					return false, err
+				}
+				return resp.StatusCode == 404, nil
+			}).Should(BeTrue())
 
 			m := &Machine{
 				ObjectMeta: metav1.ObjectMeta{
@@ -541,17 +550,6 @@ func TestMachineUpdate(t *testing.T) {
 			})
 			gs.Expect(err).ToNot(HaveOccurred())
 
-			done := make(chan struct{})
-			stopped := make(chan struct{})
-			go func() {
-				gs.Expect(mgr.Start(done)).To(Succeed())
-				close(stopped)
-			}()
-			defer func() {
-				close(done)
-				<-stopped
-			}()
-
 			platformStatus := &osconfigv1.PlatformStatus{
 				Type: tc.platformType,
 				GCP: &osconfigv1.GCPPlatformStatus{
@@ -563,6 +561,25 @@ func TestMachineUpdate(t *testing.T) {
 			machineValidator := createMachineValidator(platformStatus.Type, tc.clusterID)
 			mgr.GetWebhookServer().Register("/mutate-machine-openshift-io-v1beta1-machine", &webhook.Admission{Handler: machineDefaulter})
 			mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machine", &webhook.Admission{Handler: machineValidator})
+
+			done := make(chan struct{})
+			stopped := make(chan struct{})
+			go func() {
+				gs.Expect(mgr.Start(done)).To(Succeed())
+				close(stopped)
+			}()
+			defer func() {
+				close(done)
+				<-stopped
+			}()
+
+			gs.Eventually(func() (bool, error) {
+				resp, err := insecureHTTPClient.Get(fmt.Sprintf("https://127.0.0.1:%d", testEnv.WebhookInstallOptions.LocalServingPort))
+				if err != nil {
+					return false, err
+				}
+				return resp.StatusCode == 404, nil
+			}).Should(BeTrue())
 
 			m := &Machine{
 				ObjectMeta: metav1.ObjectMeta{
