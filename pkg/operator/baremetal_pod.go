@@ -256,7 +256,7 @@ func newMetal3Containers(config *OperatorConfig, baremetalProvisioningConfig Bar
 					ContainerPort: 60000,
 				},
 			},
-			Command:         []string{"/baremetal-operator"},
+			Command:         []string{"/wait-for-ironic && /baremetal-operator"},
 			ImagePullPolicy: "IfNotPresent",
 			Env: []corev1.EnvVar{
 				{
