@@ -48,6 +48,7 @@ var (
 			},
 		},
 	}
+	managerGracePeriodDuration = time.Duration(1 * time.Second)
 )
 
 func TestMain(m *testing.M) {

@@ -47,6 +47,7 @@ func TestStorageMachineSet(t *testing.T) {
 		MetricsBindAddress: "0",
 		Port:               testEnv.WebhookInstallOptions.LocalServingPort,
 		CertDir:            testEnv.WebhookInstallOptions.LocalServingCertDir,
+		GracefulShutdownTimeout: &managerGracePeriodDuration,
 	})
 
 	gs.Expect(err).ToNot(HaveOccurred())

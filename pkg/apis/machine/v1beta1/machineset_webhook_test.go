@@ -148,6 +148,7 @@ func TestMachineSetCreation(t *testing.T) {
 				MetricsBindAddress: "0",
 				Port:               testEnv.WebhookInstallOptions.LocalServingPort,
 				CertDir:            testEnv.WebhookInstallOptions.LocalServingCertDir,
+				GracefulShutdownTimeout: &managerGracePeriodDuration,
 			})
 			gs.Expect(err).ToNot(HaveOccurred())
 
@@ -552,6 +553,7 @@ func TestMachineSetUpdate(t *testing.T) {
 				MetricsBindAddress: "0",
 				Port:               testEnv.WebhookInstallOptions.LocalServingPort,
 				CertDir:            testEnv.WebhookInstallOptions.LocalServingCertDir,
+				GracefulShutdownTimeout: &managerGracePeriodDuration,
 			})
 			gs.Expect(err).ToNot(HaveOccurred())
 
@@ -680,6 +682,7 @@ func TestCPMachineSetDelete(t *testing.T) {
 				MetricsBindAddress: "0",
 				Port:               testEnv.WebhookInstallOptions.LocalServingPort,
 				CertDir:            testEnv.WebhookInstallOptions.LocalServingCertDir,
+				GracefulShutdownTimeout: &managerGracePeriodDuration,
 			})
 			gs.Expect(err).ToNot(HaveOccurred())
 
@@ -861,6 +864,7 @@ func TestCPMachineSetUpdate(t *testing.T) {
 				MetricsBindAddress: "0",
 				Port:               testEnv.WebhookInstallOptions.LocalServingPort,
 				CertDir:            testEnv.WebhookInstallOptions.LocalServingCertDir,
+				GracefulShutdownTimeout: &managerGracePeriodDuration,
 			})
 			gs.Expect(err).ToNot(HaveOccurred())
 
