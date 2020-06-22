@@ -68,18 +68,21 @@ func (r *Reconciler) create() error {
 				return err
 			}
 		}
-		if moTask.Info.State == types.TaskInfoStateError {
-			metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
-				Name:      r.machine.Name,
-				Namespace: r.machine.Namespace,
-				Reason:    fmt.Sprintf("Create machine task finished with error: %+v", moTask.Info.Error),
-			})
-		}
-		if taskIsFinished, err := taskIsFinished(moTask); err != nil || !taskIsFinished {
-			if !taskIsFinished {
-				return fmt.Errorf("task %v has not finished", moTask.Reference().Value)
+
+		if moTask != nil {
+			if moTask.Info.State == types.TaskInfoStateError {
+				metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
+					Name:      r.machine.Name,
+					Namespace: r.machine.Namespace,
+					Reason:    fmt.Sprintf("Create machine task finished with error: %+v", moTask.Info.Error),
+				})
 			}
-			return err
+			if taskIsFinished, err := taskIsFinished(moTask); err != nil || !taskIsFinished {
+				if !taskIsFinished {
+					return fmt.Errorf("task %v has not finished", moTask.Reference().Value)
+				}
+				return err
+			}
 		}
 	}
 
@@ -121,18 +124,20 @@ func (r *Reconciler) update() error {
 				return err
 			}
 		}
-		if motask.Info.State == types.TaskInfoStateError {
-			metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
-				Name:      r.machine.Name,
-				Namespace: r.machine.Namespace,
-				Reason:    fmt.Sprintf("Create machine task finished with error: %+v", motask.Info.Error),
-			})
-		}
-		if taskIsFinished, err := taskIsFinished(motask); err != nil || !taskIsFinished {
-			if !taskIsFinished {
-				return fmt.Errorf("task %v has not finished", motask.Reference().Value)
+		if motask != nil {
+			if motask.Info.State == types.TaskInfoStateError {
+				metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
+					Name:      r.machine.Name,
+					Namespace: r.machine.Namespace,
+					Reason:    fmt.Sprintf("Create machine task finished with error: %+v", motask.Info.Error),
+				})
 			}
-			return err
+			if taskIsFinished, err := taskIsFinished(motask); err != nil || !taskIsFinished {
+				if !taskIsFinished {
+					return fmt.Errorf("task %v has not finished", motask.Reference().Value)
+				}
+				return err
+			}
 		}
 	}
 
@@ -182,18 +187,20 @@ func (r *Reconciler) delete() error {
 				return err
 			}
 		}
-		if moTask.Info.State == types.TaskInfoStateError {
-			metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
-				Name:      r.machine.Name,
-				Namespace: r.machine.Namespace,
-				Reason:    fmt.Sprintf("Create machine task finished with error: %+v", moTask.Info.Error),
-			})
-		}
-		if taskIsFinished, err := taskIsFinished(moTask); err != nil || !taskIsFinished {
-			if !taskIsFinished {
-				return fmt.Errorf("task %v has not finished", moTask.Reference().Value)
+		if moTask != nil {
+			if moTask.Info.State == types.TaskInfoStateError {
+				metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
+					Name:      r.machine.Name,
+					Namespace: r.machine.Namespace,
+					Reason:    fmt.Sprintf("Create machine task finished with error: %+v", moTask.Info.Error),
+				})
 			}
-			return err
+			if taskIsFinished, err := taskIsFinished(moTask); err != nil || !taskIsFinished {
+				if !taskIsFinished {
+					return fmt.Errorf("task %v has not finished", moTask.Reference().Value)
+				}
+				return err
+			}
 		}
 	}
 
