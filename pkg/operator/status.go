@@ -6,13 +6,13 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/golang/glog"
 	osconfigv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/klog/v2"
 )
 
 // StatusReason is a MixedCaps string representing the reason for a
@@ -47,26 +47,26 @@ func (optr *Operator) statusProgressing() error {
 	desiredVersions := optr.operandVersions
 	currentVersions, err := optr.getCurrentVersions()
 	if err != nil {
-		glog.Errorf("Error getting operator current versions: %v", err)
+		klog.Errorf("Error getting operator current versions: %v", err)
 		return err
 	}
 	var isProgressing osconfigv1.ConditionStatus
 
 	co, err := optr.getOrCreateClusterOperator()
 	if err != nil {
-		glog.Errorf("Failed to get or create Cluster Operator: %v", err)
+		klog.Errorf("Failed to get or create Cluster Operator: %v", err)
 		return err
 	}
 
 	var message, reason string
 	if !reflect.DeepEqual(desiredVersions, currentVersions) {
-		glog.V(2).Info("Syncing status: progressing")
+		klog.V(2).Info("Syncing status: progressing")
 		message = fmt.Sprintf("Progressing towards %s", optr.printOperandVersions())
 		optr.eventRecorder.Eventf(co, v1.EventTypeNormal, "Status upgrade", message)
 		isProgressing = osconfigv1.ConditionTrue
 		reason = string(ReasonSyncing)
 	} else {
-		glog.V(2).Info("Syncing status: re-syncing")
+		klog.V(2).Info("Syncing status: re-syncing")
 		reason = string(ReasonAsExpected)
 		isProgressing = osconfigv1.ConditionFalse
 	}
@@ -97,7 +97,7 @@ func (optr *Operator) statusAvailable() error {
 
 	// 	important: we only write the version field if we report available at the present level
 	co.Status.Versions = optr.operandVersions
-	glog.V(2).Info("Syncing status: available")
+	klog.V(2).Info("Syncing status: available")
 	return optr.syncStatus(co, conds)
 }
 
@@ -108,7 +108,7 @@ func (optr *Operator) statusDegraded(error string) error {
 	desiredVersions := optr.operandVersions
 	currentVersions, err := optr.getCurrentVersions()
 	if err != nil {
-		glog.Errorf("Error getting current versions: %v", err)
+		klog.Errorf("Error getting current versions: %v", err)
 		return err
 	}
 
@@ -130,7 +130,7 @@ func (optr *Operator) statusDegraded(error string) error {
 		return err
 	}
 	optr.eventRecorder.Eventf(co, v1.EventTypeWarning, "Status degraded", error)
-	glog.V(2).Info("Syncing status: degraded")
+	klog.V(2).Info("Syncing status: degraded")
 	return optr.syncStatus(co, conds)
 }
 
@@ -305,7 +305,7 @@ func (optr *Operator) getOrCreateClusterOperator() (*osconfigv1.ClusterOperator,
 	existing, err := optr.getClusterOperator()
 
 	if errors.IsNotFound(err) {
-		glog.Infof("ClusterOperator does not exist, creating a new one.")
+		klog.Infof("ClusterOperator does not exist, creating a new one.")
 		return optr.createClusterOperator()
 	}
 

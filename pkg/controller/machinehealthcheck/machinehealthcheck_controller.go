@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/klog/v2"
 
-	"github.com/golang/glog"
 	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
 	corev1 "k8s.io/api/core/v1"
@@ -98,7 +98,7 @@ func newReconciler(mgr manager.Manager, opts manager.Options) (*ReconcileMachine
 func indexMachineByNodeName(object runtime.Object) []string {
 	machine, ok := object.(*mapiv1.Machine)
 	if !ok {
-		glog.Warningf("Expected a machine for indexing field, got: %T", object)
+		klog.Warningf("Expected a machine for indexing field, got: %T", object)
 		return nil
 	}
 
@@ -149,7 +149,7 @@ type target struct {
 
 // Reconcile fetch all targets for a MachineHealthCheck request and does health checking for each of them
 func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	glog.Infof("Reconciling %s", request.String())
+	klog.Infof("Reconciling %s", request.String())
 
 	mhc := &mapiv1.MachineHealthCheck{}
 	if err := r.client.Get(context.TODO(), request.NamespacedName, mhc); err != nil {
@@ -157,12 +157,12 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 			// Request object not found, could have been deleted after reconcile request.
 			return reconcile.Result{}, nil
 		}
-		glog.Errorf("Reconciling %s: failed to get MHC: %v", request.String(), err)
+		klog.Errorf("Reconciling %s: failed to get MHC: %v", request.String(), err)
 		return reconcile.Result{}, err
 	}
 
 	// fetch all targets
-	glog.V(3).Infof("Reconciling %s: finding targets", request.String())
+	klog.V(3).Infof("Reconciling %s: finding targets", request.String())
 	targets, err := r.getTargetsFromMHC(*mhc)
 	if err != nil {
 		return reconcile.Result{}, err
@@ -172,13 +172,13 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 	// health check all targets and reconcile mhc status
 	currentHealthy, needRemediationTargets, nextCheckTimes, errList := r.healthCheckTargets(targets, mhc.Spec.NodeStartupTimeout.Duration)
 	if err := r.reconcileStatus(mhc, totalTargets, currentHealthy); err != nil {
-		glog.Errorf("Reconciling %s: error patching status: %v", request.String(), err)
+		klog.Errorf("Reconciling %s: error patching status: %v", request.String(), err)
 		return reconcile.Result{}, err
 	}
 
 	// check MHC current health against MaxUnhealthy
 	if !isAllowedRemediation(mhc) {
-		glog.Warningf("Reconciling %s: total targets: %v,  maxUnhealthy: %v, unhealthy: %v. Short-circuiting remediation",
+		klog.Warningf("Reconciling %s: total targets: %v,  maxUnhealthy: %v, unhealthy: %v. Short-circuiting remediation",
 			request.String(),
 			totalTargets,
 			mhc.Spec.MaxUnhealthy,
@@ -195,7 +195,7 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 		)
 		return reconcile.Result{Requeue: true}, nil
 	}
-	glog.V(3).Infof("Reconciling %s: monitoring MHC: total targets: %v,  maxUnhealthy: %v, unhealthy: %v. Remediations are allowed",
+	klog.V(3).Infof("Reconciling %s: monitoring MHC: total targets: %v,  maxUnhealthy: %v, unhealthy: %v. Remediations are allowed",
 		request.String(),
 		totalTargets,
 		mhc.Spec.MaxUnhealthy,
@@ -204,9 +204,9 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 
 	// remediate
 	for _, t := range needRemediationTargets {
-		glog.V(3).Infof("Reconciling %s: meet unhealthy criteria, triggers remediation", t.string())
+		klog.V(3).Infof("Reconciling %s: meet unhealthy criteria, triggers remediation", t.string())
 		if err := t.remediate(r); err != nil {
-			glog.Errorf("Reconciling %s: error remediating: %v", t.string(), err)
+			klog.Errorf("Reconciling %s: error remediating: %v", t.string(), err)
 			errList = append(errList, err)
 		}
 	}
@@ -214,16 +214,16 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 	// return values
 	if len(errList) > 0 {
 		requeueError := apimachineryutilerrors.NewAggregate(errList)
-		glog.V(3).Infof("Reconciling %s: there were errors, requeuing: %v", request.String(), requeueError)
+		klog.V(3).Infof("Reconciling %s: there were errors, requeuing: %v", request.String(), requeueError)
 		return reconcile.Result{}, requeueError
 	}
 
 	if minNextCheck := minDuration(nextCheckTimes); minNextCheck > 0 {
-		glog.V(3).Infof("Reconciling %s: some targets might go unhealthy. Ensuring a requeue happens in %v", request.String(), minNextCheck)
+		klog.V(3).Infof("Reconciling %s: some targets might go unhealthy. Ensuring a requeue happens in %v", request.String(), minNextCheck)
 		return reconcile.Result{RequeueAfter: minNextCheck}, nil
 	}
 
-	glog.V(3).Infof("Reconciling %s: no more targets meet unhealthy criteria", request.String())
+	klog.V(3).Infof("Reconciling %s: no more targets meet unhealthy criteria", request.String())
 	return reconcile.Result{}, nil
 }
 
@@ -233,7 +233,7 @@ func isAllowedRemediation(mhc *mapiv1.MachineHealthCheck) bool {
 	}
 	maxUnhealthy, err := getValueFromIntOrPercent(mhc.Spec.MaxUnhealthy, derefInt(mhc.Status.ExpectedMachines), false)
 	if err != nil {
-		glog.Errorf("%s: error decoding maxUnhealthy, remediation won't be allowed: %v", namespacedName(mhc), err)
+		klog.Errorf("%s: error decoding maxUnhealthy, remediation won't be allowed: %v", namespacedName(mhc), err)
 		return false
 	}
 
@@ -272,10 +272,10 @@ func (r *ReconcileMachineHealthCheck) healthCheckTargets(targets []target, timeo
 	var needRemediationTargets []target
 	var currentHealthy int
 	for _, t := range targets {
-		glog.V(3).Infof("Reconciling %s: health checking", t.string())
+		klog.V(3).Infof("Reconciling %s: health checking", t.string())
 		needsRemediation, nextCheck, err := t.needsRemediation(timeoutForMachineToHaveNode)
 		if err != nil {
-			glog.Errorf("Reconciling %s: error health checking: %v", t.string(), err)
+			klog.Errorf("Reconciling %s: error health checking: %v", t.string(), err)
 			errList = append(errList, err)
 			continue
 		}
@@ -286,7 +286,7 @@ func (r *ReconcileMachineHealthCheck) healthCheckTargets(targets []target, timeo
 		}
 
 		if nextCheck > 0 {
-			glog.V(3).Infof("Reconciling %s: is likely to go unhealthy in %v", t.string(), nextCheck)
+			klog.V(3).Infof("Reconciling %s: is likely to go unhealthy in %v", t.string(), nextCheck)
 			r.recorder.Eventf(
 				&t.Machine,
 				corev1.EventTypeNormal,
@@ -369,26 +369,26 @@ func (r *ReconcileMachineHealthCheck) getMachineFromNode(nodeName string) (*mapi
 }
 
 func (r *ReconcileMachineHealthCheck) mhcRequestsFromNode(o handler.MapObject) []reconcile.Request {
-	glog.V(4).Infof("Getting MHC requests from node %q", namespacedName(o.Meta).String())
+	klog.V(4).Infof("Getting MHC requests from node %q", namespacedName(o.Meta).String())
 	node := &corev1.Node{}
 	if err := r.client.Get(context.Background(), namespacedName(o.Meta), node); err != nil {
 		if apimachineryerrors.IsNotFound(err) {
 			node.Name = o.Meta.GetName()
 		} else {
-			glog.Errorf("No-op: Unable to retrieve node %q from store: %v", namespacedName(o.Meta).String(), err)
+			klog.Errorf("No-op: Unable to retrieve node %q from store: %v", namespacedName(o.Meta).String(), err)
 			return nil
 		}
 	}
 
 	machine, err := r.getMachineFromNode(node.Name)
 	if machine == nil || err != nil {
-		glog.Errorf("No-op: Unable to retrieve machine from node %q: %v", namespacedName(node).String(), err)
+		klog.Errorf("No-op: Unable to retrieve machine from node %q: %v", namespacedName(node).String(), err)
 		return nil
 	}
 
 	mhcList := &mapiv1.MachineHealthCheckList{}
 	if err := r.client.List(context.Background(), mhcList); err != nil {
-		glog.Errorf("No-op: Unable to list mhc: %v", err)
+		klog.Errorf("No-op: Unable to list mhc: %v", err)
 		return nil
 	}
 
@@ -403,7 +403,7 @@ func (r *ReconcileMachineHealthCheck) mhcRequestsFromNode(o handler.MapObject) [
 }
 
 func (r *ReconcileMachineHealthCheck) mhcRequestsFromMachine(o handler.MapObject) []reconcile.Request {
-	glog.V(4).Infof("Getting MHC requests from machine %q", namespacedName(o.Meta).String())
+	klog.V(4).Infof("Getting MHC requests from machine %q", namespacedName(o.Meta).String())
 	machine := &mapiv1.Machine{}
 	if err := r.client.Get(context.Background(),
 		client.ObjectKey{
@@ -412,13 +412,13 @@ func (r *ReconcileMachineHealthCheck) mhcRequestsFromMachine(o handler.MapObject
 		},
 		machine,
 	); err != nil {
-		glog.Errorf("No-op: Unable to retrieve machine %q from store: %v", namespacedName(o.Meta).String(), err)
+		klog.Errorf("No-op: Unable to retrieve machine %q from store: %v", namespacedName(o.Meta).String(), err)
 		return nil
 	}
 
 	mhcList := &mapiv1.MachineHealthCheckList{}
 	if err := r.client.List(context.Background(), mhcList); err != nil {
-		glog.Errorf("No-op: Unable to list mhc: %v", err)
+		klog.Errorf("No-op: Unable to list mhc: %v", err)
 		return nil
 	}
 
@@ -432,7 +432,7 @@ func (r *ReconcileMachineHealthCheck) mhcRequestsFromMachine(o handler.MapObject
 }
 
 func (t *target) remediate(r *ReconcileMachineHealthCheck) error {
-	glog.Infof(" %s: start remediation logic", t.string())
+	klog.Infof(" %s: start remediation logic", t.string())
 
 	remediationStrategy, ok := t.MHC.Annotations[remediationStrategyAnnotation]
 	if ok {
@@ -449,7 +449,7 @@ func (t *target) remediate(r *ReconcileMachineHealthCheck) error {
 			"Machine %v has no controller owner, skipping remediation",
 			t.string(),
 		)
-		glog.Infof("%s: no controller owner, skipping remediation", t.string())
+		klog.Infof("%s: no controller owner, skipping remediation", t.string())
 		return nil
 	}
 
@@ -468,7 +468,7 @@ func (t *target) remediate(r *ReconcileMachineHealthCheck) error {
 		return nil
 	}
 
-	glog.Infof("%s: deleting", t.string())
+	klog.Infof("%s: deleting", t.string())
 	if err := r.client.Delete(context.TODO(), &t.Machine); err != nil {
 		r.recorder.Eventf(
 			&t.Machine,
@@ -500,7 +500,7 @@ func (t *target) remediationStrategyExternal(r *ReconcileMachineHealthCheck) err
 		t.Machine.Annotations = map[string]string{}
 	}
 
-	glog.Infof("Machine %s has been unhealthy for too long, adding external annotation", t.Machine.Name)
+	klog.Infof("Machine %s has been unhealthy for too long, adding external annotation", t.Machine.Name)
 	t.Machine.Annotations[machineExternalAnnotationKey] = ""
 	if err := r.client.Update(context.TODO(), &t.Machine); err != nil {
 		r.recorder.Eventf(
@@ -559,7 +559,7 @@ func (t *target) needsRemediation(timeoutForMachineToHaveNode time.Duration) (bo
 
 	// machine has failed
 	if derefStringPointer(t.Machine.Status.Phase) == machinePhaseFailed {
-		glog.V(3).Infof("%s: unhealthy: machine phase is %q", t.string(), machinePhaseFailed)
+		klog.V(3).Infof("%s: unhealthy: machine phase is %q", t.string(), machinePhaseFailed)
 		return true, time.Duration(0), nil
 	}
 
@@ -570,7 +570,7 @@ func (t *target) needsRemediation(timeoutForMachineToHaveNode time.Duration) (bo
 			return false, timeoutForMachineToHaveNode, nil
 		}
 		if t.Machine.Status.LastUpdated.Add(timeoutForMachineToHaveNode).Before(now) {
-			glog.V(3).Infof("%s: unhealthy: machine has no node after %v", t.string(), timeoutForMachineToHaveNode)
+			klog.V(3).Infof("%s: unhealthy: machine has no node after %v", t.string(), timeoutForMachineToHaveNode)
 			return true, time.Duration(0), nil
 		}
 		durationUnhealthy := now.Sub(t.Machine.Status.LastUpdated.Time)
@@ -597,7 +597,7 @@ func (t *target) needsRemediation(timeoutForMachineToHaveNode time.Duration) (bo
 		// If the condition has been in the unhealthy state for longer than the
 		// timeout, return true with no requeue time.
 		if nodeCondition.LastTransitionTime.Add(c.Timeout.Duration).Before(now) {
-			glog.V(3).Infof("%s: unhealthy: condition %v in state %v longer than %v", t.string(), c.Type, c.Status, c.Timeout)
+			klog.V(3).Infof("%s: unhealthy: condition %v in state %v longer than %v", t.string(), c.Type, c.Status, c.Timeout)
 			return true, time.Duration(0), nil
 		}
 
@@ -645,7 +645,7 @@ func namespacedName(obj metav1.Object) types.NamespacedName {
 func hasMatchingLabels(machineHealthCheck *mapiv1.MachineHealthCheck, machine *mapiv1.Machine) bool {
 	selector, err := metav1.LabelSelectorAsSelector(&machineHealthCheck.Spec.Selector)
 	if err != nil {
-		glog.Warningf("unable to convert selector: %v", err)
+		klog.Warningf("unable to convert selector: %v", err)
 		return false
 	}
 	// If the selector is empty, all machines are considered to match
@@ -653,7 +653,7 @@ func hasMatchingLabels(machineHealthCheck *mapiv1.MachineHealthCheck, machine *m
 		return true
 	}
 	if !selector.Matches(labels.Set(machine.Labels)) {
-		glog.V(4).Infof("%q machine has mismatched labels for MHC %q", machine.GetName(), machineHealthCheck.GetName())
+		klog.V(4).Infof("%q machine has mismatched labels for MHC %q", machine.GetName(), machineHealthCheck.GetName())
 		return false
 	}
 	return true

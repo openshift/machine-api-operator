@@ -8,7 +8,6 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/golang/glog"
 	osconfigv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/machine-api-operator/pkg/metrics"
 	"github.com/openshift/machine-api-operator/pkg/operator"
@@ -16,6 +15,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
@@ -23,6 +23,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -48,22 +49,25 @@ func init() {
 	rootCmd.AddCommand(startCmd)
 	startCmd.PersistentFlags().StringVar(&startOpts.kubeconfig, "kubeconfig", "", "Kubeconfig file to access a remote cluster (testing only)")
 	startCmd.PersistentFlags().StringVar(&startOpts.imagesFile, "images-json", "", "images.json file for MAO.")
+
+	klog.InitFlags(nil)
+	flag.Parse()
+	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
 }
 
 func runStartCmd(cmd *cobra.Command, args []string) {
 	flag.Set("logtostderr", "true")
-	flag.Parse()
 
 	// To help debugging, immediately log version
-	glog.Infof("Version: %+v", version.Version)
+	klog.Infof("Version: %+v", version.Version)
 
 	if startOpts.imagesFile == "" {
-		glog.Fatalf("--images-json should not be empty")
+		klog.Fatalf("--images-json should not be empty")
 	}
 
 	cb, err := NewClientBuilder(startOpts.kubeconfig)
 	if err != nil {
-		glog.Fatalf("error creating clients: %v", err)
+		klog.Fatalf("error creating clients: %v", err)
 	}
 	stopCh := make(chan struct{})
 
@@ -85,7 +89,7 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 				select {}
 			},
 			OnStoppedLeading: func() {
-				glog.Fatalf("Leader election lost")
+				klog.Fatalf("Leader election lost")
 			},
 		},
 	})
@@ -99,16 +103,16 @@ func initMachineAPIInformers(ctx *ControllerContext) {
 	if !cache.WaitForCacheSync(ctx.Stop,
 		mInformer.HasSynced,
 		msInformer.HasSynced) {
-		glog.Fatal("Failed to sync caches for Machine api informers")
+		klog.Fatal("Failed to sync caches for Machine api informers")
 	}
-	glog.Info("Synced up machine api informer caches")
+	klog.Info("Synced up machine api informer caches")
 }
 
 func initRecorder(kubeClient kubernetes.Interface) record.EventRecorder {
 	eventRecorderScheme := runtime.NewScheme()
 	osconfigv1.Install(eventRecorderScheme)
 	eventBroadcaster := record.NewBroadcaster()
-	eventBroadcaster.StartLogging(glog.Infof)
+	eventBroadcaster.StartLogging(klog.Infof)
 	eventBroadcaster.StartRecordingToSink(&coreclientsetv1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
 	return eventBroadcaster.NewRecorder(eventRecorderScheme, v1.EventSource{Component: "machineapioperator"})
 }
@@ -144,11 +148,11 @@ func startMetricsCollectionAndServer(ctx *ControllerContext) {
 	if port, ok := os.LookupEnv("METRICS_PORT"); ok {
 		v, err := strconv.Atoi(port)
 		if err != nil {
-			glog.Fatalf("Error parsing METRICS_PORT (%q) environment variable: %v", port, err)
+			klog.Fatalf("Error parsing METRICS_PORT (%q) environment variable: %v", port, err)
 		}
 		metricsPort = v
 	}
-	glog.V(4).Info("Starting server to serve prometheus metrics")
+	klog.V(4).Info("Starting server to serve prometheus metrics")
 	go startHTTPMetricServer(fmt.Sprintf("localhost:%d", metricsPort))
 }
 
@@ -160,5 +164,5 @@ func startHTTPMetricServer(metricsPort string) {
 		Addr:    metricsPort,
 		Handler: mux,
 	}
-	glog.Fatal(server.ListenAndServe())
+	klog.Fatal(server.ListenAndServe())
 }

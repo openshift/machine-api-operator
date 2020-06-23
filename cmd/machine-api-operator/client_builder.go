@@ -3,13 +3,13 @@ package main
 import (
 	"errors"
 
-	"github.com/golang/glog"
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
 	mapiclientset "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/klog/v2"
 )
 
 // ClientBuilder can create a variety of kubernetes client interface
@@ -54,10 +54,10 @@ func getRestConfig(kubeconfig string) (*rest.Config, error) {
 	var config *rest.Config
 	var err error
 	if kubeconfig != "" {
-		glog.V(4).Infof("Loading kube client config from path %q", kubeconfig)
+		klog.V(4).Infof("Loading kube client config from path %q", kubeconfig)
 		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 	} else {
-		glog.V(4).Infof("Using in-cluster kube client config")
+		klog.V(4).Infof("Using in-cluster kube client config")
 		config, err = rest.InClusterConfig()
 		if err == rest.ErrNotInCluster {
 			return nil, errors.New("Not running in-cluster? Try using --kubeconfig")

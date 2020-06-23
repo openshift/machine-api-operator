@@ -4,8 +4,8 @@ import (
 	"flag"
 	"os"
 
-	"github.com/golang/glog"
 	"github.com/spf13/cobra"
+	"k8s.io/klog/v2"
 )
 
 var componentNamespace = "openshift-machine-api"
@@ -32,6 +32,6 @@ func main() {
 		componentNamespace = namespace
 	}
 	if err := rootCmd.Execute(); err != nil {
-		glog.Exitf("Error executing mao: %v", err)
+		klog.Exitf("Error executing mao: %v", err)
 	}
 }
