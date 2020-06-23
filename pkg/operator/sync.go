@@ -16,6 +16,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/utils/pointer"
 )
@@ -30,6 +31,9 @@ const (
 	machineExposeMetricsPort            = 8441
 	machineSetExposeMetricsPort         = 8442
 	machineHealthCheckExposeMetricsPort = 8444
+	defaultMachineHealthPort            = 9440
+	defaultMachineSetHealthPort         = 9441
+	defaultMachineHealthCheckHealthPort = 9442
 	kubeRBACConfigName                  = "config"
 	certStoreName                       = "machine-api-controllers-tls"
 )
@@ -379,6 +383,26 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 					Name:          "webhook-server",
 					ContainerPort: 8443,
 				},
+				{
+					Name:          "healthz",
+					ContainerPort: defaultMachineSetHealthPort,
+				},
+			},
+			ReadinessProbe: &corev1.Probe{
+				Handler: corev1.Handler{
+					HTTPGet: &corev1.HTTPGetAction{
+						Path: "/healthz",
+						Port: intstr.Parse("healthz"),
+					},
+				},
+			},
+			LivenessProbe: &corev1.Probe{
+				Handler: corev1.Handler{
+					HTTPGet: &corev1.HTTPGetAction{
+						Path: "/readyz",
+						Port: intstr.Parse("healthz"),
+					},
+				},
 			},
 			VolumeMounts: []corev1.VolumeMount{
 				{
@@ -404,6 +428,26 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 					},
 				},
 			},
+			Ports: []corev1.ContainerPort{{
+				Name:          "healthz",
+				ContainerPort: defaultMachineHealthPort,
+			}},
+			ReadinessProbe: &corev1.Probe{
+				Handler: corev1.Handler{
+					HTTPGet: &corev1.HTTPGetAction{
+						Path: "/healthz",
+						Port: intstr.Parse("healthz"),
+					},
+				},
+			},
+			LivenessProbe: &corev1.Probe{
+				Handler: corev1.Handler{
+					HTTPGet: &corev1.HTTPGetAction{
+						Path: "/readyz",
+						Port: intstr.Parse("healthz"),
+					},
+				},
+			},
 		},
 		{
 			Name:      "nodelink-controller",
@@ -418,6 +462,28 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 			Command:   []string{"/machine-healthcheck"},
 			Args:      args,
 			Resources: resources,
+			Ports: []corev1.ContainerPort{
+				{
+					Name:          "healthz",
+					ContainerPort: defaultMachineHealthCheckHealthPort,
+				},
+			},
+			ReadinessProbe: &corev1.Probe{
+				Handler: corev1.Handler{
+					HTTPGet: &corev1.HTTPGetAction{
+						Path: "/healthz",
+						Port: intstr.Parse("healthz"),
+					},
+				},
+			},
+			LivenessProbe: &corev1.Probe{
+				Handler: corev1.Handler{
+					HTTPGet: &corev1.HTTPGetAction{
+						Path: "/readyz",
+						Port: intstr.Parse("healthz"),
+					},
+				},
+			},
 		},
 	}
 	return containers

@@ -12,7 +12,9 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/controller"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/signals"
 )
@@ -24,8 +26,24 @@ func printVersion() {
 }
 
 func main() {
-	watchNamespace := flag.String("namespace", "", "Namespace that the controller watches to reconcile machine-api objects. If unspecified, the controller watches for machine-api objects across all namespaces.")
-	metricsAddress := flag.String("metrics-bind-address", metrics.DefaultHealthCheckMetricsAddress, "Address for hosting metrics")
+	watchNamespace := flag.String(
+		"namespace",
+		"",
+		"Namespace that the controller watches to reconcile machine-api objects. If unspecified, the controller watches for machine-api objects across all namespaces.",
+	)
+
+	metricsAddress := flag.String(
+		"metrics-bind-address",
+		metrics.DefaultHealthCheckMetricsAddress,
+		"Address for hosting metrics",
+	)
+
+	healthAddr := flag.String(
+		"health-addr",
+		":9442",
+		"The address for health checking.",
+	)
+
 	flag.Parse()
 	printVersion()
 
@@ -36,7 +54,8 @@ func main() {
 	}
 
 	opts := manager.Options{
-		MetricsBindAddress: *metricsAddress,
+		MetricsBindAddress:     *metricsAddress,
+		HealthProbeBindAddress: *healthAddr,
 	}
 	if *watchNamespace != "" {
 		opts.Namespace = *watchNamespace
@@ -61,6 +80,14 @@ func main() {
 	// Setup all Controllers
 	if err := controller.AddToManager(mgr, opts, machinehealthcheck.Add); err != nil {
 		glog.Fatal(err)
+	}
+
+	if err := mgr.AddReadyzCheck("ping", healthz.Ping); err != nil {
+		klog.Fatal(err)
+	}
+
+	if err := mgr.AddHealthzCheck("ping", healthz.Ping); err != nil {
+		klog.Fatal(err)
 	}
 
 	glog.Info("Starting the Cmd.")

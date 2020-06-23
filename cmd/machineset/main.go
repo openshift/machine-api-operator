@@ -28,6 +28,7 @@ import (
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/klog"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/runtime/signals"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
@@ -54,6 +55,12 @@ func main() {
 	webhookCertdir := flag.String("webhook-cert-dir", defaultWebhookCertdir,
 		"Webhook cert dir, only used when webhook-enabled is true.")
 
+	healthAddr := flag.String(
+		"health-addr",
+		":9441",
+		"The address for health checking.",
+	)
+
 	flag.Parse()
 	if *watchNamespace != "" {
 		log.Printf("Watching cluster-api objects only in namespace %q for reconciliation.", *watchNamespace)
@@ -69,9 +76,10 @@ func main() {
 	// Create a new Cmd to provide shared dependencies and start components
 	syncPeriod := 10 * time.Minute
 	opts := manager.Options{
-		MetricsBindAddress: *metricsAddress,
-		SyncPeriod:         &syncPeriod,
-		Namespace:          *watchNamespace,
+		MetricsBindAddress:     *metricsAddress,
+		SyncPeriod:             &syncPeriod,
+		Namespace:              *watchNamespace,
+		HealthProbeBindAddress: *healthAddr,
 	}
 
 	mgr, err := manager.New(cfg, opts)
@@ -107,6 +115,14 @@ func main() {
 	// Setup all Controllers
 	if err := controller.AddToManager(mgr, opts, machineset.Add); err != nil {
 		log.Fatal(err)
+	}
+
+	if err := mgr.AddReadyzCheck("ping", healthz.Ping); err != nil {
+		klog.Fatal(err)
+	}
+
+	if err := mgr.AddHealthzCheck("ping", healthz.Ping); err != nil {
+		klog.Fatal(err)
 	}
 
 	log.Printf("Starting the Cmd.")
