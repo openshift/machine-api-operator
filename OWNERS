@@ -5,3 +5,5 @@ approvers:
   - elmiko
   - Danil-Grigorev
   - alexander-demichev
+
+component: "Cloud Compute"
