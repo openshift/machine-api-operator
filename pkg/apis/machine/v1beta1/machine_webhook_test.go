@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
+	vsphere "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -947,6 +948,263 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 			}
 
 			gotProviderSpec := new(gcp.GCPMachineProviderSpec)
+			if err := yaml.Unmarshal(m.Spec.ProviderSpec.Value.Raw, &gotProviderSpec); err != nil {
+				t.Fatal(err)
+			}
+
+			if !equality.Semantic.DeepEqual(defaultProviderSpec, gotProviderSpec) {
+				t.Errorf("expected: %+v, got: %+v", defaultProviderSpec, gotProviderSpec)
+			}
+			if err == nil {
+				if tc.expectedError != "" {
+					t.Errorf("expected: %q, got: %v", tc.expectedError, err)
+				}
+			} else {
+				if err.Error() != tc.expectedError {
+					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
+				}
+			}
+		})
+	}
+}
+
+func TestValidateVSphereProviderSpec(t *testing.T) {
+
+	testCases := []struct {
+		testCase      string
+		modifySpec    func(*vsphere.VSphereMachineProviderSpec)
+		expectedError string
+		expectedOk    bool
+	}{
+		{
+			testCase: "with no template provided",
+			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+				p.Template = ""
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.template: Required value: template must be provided",
+		},
+		{
+			testCase: "with no workspace provided",
+			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+				p.Workspace = nil
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.workspace: Required value: workspace must be provided",
+		},
+		{
+			testCase: "with no workspace server provided",
+			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+				p.Workspace = &vsphere.Workspace{
+					Datacenter: "datacenter",
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.workspace.server: Required value: server must be provided",
+		},
+		{
+			testCase: "with no workspace datacenter provided",
+			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+				p.Workspace = &vsphere.Workspace{
+					Server: "server",
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.workspace.datacenter: Required value: datacenter must be provided",
+		},
+		{
+			testCase: "with a workspace folder outside of the current datacenter",
+			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+				p.Workspace = &vsphere.Workspace{
+					Server:     "server",
+					Datacenter: "datacenter",
+					Folder:     "/foo/vm/folder",
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.workspace.folder: Invalid value: \"/foo/vm/folder\": folder must be absolute path: expected prefix \"/datacenter/vm/\"",
+		},
+		{
+			testCase: "with no network devices provided",
+			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+				p.Network = vsphere.NetworkSpec{
+					Devices: []vsphere.NetworkDeviceSpec{},
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.network.devices: Required value: at least 1 network device must be provided",
+		},
+		{
+			testCase: "with no network device name provided",
+			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+				p.Network = vsphere.NetworkSpec{
+					Devices: []vsphere.NetworkDeviceSpec{
+						{
+							NetworkName: "networkName",
+						},
+						{},
+					},
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.network.devices[1].networkName: Required value: networkName must be provided",
+		},
+		{
+			testCase: "with too few CPUs provided",
+			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+				p.NumCPUs = 1
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.numCPUs: Invalid value: 1: numCPUs is below minimum value (2)",
+		},
+		{
+			testCase: "with too little memory provided",
+			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+				p.MemoryMiB = 1024
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.memoryMiB: Invalid value: 1024: memoryMiB is below minimum value (2048)",
+		},
+		{
+			testCase: "with no user data secret provided",
+			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+				p.UserDataSecret = nil
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.userDataSecret: Required value: userDataSecret must be provided",
+		},
+		{
+			testCase: "with no user data secret name provided",
+			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+				p.UserDataSecret = &corev1.LocalObjectReference{}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.userDataSecret.name: Required value: name must be provided",
+		},
+		{
+			testCase: "with no credentials secret provided",
+			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+				p.CredentialsSecret = nil
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.credentialsSecret: Required value: credentialsSecret must be provided",
+		},
+		{
+			testCase: "with no credentials secret name provided",
+			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+				p.CredentialsSecret = &corev1.LocalObjectReference{}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.credentialsSecret.name: Required value: name must be provided",
+		},
+		{
+			testCase:      "with all required fields it succeeds",
+			expectedOk:    true,
+			expectedError: "",
+		},
+	}
+
+	h := createMachineValidator(osconfigv1.VSpherePlatformType, "clusterID")
+
+	for _, tc := range testCases {
+		t.Run(tc.testCase, func(t *testing.T) {
+			providerSpec := &vsphere.VSphereMachineProviderSpec{
+				Template: "template",
+				Workspace: &vsphere.Workspace{
+					Datacenter: "datacenter",
+					Server:     "server",
+				},
+				Network: vsphere.NetworkSpec{
+					Devices: []vsphere.NetworkDeviceSpec{
+						{
+							NetworkName: "networkName",
+						},
+					},
+				},
+				UserDataSecret: &corev1.LocalObjectReference{
+					Name: "name",
+				},
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: "name",
+				},
+			}
+			if tc.modifySpec != nil {
+				tc.modifySpec(providerSpec)
+			}
+
+			m := &Machine{}
+			rawBytes, err := json.Marshal(providerSpec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
+
+			ok, err := h.webhookOperations(h, m)
+			if ok != tc.expectedOk {
+				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
+			}
+
+			if err == nil {
+				if tc.expectedError != "" {
+					t.Errorf("expected: %q, got: %v", tc.expectedError, err)
+				}
+			} else {
+				if err.Error() != tc.expectedError {
+					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
+				}
+			}
+		})
+	}
+}
+
+func TestDefaultVSphereProviderSpec(t *testing.T) {
+
+	clusterID := "clusterID"
+	testCases := []struct {
+		testCase      string
+		providerSpec  *vsphere.VSphereMachineProviderSpec
+		modifyDefault func(*vsphere.VSphereMachineProviderSpec)
+		expectedError string
+		expectedOk    bool
+	}{
+		{
+			testCase:      "it defaults defaultable fields",
+			providerSpec:  &vsphere.VSphereMachineProviderSpec{},
+			expectedOk:    true,
+			expectedError: "",
+		},
+	}
+
+	platformStatus := &osconfigv1.PlatformStatus{Type: osconfigv1.VSpherePlatformType}
+	h := createMachineDefaulter(platformStatus, clusterID)
+
+	for _, tc := range testCases {
+		t.Run(tc.testCase, func(t *testing.T) {
+			defaultProviderSpec := &vsphere.VSphereMachineProviderSpec{
+				UserDataSecret: &corev1.LocalObjectReference{
+					Name: defaultUserDataSecret,
+				},
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: defaultVSphereCredentialsSecret,
+				},
+			}
+			if tc.modifyDefault != nil {
+				tc.modifyDefault(defaultProviderSpec)
+			}
+
+			m := &Machine{}
+			rawBytes, err := json.Marshal(tc.providerSpec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
+
+			ok, err := h.webhookOperations(h, m)
+			if ok != tc.expectedOk {
+				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
+			}
+
+			gotProviderSpec := new(vsphere.VSphereMachineProviderSpec)
 			if err := yaml.Unmarshal(m.Spec.ProviderSpec.Value.Raw, &gotProviderSpec); err != nil {
 				t.Fatal(err)
 			}
