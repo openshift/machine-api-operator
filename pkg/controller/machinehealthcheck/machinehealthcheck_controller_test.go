@@ -239,6 +239,13 @@ func TestReconcile(t *testing.T) {
 	}
 	machineUnhealthyForTooLong := maotesting.NewMachine("machineUnhealthyForTooLong", nodeUnhealthyForTooLong.Name)
 
+	nodeAlreadyDeleted := maotesting.NewNode("nodeAlreadyDelete", false)
+	nodeUnhealthyForTooLong.Annotations = map[string]string{
+		machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "machineAlreadyDeleted"),
+	}
+	machineAlreadyDeleted := maotesting.NewMachine("machineAlreadyDeleted", nodeAlreadyDeleted.Name)
+	machineAlreadyDeleted.SetDeletionTimestamp(&metav1.Time{Time: time.Now()})
+
 	testCases := []struct {
 		testCase       string
 		machine        *mapiv1beta1.Machine
@@ -320,6 +327,16 @@ func TestReconcile(t *testing.T) {
 				error: false,
 			},
 			expectedEvents: []string{EventDetectedUnhealthy},
+		},
+		{
+			testCase: "machine already deleted",
+			machine:  machineAlreadyDeleted,
+			node:     nodeAlreadyDeleted,
+			expected: expectedReconcile{
+				result: reconcile.Result{},
+				error:  false,
+			},
+			expectedEvents: []string{},
 		},
 	}
 

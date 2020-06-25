@@ -449,6 +449,21 @@ func (t *target) remediate(r *ReconcileMachineHealthCheck) error {
 		return nil
 	}
 
+	key := client.ObjectKey{Namespace: t.Machine.Namespace, Name: t.Machine.Name}
+	machine := &mapiv1.Machine{}
+	if err := r.client.Get(context.TODO(), key, machine); err != nil {
+		if apimachineryerrors.IsNotFound(err) {
+			// Machine has already been deleted
+			return nil
+		}
+		return fmt.Errorf("%s: failed to get machine: %v", t.string(), err)
+	}
+
+	if !machine.GetDeletionTimestamp().IsZero() {
+		// Delete already initiated
+		return nil
+	}
+
 	glog.Infof("%s: deleting", t.string())
 	if err := r.client.Delete(context.TODO(), &t.Machine); err != nil {
 		r.recorder.Eventf(
