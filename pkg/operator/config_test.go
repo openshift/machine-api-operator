@@ -232,7 +232,7 @@ func TestGetTerminationHandlerFromImages(t *testing.T) {
 		},
 		{
 			provider:      configv1.GCPPlatformType,
-			expectedImage: clusterAPIControllerNoOp,
+			expectedImage: expectedGCPImage,
 		},
 		{
 			provider:      kubemarkPlatform,

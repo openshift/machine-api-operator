@@ -116,6 +116,8 @@ func getTerminationHandlerFromImages(platform configv1.PlatformType, images Imag
 	switch platform {
 	case configv1.AWSPlatformType:
 		return images.ClusterAPIControllerAWS, nil
+	case configv1.GCPPlatformType:
+		return images.ClusterAPIControllerGCP, nil
 	default:
 		return clusterAPIControllerNoOp, nil
 	}

@@ -369,7 +369,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					MachineSet:         images.MachineAPIOperator,
 					NodeLink:           images.MachineAPIOperator,
 					MachineHealthCheck: images.MachineAPIOperator,
-					TerminationHandler: clusterAPIControllerNoOp,
+					TerminationHandler: images.ClusterAPIControllerGCP,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
 			},
