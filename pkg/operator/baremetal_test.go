@@ -3,6 +3,7 @@ package operator
 import (
 	"testing"
 
+	. "github.com/onsi/gomega"
 	"golang.org/x/net/context"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -26,18 +27,62 @@ spec:
   provisioningOSDownloadURL: "http://172.22.0.1/images/rhcos-44.81.202001171431.0-openstack.x86_64.qcow2.gz?sha256=e98f83a2b9d4043719664a2be75fe8134dc6ca1fdbde807996622f8cc7ecd234"
 `
 var (
-	expectedProvisioningInterface    = "ensp0"
-	expectedProvisioningIP           = "172.30.20.3"
-	expectedProvisioningNetworkCIDR  = "172.30.20.0/24"
-	expectedProvisioningDHCPExternal = false
-	expectedProvisioningDHCPRange    = "172.30.20.11, 172.30.20.101"
-	expectedOSImageURL               = "http://172.22.0.1/images/rhcos-44.81.202001171431.0-openstack.x86_64.qcow2.gz?sha256=e98f83a2b9d4043719664a2be75fe8134dc6ca1fdbde807996622f8cc7ecd234"
-	expectedProvisioningIPCIDR       = "172.30.20.3/24"
-	expectedDeployKernelURL          = "http://172.30.20.3:6180/images/ironic-python-agent.kernel"
-	expectedDeployRamdiskURL         = "http://172.30.20.3:6180/images/ironic-python-agent.initramfs"
-	expectedIronicEndpoint           = "http://172.30.20.3:6385/v1/"
-	expectedIronicInspectorEndpoint  = "http://172.30.20.3:5050/v1/"
-	expectedHttpPort                 = "6180"
+	expectedProvisioningInterface   = "ensp0"
+	expectedProvisioningIP          = "172.30.20.3"
+	expectedProvisioningNetworkCIDR = "172.30.20.0/24"
+	expectedProvisioningDHCPRange   = "172.30.20.11, 172.30.20.101"
+	expectedOSImageURL              = "http://172.22.0.1/images/rhcos-44.81.202001171431.0-openstack.x86_64.qcow2.gz?sha256=e98f83a2b9d4043719664a2be75fe8134dc6ca1fdbde807996622f8cc7ecd234"
+	expectedProvisioningIPCIDR      = "172.30.20.3/24"
+	expectedDeployKernelURL         = "http://172.30.20.3:6180/images/ironic-python-agent.kernel"
+	expectedDeployRamdiskURL        = "http://172.30.20.3:6180/images/ironic-python-agent.initramfs"
+	expectedIronicEndpoint          = "http://172.30.20.3:6385/v1/"
+	expectedIronicInspectorEndpoint = "http://172.30.20.3:5050/v1/"
+	expectedHttpPort                = "6180"
+	expectedProvisioningNetwork     = "Managed"
+)
+
+var (
+	Managed = `
+apiVersion: metal3.io/v1alpha1
+kind: Provisioning
+metadata:
+  name: test
+spec:
+  provisioningInterface: "ensp0"
+  provisioningIP: "172.30.20.3"
+  provisioningNetworkCIDR: "172.30.20.0/24"
+  provisioningDHCPExternal: false
+  provisioningDHCPRange: "172.30.20.11, 172.30.20.101"
+  provisioningOSDownloadURL: "http://172.22.0.1/images/rhcos-44.81.202001171431.0-openstack.x86_64.qcow2.gz?sha256=e98f83a2b9d4043719664a2be75fe8134dc6ca1fdbde807996622f8cc7ecd234"
+  provisioningNetwork: "Managed"
+`
+	Unmanaged = `
+apiVersion: metal3.io/v1alpha1
+kind: Provisioning
+metadata:
+  name: test
+spec:
+  provisioningInterface: "ensp0"
+  provisioningIP: "172.30.20.3"
+  provisioningNetworkCIDR: "172.30.20.0/24"
+  provisioningDHCPRange: ""
+  provisioningOSDownloadURL: "http://172.22.0.1/images/rhcos-44.81.202001171431.0-openstack.x86_64.qcow2.gz?sha256=e98f83a2b9d4043719664a2be75fe8134dc6ca1fdbde807996622f8cc7ecd234"
+  provisioningNetwork: "Unmanaged"
+`
+	Disabled = `
+apiVersion: metal3.io/v1alpha1
+kind: Provisioning
+metadata:
+  name: test
+spec:
+  provisioningInterface: ""
+  provisioningIP: "172.30.20.3"
+  provisioningNetworkCIDR: "172.30.20.0/24"
+  provisioningDHCPExternal: false
+  provisioningDHCPRange: ""
+  provisioningOSDownloadURL: "http://172.22.0.1/images/rhcos-44.81.202001171431.0-openstack.x86_64.qcow2.gz?sha256=e98f83a2b9d4043719664a2be75fe8134dc6ca1fdbde807996622f8cc7ecd234"
+  provisioningNetwork: "Disabled"
+`
 )
 
 func TestGenerateRandomPassword(t *testing.T) {
@@ -123,9 +168,9 @@ func TestGetBaremetalProvisioningConfig(t *testing.T) {
 	if baremetalConfig.ProvisioningInterface != expectedProvisioningInterface ||
 		baremetalConfig.ProvisioningIp != expectedProvisioningIP ||
 		baremetalConfig.ProvisioningNetworkCIDR != expectedProvisioningNetworkCIDR ||
-		baremetalConfig.ProvisioningDHCPExternal != expectedProvisioningDHCPExternal ||
-		baremetalConfig.ProvisioningDHCPRange != expectedProvisioningDHCPRange {
-		t.Logf("Expected: ProvisioningInterface: %s, ProvisioningIP: %s, ProvisioningNetworkCIDR: %s, ProvisioningDHCPExternal: %t, expectedProvisioningDHCPRange: %s, Got: %+v", expectedProvisioningInterface, expectedProvisioningIP, expectedProvisioningNetworkCIDR, expectedProvisioningDHCPExternal, expectedProvisioningDHCPRange, baremetalConfig)
+		baremetalConfig.ProvisioningDHCPRange != expectedProvisioningDHCPRange ||
+		baremetalConfig.ProvisioningNetwork != provisioningNetworkManaged {
+		t.Logf("Expected: ProvisioningInterface: %s, ProvisioningIP: %s, ProvisioningNetworkCIDR: %s, ProvisioningNetwork: %s, expectedProvisioningDHCPRange: %s, Got: %+v", expectedProvisioningInterface, expectedProvisioningIP, expectedProvisioningNetworkCIDR, expectedProvisioningNetwork, expectedProvisioningDHCPRange, baremetalConfig)
 		t.Fatalf("failed getBaremetalProvisioningConfig. One or more BaremetalProvisioningConfig items do not match the expected config.")
 	}
 }
@@ -240,5 +285,56 @@ func TestGetMetal3DeploymentConfig(t *testing.T) {
 		}
 	} else {
 		t.Errorf("Provisioning DHCP Range is not available.")
+	}
+}
+
+// Test interpretation of different provisioning config
+func TestBaremetalProvisionigConfig(t *testing.T) {
+	testConfigResource := "test"
+	configNames := []string{"PROVISIONING_IP", "PROVISIONING_INTERFACE", "DEPLOY_KERNEL_URL", "DEPLOY_RAMDISK_URL", "IRONIC_ENDPOINT", "IRONIC_INSPECTOR_ENDPOINT", "HTTP_PORT", "DHCP_RANGE", "RHCOS_IMAGE_URL"}
+
+	testCases := []struct {
+		name                 string
+		config               string
+		expectedConfigValues []string
+	}{
+		{
+			name:                 "Managed",
+			config:               Managed,
+			expectedConfigValues: []string{"172.30.20.3/24", "ensp0", "http://172.30.20.3:6180/images/ironic-python-agent.kernel", "http://172.30.20.3:6180/images/ironic-python-agent.initramfs", "http://172.30.20.3:6385/v1/", "http://172.30.20.3:5050/v1/", expectedHttpPort, "172.30.20.11, 172.30.20.101", "http://172.22.0.1/images/rhcos-44.81.202001171431.0-openstack.x86_64.qcow2.gz?sha256=e98f83a2b9d4043719664a2be75fe8134dc6ca1fdbde807996622f8cc7ecd234"},
+		},
+		{
+			name:                 "Unmanaged",
+			config:               Unmanaged,
+			expectedConfigValues: []string{"172.30.20.3/24", "ensp0", "http://172.30.20.3:6180/images/ironic-python-agent.kernel", "http://172.30.20.3:6180/images/ironic-python-agent.initramfs", "http://172.30.20.3:6385/v1/", "http://172.30.20.3:5050/v1/", expectedHttpPort, "", "http://172.22.0.1/images/rhcos-44.81.202001171431.0-openstack.x86_64.qcow2.gz?sha256=e98f83a2b9d4043719664a2be75fe8134dc6ca1fdbde807996622f8cc7ecd234"},
+		},
+		{
+			name:                 "Disabled",
+			config:               Disabled,
+			expectedConfigValues: []string{"172.30.20.3/24", "", "http://172.30.20.3:6180/images/ironic-python-agent.kernel", "http://172.30.20.3:6180/images/ironic-python-agent.initramfs", "http://172.30.20.3:6385/v1/", "http://172.30.20.3:5050/v1/", expectedHttpPort, "", "http://172.22.0.1/images/rhcos-44.81.202001171431.0-openstack.x86_64.qcow2.gz?sha256=e98f83a2b9d4043719664a2be75fe8134dc6ca1fdbde807996622f8cc7ecd234"},
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			t.Logf("Testing tc : %s", tc.name)
+			u := &unstructured.Unstructured{Object: map[string]interface{}{}}
+			if err := yaml.Unmarshal([]byte(tc.config), &u); err != nil {
+				t.Errorf("failed to unmarshall input yaml content:%v", err)
+			}
+			dynamicClient := fakedynamic.NewSimpleDynamicClient(runtime.NewScheme(), u)
+			baremetalConfig, err := getBaremetalProvisioningConfig(dynamicClient, testConfigResource)
+			if err != nil {
+				t.Errorf("getBaremetalProvisioningConfig returned err: %v", err)
+			}
+			g.Expect(err).To(BeNil())
+
+			for i, envVar := range configNames {
+				actualConfigValue := getMetal3DeploymentConfig(envVar, baremetalConfig)
+
+				g.Expect(*actualConfigValue).To(Equal(tc.expectedConfigValues[i]))
+			}
+		})
 	}
 }

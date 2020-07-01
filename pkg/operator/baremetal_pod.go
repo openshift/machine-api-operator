@@ -37,21 +37,7 @@ var volumeMounts = []corev1.VolumeMount{
 	},
 }
 
-func buildEnvVarFromConfigMap(name string, key string) corev1.EnvVar {
-	return corev1.EnvVar{
-		Name: name,
-		ValueFrom: &corev1.EnvVarSource{
-			ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{
-					Name: baremetalConfigmap,
-				},
-				Key: key,
-			},
-		},
-	}
-}
-
-func buildEnvVar(name string, key string, baremetalProvisioningConfig BaremetalProvisioningConfig) corev1.EnvVar {
+func buildEnvVar(name string, baremetalProvisioningConfig BaremetalProvisioningConfig) corev1.EnvVar {
 	value := getMetal3DeploymentConfig(name, baremetalProvisioningConfig)
 	if value != nil {
 		return corev1.EnvVar{
@@ -59,7 +45,9 @@ func buildEnvVar(name string, key string, baremetalProvisioningConfig BaremetalP
 			Value: *value,
 		}
 	} else {
-		return buildEnvVarFromConfigMap(name, key)
+		return corev1.EnvVar{
+			Name: name,
+		}
 	}
 }
 
@@ -221,7 +209,7 @@ func createInitContainerMachineOsDownloader(config *OperatorConfig, baremetalPro
 		},
 		VolumeMounts: volumeMounts,
 		Env: []corev1.EnvVar{
-			buildEnvVar("RHCOS_IMAGE_URL", "rhcos_image_url", baremetalProvisioningConfig),
+			buildEnvVar("RHCOS_IMAGE_URL", baremetalProvisioningConfig),
 		},
 	}
 	return initContainer
@@ -237,8 +225,8 @@ func createInitContainerStaticIpSet(config *OperatorConfig, baremetalProvisionin
 			Privileged: pointer.BoolPtr(true),
 		},
 		Env: []corev1.EnvVar{
-			buildEnvVar("PROVISIONING_IP", "provisioning_ip", baremetalProvisioningConfig),
-			buildEnvVar("PROVISIONING_INTERFACE", "provisioning_interface", baremetalProvisioningConfig),
+			buildEnvVar("PROVISIONING_IP", baremetalProvisioningConfig),
+			buildEnvVar("PROVISIONING_INTERFACE", baremetalProvisioningConfig),
 		},
 	}
 	return initContainer
@@ -279,14 +267,16 @@ func newMetal3Containers(config *OperatorConfig, baremetalProvisioningConfig Bar
 					Name:  "OPERATOR_NAME",
 					Value: "baremetal-operator",
 				},
-				buildEnvVar("DEPLOY_KERNEL_URL", "deploy_kernel_url", baremetalProvisioningConfig),
-				buildEnvVar("DEPLOY_RAMDISK_URL", "deploy_ramdisk_url", baremetalProvisioningConfig),
-				buildEnvVar("IRONIC_ENDPOINT", "ironic_endpoint", baremetalProvisioningConfig),
-				buildEnvVar("IRONIC_INSPECTOR_ENDPOINT", "ironic_inspector_endpoint", baremetalProvisioningConfig),
+				buildEnvVar("DEPLOY_KERNEL_URL", baremetalProvisioningConfig),
+				buildEnvVar("DEPLOY_RAMDISK_URL", baremetalProvisioningConfig),
+				buildEnvVar("IRONIC_ENDPOINT", baremetalProvisioningConfig),
+				buildEnvVar("IRONIC_INSPECTOR_ENDPOINT", baremetalProvisioningConfig),
 			},
 		},
 	}
-	containers = append(containers, createContainerMetal3Dnsmasq(config, baremetalProvisioningConfig))
+	if baremetalProvisioningConfig.ProvisioningNetwork != provisioningNetworkDisabled {
+		containers = append(containers, createContainerMetal3Dnsmasq(config, baremetalProvisioningConfig))
+	}
 	containers = append(containers, createContainerMetal3Mariadb(config))
 	containers = append(containers, createContainerMetal3Httpd(config, baremetalProvisioningConfig))
 	containers = append(containers, createContainerMetal3IronicConductor(config, baremetalProvisioningConfig))
@@ -308,9 +298,9 @@ func createContainerMetal3Dnsmasq(config *OperatorConfig, baremetalProvisioningC
 		Command:      []string{"/bin/rundnsmasq"},
 		VolumeMounts: volumeMounts,
 		Env: []corev1.EnvVar{
-			buildEnvVar("HTTP_PORT", "http_port", baremetalProvisioningConfig),
-			buildEnvVar("PROVISIONING_INTERFACE", "provisioning_interface", baremetalProvisioningConfig),
-			buildEnvVar("DHCP_RANGE", "dhcp_range", baremetalProvisioningConfig),
+			buildEnvVar("HTTP_PORT", baremetalProvisioningConfig),
+			buildEnvVar("PROVISIONING_INTERFACE", baremetalProvisioningConfig),
+			buildEnvVar("DHCP_RANGE", baremetalProvisioningConfig),
 		},
 	}
 	return container
@@ -346,8 +336,8 @@ func createContainerMetal3Httpd(config *OperatorConfig, baremetalProvisioningCon
 		Command:      []string{"/bin/runhttpd"},
 		VolumeMounts: volumeMounts,
 		Env: []corev1.EnvVar{
-			buildEnvVar("HTTP_PORT", "http_port", baremetalProvisioningConfig),
-			buildEnvVar("PROVISIONING_INTERFACE", "provisioning_interface", baremetalProvisioningConfig),
+			buildEnvVar("HTTP_PORT", baremetalProvisioningConfig),
+			buildEnvVar("PROVISIONING_INTERFACE", baremetalProvisioningConfig),
 		},
 	}
 	return container
@@ -366,8 +356,8 @@ func createContainerMetal3IronicConductor(config *OperatorConfig, baremetalProvi
 		VolumeMounts: volumeMounts,
 		Env: []corev1.EnvVar{
 			setMariadbPassword(),
-			buildEnvVar("HTTP_PORT", "http_port", baremetalProvisioningConfig),
-			buildEnvVar("PROVISIONING_INTERFACE", "provisioning_interface", baremetalProvisioningConfig),
+			buildEnvVar("HTTP_PORT", baremetalProvisioningConfig),
+			buildEnvVar("PROVISIONING_INTERFACE", baremetalProvisioningConfig),
 		},
 	}
 	return container
@@ -386,8 +376,8 @@ func createContainerMetal3IronicApi(config *OperatorConfig, baremetalProvisionin
 		VolumeMounts: volumeMounts,
 		Env: []corev1.EnvVar{
 			setMariadbPassword(),
-			buildEnvVar("HTTP_PORT", "http_port", baremetalProvisioningConfig),
-			buildEnvVar("PROVISIONING_INTERFACE", "provisioning_interface", baremetalProvisioningConfig),
+			buildEnvVar("HTTP_PORT", baremetalProvisioningConfig),
+			buildEnvVar("PROVISIONING_INTERFACE", baremetalProvisioningConfig),
 		},
 	}
 	return container
@@ -404,7 +394,7 @@ func createContainerMetal3IronicInspector(config *OperatorConfig, baremetalProvi
 		},
 		VolumeMounts: volumeMounts,
 		Env: []corev1.EnvVar{
-			buildEnvVar("PROVISIONING_INTERFACE", "provisioning_interface", baremetalProvisioningConfig),
+			buildEnvVar("PROVISIONING_INTERFACE", baremetalProvisioningConfig),
 		},
 	}
 	return container
@@ -421,8 +411,8 @@ func createContainerMetal3StaticIpManager(config *OperatorConfig, baremetalProvi
 			Privileged: pointer.BoolPtr(true),
 		},
 		Env: []corev1.EnvVar{
-			buildEnvVar("PROVISIONING_IP", "provisioning_ip", baremetalProvisioningConfig),
-			buildEnvVar("PROVISIONING_INTERFACE", "provisioning_interface", baremetalProvisioningConfig),
+			buildEnvVar("PROVISIONING_IP", baremetalProvisioningConfig),
+			buildEnvVar("PROVISIONING_INTERFACE", baremetalProvisioningConfig),
 		},
 	}
 	return container
