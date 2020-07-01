@@ -4,18 +4,23 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net"
+	"path/filepath"
 	"testing"
+	"time"
 
+	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	vspherev1 "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
-	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/envtest"
 )
 
 const TestNamespace = "vsphere-test"
@@ -277,19 +282,68 @@ func TestGetCredentialsSecret(t *testing.T) {
 }
 
 func TestPatchMachine(t *testing.T) {
+	g := NewWithT(t)
+	ctx := context.Background()
+
+	configv1.AddToScheme(scheme.Scheme)
+	machinev1.AddToScheme(scheme.Scheme)
+
+	testEnv := &envtest.Environment{
+		CRDDirectoryPaths: []string{
+			filepath.Join("..", "..", "..", "install"),
+			filepath.Join("..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1")},
+	}
+
+	cfg, err := testEnv.Start()
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(cfg).ToNot(BeNil())
+	defer func() {
+		g.Expect(testEnv.Stop()).To(Succeed())
+	}()
+
+	k8sClient, err := client.New(cfg, client.Options{})
+	g.Expect(err).ToNot(HaveOccurred())
+
 	model, _, server := initSimulator(t)
 	defer model.Remove()
 	defer server.Close()
-	credentialsSecretUsername := fmt.Sprintf("%s.username", server.URL.Host)
-	credentialsSecretPassword := fmt.Sprintf("%s.password", server.URL.Host)
+	host, port, err := net.SplitHostPort(server.URL.Host)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	credentialsSecretUsername := fmt.Sprintf("%s.username", host)
+	credentialsSecretPassword := fmt.Sprintf("%s.password", host)
 
 	// fake objects for newMachineScope()
 	password, _ := server.URL.User.Password()
-	namespace := "test"
+
+	configNamespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: openshiftConfigNamespace,
+		},
+	}
+	g.Expect(k8sClient.Create(ctx, configNamespace)).To(Succeed())
+	defer func() {
+		g.Expect(k8sClient.Delete(ctx, configNamespace)).To(Succeed())
+	}()
+
+	testNamespaceName := "test"
+
+	testNamespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: testNamespaceName,
+		},
+	}
+	g.Expect(k8sClient.Create(ctx, testNamespace)).To(Succeed())
+	defer func() {
+		g.Expect(k8sClient.Delete(ctx, testNamespace)).To(Succeed())
+	}()
+
 	credentialsSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test",
-			Namespace: namespace,
+			Namespace: testNamespaceName,
 		},
 		Data: map[string][]byte{
 			credentialsSecretUsername: []byte(server.URL.User.Username()),
@@ -297,16 +351,25 @@ func TestPatchMachine(t *testing.T) {
 		},
 	}
 
-	testConfig := fmt.Sprintf(testConfigFmt, "")
+	g.Expect(k8sClient.Create(ctx, credentialsSecret)).To(Succeed())
+	defer func() {
+		g.Expect(k8sClient.Delete(ctx, credentialsSecret)).To(Succeed())
+	}()
+
+	testConfig := fmt.Sprintf(testConfigFmt, port)
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "testName",
+			Name:      "testname",
 			Namespace: openshiftConfigNamespace,
 		},
 		Data: map[string]string{
-			"testKey": testConfig,
+			"testkey": testConfig,
 		},
 	}
+	g.Expect(k8sClient.Create(ctx, configMap)).To(Succeed())
+	defer func() {
+		g.Expect(k8sClient.Delete(ctx, configMap)).To(Succeed())
+	}()
 
 	infra := &configv1.Infrastructure{
 		ObjectMeta: metav1.ObjectMeta{
@@ -314,108 +377,165 @@ func TestPatchMachine(t *testing.T) {
 		},
 		Spec: configv1.InfrastructureSpec{
 			CloudConfig: configv1.ConfigMapFileReference{
-				Name: "testName",
-				Key:  "testKey",
+				Name: "testname",
+				Key:  "testkey",
 			},
 		},
 	}
+	g.Expect(k8sClient.Create(ctx, infra)).To(Succeed())
+	defer func() {
+		g.Expect(k8sClient.Delete(ctx, infra)).To(Succeed())
+	}()
 
-	// original objects
-	originalProviderSpec := vspherev1.VSphereMachineProviderSpec{
-		CredentialsSecret: &corev1.LocalObjectReference{
-			Name: "test",
-		},
+	failedPhase := "Failed"
 
-		Workspace: &vspherev1.Workspace{
-			Server: server.URL.Host,
-			Folder: "test",
-		},
-	}
-	rawProviderSpec, err := vspherev1.RawExtensionFromProviderSpec(&originalProviderSpec)
-	if err != nil {
-		t.Fatal(err)
-	}
+	providerStatus := &vspherev1.VSphereMachineProviderStatus{}
 
-	originalProviderStatus := &vspherev1.VSphereMachineProviderStatus{
-		TaskRef: "test",
-	}
-	rawProviderStatus, err := vspherev1.RawExtensionFromProviderStatus(originalProviderStatus)
-	if err != nil {
-		t.Fatal(err)
-	}
+	machineName := "test"
+	machineKey := types.NamespacedName{Namespace: testNamespaceName, Name: machineName}
 
-	originalMachine := &machinev1.Machine{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test",
-			Namespace: namespace,
-		},
-		TypeMeta: metav1.TypeMeta{
-			Kind:       "Machine",
-			APIVersion: "machine.openshift.io/v1beta1",
-		},
-		Spec: machinev1.MachineSpec{
-			ProviderSpec: machinev1.ProviderSpec{
-				Value: rawProviderSpec,
-			},
-		},
-		Status: machinev1.MachineStatus{
-			ProviderStatus: rawProviderStatus,
-		},
-	}
-
-	// expected objects
-	expectedMachine := originalMachine.DeepCopy()
-	providerID := "mutated"
-	expectedMachine.Spec.ProviderID = &providerID
-	expectedMachine.Status.Addresses = []corev1.NodeAddress{
+	testCases := []struct {
+		name   string
+		mutate func(*machinev1.Machine)
+		expect func(*machinev1.Machine) error
+	}{
 		{
-			Type:    corev1.NodeInternalDNS,
-			Address: "127.0.0.1",
+			name: "Test changing labels",
+			mutate: func(m *machinev1.Machine) {
+				m.Labels["testlabel"] = "test"
+			},
+			expect: func(m *machinev1.Machine) error {
+				if m.Labels["testlabel"] != "test" {
+					return fmt.Errorf("label \"testlabel\" %q not equal expected \"test\"", m.ObjectMeta.Labels["test"])
+				}
+				return nil
+			},
+		},
+		{
+			name: "Test setting phase",
+			mutate: func(m *machinev1.Machine) {
+				m.Status.Phase = &failedPhase
+			},
+			expect: func(m *machinev1.Machine) error {
+				if m.Status.Phase != nil && *m.Status.Phase == failedPhase {
+					return nil
+				}
+				return fmt.Errorf("phase is nil or not equal expected \"Failed\"")
+			},
+		},
+		{
+			name: "Test setting provider status",
+			mutate: func(m *machinev1.Machine) {
+				instanceID := "123"
+				instanceState := "running"
+				providerStatus.InstanceID = &instanceID
+				providerStatus.InstanceState = &instanceState
+			},
+			expect: func(m *machinev1.Machine) error {
+				providerStatus, err := vspherev1.ProviderStatusFromRawExtension(m.Status.ProviderStatus)
+				if err != nil {
+					return fmt.Errorf("unable to get provider status: %v", err)
+				}
+
+				if providerStatus.InstanceID == nil || *providerStatus.InstanceID != "123" {
+					return fmt.Errorf("instanceID is nil or not equal expected \"123\"")
+				}
+
+				if providerStatus.InstanceState == nil || *providerStatus.InstanceState != "running" {
+					return fmt.Errorf("instanceState is nil or not equal expected \"running\"")
+				}
+
+				return nil
+			},
 		},
 	}
-	expectedProviderStatus := &vspherev1.VSphereMachineProviderStatus{
-		TaskRef: "mutated",
-	}
-	rawProviderStatus, err = vspherev1.RawExtensionFromProviderStatus(expectedProviderStatus)
-	if err != nil {
-		t.Fatal(err)
-	}
-	expectedMachine.Status.ProviderStatus = rawProviderStatus
 
-	// machineScope
-	if err := machinev1.AddToScheme(scheme.Scheme); err != nil {
-		t.Fatal(err)
-	}
-	fakeClient := fake.NewFakeClientWithScheme(scheme.Scheme,
-		credentialsSecret,
-		originalMachine,
-		configMap,
-		infra)
-	machineScope, err := newMachineScope(machineScopeParams{
-		client:    fakeClient,
-		Context:   context.TODO(),
-		machine:   originalMachine,
-		apiReader: fakeClient,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			gs := NewWithT(t)
+			timeout := 10 * time.Second
 
-	// mutations
-	machineScope.machine.Spec.ProviderID = expectedMachine.Spec.ProviderID
-	machineScope.machine.Status.Addresses = expectedMachine.Status.Addresses
-	machineScope.providerStatus = expectedProviderStatus
+			// original objects
+			originalProviderSpec := vspherev1.VSphereMachineProviderSpec{
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: "test",
+				},
 
-	if err := machineScope.PatchMachine(); err != nil {
-		t.Errorf("unexpected error")
-	}
-	gotMachine := &machinev1.Machine{}
-	if err := machineScope.client.Get(context.TODO(), runtimeclient.ObjectKey{Name: "test", Namespace: namespace}, gotMachine); err != nil {
-		t.Fatal(err)
-	}
+				Workspace: &vspherev1.Workspace{
+					Server: host,
+					Folder: "test",
+				},
+			}
+			rawProviderSpec, err := vspherev1.RawExtensionFromProviderSpec(&originalProviderSpec)
+			gs.Expect(err).ToNot(HaveOccurred())
+			originalProviderStatus := &vspherev1.VSphereMachineProviderStatus{
+				TaskRef: "test",
+			}
+			rawProviderStatus, err := vspherev1.RawExtensionFromProviderStatus(originalProviderStatus)
+			gs.Expect(err).ToNot(HaveOccurred())
 
-	expectedMachine.ResourceVersion = "2"
-	if !equality.Semantic.DeepEqual(gotMachine, expectedMachine) {
-		t.Errorf("expected: %+v, got: %+v", expectedMachine, gotMachine)
+			machine := &machinev1.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      machineName,
+					Namespace: testNamespaceName,
+					Labels:    map[string]string{},
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Machine",
+					APIVersion: "machine.openshift.io/v1beta1",
+				},
+				Spec: machinev1.MachineSpec{
+					ProviderSpec: machinev1.ProviderSpec{
+						Value: rawProviderSpec,
+					},
+				},
+				Status: machinev1.MachineStatus{
+					ProviderStatus: rawProviderStatus,
+				},
+			}
+
+			// Create the machine
+			gs.Expect(k8sClient.Create(ctx, machine)).To(Succeed())
+			defer func() {
+				gs.Expect(k8sClient.Delete(ctx, machine)).To(Succeed())
+			}()
+
+			// Ensure the machine has synced to the cache
+			getMachine := func() error {
+
+				return k8sClient.Get(ctx, machineKey, machine)
+			}
+			gs.Eventually(getMachine, timeout).Should(Succeed())
+
+			machineScope, err := newMachineScope(machineScopeParams{
+				client:    k8sClient,
+				machine:   machine,
+				apiReader: k8sClient,
+				Context:   ctx,
+			})
+
+			gs.Expect(err).ToNot(HaveOccurred())
+
+			tc.mutate(machineScope.machine)
+
+			machineScope.providerStatus = providerStatus
+
+			// Patch the machine and check the expectation from the test case
+			gs.Expect(machineScope.PatchMachine()).To(Succeed())
+			checkExpectation := func() error {
+				if err := getMachine(); err != nil {
+					return err
+				}
+				return tc.expect(machine)
+			}
+			gs.Eventually(checkExpectation, timeout).Should(Succeed())
+
+			// Check that resource version doesn't change if we call patchMachine() again
+			machineResourceVersion := machine.ResourceVersion
+
+			gs.Expect(machineScope.PatchMachine()).To(Succeed())
+			gs.Eventually(getMachine, timeout).Should(Succeed())
+			gs.Expect(machine.ResourceVersion).To(Equal(machineResourceVersion))
+		})
 	}
 }
