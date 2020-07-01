@@ -444,7 +444,7 @@ func defaultAzure(h *defaulterHandler, m *Machine) (bool, utilerrors.Aggregate) 
 		}
 	}
 
-	if providerSpec.Image.ResourceID == "" {
+	if providerSpec.Image == (azure.Image{}) {
 		providerSpec.Image.ResourceID = defaultAzureImageResourceID(h.clusterID)
 	}
 
@@ -527,16 +527,14 @@ func validateAzure(h *validatorHandler, m *Machine) (bool, utilerrors.Aggregate)
 		errs = append(errs, field.Required(field.NewPath("providerSpec", "networkResourceGroup"), "must provide a network resource group when a virtual network or subnet is specified"))
 	}
 
-	if providerSpec.Image.ResourceID == "" {
-		errs = append(errs, field.Required(field.NewPath("providerSpec", "image", "resourceID"), "resourceID must be provided"))
-	}
+	errs = append(errs, validateAzureImage(providerSpec.Image)...)
 
 	if providerSpec.ManagedIdentity == "" {
 		errs = append(errs, field.Required(field.NewPath("providerSpec", "managedIdentity"), "managedIdentity must be provided"))
 	}
 
 	if providerSpec.ResourceGroup == "" {
-		errs = append(errs, field.Required(field.NewPath("providerSpec", "resourceGropu"), "resourceGroup must be provided"))
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "resourceGroup"), "resourceGroup must be provided"))
 	}
 
 	if providerSpec.UserDataSecret == nil {
@@ -571,6 +569,36 @@ func validateAzure(h *validatorHandler, m *Machine) (bool, utilerrors.Aggregate)
 		return false, utilerrors.NewAggregate(errs)
 	}
 	return true, nil
+}
+
+func validateAzureImage(image azure.Image) []error {
+	errors := []error{}
+	if image == (azure.Image{}) {
+		return append(errors, field.Required(field.NewPath("providerSpec", "image"), "an image reference must be provided"))
+	}
+
+	if image.ResourceID != "" {
+		if image != (azure.Image{ResourceID: image.ResourceID}) {
+			return append(errors, field.Required(field.NewPath("providerSpec", "image", "resourceID"), "resourceID is already specified, other fields such as [Offer, Publisher, SKU, Version] should not be set"))
+		}
+		return errors
+	}
+
+	// Resource ID not provided, so Offer, Publisher, SKU and Version are required
+	if image.Offer == "" {
+		errors = append(errors, field.Required(field.NewPath("providerSpec", "image", "Offer"), "Offer must be provided"))
+	}
+	if image.Publisher == "" {
+		errors = append(errors, field.Required(field.NewPath("providerSpec", "image", "Publisher"), "Publisher must be provided"))
+	}
+	if image.SKU == "" {
+		errors = append(errors, field.Required(field.NewPath("providerSpec", "image", "SKU"), "SKU must be provided"))
+	}
+	if image.Version == "" {
+		errors = append(errors, field.Required(field.NewPath("providerSpec", "image", "Version"), "Version must be provided"))
+	}
+
+	return errors
 }
 
 type gcpDefaulter struct {

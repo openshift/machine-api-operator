@@ -302,7 +302,78 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 				p.Image = azure.Image{}
 			},
 			expectedOk:    false,
-			expectedError: "providerSpec.image.resourceID: Required value: resourceID must be provided",
+			expectedError: "providerSpec.image: Required value: an image reference must be provided",
+		},
+		{
+			testCase: "with resourceId and other fields set it fails",
+			modifySpec: func(p *azure.AzureMachineProviderSpec) {
+				p.Image = azure.Image{
+					ResourceID: "rid",
+					SKU:        "sku-rand",
+					Offer:      "base-offer",
+					Version:    "1",
+					Publisher:  "test",
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.image.resourceID: Required value: resourceID is already specified, other fields such as [Offer, Publisher, SKU, Version] should not be set",
+		},
+		{
+			testCase: "with no offer it fails",
+			modifySpec: func(p *azure.AzureMachineProviderSpec) {
+				p.Image = azure.Image{
+					Version:   "1",
+					SKU:       "sku-rand",
+					Publisher: "test",
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.image.Offer: Required value: Offer must be provided",
+		},
+		{
+			testCase: "with no SKU it fails",
+			modifySpec: func(p *azure.AzureMachineProviderSpec) {
+				p.Image = azure.Image{
+					Offer:     "base-offer",
+					Version:   "1",
+					Publisher: "test",
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.image.SKU: Required value: SKU must be provided",
+		},
+		{
+			testCase: "with no Version it fails",
+			modifySpec: func(p *azure.AzureMachineProviderSpec) {
+				p.Image = azure.Image{
+					SKU:       "sku-rand",
+					Offer:     "base-offer",
+					Publisher: "test",
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.image.Version: Required value: Version must be provided",
+		},
+		{
+			testCase: "with no Publisher it fails",
+			modifySpec: func(p *azure.AzureMachineProviderSpec) {
+				p.Image = azure.Image{
+					SKU:     "sku-rand",
+					Offer:   "base-offer",
+					Version: "1",
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.image.Publisher: Required value: Publisher must be provided",
+		},
+		{
+			testCase: "with resourceID in image it succeeds",
+			modifySpec: func(p *azure.AzureMachineProviderSpec) {
+				p.Image = azure.Image{
+					ResourceID: "rid",
+				}
+			},
+			expectedOk: true,
 		},
 		{
 			testCase: "with no managed identity it fails",
@@ -318,7 +389,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 				p.ResourceGroup = ""
 			},
 			expectedOk:    false,
-			expectedError: "providerSpec.resourceGropu: Required value: resourceGroup must be provided",
+			expectedError: "providerSpec.resourceGroup: Required value: resourceGroup must be provided",
 		},
 		{
 			testCase: "with no user data secret it fails",
@@ -478,6 +549,42 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 		{
 			testCase:      "it defaults defaultable fields",
 			providerSpec:  &azure.AzureMachineProviderSpec{},
+			expectedOk:    true,
+			expectedError: "",
+		},
+		{
+			testCase: "it does not override azure image spec",
+			providerSpec: &azure.AzureMachineProviderSpec{
+				Image: azure.Image{
+					Offer:     "test-offer",
+					SKU:       "test-sku",
+					Publisher: "base-publisher",
+					Version:   "1",
+				},
+			},
+			modifyDefault: func(p *azure.AzureMachineProviderSpec) {
+				p.Image = azure.Image{
+					Offer:     "test-offer",
+					SKU:       "test-sku",
+					Publisher: "base-publisher",
+					Version:   "1",
+				}
+			},
+			expectedOk:    true,
+			expectedError: "",
+		},
+		{
+			testCase: "it does not override azure image ResourceID",
+			providerSpec: &azure.AzureMachineProviderSpec{
+				Image: azure.Image{
+					ResourceID: "rid",
+				},
+			},
+			modifyDefault: func(p *azure.AzureMachineProviderSpec) {
+				p.Image = azure.Image{
+					ResourceID: "rid",
+				}
+			},
 			expectedOk:    true,
 			expectedError: "",
 		},
