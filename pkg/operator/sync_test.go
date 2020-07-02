@@ -1,14 +1,21 @@
 package operator
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
 
+	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/tools/cache"
 )
 
 func TestWaitForDeploymentRollout(t *testing.T) {
@@ -114,6 +121,277 @@ func TestWaitForDeploymentRollout(t *testing.T) {
 				}
 			} else if tc.expected != got {
 				t.Errorf("Got: %v, expected: %v", got, tc.expected)
+			}
+		})
+	}
+}
+
+type webhookTestCase struct {
+	testCase       string
+	shouldSync     bool
+	exisingWebhook func() *unstructured.Unstructured
+}
+
+func TestSyncValidatingWebhooks(t *testing.T) {
+	defaultConfiguration := mapiv1.NewValidatingWebhookConfiguration()
+
+	testCases := []webhookTestCase{
+		{
+			testCase:   "It should create webhookConfiguration if it does not exsit",
+			shouldSync: true,
+		},
+		{
+			testCase: "It should not update webhookConfiguration if it already exist and is equal expected",
+			exisingWebhook: func() *unstructured.Unstructured {
+				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(defaultConfiguration.DeepCopy())
+				return &unstructured.Unstructured{Object: exisingWebhook}
+			},
+			shouldSync: false,
+		},
+		{
+			testCase: "It shouldn't update webhookConfiguration if only caBundle field have changed",
+			exisingWebhook: func() *unstructured.Unstructured {
+				webhook := defaultConfiguration.DeepCopy()
+				webhook.Webhooks[0].ClientConfig.CABundle = []byte("test")
+				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook.DeepCopy())
+				return &unstructured.Unstructured{Object: exisingWebhook}
+			},
+			shouldSync: false,
+		},
+		{
+			testCase: "It should update webhookConfiguration if some of their webhooks differ",
+			exisingWebhook: func() *unstructured.Unstructured {
+				webhook := defaultConfiguration.DeepCopy()
+				webhook.Webhooks[0].Name = "test"
+				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook)
+				return &unstructured.Unstructured{Object: exisingWebhook}
+			},
+			shouldSync: true,
+		},
+		{
+			testCase: "It should update webhookConfiguration if its webhook list is missing an element",
+			exisingWebhook: func() *unstructured.Unstructured {
+				webhook := defaultConfiguration.DeepCopy()
+				webhook.Webhooks = webhook.Webhooks[:1]
+				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook)
+				return &unstructured.Unstructured{Object: exisingWebhook}
+			},
+			shouldSync: true,
+		},
+		{
+			testCase: "It shoud update webhookConfiguration if some webhooks are removed from the list",
+			exisingWebhook: func() *unstructured.Unstructured {
+				webhook := defaultConfiguration.DeepCopy()
+				webhook.Webhooks = append(webhook.Webhooks, mapiv1.MachineValidatingWebhook())
+				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook)
+				return &unstructured.Unstructured{Object: exisingWebhook}
+			},
+			shouldSync: true,
+		},
+		{
+			testCase: "It shoud update webhookConfiguration if some slice subelement was extended with items",
+			exisingWebhook: func() *unstructured.Unstructured {
+				webhook := defaultConfiguration.DeepCopy()
+				webhook.Webhooks[0].Rules[0].Operations = append(webhook.Webhooks[0].Rules[0].Operations, admissionregistrationv1.Connect)
+				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook)
+				return &unstructured.Unstructured{Object: exisingWebhook}
+			},
+			shouldSync: true,
+		},
+		{
+			testCase: "It should update webhookConfiguration if some slice subelement had a change in the order",
+			exisingWebhook: func() *unstructured.Unstructured {
+				webhook := defaultConfiguration.DeepCopy()
+				rules := []admissionregistrationv1.OperationType{admissionregistrationv1.Connect}
+				webhook.Webhooks[0].Rules[0].Operations = append(rules, webhook.Webhooks[0].Rules[0].Operations...)
+				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook)
+				return &unstructured.Unstructured{Object: exisingWebhook}
+			},
+			shouldSync: true,
+		},
+	}
+
+	stop := make(chan struct{})
+	defer close(stop)
+	optr := newFakeOperator(nil, nil, stop)
+	optr.syncHandler = nil
+
+	configuration, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(defaultConfiguration.DeepCopy())
+	testSyncWebhookConfiguration(t,
+		optr.dynamicClient.Resource(admissionregistrationv1.SchemeGroupVersion.WithResource("validatingwebhookconfigurations")),
+		&unstructured.Unstructured{Object: configuration},
+		optr.syncValidatingWebhook,
+		stop,
+		optr.validatingWebhookListerSynced, testCases)
+}
+
+func TestSyncMutatingWebhooks(t *testing.T) {
+	defaultConfiguration := mapiv1.NewMutatingWebhookConfiguration()
+
+	testCases := []webhookTestCase{
+		{
+			testCase:   "It should create webhookConfiguration if it does not exsit",
+			shouldSync: true,
+		},
+		{
+			testCase: "It should not update webhookConfiguration if it already exist and is equal expected",
+			exisingWebhook: func() *unstructured.Unstructured {
+				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(defaultConfiguration.DeepCopy())
+				return &unstructured.Unstructured{Object: exisingWebhook}
+			},
+			shouldSync: false,
+		},
+		{
+			testCase: "It shouldn't update webhookConfiguration if only caBundle field have changed",
+			exisingWebhook: func() *unstructured.Unstructured {
+				webhook := defaultConfiguration.DeepCopy()
+				webhook.Webhooks[0].ClientConfig.CABundle = []byte("test")
+				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook.DeepCopy())
+				return &unstructured.Unstructured{Object: exisingWebhook}
+			},
+			shouldSync: false,
+		},
+		{
+			testCase: "It should update webhookConfiguration if some of their webhooks differ",
+			exisingWebhook: func() *unstructured.Unstructured {
+				webhook := defaultConfiguration.DeepCopy()
+				webhook.Webhooks[0].Name = "test"
+				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook)
+				return &unstructured.Unstructured{Object: exisingWebhook}
+			},
+			shouldSync: true,
+		},
+		{
+			testCase: "It should update webhookConfiguration if its webhook list is missing an element",
+			exisingWebhook: func() *unstructured.Unstructured {
+				webhook := defaultConfiguration.DeepCopy()
+				webhook.Webhooks = webhook.Webhooks[:1]
+				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook)
+				return &unstructured.Unstructured{Object: exisingWebhook}
+			},
+			shouldSync: true,
+		},
+		{
+			testCase: "It shoud update webhookConfiguration if some webhooks are removed from the list",
+			exisingWebhook: func() *unstructured.Unstructured {
+				webhook := defaultConfiguration.DeepCopy()
+				webhook.Webhooks = append(webhook.Webhooks, mapiv1.MachineMutatingWebhook())
+				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook)
+				return &unstructured.Unstructured{Object: exisingWebhook}
+			},
+			shouldSync: true,
+		},
+		{
+			testCase: "It shoud update webhookConfiguration if some slice subelement was extended with items",
+			exisingWebhook: func() *unstructured.Unstructured {
+				webhook := defaultConfiguration.DeepCopy()
+				webhook.Webhooks[0].Rules[0].Operations = append(webhook.Webhooks[0].Rules[0].Operations, admissionregistrationv1.Connect)
+				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook)
+				return &unstructured.Unstructured{Object: exisingWebhook}
+			},
+			shouldSync: true,
+		},
+		{
+			testCase: "It should update webhookConfiguration if some slice subelement had a change in the order",
+			exisingWebhook: func() *unstructured.Unstructured {
+				webhook := defaultConfiguration.DeepCopy()
+				rules := []admissionregistrationv1.OperationType{admissionregistrationv1.Connect}
+				webhook.Webhooks[0].Rules[0].Operations = append(rules, webhook.Webhooks[0].Rules[0].Operations...)
+				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook)
+				return &unstructured.Unstructured{Object: exisingWebhook}
+			},
+			shouldSync: true,
+		},
+	}
+
+	stop := make(chan struct{})
+	defer close(stop)
+	optr := newFakeOperator(nil, nil, stop)
+	optr.syncHandler = nil
+
+	configuration, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(defaultConfiguration.DeepCopy())
+	testSyncWebhookConfiguration(t,
+		optr.dynamicClient.Resource(admissionregistrationv1.SchemeGroupVersion.WithResource("mutatingwebhookconfigurations")),
+		&unstructured.Unstructured{Object: configuration},
+		optr.syncMutatingWebhook,
+		stop,
+		optr.mutatingWebhookListerSynced, testCases)
+}
+
+func testSyncWebhookConfiguration(
+	t *testing.T,
+	client dynamic.NamespaceableResourceInterface,
+	defaultConfiguration *unstructured.Unstructured,
+	sync func() error,
+	stop chan struct{},
+	waitForSync cache.InformerSynced,
+	testCases []webhookTestCase,
+) {
+	expectedName := "test"
+	expectedUnstructured := defaultConfiguration.DeepCopy()
+	expectedUnstructured.SetName(expectedName)
+	expectedMap, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(expectedUnstructured)
+	expected, err := client.Create(context.Background(), &unstructured.Unstructured{Object: expectedMap}, metav1.CreateOptions{})
+	if err != nil {
+		t.Fatalf("Unexpected error during creation of an expected webhook configuration: %q", err.Error())
+	}
+	defer func() {
+		if err = client.Delete(context.Background(), expectedName, metav1.DeleteOptions{}); err != nil {
+			t.Fatalf("Unexpected error during deletion of an expected webhook configuration: %q", err.Error())
+		}
+	}()
+
+	expectedWebhooks, _, err := unstructured.NestedSlice(expected.Object, "webhooks")
+	if err != nil {
+		t.Fatalf("Unexpected error while fetching expected webhook list: %v", err)
+	}
+	for _, tc := range testCases {
+		t.Run(tc.testCase, func(t *testing.T) {
+			if !cache.WaitForCacheSync(stop, waitForSync) {
+				t.Fatalf("Failed to sync caches")
+			}
+
+			if tc.exisingWebhook != nil {
+				if _, err = client.Create(context.Background(), tc.exisingWebhook(), metav1.CreateOptions{}); err != nil {
+					t.Fatalf("Unexpected error during creation of an exising webhook configuration: %q", err.Error())
+				}
+			}
+			defer func() {
+				if err = client.Delete(context.Background(), defaultConfiguration.GetName(), metav1.DeleteOptions{}); err != nil {
+					t.Fatalf("Unexpected error during deletion of an exising webhook configuration: %q", err.Error())
+				}
+			}()
+
+			if !cache.WaitForCacheSync(stop, waitForSync) {
+				t.Fatalf("Failed to sync caches")
+			}
+
+			if err := sync(); err != nil {
+				t.Fatalf("Unexpected error during webhook syncronization: %q", err.Error())
+			}
+
+			existing, err := client.Get(context.Background(), defaultConfiguration.GetName(), metav1.GetOptions{})
+			if err != nil {
+				t.Fatalf("Unexpected error while getting validating webhook: %q", err.Error())
+			}
+
+			existingWebhooks, _, err := unstructured.NestedSlice(existing.Object, "webhooks")
+			if err != nil {
+				t.Fatalf("Unexpected error reading updated webhooks list: %v", err)
+			}
+			if tc.shouldSync {
+				if annotations, _, err := unstructured.NestedStringMap(existing.Object, "metadata", "annotations"); err != nil ||
+					!equality.Semantic.DeepDerivative(expectedUnstructured.GetAnnotations(), annotations) {
+					t.Errorf("Expected hook annotations match:\n%#v\n, got:\n%#v\n, error: %v", expectedUnstructured.GetAnnotations(), annotations, err)
+				}
+				if !equality.Semantic.DeepEqual(expectedWebhooks, existingWebhooks) {
+					t.Errorf("Expected webhhoks match:\n%#v\n, got:\n%#v\n", expectedWebhooks, existingWebhooks)
+				}
+			} else {
+				initialExistingWebhooks, _, _ := unstructured.NestedSlice(tc.exisingWebhook().Object, "webhooks")
+				if err != nil || !equality.Semantic.DeepEqual(initialExistingWebhooks, existingWebhooks) {
+					t.Errorf("Expected webhhoks match initial configuration:\n%#v\n, got:\n%#v\n, error: %v", initialExistingWebhooks, existingWebhooks, err)
+				}
 			}
 		})
 	}

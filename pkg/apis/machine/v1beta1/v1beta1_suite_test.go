@@ -29,6 +29,7 @@ import (
 	fuzz "github.com/google/gofuzz"
 	osconfigv1 "github.com/openshift/api/config/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	runtimeserializer "k8s.io/apimachinery/pkg/runtime/serializer"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -57,7 +58,8 @@ func TestMain(m *testing.M) {
 			filepath.Join("..", "..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1"),
 		},
 		WebhookInstallOptions: envtest.WebhookInstallOptions{
-			DirectoryPaths: []string{filepath.Join("..", "..", "..", "..", "install")},
+			MutatingWebhooks:   []runtime.Object{NewMutatingWebhookConfiguration()},
+			ValidatingWebhooks: []runtime.Object{NewValidatingWebhookConfiguration()},
 		},
 	}
 

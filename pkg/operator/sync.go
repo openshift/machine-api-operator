@@ -8,6 +8,7 @@ import (
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 	"github.com/openshift/library-go/pkg/operator/resource/resourcemerge"
+	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/metrics"
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
@@ -52,6 +53,18 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 		}
 		return nil
 	}
+
+	// Sync webhook configuration
+	if err := optr.syncWebhookConfiguration(); err != nil {
+		if err := optr.statusDegraded(err.Error()); err != nil {
+			// Just log the error here.  We still want to
+			// return the outer error.
+			glog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
+		}
+		glog.Errorf("Error syncing machine API webhook configurations: %v", err)
+		return err
+	}
+	glog.V(3).Info("Synced up all machine API webhook configurations")
 
 	if err := optr.syncClusterAPIController(config); err != nil {
 		if err := optr.statusDegraded(err.Error()); err != nil {
@@ -108,6 +121,7 @@ func (optr *Operator) syncClusterAPIController(config *OperatorConfig) error {
 			return err
 		}
 	}
+
 	return nil
 }
 
@@ -123,6 +137,46 @@ func (optr *Operator) syncTerminationHandler(config *OperatorConfig) error {
 		resourcemerge.SetDaemonSetGeneration(&optr.generations, ds)
 		return optr.waitForDaemonSetRollout(terminationDaemonSet)
 	}
+	return nil
+}
+
+func (optr *Operator) syncWebhookConfiguration() error {
+	if err := optr.syncValidatingWebhook(); err != nil {
+		return err
+	}
+
+	return optr.syncMutatingWebhook()
+}
+
+func (optr *Operator) syncValidatingWebhook() error {
+	expected := mapiv1.NewValidatingWebhookConfiguration()
+	if webhook, updated, err := applyValidatingWebhookConfiguration(
+		optr.dynamicClient,
+		events.NewLoggingEventRecorder(optr.name),
+		expected,
+		expectedValidatingWebhooksConfiguration(expected.Name, optr.generations),
+	); err != nil {
+		return err
+	} else if updated {
+		setValidatingWebhooksConfigurationGeneration(&optr.generations, webhook)
+	}
+
+	return nil
+}
+
+func (optr *Operator) syncMutatingWebhook() error {
+	expected := mapiv1.NewMutatingWebhookConfiguration()
+	if webhook, updated, err := applyMutatingWebhookConfiguration(
+		optr.dynamicClient,
+		events.NewLoggingEventRecorder(optr.name),
+		expected,
+		expectedMutatingWebhooksConfiguration(expected.Name, optr.generations),
+	); err != nil {
+		return err
+	} else if updated {
+		setMutatingWebhooksConfigurationGeneration(&optr.generations, webhook)
+	}
+
 	return nil
 }
 

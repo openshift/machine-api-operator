@@ -111,10 +111,10 @@ func main() {
 	if *webhookEnabled {
 		mgr.GetWebhookServer().Port = *webhookPort
 		mgr.GetWebhookServer().CertDir = *webhookCertdir
-		mgr.GetWebhookServer().Register("/mutate-machine-openshift-io-v1beta1-machine", &webhook.Admission{Handler: machineDefaulter})
-		mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machine", &webhook.Admission{Handler: machineValidator})
-		mgr.GetWebhookServer().Register("/mutate-machine-openshift-io-v1beta1-machineset", &webhook.Admission{Handler: machineSetDefaulter})
-		mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machineset", &webhook.Admission{Handler: machineSetValidator})
+		mgr.GetWebhookServer().Register(v1beta1.DefaultMachineMutatingHookPath, &webhook.Admission{Handler: machineDefaulter})
+		mgr.GetWebhookServer().Register(v1beta1.DefaultMachineValidatingHookPath, &webhook.Admission{Handler: machineValidator})
+		mgr.GetWebhookServer().Register(v1beta1.DefaultMachineSetMutatingHookPath, &webhook.Admission{Handler: machineSetDefaulter})
+		mgr.GetWebhookServer().Register(v1beta1.DefaultMachineSetValidatingHookPath, &webhook.Admission{Handler: machineSetValidator})
 	}
 
 	log.Printf("Registering Components.")

@@ -200,8 +200,8 @@ func TestMachineCreation(t *testing.T) {
 
 			machineDefaulter := createMachineDefaulter(platformStatus, tc.clusterID)
 			machineValidator := createMachineValidator(platformStatus.Type, tc.clusterID)
-			mgr.GetWebhookServer().Register("/mutate-machine-openshift-io-v1beta1-machine", &webhook.Admission{Handler: machineDefaulter})
-			mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machine", &webhook.Admission{Handler: machineValidator})
+			mgr.GetWebhookServer().Register(DefaultMachineMutatingHookPath, &webhook.Admission{Handler: machineDefaulter})
+			mgr.GetWebhookServer().Register(DefaultMachineValidatingHookPath, &webhook.Admission{Handler: machineValidator})
 
 			done := make(chan struct{})
 			stopped := make(chan struct{})
@@ -682,8 +682,8 @@ func TestMachineUpdate(t *testing.T) {
 
 			machineDefaulter := createMachineDefaulter(platformStatus, tc.clusterID)
 			machineValidator := createMachineValidator(platformStatus.Type, tc.clusterID)
-			mgr.GetWebhookServer().Register("/mutate-machine-openshift-io-v1beta1-machine", &webhook.Admission{Handler: machineDefaulter})
-			mgr.GetWebhookServer().Register("/validate-machine-openshift-io-v1beta1-machine", &webhook.Admission{Handler: machineValidator})
+			mgr.GetWebhookServer().Register(DefaultMachineMutatingHookPath, &webhook.Admission{Handler: machineDefaulter})
+			mgr.GetWebhookServer().Register(DefaultMachineValidatingHookPath, &webhook.Admission{Handler: machineValidator})
 
 			done := make(chan struct{})
 			stopped := make(chan struct{})

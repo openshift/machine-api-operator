@@ -46,21 +46,27 @@ func newFakeOperator(kubeObjects []runtime.Object, osObjects []runtime.Object, s
 	featureGateInformer := configSharedInformer.Config().V1().FeatureGates()
 	deployInformer := kubeNamespacedSharedInformer.Apps().V1().Deployments()
 	daemonsetInformer := kubeNamespacedSharedInformer.Apps().V1().DaemonSets()
+	mutatingWebhookInformer := kubeNamespacedSharedInformer.Admissionregistration().V1().MutatingWebhookConfigurations()
+	validatingWebhookInformer := kubeNamespacedSharedInformer.Admissionregistration().V1().ValidatingWebhookConfigurations()
 
 	optr := &Operator{
-		kubeClient:             kubeClient,
-		osClient:               osClient,
-		dynamicClient:          dynamicClient,
-		featureGateLister:      featureGateInformer.Lister(),
-		deployLister:           deployInformer.Lister(),
-		daemonsetLister:        daemonsetInformer.Lister(),
-		imagesFile:             "fixtures/images.json",
-		namespace:              targetNamespace,
-		eventRecorder:          record.NewFakeRecorder(50),
-		queue:                  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
-		deployListerSynced:     deployInformer.Informer().HasSynced,
-		daemonsetListerSynced:  daemonsetInformer.Informer().HasSynced,
-		featureGateCacheSynced: featureGateInformer.Informer().HasSynced,
+		kubeClient:                    kubeClient,
+		osClient:                      osClient,
+		dynamicClient:                 dynamicClient,
+		featureGateLister:             featureGateInformer.Lister(),
+		deployLister:                  deployInformer.Lister(),
+		daemonsetLister:               daemonsetInformer.Lister(),
+		mutatingWebhookLister:         mutatingWebhookInformer.Lister(),
+		validatingWebhookLister:       validatingWebhookInformer.Lister(),
+		imagesFile:                    "fixtures/images.json",
+		namespace:                     targetNamespace,
+		eventRecorder:                 record.NewFakeRecorder(50),
+		queue:                         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
+		deployListerSynced:            deployInformer.Informer().HasSynced,
+		daemonsetListerSynced:         daemonsetInformer.Informer().HasSynced,
+		featureGateCacheSynced:        featureGateInformer.Informer().HasSynced,
+		mutatingWebhookListerSynced:   mutatingWebhookInformer.Informer().HasSynced,
+		validatingWebhookListerSynced: validatingWebhookInformer.Informer().HasSynced,
 	}
 
 	configSharedInformer.Start(stopCh)
