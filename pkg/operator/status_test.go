@@ -217,6 +217,12 @@ func TestGetOrCreateClusterOperator(t *testing.T) {
 							Namespace: namespace,
 						},
 						{
+							Group:     "machine.openshift.io",
+							Resource:  "machinehealthchecks",
+							Name:      "",
+							Namespace: namespace,
+						},
+						{
 							Group:     "rbac.authorization.k8s.io",
 							Resource:  "roles",
 							Name:      "",
@@ -271,6 +277,12 @@ func TestGetOrCreateClusterOperator(t *testing.T) {
 						{
 							Group:     "machine.openshift.io",
 							Resource:  "machinesets",
+							Name:      "",
+							Namespace: namespace,
+						},
+						{
+							Group:     "machine.openshift.io",
+							Resource:  "machinehealthchecks",
 							Name:      "",
 							Namespace: namespace,
 						},
