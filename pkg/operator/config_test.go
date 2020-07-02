@@ -228,7 +228,7 @@ func TestGetTerminationHandlerFromImages(t *testing.T) {
 		},
 		{
 			provider:      configv1.AzurePlatformType,
-			expectedImage: clusterAPIControllerNoOp,
+			expectedImage: expectedAzureImage,
 		},
 		{
 			provider:      configv1.GCPPlatformType,
