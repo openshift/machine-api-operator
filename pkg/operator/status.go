@@ -192,6 +192,12 @@ func (optr *Operator) relatedObjects() []osconfigv1.ObjectReference {
 			Resource: "clusterroles",
 			Name:     "machine-api-controllers",
 		},
+		{
+			Group:     "metal3.io",
+			Resource:  "baremetalhosts",
+			Name:      "",
+			Namespace: optr.namespace,
+		},
 	}
 }
 
