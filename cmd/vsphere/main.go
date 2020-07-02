@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
@@ -22,7 +23,30 @@ func main() {
 	flag.BoolVar(&printVersion, "version", false, "print version and exit")
 
 	klog.InitFlags(nil)
-	watchNamespace := flag.String("namespace", "", "Namespace that the controller watches to reconcile machine-api objects. If unspecified, the controller watches for machine-api objects across all namespaces.")
+	watchNamespace := flag.String(
+		"namespace",
+		"",
+		"Namespace that the controller watches to reconcile machine-api objects. If unspecified, the controller watches for machine-api objects across all namespaces.",
+	)
+
+	leaderElectResourceNamespace := flag.String(
+		"leader-elect-resource-namespace",
+		"",
+		"The namespace of resource object that is used for locking during leader election. If unspecified and running in cluster, defaults to the service account namespace for the controller. Required for leader-election outside of a cluster.",
+	)
+
+	leaderElect := flag.Bool(
+		"leader-elect",
+		false,
+		"Start a leader election client and gain leadership before executing the main loop. Enable this when running replicated components for high availability.",
+	)
+
+	leaderElectLeaseDuration := flag.Duration(
+		"leader-elect-lease-duration",
+		15*time.Second,
+		"The duration that non-leader candidates will wait after observing a leadership renewal until attempting to acquire leadership of a led but unrenewed leader slot. This is effectively the maximum duration that a leader can be stopped before it is replaced by another candidate. This is only applicable if leader election is enabled.",
+	)
+
 	flag.Set("logtostderr", "true")
 	flag.Parse()
 
@@ -35,8 +59,13 @@ func main() {
 
 	opts := manager.Options{
 		// Disable metrics serving
-		MetricsBindAddress: "0",
+		MetricsBindAddress:      "0",
+		LeaderElection:          *leaderElect,
+		LeaderElectionNamespace: *leaderElectResourceNamespace,
+		LeaderElectionID:        "cluster-api-provider-vsphere-leader",
+		LeaseDuration:           leaderElectLeaseDuration,
 	}
+
 	if *watchNamespace != "" {
 		opts.Namespace = *watchNamespace
 		klog.Infof("Watching machine-api objects only in namespace %q for reconciliation.", opts.Namespace)
