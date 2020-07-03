@@ -360,6 +360,16 @@ func validateAWS(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
 		)
 	}
 
+	if providerSpec.Placement.Region == "" {
+		errs = append(
+			errs,
+			field.Required(
+				field.NewPath("providerSpec", "placement", "region"),
+				"expected providerSpec.placement.region to be populated",
+			),
+		)
+	}
+
 	if providerSpec.InstanceType == "" {
 		errs = append(
 			errs,

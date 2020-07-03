@@ -67,16 +67,19 @@ func TestMachineCreation(t *testing.T) {
 			providerSpecValue: &runtime.RawExtension{
 				Object: &aws.AWSMachineProviderConfig{},
 			},
-			expectedError: "providerSpec.ami: Required value: expected either providerSpec.ami.arn or providerSpec.ami.filters or providerSpec.ami.id to be populated",
+			expectedError: "[providerSpec.ami: Required value: expected either providerSpec.ami.arn or providerSpec.ami.filters or providerSpec.ami.id to be populated, providerSpec.placement.region: Required value: expected providerSpec.placement.region to be populated]",
 		},
 		{
-			name:         "with AWS and an AMI ID set",
+			name:         "with AWS, an AMI ID and the region set",
 			platformType: osconfigv1.AWSPlatformType,
 			clusterID:    "aws-cluster",
 			providerSpecValue: &runtime.RawExtension{
 				Object: &aws.AWSMachineProviderConfig{
 					AMI: aws.AWSResourceReference{
 						ID: pointer.StringPtr("ami"),
+					},
+					Placement: aws.Placement{
+						Region: "region",
 					},
 				},
 			},
@@ -273,8 +276,7 @@ func TestMachineUpdate(t *testing.T) {
 			},
 		},
 		Placement: aws.Placement{
-			Region:           "region",
-			AvailabilityZone: "zone",
+			Region: "region",
 		},
 		Subnet: aws.AWSResourceReference{
 			Filters: []aws.Filter{
@@ -750,6 +752,14 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			expectedError: "providerSpec.ami: Required value: expected either providerSpec.ami.arn or providerSpec.ami.filters or providerSpec.ami.id to be populated",
 		},
 		{
+			testCase: "with no region values it fails",
+			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+				p.Placement.Region = ""
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.placement.region: Required value: expected providerSpec.placement.region to be populated",
+		},
+		{
 			testCase: "with no instanceType it fails",
 			modifySpec: func(p *aws.AWSMachineProviderConfig) {
 				p.InstanceType = ""
@@ -798,6 +808,15 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			expectedError: "providerSpec.subnet: Required value: expected either providerSpec.subnet.arn or providerSpec.subnet.id or providerSpec.subnet.filters or providerSpec.placement.availabilityZone to be populated",
 		},
 		{
+			testCase: "with no subnet values but an availability zone set, it succeeds",
+			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+				p.Subnet = aws.AWSResourceReference{}
+				p.Placement.AvailabilityZone = "availabilityZone"
+			},
+			expectedOk:    true,
+			expectedError: "",
+		},
+		{
 			testCase:      "with all required values it succeeds",
 			expectedOk:    true,
 			expectedError: "",
@@ -811,6 +830,9 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			providerSpec := &aws.AWSMachineProviderConfig{
 				AMI: aws.AWSResourceReference{
 					ID: pointer.StringPtr("ami"),
+				},
+				Placement: aws.Placement{
+					Region: "region",
 				},
 				InstanceType: "m4.large",
 				IAMInstanceProfile: &aws.AWSResourceReference{
