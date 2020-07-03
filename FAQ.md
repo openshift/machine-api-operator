@@ -145,6 +145,9 @@ Yes, though consider carefully before doing so.  Inspect the Match Labels from t
 ## Upstream kubernetes cluster-api project is utilizing MachineDeployments, why isn’t OpenShift?
 Any change to a MachineDeployment will result in an immediate removal and replacement of an entire MachineSet.  This is a much more costly operation that making changes to an instance in-place.  In particular RHEL CoreOS allows the VM to boot into an entirely updated operating system without having to perform a reinstallation.
 
+Modifications to a machine that can not be rolled out in-place (for example a change to the instance type) must be rolled out manually by scaling the MachineSet down and up again or by deleting machines one by one to trigger
+a re-creation.
+
 # Cluster Autoscaler
 
 ## What is the difference between the ClusterAutoscaler and MachineAutoscaler resources?
