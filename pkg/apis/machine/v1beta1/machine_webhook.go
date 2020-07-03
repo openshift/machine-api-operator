@@ -320,7 +320,7 @@ func (a awsDefaulter) defaultAWS(m *Machine, clusterID string) (bool, utilerrors
 		}
 	}
 
-	if providerSpec.Subnet.ARN == nil && providerSpec.Subnet.ID == nil && providerSpec.Subnet.Filters == nil {
+	if providerSpec.Subnet.ARN == nil && providerSpec.Subnet.ID == nil && providerSpec.Subnet.Filters == nil && providerSpec.Placement.AvailabilityZone != "" {
 		providerSpec.Subnet.Filters = []aws.Filter{
 			{
 				Name:   "tag:Name",
