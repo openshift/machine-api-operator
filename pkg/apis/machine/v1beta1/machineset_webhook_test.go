@@ -64,19 +64,16 @@ func TestMachineSetCreation(t *testing.T) {
 			providerSpecValue: &runtime.RawExtension{
 				Object: &aws.AWSMachineProviderConfig{},
 			},
-			expectedError: "[providerSpec.ami: Required value: expected either providerSpec.ami.arn or providerSpec.ami.filters or providerSpec.ami.id to be populated, providerSpec.placement.region: Required value: expected providerSpec.placement.region to be populated]",
+			expectedError: "providerSpec.ami: Required value: expected either providerSpec.ami.arn or providerSpec.ami.filters or providerSpec.ami.id to be populated",
 		},
 		{
-			name:         "with AWS, an AMI ID and the placement set",
+			name:         "with AWS and an AMI ID set",
 			platformType: osconfigv1.AWSPlatformType,
 			clusterID:    "aws-cluster",
 			providerSpecValue: &runtime.RawExtension{
 				Object: &aws.AWSMachineProviderConfig{
 					AMI: aws.AWSResourceReference{
 						ID: pointer.StringPtr("ami"),
-					},
-					Placement: aws.Placement{
-						Region: "region",
 					},
 				},
 			},
@@ -196,6 +193,9 @@ func TestMachineSetCreation(t *testing.T) {
 				GCP: &osconfigv1.GCPPlatformStatus{
 					ProjectID: "gcp-project-id",
 				},
+				AWS: &osconfigv1.AWSPlatformStatus{
+					Region: "region",
+				},
 			}
 
 			machineSetDefaulter := createMachineSetDefaulter(platformStatus, tc.clusterID)
@@ -256,6 +256,7 @@ func TestMachineSetCreation(t *testing.T) {
 
 func TestMachineSetUpdate(t *testing.T) {
 	awsClusterID := "aws-cluster"
+	awsRegion := "region"
 	defaultAWSProviderSpec := &aws.AWSMachineProviderConfig{
 		AMI: aws.AWSResourceReference{
 			ID: pointer.StringPtr("ami"),
@@ -277,7 +278,7 @@ func TestMachineSetUpdate(t *testing.T) {
 			},
 		},
 		Placement: aws.Placement{
-			Region:           "region",
+			Region:           awsRegion,
 			AvailabilityZone: "zone",
 		},
 		Subnet: aws.AWSResourceReference{
@@ -681,6 +682,9 @@ func TestMachineSetUpdate(t *testing.T) {
 				Type: tc.platformType,
 				GCP: &osconfigv1.GCPPlatformStatus{
 					ProjectID: gcpProjectID,
+				},
+				AWS: &osconfigv1.AWSPlatformStatus{
+					Region: awsRegion,
 				},
 			}
 
