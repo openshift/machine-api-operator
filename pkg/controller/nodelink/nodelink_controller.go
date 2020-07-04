@@ -522,7 +522,7 @@ func (r *ReconcileNodeLink) listMachinesByField(key, value string) ([]mapiv1beta
 		machineList,
 		client.MatchingField(key, value),
 	); err != nil {
-		return nil, fmt.Errorf("failed getting node list: %v", err)
+		return nil, fmt.Errorf("failed getting machine list: %v", err)
 	}
 	return machineList.Items, nil
 }
