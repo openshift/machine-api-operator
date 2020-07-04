@@ -454,7 +454,9 @@ func clone(s *machineScope) (string, error) {
 
 	vmTemplate, err := s.GetSession().FindVM(*s, "", s.providerSpec.Template)
 	if err != nil {
-		return "", err
+		const notFoundMsg = "template not found, specify valid value"
+		defaultError := fmt.Errorf("unable to get template %q: %w", s.providerSpec.Template, err)
+		return "", handleVSphereError("", notFoundMsg, defaultError, err)
 	}
 
 	var snapshotRef *types.ManagedObjectReference
@@ -500,24 +502,24 @@ func clone(s *machineScope) (string, error) {
 
 	folder, err := s.GetSession().Finder.FolderOrDefault(s, folderPath)
 	if err != nil {
-		multipleFoundMsg := "multiple folders found, specify one in config"
-		notFoundMsg := "folder not found, specify valid value"
+		const multipleFoundMsg = "multiple folders found, specify one in config"
+		const notFoundMsg = "folder not found, specify valid value"
 		defaultError := fmt.Errorf("unable to get folder for %q: %w", folderPath, err)
 		return "", handleVSphereError(multipleFoundMsg, notFoundMsg, defaultError, err)
 	}
 
 	datastore, err := s.GetSession().Finder.DatastoreOrDefault(s, datastorePath)
 	if err != nil {
-		multipleFoundMsg := "multiple datastores found, specify one in config"
-		notFoundMsg := "datastore not found, specify valid value"
+		const multipleFoundMsg = "multiple datastores found, specify one in config"
+		const notFoundMsg = "datastore not found, specify valid value"
 		defaultError := fmt.Errorf("unable to get datastore for %q: %w", datastorePath, err)
 		return "", handleVSphereError(multipleFoundMsg, notFoundMsg, defaultError, err)
 	}
 
 	resourcepool, err := s.GetSession().Finder.ResourcePoolOrDefault(s, resourcepoolPath)
 	if err != nil {
-		multipleFoundMsg := "multiple resource pools found, specify one in config"
-		notFoundMsg := "resource pool not found, specify valid value"
+		const multipleFoundMsg = "multiple resource pools found, specify one in config"
+		const notFoundMsg = "resource pool not found, specify valid value"
 		defaultError := fmt.Errorf("unable to get resource pool for %q: %w", resourcepool, err)
 		return "", handleVSphereError(multipleFoundMsg, notFoundMsg, defaultError, err)
 	}
@@ -639,7 +641,10 @@ func getNetworkDevices(s *machineScope, devices object.VirtualDeviceList) ([]typ
 
 		ref, err := s.GetSession().Finder.Network(s.Context, netSpec.NetworkName)
 		if err != nil {
-			return nil, fmt.Errorf("unable to find network %q: %w", netSpec.NetworkName, err)
+			const multipleFoundMsg = "multiple networks found, specify one in config"
+			const notFoundMsg = "network not found, specify valid value"
+			defaultError := fmt.Errorf("unable to get network for %q: %w", netSpec.NetworkName, err)
+			return nil, handleVSphereError(multipleFoundMsg, notFoundMsg, defaultError, err)
 		}
 
 		backing, err := ref.EthernetCardBackingInfo(s.Context)

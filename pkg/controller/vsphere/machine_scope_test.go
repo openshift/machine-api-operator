@@ -99,14 +99,14 @@ func TestGetUserData(t *testing.T) {
 			testCase:         "no provider spec",
 			userDataSecret:   nil,
 			providerSpec:     nil,
-			expectError:      false,
+			expectError:      true,
 			expectedUserdata: nil,
 		},
 		{
 			testCase:         "no user-data in provider spec",
 			userDataSecret:   nil,
 			providerSpec:     &vspherev1.VSphereMachineProviderSpec{},
-			expectError:      false,
+			expectError:      true,
 			expectedUserdata: nil,
 		},
 	}

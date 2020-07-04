@@ -150,6 +150,22 @@ func TestMachineEvents(t *testing.T) {
 		g.Expect(k8sClient.Delete(context.Background(), infra)).To(Succeed())
 	}()
 
+	userDataSecretName := "vsphere-ignition"
+	userDataSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      userDataSecretName,
+			Namespace: testNamespaceName,
+		},
+		Data: map[string][]byte{
+			userDataSecretKey: []byte("{}"),
+		},
+	}
+
+	g.Expect(k8sClient.Create(context.Background(), userDataSecret)).To(Succeed())
+	defer func() {
+		g.Expect(k8sClient.Delete(context.Background(), userDataSecret)).To(Succeed())
+	}()
+
 	createTagAndCategory(session, "CLUSTERID", "CLUSTERID")
 
 	ctx := context.Background()
@@ -240,6 +256,9 @@ func TestMachineEvents(t *testing.T) {
 				},
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: "test",
+				},
+				UserDataSecret: &corev1.LocalObjectReference{
+					Name: userDataSecretName,
 				},
 			})
 			gs.Expect(err).ToNot(HaveOccurred())

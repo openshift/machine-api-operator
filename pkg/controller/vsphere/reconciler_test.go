@@ -95,6 +95,7 @@ func TestClone(t *testing.T) {
 	password, _ := server.URL.User.Password()
 	namespace := "test"
 	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+
 	credentialsSecret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test",
@@ -103,6 +104,17 @@ func TestClone(t *testing.T) {
 		Data: map[string][]byte{
 			credentialsSecretUsername: []byte(server.URL.User.Username()),
 			credentialsSecretPassword: []byte(password),
+		},
+	}
+
+	userDataSecretName := "vsphere-ignition"
+	userDataSecret := corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      userDataSecretName,
+			Namespace: namespace,
+		},
+		Data: map[string][]byte{
+			userDataSecretKey: []byte("{}"),
 		},
 	}
 
@@ -123,6 +135,10 @@ func TestClone(t *testing.T) {
 				Workspace: &vsphereapi.Workspace{
 					Server: server.URL.Host,
 				},
+				Template: vm.Name,
+				UserDataSecret: &corev1.LocalObjectReference{
+					Name: userDataSecretName,
+				},
 			},
 			cloneVM:     true,
 			machineName: "test0",
@@ -136,6 +152,10 @@ func TestClone(t *testing.T) {
 				Workspace: &vsphereapi.Workspace{
 					Server: server.URL.Host,
 					Folder: "custom-folder",
+				},
+				Template: vm.Name,
+				UserDataSecret: &corev1.LocalObjectReference{
+					Name: userDataSecretName,
 				},
 			},
 			cloneVM:     true,
@@ -151,6 +171,10 @@ func TestClone(t *testing.T) {
 					Server:       server.URL.Host,
 					ResourcePool: "invalid",
 				},
+				Template: vm.Name,
+				UserDataSecret: &corev1.LocalObjectReference{
+					Name: userDataSecretName,
+				},
 			},
 			expectedError: errors.New("resource pool not found, specify valid value"),
 		},
@@ -163,6 +187,10 @@ func TestClone(t *testing.T) {
 				Workspace: &vsphereapi.Workspace{
 					Server:       server.URL.Host,
 					ResourcePool: "/DC0/host/DC0_C0/Resources/...",
+				},
+				Template: vm.Name,
+				UserDataSecret: &corev1.LocalObjectReference{
+					Name: userDataSecretName,
 				},
 			},
 			expectedError: errors.New("multiple resource pools found, specify one in config"),
@@ -195,6 +223,10 @@ func TestClone(t *testing.T) {
 					Server: server.URL.Host,
 					Folder: "invalid",
 				},
+				Template: vm.Name,
+				UserDataSecret: &corev1.LocalObjectReference{
+					Name: userDataSecretName,
+				},
 			},
 		},
 		{
@@ -206,6 +238,10 @@ func TestClone(t *testing.T) {
 				Workspace: &vsphereapi.Workspace{
 					Server: server.URL.Host,
 					Folder: "/DC0/vm/...",
+				},
+				Template: vm.Name,
+				UserDataSecret: &corev1.LocalObjectReference{
+					Name: userDataSecretName,
 				},
 			},
 			expectedError: errors.New("multiple folders found, specify one in config"),
@@ -236,6 +272,10 @@ func TestClone(t *testing.T) {
 					Server:    server.URL.Host,
 					Datastore: "invalid",
 				},
+				Template: vm.Name,
+				UserDataSecret: &corev1.LocalObjectReference{
+					Name: userDataSecretName,
+				},
 			},
 			expectedError: errors.New("datastore not found, specify valid value"),
 		},
@@ -248,6 +288,10 @@ func TestClone(t *testing.T) {
 				Workspace: &vsphereapi.Workspace{
 					Server:    server.URL.Host,
 					Datastore: "/DC0/...",
+				},
+				Template: vm.Name,
+				UserDataSecret: &corev1.LocalObjectReference{
+					Name: userDataSecretName,
 				},
 			},
 			expectedError: errors.New("multiple datastores found, specify one in config"),
@@ -276,6 +320,16 @@ func TestClone(t *testing.T) {
 				return nil
 			},
 		},
+		{
+			testCase: "fail on invalid template",
+			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+				Template: "invalid",
+				UserDataSecret: &corev1.LocalObjectReference{
+					Name: userDataSecretName,
+				},
+			},
+			expectedError: errors.New("template not found, specify valid value"),
+		},
 	}
 
 	for _, tc := range testCases {
@@ -300,10 +354,8 @@ func TestClone(t *testing.T) {
 				providerSpec:   &tc.providerSpec,
 				session:        session,
 				providerStatus: &vsphereapi.VSphereMachineProviderStatus{},
-				client:         fake.NewFakeClientWithScheme(scheme.Scheme, &credentialsSecret),
+				client:         fake.NewFakeClientWithScheme(scheme.Scheme, &credentialsSecret, &userDataSecret),
 			}
-
-			machineScope.providerSpec.Template = vm.Name
 
 			if tc.machineName != "" {
 				machineScope.machine.Name = tc.machineName
@@ -1247,6 +1299,17 @@ func TestCreate(t *testing.T) {
 		},
 	}
 
+	userDataSecretName := "vsphere-ignition"
+	userDataSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      userDataSecretName,
+			Namespace: namespace,
+		},
+		Data: map[string][]byte{
+			userDataSecretKey: []byte("{}"),
+		},
+	}
+
 	cases := []struct {
 		name                  string
 		expectedError         error
@@ -1263,6 +1326,9 @@ func TestCreate(t *testing.T) {
 				},
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: "test",
+				},
+				UserDataSecret: &corev1.LocalObjectReference{
+					Name: userDataSecretName,
 				},
 			},
 		},
@@ -1315,7 +1381,8 @@ func TestCreate(t *testing.T) {
 			client := fake.NewFakeClientWithScheme(scheme.Scheme,
 				credentialsSecret,
 				configMap,
-				infra)
+				infra,
+				userDataSecret)
 
 			rawProviderSpec, err := vsphereapi.RawExtensionFromProviderSpec(&tc.providerSpec)
 			if err != nil {
