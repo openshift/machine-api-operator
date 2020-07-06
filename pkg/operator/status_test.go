@@ -217,6 +217,12 @@ func TestGetOrCreateClusterOperator(t *testing.T) {
 							Namespace: namespace,
 						},
 						{
+							Group:     "machine.openshift.io",
+							Resource:  "machinehealthchecks",
+							Name:      "",
+							Namespace: namespace,
+						},
+						{
 							Group:     "rbac.authorization.k8s.io",
 							Resource:  "roles",
 							Name:      "",
@@ -231,6 +237,12 @@ func TestGetOrCreateClusterOperator(t *testing.T) {
 							Group:    "rbac.authorization.k8s.io",
 							Resource: "clusterroles",
 							Name:     "machine-api-controllers",
+						},
+						{
+							Group:     "metal3.io",
+							Resource:  "baremetalhosts",
+							Name:      "",
+							Namespace: namespace,
 						},
 					},
 				},
@@ -269,6 +281,12 @@ func TestGetOrCreateClusterOperator(t *testing.T) {
 							Namespace: namespace,
 						},
 						{
+							Group:     "machine.openshift.io",
+							Resource:  "machinehealthchecks",
+							Name:      "",
+							Namespace: namespace,
+						},
+						{
 							Group:     "rbac.authorization.k8s.io",
 							Resource:  "roles",
 							Name:      "",
@@ -283,6 +301,12 @@ func TestGetOrCreateClusterOperator(t *testing.T) {
 							Group:    "rbac.authorization.k8s.io",
 							Resource: "clusterroles",
 							Name:     "machine-api-controllers",
+						},
+						{
+							Group:     "metal3.io",
+							Resource:  "baremetalhosts",
+							Name:      "",
+							Namespace: namespace,
 						},
 					},
 					Conditions: conditions,

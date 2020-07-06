@@ -177,6 +177,12 @@ func (optr *Operator) relatedObjects() []osconfigv1.ObjectReference {
 			Namespace: optr.namespace,
 		},
 		{
+			Group:     "machine.openshift.io",
+			Resource:  "machinehealthchecks",
+			Name:      "",
+			Namespace: optr.namespace,
+		},
+		{
 			Group:     "rbac.authorization.k8s.io",
 			Resource:  "roles",
 			Name:      "",
@@ -191,6 +197,12 @@ func (optr *Operator) relatedObjects() []osconfigv1.ObjectReference {
 			Group:    "rbac.authorization.k8s.io",
 			Resource: "clusterroles",
 			Name:     "machine-api-controllers",
+		},
+		{
+			Group:     "metal3.io",
+			Resource:  "baremetalhosts",
+			Name:      "",
+			Namespace: optr.namespace,
 		},
 	}
 }
