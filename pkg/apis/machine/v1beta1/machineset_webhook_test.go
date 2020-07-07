@@ -64,16 +64,35 @@ func TestMachineSetCreation(t *testing.T) {
 			providerSpecValue: &runtime.RawExtension{
 				Object: &aws.AWSMachineProviderConfig{},
 			},
-			expectedError: "providerSpec.ami: Required value: expected either providerSpec.ami.arn or providerSpec.ami.filters or providerSpec.ami.id to be populated",
+			expectedError: "[providerSpec.ami: Required value: expected either providerSpec.ami.arn or providerSpec.ami.filters or providerSpec.ami.id to be populated, providerSpec.subnet: Required value: expected either providerSpec.subnet.arn or providerSpec.subnet.id or providerSpec.subnet.filters or providerSpec.placement.availabilityZone to be populated]",
 		},
 		{
-			name:         "with AWS and an AMI ID set",
+			name:         "with AWS, an AMI ID and an AvailabilityZone set",
 			platformType: osconfigv1.AWSPlatformType,
 			clusterID:    "aws-cluster",
 			providerSpecValue: &runtime.RawExtension{
 				Object: &aws.AWSMachineProviderConfig{
 					AMI: aws.AWSResourceReference{
 						ID: pointer.StringPtr("ami"),
+					},
+					Placement: aws.Placement{
+						AvailabilityZone: "availabilityZone",
+					},
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "with AWS, an AMI ID and an Subnet ID set",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &runtime.RawExtension{
+				Object: &aws.AWSMachineProviderConfig{
+					AMI: aws.AWSResourceReference{
+						ID: pointer.StringPtr("ami"),
+					},
+					Subnet: aws.AWSResourceReference{
+						ID: pointer.StringPtr("subnetID"),
 					},
 				},
 			},
@@ -193,6 +212,9 @@ func TestMachineSetCreation(t *testing.T) {
 				GCP: &osconfigv1.GCPPlatformStatus{
 					ProjectID: "gcp-project-id",
 				},
+				AWS: &osconfigv1.AWSPlatformStatus{
+					Region: "region",
+				},
 			}
 
 			machineSetDefaulter := createMachineSetDefaulter(platformStatus, tc.clusterID)
@@ -253,6 +275,7 @@ func TestMachineSetCreation(t *testing.T) {
 
 func TestMachineSetUpdate(t *testing.T) {
 	awsClusterID := "aws-cluster"
+	awsRegion := "region"
 	defaultAWSProviderSpec := &aws.AWSMachineProviderConfig{
 		AMI: aws.AWSResourceReference{
 			ID: pointer.StringPtr("ami"),
@@ -274,7 +297,7 @@ func TestMachineSetUpdate(t *testing.T) {
 			},
 		},
 		Placement: aws.Placement{
-			Region:           "region",
+			Region:           awsRegion,
 			AvailabilityZone: "zone",
 		},
 		Subnet: aws.AWSResourceReference{
@@ -678,6 +701,9 @@ func TestMachineSetUpdate(t *testing.T) {
 				Type: tc.platformType,
 				GCP: &osconfigv1.GCPPlatformStatus{
 					ProjectID: gcpProjectID,
+				},
+				AWS: &osconfigv1.AWSPlatformStatus{
+					Region: awsRegion,
 				},
 			}
 

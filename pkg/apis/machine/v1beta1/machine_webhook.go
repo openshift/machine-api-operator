@@ -213,7 +213,11 @@ func createMachineDefaulter(platformStatus *osconfigv1.PlatformStatus, clusterID
 func getMachineDefaulterOperation(platformStatus *osconfigv1.PlatformStatus) machineAdmissionFn {
 	switch platformStatus.Type {
 	case osconfigv1.AWSPlatformType:
-		return defaultAWS
+		region := ""
+		if platformStatus.AWS != nil {
+			region = platformStatus.AWS.Region
+		}
+		return awsDefaulter{region: region}.defaultAWS
 	case osconfigv1.AzurePlatformType:
 		return defaultAzure
 	case osconfigv1.GCPPlatformType:
@@ -270,7 +274,11 @@ func (h *machineDefaulterHandler) Handle(ctx context.Context, req admission.Requ
 	return admission.PatchResponseFromRaw(req.Object.Raw, marshaledMachine)
 }
 
-func defaultAWS(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
+type awsDefaulter struct {
+	region string
+}
+
+func (a awsDefaulter) defaultAWS(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
 	klog.V(3).Infof("Defaulting AWS providerSpec")
 
 	var errs []error
@@ -286,6 +294,11 @@ func defaultAWS(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
 	if providerSpec.IAMInstanceProfile == nil {
 		providerSpec.IAMInstanceProfile = &aws.AWSResourceReference{ID: defaultAWSIAMInstanceProfile(clusterID)}
 	}
+
+	if providerSpec.Placement.Region == "" {
+		providerSpec.Placement.Region = a.region
+	}
+
 	if providerSpec.UserDataSecret == nil {
 		providerSpec.UserDataSecret = &corev1.LocalObjectReference{Name: defaultUserDataSecret}
 	}
@@ -307,7 +320,7 @@ func defaultAWS(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
 		}
 	}
 
-	if providerSpec.Subnet.ARN == nil && providerSpec.Subnet.ID == nil && providerSpec.Subnet.Filters == nil {
+	if providerSpec.Subnet.ARN == nil && providerSpec.Subnet.ID == nil && providerSpec.Subnet.Filters == nil && providerSpec.Placement.AvailabilityZone != "" {
 		providerSpec.Subnet.Filters = []aws.Filter{
 			{
 				Name:   "tag:Name",
@@ -356,6 +369,16 @@ func validateAWS(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
 			field.Required(
 				field.NewPath("providerSpec", "ami"),
 				"expected either providerSpec.ami.arn or providerSpec.ami.filters or providerSpec.ami.id to be populated",
+			),
+		)
+	}
+
+	if providerSpec.Placement.Region == "" {
+		errs = append(
+			errs,
+			field.Required(
+				field.NewPath("providerSpec", "placement", "region"),
+				"expected providerSpec.placement.region to be populated",
 			),
 		)
 	}

@@ -67,16 +67,35 @@ func TestMachineCreation(t *testing.T) {
 			providerSpecValue: &runtime.RawExtension{
 				Object: &aws.AWSMachineProviderConfig{},
 			},
-			expectedError: "providerSpec.ami: Required value: expected either providerSpec.ami.arn or providerSpec.ami.filters or providerSpec.ami.id to be populated",
+			expectedError: "[providerSpec.ami: Required value: expected either providerSpec.ami.arn or providerSpec.ami.filters or providerSpec.ami.id to be populated, providerSpec.subnet: Required value: expected either providerSpec.subnet.arn or providerSpec.subnet.id or providerSpec.subnet.filters or providerSpec.placement.availabilityZone to be populated]",
 		},
 		{
-			name:         "with AWS and an AMI ID set",
+			name:         "with AWS, an AMI ID and an AvailabilityZone set",
 			platformType: osconfigv1.AWSPlatformType,
 			clusterID:    "aws-cluster",
 			providerSpecValue: &runtime.RawExtension{
 				Object: &aws.AWSMachineProviderConfig{
 					AMI: aws.AWSResourceReference{
 						ID: pointer.StringPtr("ami"),
+					},
+					Placement: aws.Placement{
+						AvailabilityZone: "availabilityZone",
+					},
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "with AWS, an AMI ID and an Subnet ID set",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &runtime.RawExtension{
+				Object: &aws.AWSMachineProviderConfig{
+					AMI: aws.AWSResourceReference{
+						ID: pointer.StringPtr("ami"),
+					},
+					Subnet: aws.AWSResourceReference{
+						ID: pointer.StringPtr("subnetID"),
 					},
 				},
 			},
@@ -196,6 +215,9 @@ func TestMachineCreation(t *testing.T) {
 				GCP: &osconfigv1.GCPPlatformStatus{
 					ProjectID: "gcp-project-id",
 				},
+				AWS: &osconfigv1.AWSPlatformStatus{
+					Region: "region",
+				},
 			}
 
 			machineDefaulter := createMachineDefaulter(platformStatus, tc.clusterID)
@@ -252,6 +274,7 @@ func TestMachineCreation(t *testing.T) {
 
 func TestMachineUpdate(t *testing.T) {
 	awsClusterID := "aws-cluster"
+	awsRegion := "region"
 	defaultAWSProviderSpec := &aws.AWSMachineProviderConfig{
 		AMI: aws.AWSResourceReference{
 			ID: pointer.StringPtr("ami"),
@@ -273,8 +296,7 @@ func TestMachineUpdate(t *testing.T) {
 			},
 		},
 		Placement: aws.Placement{
-			Region:           "region",
-			AvailabilityZone: "zone",
+			Region: awsRegion,
 		},
 		Subnet: aws.AWSResourceReference{
 			Filters: []aws.Filter{
@@ -678,6 +700,9 @@ func TestMachineUpdate(t *testing.T) {
 				GCP: &osconfigv1.GCPPlatformStatus{
 					ProjectID: gcpProjectID,
 				},
+				AWS: &osconfigv1.AWSPlatformStatus{
+					Region: awsRegion,
+				},
 			}
 
 			machineDefaulter := createMachineDefaulter(platformStatus, tc.clusterID)
@@ -750,6 +775,14 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			expectedError: "providerSpec.ami: Required value: expected either providerSpec.ami.arn or providerSpec.ami.filters or providerSpec.ami.id to be populated",
 		},
 		{
+			testCase: "with no region values it fails",
+			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+				p.Placement.Region = ""
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.placement.region: Required value: expected providerSpec.placement.region to be populated",
+		},
+		{
 			testCase: "with no instanceType it fails",
 			modifySpec: func(p *aws.AWSMachineProviderConfig) {
 				p.InstanceType = ""
@@ -798,6 +831,15 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			expectedError: "providerSpec.subnet: Required value: expected either providerSpec.subnet.arn or providerSpec.subnet.id or providerSpec.subnet.filters or providerSpec.placement.availabilityZone to be populated",
 		},
 		{
+			testCase: "with no subnet values but an availability zone set, it succeeds",
+			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+				p.Subnet = aws.AWSResourceReference{}
+				p.Placement.AvailabilityZone = "availabilityZone"
+			},
+			expectedOk:    true,
+			expectedError: "",
+		},
+		{
 			testCase:      "with all required values it succeeds",
 			expectedOk:    true,
 			expectedError: "",
@@ -811,6 +853,9 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			providerSpec := &aws.AWSMachineProviderConfig{
 				AMI: aws.AWSResourceReference{
 					ID: pointer.StringPtr("ami"),
+				},
+				Placement: aws.Placement{
+					Region: "region",
 				},
 				InstanceType: "m4.large",
 				IAMInstanceProfile: &aws.AWSResourceReference{
@@ -863,6 +908,7 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 func TestDefaultAWSProviderSpec(t *testing.T) {
 
 	clusterID := "clusterID"
+	region := "region"
 	testCases := []struct {
 		testCase             string
 		providerSpec         *aws.AWSMachineProviderConfig
@@ -871,7 +917,7 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 		expectedOk           bool
 	}{
 		{
-			testCase: "it defaults InstanceType, IAMInstanceProfile, UserDataSecret, CredentialsSecret, SecurityGroups and Subnet",
+			testCase: "it defaults Region, InstanceType, IAMInstanceProfile, UserDataSecret, CredentialsSecret, SecurityGroups and Subnet when an AvailabilityZone is set",
 			providerSpec: &aws.AWSMachineProviderConfig{
 				AMI:                aws.AWSResourceReference{},
 				InstanceType:       "",
@@ -881,7 +927,6 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 				SecurityGroups:     []aws.AWSResourceReference{},
 				Subnet:             aws.AWSResourceReference{},
 				Placement: aws.Placement{
-					Region:           "region",
 					AvailabilityZone: "zone",
 				},
 			},
@@ -919,9 +964,50 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 			expectedOk:    true,
 			expectedError: "",
 		},
+		{
+			testCase: "does not default Subnet if no AvailabilityZone is set",
+			providerSpec: &aws.AWSMachineProviderConfig{
+				AMI:                aws.AWSResourceReference{},
+				InstanceType:       "",
+				IAMInstanceProfile: nil,
+				UserDataSecret:     nil,
+				CredentialsSecret:  nil,
+				SecurityGroups:     []aws.AWSResourceReference{},
+				Subnet:             aws.AWSResourceReference{},
+			},
+			expectedProviderSpec: &aws.AWSMachineProviderConfig{
+				AMI:          aws.AWSResourceReference{},
+				InstanceType: defaultAWSInstanceType,
+				IAMInstanceProfile: &aws.AWSResourceReference{
+					ID: defaultAWSIAMInstanceProfile(clusterID),
+				},
+				UserDataSecret:    &corev1.LocalObjectReference{Name: defaultUserDataSecret},
+				CredentialsSecret: &corev1.LocalObjectReference{Name: defaultAWSCredentialsSecret},
+				SecurityGroups: []aws.AWSResourceReference{
+					{
+						Filters: []aws.Filter{
+							{
+								Name:   "tag:Name",
+								Values: []string{defaultAWSSecurityGroup(clusterID)},
+							},
+						},
+					},
+				},
+				Placement: aws.Placement{
+					Region: "region",
+				},
+			},
+			expectedOk:    true,
+			expectedError: "",
+		},
 	}
 
-	platformStatus := &osconfigv1.PlatformStatus{Type: osconfigv1.AWSPlatformType}
+	platformStatus := &osconfigv1.PlatformStatus{
+		Type: osconfigv1.AWSPlatformType,
+		AWS: &osconfigv1.AWSPlatformStatus{
+			Region: region,
+		},
+	}
 	h := createMachineDefaulter(platformStatus, clusterID)
 
 	for _, tc := range testCases {
