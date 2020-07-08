@@ -5,6 +5,7 @@ import (
 
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions"
 	machineinformersv1beta1 "github.com/openshift/machine-api-operator/pkg/generated/informers/externalversions"
+	"gopkg.in/fsnotify.v1"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/informers"
@@ -17,6 +18,7 @@ type ControllerContext struct {
 	KubeNamespacedInformerFactory informers.SharedInformerFactory
 	ConfigInformerFactory         configinformersv1.SharedInformerFactory
 	MachineInformerFactory        machineinformersv1beta1.SharedInformerFactory
+	ImagesWatcher                 *fsnotify.Watcher
 
 	AvailableResources map[schema.GroupVersionResource]bool
 
@@ -28,7 +30,7 @@ type ControllerContext struct {
 }
 
 // CreateControllerContext creates the ControllerContext with the ClientBuilder.
-func CreateControllerContext(cb *ClientBuilder, stop <-chan struct{}, targetNamespace string) *ControllerContext {
+func CreateControllerContext(cb *ClientBuilder, stop <-chan struct{}, imagesWatcher *fsnotify.Watcher, targetNamespace string) *ControllerContext {
 	kubeClient := cb.KubeClientOrDie("kube-shared-informer")
 	configClient := cb.OpenshiftClientOrDie("config-shared-informer")
 	machineClient := cb.MachineClientOrDie("machine-shared-informer")
@@ -42,6 +44,7 @@ func CreateControllerContext(cb *ClientBuilder, stop <-chan struct{}, targetName
 		KubeNamespacedInformerFactory: kubeNamespacedSharedInformer,
 		ConfigInformerFactory:         configSharedInformer,
 		MachineInformerFactory:        machineSharedInformer,
+		ImagesWatcher:                 imagesWatcher,
 
 		Stop:             stop,
 		InformersStarted: make(chan struct{}),

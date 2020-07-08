@@ -12,6 +12,7 @@ import (
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
+	"gopkg.in/fsnotify.v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -38,8 +39,9 @@ const (
 type Operator struct {
 	namespace, name string
 
-	imagesFile string
-	config     string
+	imagesFile    string
+	imagesWatcher *fsnotify.Watcher
+	config        string
 
 	kubeClient    kubernetes.Interface
 	osClient      osclientset.Interface
@@ -71,6 +73,7 @@ func New(
 
 	config string,
 
+	imagesWatcher *fsnotify.Watcher,
 	deployInformer appsinformersv1.DeploymentInformer,
 	daemonsetInformer appsinformersv1.DaemonSetInformer,
 	featureGateInformer configinformersv1.FeatureGateInformer,
@@ -103,6 +106,7 @@ func New(
 	deployInformer.Informer().AddEventHandler(optr.eventHandlerDeployments())
 	featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
 
+	optr.imagesWatcher = imagesWatcher
 	optr.config = config
 	optr.syncHandler = optr.sync
 
@@ -122,6 +126,7 @@ func New(
 func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer optr.queue.ShutDown()
+	defer optr.imagesWatcher.Close()
 
 	glog.Info("Starting Machine API Operator")
 	defer glog.Info("Shutting down Machine API Operator")
@@ -134,6 +139,8 @@ func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 		return
 	}
 	glog.Info("Synced up caches")
+	go optr.fsWorker()
+
 	for i := 0; i < workers; i++ {
 		go wait.Until(optr.worker, time.Second, stopCh)
 	}
@@ -214,9 +221,40 @@ func (optr *Operator) worker() {
 	}
 }
 
+func (optr *Operator) fsWorker() {
+	workQueueKey := fmt.Sprintf("%s/%s", optr.namespace, optr.name)
+	// Watch reads events from the watcher's channel and reacts to changes.
+	for {
+		select {
+		case event, ok := <-optr.imagesWatcher.Events:
+			if !ok {
+				return
+			}
+			// If the file was removed, re-add the watch.
+			if isRemove(event) {
+				if err := optr.imagesWatcher.Add(event.Name); err != nil {
+					glog.Errorf("error re-watching file: %v", err)
+				}
+			}
+			glog.Infof("imagesFile changed")
+			optr.queue.Add(workQueueKey)
+		case err, ok := <-optr.imagesWatcher.Errors:
+			if !ok {
+				return
+			}
+			glog.Errorf("imagesFile watch error: %v", err)
+		}
+	}
+}
+
+func isRemove(event fsnotify.Event) bool {
+	return event.Op&fsnotify.Remove == fsnotify.Remove
+}
+
 func (optr *Operator) processNextWorkItem() bool {
 	key, quit := optr.queue.Get()
 	if quit {
+		glog.Errorf("Quitting")
 		return false
 	}
 	defer optr.queue.Done(key)

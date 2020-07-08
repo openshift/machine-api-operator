@@ -16,6 +16,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
+	"gopkg.in/fsnotify.v1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
@@ -61,6 +62,15 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 		glog.Fatalf("--images-json should not be empty")
 	}
 
+	imagesWatcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		glog.Fatalf("Failed to establish watcher: %v", err)
+	}
+
+	if err = imagesWatcher.Add(startOpts.imagesFile); err != nil {
+		glog.Fatalf("Failed to establish watches on images file: %s", startOpts.imagesFile)
+	}
+
 	cb, err := NewClientBuilder(startOpts.kubeconfig)
 	if err != nil {
 		glog.Fatalf("error creating clients: %v", err)
@@ -74,7 +84,7 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 		RetryPeriod:   RetryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
-				ctrlCtx := CreateControllerContext(cb, stopCh, componentNamespace)
+				ctrlCtx := CreateControllerContext(cb, stopCh, imagesWatcher, componentNamespace)
 				startControllers(ctrlCtx)
 				ctrlCtx.KubeNamespacedInformerFactory.Start(ctrlCtx.Stop)
 				ctrlCtx.ConfigInformerFactory.Start(ctrlCtx.Stop)
@@ -120,6 +130,7 @@ func startControllers(ctx *ControllerContext) {
 		componentNamespace, componentName,
 		startOpts.imagesFile,
 		config,
+		ctx.ImagesWatcher,
 		ctx.KubeNamespacedInformerFactory.Apps().V1().Deployments(),
 		ctx.KubeNamespacedInformerFactory.Apps().V1().DaemonSets(),
 		ctx.ConfigInformerFactory.Config().V1().FeatureGates(),
