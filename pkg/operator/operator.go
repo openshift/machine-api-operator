@@ -225,25 +225,29 @@ func (optr *Operator) fsWorker() {
 	workQueueKey := fmt.Sprintf("%s/%s", optr.namespace, optr.name)
 	// Watch reads events from the watcher's channel and reacts to changes.
 	for {
-		select {
-		case event, ok := <-optr.imagesWatcher.Events:
-			if !ok {
-				return
-			}
-			// If the file was removed, re-add the watch.
-			if isRemove(event) {
-				if err := optr.imagesWatcher.Add(event.Name); err != nil {
-					glog.Errorf("error re-watching file: %v", err)
-				}
-			}
-			glog.Infof("imagesFile changed")
-			optr.queue.Add(workQueueKey)
-		case err, ok := <-optr.imagesWatcher.Errors:
-			if !ok {
-				return
-			}
-			glog.Errorf("imagesFile watch error: %v", err)
+		optr.handleImagesChange(workQueueKey)
+	}
+}
+
+func (optr *Operator) handleImagesChange(key string) {
+	select {
+	case event, ok := <-optr.imagesWatcher.Events:
+		if !ok {
+			return
 		}
+		// If the file was removed, re-add the watch.
+		if isRemove(event) {
+			if err := optr.imagesWatcher.Add(event.Name); err != nil {
+				glog.Errorf("error re-watching file: %v", err)
+			}
+		}
+		glog.Infof("imagesFile changed")
+		optr.queue.Add(key)
+	case err, ok := <-optr.imagesWatcher.Errors:
+		if !ok {
+			return
+		}
+		glog.Errorf("imagesFile watch error: %v", err)
 	}
 }
 

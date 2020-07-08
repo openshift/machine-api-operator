@@ -16,6 +16,7 @@ import (
 	fakeos "github.com/openshift/client-go/config/clientset/versioned/fake"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions"
 	"github.com/stretchr/testify/assert"
+	"gopkg.in/fsnotify.v1"
 	appsv1 "k8s.io/api/apps/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -55,6 +56,7 @@ func newFakeOperator(kubeObjects []runtime.Object, osObjects []runtime.Object, s
 		deployLister:           deployInformer.Lister(),
 		daemonsetLister:        daemonsetInformer.Lister(),
 		imagesFile:             "fixtures/images.json",
+		imagesWatcher:          &fsnotify.Watcher{},
 		namespace:              targetNamespace,
 		eventRecorder:          record.NewFakeRecorder(50),
 		queue:                  workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
@@ -511,4 +513,32 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			g.Expect(config).To(Equal(tc.expectedConfig))
 		})
 	}
+}
+
+// TestHandleImagesChange tests that images.json is watched an triggers enqueue
+func TestHandleImagesChange(t *testing.T) {
+	g := NewWithT(t)
+	key := "test"
+	file, err := ioutil.TempFile("", "images.json")
+	defer os.Remove(file.Name())
+	g.Expect(err).ToNot(HaveOccurred())
+
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+	optr := newFakeOperator(nil, nil, stopCh)
+	optr.imagesWatcher, err = fsnotify.NewWatcher()
+	g.Expect(err).To(Succeed())
+	g.Expect(optr.imagesWatcher.Add(file.Name())).To(Succeed())
+
+	go optr.handleImagesChange(key)
+
+	images := &Images{}
+	data, err := json.Marshal(images)
+	g.Expect(err).To(Succeed())
+	_, err = file.Write(data)
+	g.Expect(err).To(Succeed())
+
+	queueKey, empty := optr.queue.Get()
+	g.Expect(empty).To(BeFalse())
+	g.Expect(queueKey.(string)).To(Equal(key))
 }
