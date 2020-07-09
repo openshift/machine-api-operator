@@ -1,5 +1,25 @@
 # MAO Metrics
 
+The Machine API Operator(MAO) uses the
+[Prometheus project](https://prometheus.io/) to expose metrics. To consume
+these metrics directly from the MAO you will need to perform
+HTTP GET requests to a specific port and URI of the MAO. The
+URI for all metrics is `/metrics`, see the Prometheus documentation for query
+parameter options. To find the exposed metrics port for the MAO you can either
+inspect the Deployment resource or the
+[install manifest](https://github.com/openshift/machine-api-operator/blob/master/install/0000_30_machine-api-operator_11_deployment.yaml)
+to find the environment variable `METRICS_PORT`, the default value for this is `8080`.
+
+**Example MAO metrics scrape procedure**
+1. Forward the metrics port from the CAO to a local port
+   ```
+   $ oc port-forward -n openshift-machine-api deployment/machine-api-operator 8080:8080
+   ```
+2. Perform an HTTP GET request on the local port
+   ```
+   $ curl http://localhost:8080/metrics
+   ```
+
 The Machine API Operator reports the following metrics:
 
 ## Metrics about Machine resources
