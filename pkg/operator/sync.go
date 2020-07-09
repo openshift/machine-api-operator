@@ -188,13 +188,9 @@ func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev
 			},
 		},
 		Spec: corev1.PodSpec{
-			Containers:        containers,
-			PriorityClassName: "system-node-critical",
-			NodeSelector:      map[string]string{"node-role.kubernetes.io/master": ""},
-			SecurityContext: &corev1.PodSecurityContext{
-				RunAsNonRoot: pointer.BoolPtr(true),
-				RunAsUser:    pointer.Int64Ptr(65534),
-			},
+			Containers:         containers,
+			PriorityClassName:  "system-node-critical",
+			NodeSelector:       map[string]string{"node-role.kubernetes.io/master": ""},
 			ServiceAccountName: "machine-api-controllers",
 			Tolerations:        tolerations,
 		},
