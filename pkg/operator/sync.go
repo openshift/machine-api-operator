@@ -368,6 +368,7 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 	args := []string{
 		"--logtostderr=true",
 		"--v=3",
+		"--leader-elect=true",
 		fmt.Sprintf("--namespace=%s", config.TargetNamespace),
 	}
 

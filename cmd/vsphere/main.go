@@ -25,8 +25,36 @@ func main() {
 	flag.BoolVar(&printVersion, "version", false, "print version and exit")
 
 	klog.InitFlags(nil)
-	watchNamespace := flag.String("namespace", "", "Namespace that the controller watches to reconcile machine-api objects. If unspecified, the controller watches for machine-api objects across all namespaces.")
-	metricsAddress := flag.String("metrics-bind-address", metrics.DefaultMachineMetricsAddress, "Address for hosting metrics")
+	watchNamespace := flag.String(
+		"namespace",
+		"",
+		"Namespace that the controller watches to reconcile machine-api objects. If unspecified, the controller watches for machine-api objects across all namespaces.",
+	)
+
+	leaderElectResourceNamespace := flag.String(
+		"leader-elect-resource-namespace",
+		"",
+		"The namespace of resource object that is used for locking during leader election. If unspecified and running in cluster, defaults to the service account namespace for the controller. Required for leader-election outside of a cluster.",
+	)
+
+	leaderElect := flag.Bool(
+		"leader-elect",
+		false,
+		"Start a leader election client and gain leadership before executing the main loop. Enable this when running replicated components for high availability.",
+	)
+
+	leaderElectLeaseDuration := flag.Duration(
+		"leader-elect-lease-duration",
+		15*time.Second,
+		"The duration that non-leader candidates will wait after observing a leadership renewal until attempting to acquire leadership of a led but unrenewed leader slot. This is effectively the maximum duration that a leader can be stopped before it is replaced by another candidate. This is only applicable if leader election is enabled.",
+	)
+
+	metricsAddress := flag.String(
+		"metrics-bind-address",
+		metrics.DefaultMachineMetricsAddress,
+		"Address for hosting metrics",
+	)
+
 	flag.Set("logtostderr", "true")
 	healthAddr := flag.String(
 		"health-addr",
@@ -44,10 +72,15 @@ func main() {
 	syncPeriod := 10 * time.Minute
 
 	opts := manager.Options{
-		MetricsBindAddress:     *metricsAddress,
-		HealthProbeBindAddress: *healthAddr,
-		SyncPeriod:             &syncPeriod,
+		MetricsBindAddress:      *metricsAddress,
+		HealthProbeBindAddress:  *healthAddr,
+		SyncPeriod:              &syncPeriod,
+		LeaderElection:          *leaderElect,
+		LeaderElectionNamespace: *leaderElectResourceNamespace,
+		LeaderElectionID:        "cluster-api-provider-vsphere-leader",
+		LeaseDuration:           leaderElectLeaseDuration,
 	}
+
 	if *watchNamespace != "" {
 		opts.Namespace = *watchNamespace
 		klog.Infof("Watching machine-api objects only in namespace %q for reconciliation.", opts.Namespace)
