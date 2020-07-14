@@ -180,6 +180,7 @@ func (r *ReconcileMachine) Reconcile(request reconcile.Request) (reconcile.Resul
 
 	// Add clusterID label
 	if err := r.setClusterIDLabel(ctx, m); err != nil {
+		klog.Errorf("%v: failed to set ClusterID for machine: %v", machineName, err)
 		return reconcile.Result{}, err
 	}
 
