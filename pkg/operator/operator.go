@@ -12,12 +12,15 @@ import (
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/dynamic"
+	admissioninformersv1 "k8s.io/client-go/informers/admissionregistration/v1"
 	appsinformersv1 "k8s.io/client-go/informers/apps/v1"
 	"k8s.io/client-go/kubernetes"
+	admissionlisterv1 "k8s.io/client-go/listers/admissionregistration/v1"
 	appslisterv1 "k8s.io/client-go/listers/apps/v1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
@@ -54,6 +57,12 @@ type Operator struct {
 	daemonsetLister       appslisterv1.DaemonSetLister
 	daemonsetListerSynced cache.InformerSynced
 
+	validatingWebhookLister       admissionlisterv1.ValidatingWebhookConfigurationLister
+	validatingWebhookListerSynced cache.InformerSynced
+
+	mutatingWebhookLister       admissionlisterv1.MutatingWebhookConfigurationLister
+	mutatingWebhookListerSynced cache.InformerSynced
+
 	featureGateLister      configlistersv1.FeatureGateLister
 	featureGateCacheSynced cache.InformerSynced
 
@@ -74,6 +83,8 @@ func New(
 	deployInformer appsinformersv1.DeploymentInformer,
 	daemonsetInformer appsinformersv1.DaemonSetInformer,
 	featureGateInformer configinformersv1.FeatureGateInformer,
+	validatingWebhookInformer admissioninformersv1.ValidatingWebhookConfigurationInformer,
+	mutatingWebhookInformer admissioninformersv1.MutatingWebhookConfigurationInformer,
 
 	kubeClient kubernetes.Interface,
 	osClient osclientset.Interface,
@@ -101,6 +112,8 @@ func New(
 	}
 
 	deployInformer.Informer().AddEventHandler(optr.eventHandlerDeployments())
+	validatingWebhookInformer.Informer().AddEventHandler(optr.eventHandlerSingleton(isMachineWebhook))
+	mutatingWebhookInformer.Informer().AddEventHandler(optr.eventHandlerSingleton(isMachineWebhook))
 	featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
 
 	optr.config = config
@@ -111,6 +124,12 @@ func New(
 
 	optr.daemonsetLister = daemonsetInformer.Lister()
 	optr.daemonsetListerSynced = daemonsetInformer.Informer().HasSynced
+
+	optr.validatingWebhookLister = validatingWebhookInformer.Lister()
+	optr.validatingWebhookListerSynced = validatingWebhookInformer.Informer().HasSynced
+
+	optr.mutatingWebhookLister = mutatingWebhookInformer.Lister()
+	optr.mutatingWebhookListerSynced = mutatingWebhookInformer.Informer().HasSynced
 
 	optr.featureGateLister = featureGateInformer.Lister()
 	optr.featureGateCacheSynced = featureGateInformer.Informer().HasSynced
@@ -127,6 +146,8 @@ func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 	defer glog.Info("Shutting down Machine API Operator")
 
 	if !cache.WaitForCacheSync(stopCh,
+		optr.mutatingWebhookListerSynced,
+		optr.validatingWebhookListerSynced,
 		optr.deployListerSynced,
 		optr.daemonsetListerSynced,
 		optr.featureGateCacheSynced) {
@@ -207,6 +228,39 @@ func isOwned(obj interface{}) (bool, error) {
 	}
 	_, ok := metaObj.GetAnnotations()[maoOwnedAnnotation]
 	return ok, nil
+}
+
+func (optr *Operator) eventHandlerSingleton(f func(interface{}) bool) cache.FilteringResourceEventHandler {
+	workQueueKey := fmt.Sprintf("%s/%s", optr.namespace, optr.name)
+	addToQueue := func(obj interface{}) {
+		logResource(obj)
+		optr.queue.Add(workQueueKey)
+	}
+
+	return cache.FilteringResourceEventHandler{
+		FilterFunc: f,
+		Handler: cache.ResourceEventHandlerFuncs{
+			AddFunc:    addToQueue,
+			DeleteFunc: addToQueue,
+			UpdateFunc: func(old, new interface{}) {
+				addToQueue(new)
+			},
+		},
+	}
+}
+
+func isMachineWebhook(obj interface{}) bool {
+	mutatingWebhook, ok := obj.(*admissionregistrationv1.MutatingWebhookConfiguration)
+	if ok {
+		return mutatingWebhook.Name == "machine-api"
+	}
+
+	validatingWebhook, ok := obj.(*admissionregistrationv1.MutatingWebhookConfiguration)
+	if ok {
+		return validatingWebhook.Name == "machine-api"
+	}
+
+	return false
 }
 
 func (optr *Operator) worker() {
