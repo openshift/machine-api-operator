@@ -392,6 +392,18 @@ func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev
 				},
 			},
 		},
+		{
+			Name: "trusted-ca",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					Items: []corev1.KeyToPath{{Key: "ca-bundle.crt", Path: "tls-ca-bundle.pem"}},
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: "machine-api-operator-trusted-ca",
+					},
+					Optional: pointer.BoolPtr(true),
+				},
+			},
+		},
 	}
 
 	return &corev1.PodTemplateSpec{
@@ -501,6 +513,13 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 						Path: "/readyz",
 						Port: intstr.Parse("healthz"),
 					},
+				},
+			},
+			VolumeMounts: []corev1.VolumeMount{
+				{
+					MountPath: "/etc/pki/ca-trust/extracted/pem",
+					Name:      "trusted-ca",
+					ReadOnly:  true,
 				},
 			},
 		},
