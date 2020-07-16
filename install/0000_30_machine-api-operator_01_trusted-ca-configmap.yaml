@@ -5,5 +5,5 @@ metadata:
     release.openshift.io/create-only: "true"
   labels:
     config.openshift.io/inject-trusted-cabundle: "true"
-  name: machine-api-operator-trusted-ca
+  name: mao-trusted-ca
   namespace: openshift-machine-api
