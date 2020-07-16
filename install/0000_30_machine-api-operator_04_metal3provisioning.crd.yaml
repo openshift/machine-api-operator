@@ -81,6 +81,11 @@ spec:
               description: provisioningOSDownloadURL is the location from which the OS Image used to boot
                 baremetal host machines can be downloaded by the metal3 cluster.
               type: string
+            ironicExtraConf:
+              description: A map of config options to be passed to ironic,  each entry should take the
+                format OS_<section>_\_<name>=<value> - where `section` and `name` reprepresent the
+                config option in ironic.conf
+              type: object
         status:
           description: status holds observed values from the cluster. They may not
             be overridden.

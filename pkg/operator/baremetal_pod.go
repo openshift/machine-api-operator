@@ -63,6 +63,14 @@ func buildEnvVar(name string, key string, baremetalProvisioningConfig BaremetalP
 	}
 }
 
+func buildIronicEnvVar(baremetalProvisioningConfig BaremetalProvisioningConfig) []corev1.EnvVar {
+	Env := []corev1.EnvVar{}
+	for k, v := range baremetalProvisioningConfig.IronicExtraConf {
+		Env = append(Env, corev1.EnvVar{ Name:  k, Value: v.(string), })
+	}
+	return Env
+}
+
 func setMariadbPassword() corev1.EnvVar {
 	return corev1.EnvVar{
 		Name: "MARIADB_PASSWORD",
@@ -364,11 +372,11 @@ func createContainerMetal3IronicConductor(config *OperatorConfig, baremetalProvi
 		},
 		Command:      []string{"/bin/runironic-conductor"},
 		VolumeMounts: volumeMounts,
-		Env: []corev1.EnvVar{
+		Env: append([]corev1.EnvVar{
 			setMariadbPassword(),
 			buildEnvVar("HTTP_PORT", "http_port", baremetalProvisioningConfig),
 			buildEnvVar("PROVISIONING_INTERFACE", "provisioning_interface", baremetalProvisioningConfig),
-		},
+		}, buildIronicEnvVar(baremetalProvisioningConfig)...),
 	}
 	return container
 }
@@ -384,11 +392,11 @@ func createContainerMetal3IronicApi(config *OperatorConfig, baremetalProvisionin
 		},
 		Command:      []string{"/bin/runironic-api"},
 		VolumeMounts: volumeMounts,
-		Env: []corev1.EnvVar{
+		Env: append([]corev1.EnvVar{
 			setMariadbPassword(),
 			buildEnvVar("HTTP_PORT", "http_port", baremetalProvisioningConfig),
 			buildEnvVar("PROVISIONING_INTERFACE", "provisioning_interface", baremetalProvisioningConfig),
-		},
+		}, buildIronicEnvVar(baremetalProvisioningConfig)...),
 	}
 	return container
 }
@@ -403,9 +411,9 @@ func createContainerMetal3IronicInspector(config *OperatorConfig, baremetalProvi
 			Privileged: pointer.BoolPtr(true),
 		},
 		VolumeMounts: volumeMounts,
-		Env: []corev1.EnvVar{
+		Env: append([]corev1.EnvVar{
 			buildEnvVar("PROVISIONING_INTERFACE", "provisioning_interface", baremetalProvisioningConfig),
-		},
+		}, buildIronicEnvVar(baremetalProvisioningConfig)...),
 	}
 	return container
 }

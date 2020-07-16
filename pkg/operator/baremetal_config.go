@@ -32,6 +32,7 @@ type BaremetalProvisioningConfig struct {
 	ProvisioningDHCPExternal  bool
 	ProvisioningDHCPRange     string
 	ProvisioningOSDownloadURL string
+	IronicExtraConf           map[string]interface{}
 }
 
 func getBaremetalProvisioningConfig(dc dynamic.Interface, configName string) (BaremetalProvisioningConfig, error) {
@@ -76,6 +77,12 @@ func getBaremetalProvisioningConfig(dc dynamic.Interface, configName string) (Ba
 		glog.Errorf("provisioningOSDownloadURL not found in Baremetal provisioning CR %s", configName)
 		return BaremetalProvisioningConfig{}, err
 	}
+	ironicExtraConf, found, err := unstructured.NestedMap(provisioningSpec, "ironicExtraConf")
+	if !found || err != nil {
+		glog.Errorf("ironicExtraConf not found in Baremetal provisioning CR %s", configName)
+		return BaremetalProvisioningConfig{}, err
+	}
+
 
 	return BaremetalProvisioningConfig{
 		ProvisioningInterface:     provisioningInterface,
@@ -84,6 +91,7 @@ func getBaremetalProvisioningConfig(dc dynamic.Interface, configName string) (Ba
 		ProvisioningDHCPExternal:  provisioningDHCPExternal,
 		ProvisioningDHCPRange:     provisioningDHCPRange,
 		ProvisioningOSDownloadURL: provisioningOSDownloadURL,
+		IronicExtraConf:           ironicExtraConf,
 	}, nil
 }
 
