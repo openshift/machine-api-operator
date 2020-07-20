@@ -54,7 +54,12 @@ type MachineHealthCheckSpec struct {
 
 	// Any farther remediation is only allowed if at most "MaxUnhealthy" machines selected by
 	// "selector" are not healthy.
-	// +optional
+	// Expects either a postive integer value or a percentage value.
+	// Percentage values must be positive whole numbers and are capped at 100%.
+	// Both 0 and 0% are valid and will block all remediation.
+	// +kubebuilder:default:="100%"
+	// +kubebuilder:validation:Pattern="^((100|[0-9]{1,2})%|[0-9]+)$"
+	// +kubebuilder:validation:Type:=string
 	MaxUnhealthy *intstr.IntOrString `json:"maxUnhealthy,omitempty"`
 
 	// It would be preferable for nodeStartupTimeout to be a metav1.Duration, but
@@ -66,7 +71,13 @@ type MachineHealthCheckSpec struct {
 
 	// Machines older than this duration without a node will be considered to have
 	// failed and will be remediated.
+	// Expects an unsigned duration string of decimal numbers each with optional
+	// fraction and a unit suffix, eg "300ms", "1.5h" or "2h45m".
+	// Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".
 	// +optional
+	// +kubebuilder:default:="10m"
+	// +kubebuilder:validation:Pattern="^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h)*)+$"
+	// +kubebuilder:validation:Type:=string
 	NodeStartupTimeout string `json:"nodeStartupTimeout,omitempty"`
 }
 
@@ -89,7 +100,11 @@ type UnhealthyCondition struct {
 	//
 	// Intentional blank line to keep this out of the OpenAPI description...
 
-	// +kubebuilder:validation:MinLength=1
+	// Expects an unsigned duration string of decimal numbers each with optional
+	// fraction and a unit suffix, eg "300ms", "1.5h" or "2h45m".
+	// Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".
+	// +kubebuilder:validation:Pattern="^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h)*)+$"
+	// +kubebuilder:validation:Type:=string
 	Timeout string `json:"timeout"`
 }
 
