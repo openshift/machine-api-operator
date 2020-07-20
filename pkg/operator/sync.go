@@ -314,6 +314,7 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 		"--logtostderr=true",
 		"--v=3",
 		"--leader-elect=true",
+		"--leader-elect-lease-duration=90s",
 		fmt.Sprintf("--namespace=%s", config.TargetNamespace),
 	}
 
