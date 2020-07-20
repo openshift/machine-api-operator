@@ -266,6 +266,7 @@ func TestMachineCreation(t *testing.T) {
 				gs.Expect(err).ToNot(BeNil())
 				gs.Expect(apierrors.ReasonForError(err)).To(BeEquivalentTo(tc.expectedError))
 			} else {
+				gs.Expect(m.Labels[MachineClusterIDLabel]).To(BeIdenticalTo(tc.clusterID))
 				gs.Expect(err).To(BeNil())
 			}
 		})
