@@ -213,7 +213,7 @@ func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment, poll
 	err := wait.Poll(pollInterval, rolloutTimeout, func() (bool, error) {
 		d, err := optr.deployLister.Deployments(resource.Namespace).Get(resource.Name)
 		if apierrors.IsNotFound(err) {
-			lastError = fmt.Errorf("deployment %s is not found", d.GetName())
+			lastError = fmt.Errorf("deployment %s is not found", resource.Name)
 			glog.Error(lastError)
 			return false, nil
 		}
@@ -233,17 +233,17 @@ func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment, poll
 		if d.Generation <= d.Status.ObservedGeneration && d.Status.UpdatedReplicas == d.Status.Replicas && d.Status.UnavailableReplicas == 0 {
 			c := conditions.GetDeploymentCondition(d, appsv1.DeploymentAvailable)
 			if c == nil {
-				lastError = fmt.Errorf("deployment %s is not reporting available yet", d.GetName())
+				lastError = fmt.Errorf("deployment %s is not reporting available yet", resource.Name)
 				glog.V(4).Info(lastError)
 				return false, nil
 			}
 			if c.Status == corev1.ConditionFalse {
-				lastError = fmt.Errorf("deployment %s is reporting available=false", d.GetName())
+				lastError = fmt.Errorf("deployment %s is reporting available=false", resource.Name)
 				glog.V(4).Info(lastError)
 				return false, nil
 			}
 			if c.LastTransitionTime.Time.Add(deploymentMinimumAvailabilityTime).After(time.Now()) {
-				lastError = fmt.Errorf("deployment %s has been available for less than 3 min", d.GetName())
+				lastError = fmt.Errorf("deployment %s has been available for less than 3 min", resource.Name)
 				glog.V(4).Info(lastError)
 				return false, nil
 			}
