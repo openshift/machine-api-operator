@@ -170,14 +170,8 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 	}
 	totalTargets := len(targets)
 
-	nodeStartupTimeout, err := getNodeStartupTimeout(mhc)
-	if err != nil {
-		glog.Errorf("Reconciling %s: error getting NodeStartupTimeout: %v", request.String(), err)
-		return reconcile.Result{}, err
-	}
-
 	// health check all targets and reconcile mhc status
-	currentHealthy, needRemediationTargets, nextCheckTimes, errList := r.healthCheckTargets(targets, nodeStartupTimeout)
+	currentHealthy, needRemediationTargets, nextCheckTimes, errList := r.healthCheckTargets(targets, mhc.Spec.NodeStartupTimeout.Duration)
 	if err := r.reconcileStatus(mhc, totalTargets, currentHealthy); err != nil {
 		glog.Errorf("Reconciling %s: error patching status: %v", request.String(), err)
 		return reconcile.Result{}, err
@@ -584,11 +578,6 @@ func (t *target) needsRemediation(timeoutForMachineToHaveNode time.Duration) (bo
 		now := time.Now()
 		nodeCondition := conditions.GetNodeCondition(t.Node, c.Type)
 
-		timeout, err := time.ParseDuration(c.Timeout)
-		if err != nil {
-			return false, time.Duration(0), fmt.Errorf("error parsing duration: %v", err)
-		}
-
 		// Skip when current node condition is different from the one reported
 		// in the MachineHealthCheck.
 		if nodeCondition == nil || nodeCondition.Status != c.Status {
@@ -597,13 +586,13 @@ func (t *target) needsRemediation(timeoutForMachineToHaveNode time.Duration) (bo
 
 		// If the condition has been in the unhealthy state for longer than the
 		// timeout, return true with no requeue time.
-		if nodeCondition.LastTransitionTime.Add(timeout).Before(now) {
+		if nodeCondition.LastTransitionTime.Add(c.Timeout.Duration).Before(now) {
 			glog.V(3).Infof("%s: unhealthy: condition %v in state %v longer than %v", t.string(), c.Type, c.Status, c.Timeout)
 			return true, time.Duration(0), nil
 		}
 
 		durationUnhealthy := now.Sub(nodeCondition.LastTransitionTime.Time)
-		nextCheck := timeout - durationUnhealthy + time.Second
+		nextCheck := c.Timeout.Duration - durationUnhealthy + time.Second
 		if nextCheck > 0 {
 			nextCheckTimes = append(nextCheckTimes, nextCheck)
 		}
@@ -658,18 +647,6 @@ func hasMatchingLabels(machineHealthCheck *mapiv1.MachineHealthCheck, machine *m
 		return false
 	}
 	return true
-}
-
-func getNodeStartupTimeout(mhc *mapiv1.MachineHealthCheck) (time.Duration, error) {
-	if mhc.Spec.NodeStartupTimeout == "" {
-		return defaultNodeStartupTimeout, nil
-	}
-
-	timeout, err := time.ParseDuration(mhc.Spec.NodeStartupTimeout)
-	if err != nil {
-		return time.Duration(0), fmt.Errorf("error parsing NodeStartupTimeout: %v", err)
-	}
-	return timeout, nil
 }
 
 // getValueFromIntOrPercent returns the integer number value based on the

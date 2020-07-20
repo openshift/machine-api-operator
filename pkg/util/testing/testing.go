@@ -116,12 +116,12 @@ func NewMachineHealthCheck(name string) *mapiv1.MachineHealthCheck {
 				{
 					Type:    "Ready",
 					Status:  "Unknown",
-					Timeout: "300s",
+					Timeout: metav1.Duration{Duration: 300 * time.Second},
 				},
 				{
 					Type:    "Ready",
 					Status:  "False",
-					Timeout: "300s",
+					Timeout: metav1.Duration{Duration: 300 * time.Second},
 				},
 			},
 		},

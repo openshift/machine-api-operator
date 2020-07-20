@@ -62,13 +62,6 @@ type MachineHealthCheckSpec struct {
 	// +kubebuilder:validation:Type:=string
 	MaxUnhealthy *intstr.IntOrString `json:"maxUnhealthy,omitempty"`
 
-	// It would be preferable for nodeStartupTimeout to be a metav1.Duration, but
-	// there's no good way to validate the format here.  Invalid input would cause
-	// problems with marshaling, so it's better to just make it a string and
-	// handle the conversion in the controller.
-	//
-	// Intentional blank line to keep this out of the OpenAPI description...
-
 	// Machines older than this duration without a node will be considered to have
 	// failed and will be remediated.
 	// Expects an unsigned duration string of decimal numbers each with optional
@@ -78,7 +71,7 @@ type MachineHealthCheckSpec struct {
 	// +kubebuilder:default:="10m"
 	// +kubebuilder:validation:Pattern="^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h)*)+$"
 	// +kubebuilder:validation:Type:=string
-	NodeStartupTimeout string `json:"nodeStartupTimeout,omitempty"`
+	NodeStartupTimeout metav1.Duration `json:"nodeStartupTimeout,omitempty"`
 }
 
 // UnhealthyCondition represents a Node condition type and value with a timeout
@@ -93,19 +86,12 @@ type UnhealthyCondition struct {
 	// +kubebuilder:validation:MinLength=1
 	Status corev1.ConditionStatus `json:"status"`
 
-	// It would be preferable for timeout to be a metav1.Duration, but there's
-	// no good way to validate the format here.  Invalid input would cause
-	// problems with marshaling, so it's better to just make it a string and
-	// handle the conversion in the controller.
-	//
-	// Intentional blank line to keep this out of the OpenAPI description...
-
 	// Expects an unsigned duration string of decimal numbers each with optional
 	// fraction and a unit suffix, eg "300ms", "1.5h" or "2h45m".
 	// Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".
 	// +kubebuilder:validation:Pattern="^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h)*)+$"
 	// +kubebuilder:validation:Type:=string
-	Timeout string `json:"timeout"`
+	Timeout metav1.Duration `json:"timeout"`
 }
 
 // MachineHealthCheckStatus defines the observed state of MachineHealthCheck
