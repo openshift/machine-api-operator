@@ -112,6 +112,7 @@ func New(
 	}
 
 	deployInformer.Informer().AddEventHandler(optr.eventHandlerDeployments())
+	daemonsetInformer.Informer().AddEventHandler(optr.eventHandler())
 	validatingWebhookInformer.Informer().AddEventHandler(optr.eventHandlerSingleton(isMachineWebhook))
 	mutatingWebhookInformer.Informer().AddEventHandler(optr.eventHandlerSingleton(isMachineWebhook))
 	featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
