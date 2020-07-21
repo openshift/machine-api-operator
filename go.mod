@@ -12,7 +12,7 @@ require (
 	github.com/onsi/gomega v1.8.1
 	github.com/openshift/api v0.0.0-20200424083944-0422dc17083e
 	github.com/openshift/client-go v0.0.0-20200326155132-2a6cd50aedd0
-	github.com/openshift/cluster-api-provider-gcp v0.0.1-0.20200701112720-3a7d727c9a10
+	github.com/openshift/cluster-api-provider-gcp v0.0.1-0.20200713133651-5c8a640669ac
 	github.com/openshift/library-go v0.0.0-20200512120242-21a1ff978534
 	github.com/operator-framework/operator-sdk v0.5.1-0.20190301204940-c2efe6f74e7b
 	github.com/prometheus/client_golang v1.1.0
@@ -20,8 +20,8 @@ require (
 	github.com/stretchr/testify v1.4.0
 	github.com/vmware/govmomi v0.22.2
 	golang.org/x/net v0.0.0-20200421231249-e086a090c8fd
-	golang.org/x/text v0.3.3 // indirect
 	gopkg.in/gcfg.v1 v1.2.3
+	gopkg.in/warnings.v0 v0.1.2 // indirect
 	k8s.io/api v0.18.2
 	k8s.io/apimachinery v0.18.2
 	k8s.io/client-go v0.18.2
@@ -36,6 +36,6 @@ require (
 	sigs.k8s.io/yaml v1.2.0
 )
 
-replace sigs.k8s.io/cluster-api-provider-aws => github.com/openshift/cluster-api-provider-aws v0.2.1-0.20200520125206-5e266b553d8e
+replace sigs.k8s.io/cluster-api-provider-aws => github.com/openshift/cluster-api-provider-aws v0.2.1-0.20200713194048-b3f366f88cc5
 
-replace sigs.k8s.io/cluster-api-provider-azure => github.com/openshift/cluster-api-provider-azure v0.1.0-alpha.3.0.20200529030741-17d4edc5142f
+replace sigs.k8s.io/cluster-api-provider-azure => github.com/openshift/cluster-api-provider-azure v0.1.0-alpha.3.0.20200714223321-88a538beaf71
