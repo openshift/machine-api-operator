@@ -2,18 +2,20 @@ package machinehealthcheck
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	. "github.com/onsi/gomega"
 	mapiv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
 	maotesting "github.com/openshift/machine-api-operator/pkg/util/testing"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -1943,7 +1945,7 @@ func TestRemediate(t *testing.T) {
 			err := r.client.Get(context.TODO(), namespacedName(&tc.target.Machine), machine)
 			if tc.deletion {
 				if err != nil {
-					if !errors.IsNotFound(err) {
+					if !apierrors.IsNotFound(err) {
 						t.Errorf("Expected not found error, got: %v", err)
 					}
 				} else {
@@ -1961,10 +1963,11 @@ func TestRemediate(t *testing.T) {
 
 func TestReconcileStatus(t *testing.T) {
 	testCases := []struct {
-		testCase       string
-		mhc            *mapiv1beta1.MachineHealthCheck
-		totalTargets   int
-		currentHealthy int
+		testCase            string
+		mhc                 *mapiv1beta1.MachineHealthCheck
+		totalTargets        int
+		currentHealthy      int
+		remediationsAllowed int32
 	}{
 		{
 			testCase: "status gets new values",
@@ -1981,8 +1984,49 @@ func TestReconcileStatus(t *testing.T) {
 				},
 				Status: mapiv1beta1.MachineHealthCheckStatus{},
 			},
-			totalTargets:   10,
-			currentHealthy: 5,
+			totalTargets:        10,
+			currentHealthy:      5,
+			remediationsAllowed: 5,
+		},
+		{
+			testCase: "when the unhealthy machines exceed maxUnhealthy",
+			mhc: &mapiv1beta1.MachineHealthCheck{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: namespace,
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind: "MachineHealthCheck",
+				},
+				Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Selector:     metav1.LabelSelector{},
+					MaxUnhealthy: &intstr.IntOrString{Type: intstr.String, StrVal: "40%"},
+				},
+				Status: mapiv1beta1.MachineHealthCheckStatus{},
+			},
+			totalTargets:        10,
+			currentHealthy:      5,
+			remediationsAllowed: 0,
+		},
+		{
+			testCase: "when the unhealthy machines does not exceed maxUnhealthy",
+			mhc: &mapiv1beta1.MachineHealthCheck{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: namespace,
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind: "MachineHealthCheck",
+				},
+				Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Selector:     metav1.LabelSelector{},
+					MaxUnhealthy: &intstr.IntOrString{Type: intstr.String, StrVal: "40%"},
+				},
+				Status: mapiv1beta1.MachineHealthCheckStatus{},
+			},
+			totalTargets:        10,
+			currentHealthy:      7,
+			remediationsAllowed: 1,
 		},
 	}
 	for _, tc := range testCases {
@@ -2003,6 +2047,9 @@ func TestReconcileStatus(t *testing.T) {
 			}
 			if *mhc.Status.CurrentHealthy != tc.currentHealthy {
 				t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, mhc.Status.CurrentHealthy, tc.currentHealthy)
+			}
+			if mhc.Status.RemediationsAllowed != tc.remediationsAllowed {
+				t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, mhc.Status.RemediationsAllowed, tc.remediationsAllowed)
 			}
 		})
 	}
@@ -2580,6 +2627,75 @@ func TestIsAllowedRemediation(t *testing.T) {
 			if got := isAllowedRemediation(tc.mhc); got != tc.expected {
 				t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, got, tc.expected)
 			}
+		})
+	}
+}
+
+func TestGetMaxUnhealthy(t *testing.T) {
+	testCases := []struct {
+		name                 string
+		maxUnhealthy         *intstr.IntOrString
+		expectedMaxUnhealthy int
+		expectedMachines     int
+		expectedErr          error
+	}{
+		{
+			name:                 "when maxUnhealthy is nil",
+			maxUnhealthy:         nil,
+			expectedMaxUnhealthy: 7,
+			expectedMachines:     7,
+			expectedErr:          nil,
+		},
+		{
+			name:                 "when maxUnhealthy is not an int or percentage",
+			maxUnhealthy:         &intstr.IntOrString{Type: intstr.String, StrVal: "abcdef"},
+			expectedMaxUnhealthy: 0,
+			expectedMachines:     3,
+			expectedErr:          errors.New("invalid value for IntOrString: invalid value \"abcdef\": strconv.Atoi: parsing \"abcdef\": invalid syntax"),
+		},
+		{
+			name:                 "when maxUnhealthy is an int",
+			maxUnhealthy:         &intstr.IntOrString{Type: intstr.Int, IntVal: 3},
+			expectedMachines:     2,
+			expectedMaxUnhealthy: 3,
+			expectedErr:          nil,
+		},
+		{
+			name:                 "when maxUnhealthy is a 40% (of 5)",
+			maxUnhealthy:         &intstr.IntOrString{Type: intstr.String, StrVal: "40%"},
+			expectedMachines:     5,
+			expectedMaxUnhealthy: 2,
+			expectedErr:          nil,
+		},
+		{
+			name:                 "when maxUnhealthy is a 60% (of 7)",
+			maxUnhealthy:         &intstr.IntOrString{Type: intstr.String, StrVal: "60%"},
+			expectedMachines:     7,
+			expectedMaxUnhealthy: 4,
+			expectedErr:          nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			mhc := &mapiv1beta1.MachineHealthCheck{
+				Spec: mapiv1beta1.MachineHealthCheckSpec{
+					MaxUnhealthy: tc.maxUnhealthy,
+				},
+				Status: mapiv1beta1.MachineHealthCheckStatus{
+					ExpectedMachines: &tc.expectedMachines,
+				},
+			}
+
+			maxUnhealthy, err := getMaxUnhealthy(mhc)
+			if tc.expectedErr != nil {
+				g.Expect(err).To(Equal(tc.expectedErr))
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
+			}
+			g.Expect(maxUnhealthy).To(Equal(tc.expectedMaxUnhealthy))
 		})
 	}
 }

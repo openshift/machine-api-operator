@@ -176,6 +176,8 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 		return reconcile.Result{}, err
 	}
 
+	unhealthyCount := totalTargets - currentHealthy
+
 	// check MHC current health against MaxUnhealthy
 	if !isAllowedRemediation(mhc) {
 		klog.Warningf("Reconciling %s: total targets: %v,  maxUnhealthy: %v, unhealthy: %v. Short-circuiting remediation",
@@ -184,23 +186,41 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 			mhc.Spec.MaxUnhealthy,
 			totalTargets-currentHealthy,
 		)
+
+		message := fmt.Sprintf("Remediation is not allowed, the number of not started or unhealthy machines exceeds maxUnhealthy (total: %v, unhealthy: %v, maxUnhealthy: %v)",
+			totalTargets,
+			unhealthyCount,
+			mhc.Spec.MaxUnhealthy,
+		)
+
+		// Remediation not allowed, the number of not started or unhealthy machines exceeds maxUnhealthy
+		mhc.Status.RemediationsAllowed = 0
+		conditions.Set(mhc, &mapiv1.Condition{
+			Type:     mapiv1.RemediationAllowedCondition,
+			Status:   corev1.ConditionFalse,
+			Severity: mapiv1.ConditionSeverityWarning,
+			Reason:   mapiv1.TooManyUnhealthyReason,
+			Message:  message,
+		})
+
 		r.recorder.Eventf(
 			mhc,
 			corev1.EventTypeWarning,
 			EventRemediationRestricted,
 			"Remediation restricted due to exceeded number of unhealthy machines (total: %v, unhealthy: %v, maxUnhealthy: %v)",
 			totalTargets,
-			totalTargets-currentHealthy,
+			unhealthyCount,
 			mhc.Spec.MaxUnhealthy,
 		)
 		return reconcile.Result{Requeue: true}, nil
 	}
-	klog.V(3).Infof("Reconciling %s: monitoring MHC: total targets: %v,  maxUnhealthy: %v, unhealthy: %v. Remediations are allowed",
+	klog.V(3).Infof("Remediations are allowed for %s: total targets: %v,  max unhealthy: %v, unhealthy targets: %v",
 		request.String(),
 		totalTargets,
 		mhc.Spec.MaxUnhealthy,
-		totalTargets-currentHealthy,
+		unhealthyCount,
 	)
+	conditions.MarkTrue(mhc, mapiv1.RemediationAllowedCondition)
 
 	// remediate
 	for _, t := range needRemediationTargets {
@@ -228,22 +248,37 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 }
 
 func isAllowedRemediation(mhc *mapiv1.MachineHealthCheck) bool {
+	maxUnhealthy, err := getMaxUnhealthy(mhc)
+	if err != nil {
+		return false
+	}
+
+	// If unhealthy is above maxUnhealthy, short circuit any further remediation
+	return unhealthyMachineCount(mhc) <= maxUnhealthy
+}
+
+func getMaxUnhealthy(mhc *mapiv1.MachineHealthCheck) (int, error) {
 	if mhc.Spec.MaxUnhealthy == nil {
-		return true
+		// This value should be defaulted, but if not, 100% is the default
+		return derefInt(mhc.Status.ExpectedMachines), nil
 	}
 	maxUnhealthy, err := getValueFromIntOrPercent(mhc.Spec.MaxUnhealthy, derefInt(mhc.Status.ExpectedMachines), false)
 	if err != nil {
 		klog.Errorf("%s: error decoding maxUnhealthy, remediation won't be allowed: %v", namespacedName(mhc), err)
-		return false
+		return 0, err
 	}
 
 	if maxUnhealthy < 0 {
 		maxUnhealthy = 0
 	}
 
-	// if noHealthy are above maxUnhealthy we short circuit any farther remediation
-	noHealthy := derefInt(mhc.Status.ExpectedMachines) - derefInt(mhc.Status.CurrentHealthy)
-	return (maxUnhealthy - noHealthy) >= 0
+	return maxUnhealthy, nil
+}
+
+// unhealthyMachineCount calculates the number of presently unhealthy or missing machines
+// ie the delta between the expected number of machines and the current number deemed healthy
+func unhealthyMachineCount(mhc *mapiv1.MachineHealthCheck) int {
+	return derefInt(mhc.Status.ExpectedMachines) - derefInt(mhc.Status.CurrentHealthy)
 }
 
 func derefInt(i *int) int {
@@ -257,6 +292,15 @@ func (r *ReconcileMachineHealthCheck) reconcileStatus(mhc *mapiv1.MachineHealthC
 	baseToPatch := client.MergeFrom(mhc.DeepCopy())
 	mhc.Status.ExpectedMachines = &targets
 	mhc.Status.CurrentHealthy = &currentHealthy
+
+	maxUnhealthy, err := getMaxUnhealthy(mhc)
+	if err != nil {
+		return fmt.Errorf("failed to get value for maxUnhealthy: %v", err)
+	}
+	mhc.Status.RemediationsAllowed = int32(maxUnhealthy - unhealthyMachineCount(mhc))
+	if mhc.Status.RemediationsAllowed < 0 {
+		mhc.Status.RemediationsAllowed = 0
+	}
 
 	if err := r.client.Status().Patch(context.Background(), mhc, baseToPatch); err != nil {
 		return err
