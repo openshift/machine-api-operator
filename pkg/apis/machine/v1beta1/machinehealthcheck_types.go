@@ -103,4 +103,12 @@ type MachineHealthCheckStatus struct {
 	// total number of machines counted by this machine health check
 	// +kubebuilder:validation:Minimum=0
 	CurrentHealthy *int `json:"currentHealthy" protobuf:"varint,4,opt,name=currentHealthy"`
+
+	// RemediationsAllowed is the number of further remediations allowed by this machine health check before
+	// maxUnhealthy short circuiting will be applied
+	// +kubebuilder:validation:Minimum=0
+	RemediationsAllowed int32 `json:"remediationsAllowed,omitempty"`
+
+	// Conditions defines the current state of the MachineHealthCheck
+	Conditions Conditions `json:"conditions,omitempty"`
 }
