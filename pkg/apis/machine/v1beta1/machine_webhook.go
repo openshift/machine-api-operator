@@ -452,7 +452,9 @@ func (h *machineDefaulterHandler) Handle(ctx context.Context, req admission.Requ
 	if m.Labels == nil {
 		m.Labels = make(map[string]string)
 	}
-	m.Labels[MachineClusterIDLabel] = h.clusterID
+	if _, ok := m.Labels[MachineClusterIDLabel]; !ok {
+		m.Labels[MachineClusterIDLabel] = h.clusterID
+	}
 
 	if ok, err := h.webhookOperations(m, h.clusterID); !ok {
 		return admission.Denied(err.Error())

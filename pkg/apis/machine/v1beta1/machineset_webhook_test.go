@@ -47,6 +47,7 @@ func TestMachineSetCreation(t *testing.T) {
 		name              string
 		platformType      osconfigv1.PlatformType
 		clusterID         string
+		presetClusterID   bool
 		expectedError     string
 		providerSpecValue *runtime.RawExtension
 	}{
@@ -173,9 +174,10 @@ func TestMachineSetCreation(t *testing.T) {
 			expectedError: "[providerSpec.template: Required value: template must be provided, providerSpec.workspace: Required value: workspace must be provided, providerSpec.network.devices: Required value: at least 1 network device must be provided]",
 		},
 		{
-			name:         "with vSphere and the template, workspace and network devices set",
-			platformType: osconfigv1.VSpherePlatformType,
-			clusterID:    "vsphere-cluster",
+			name:            "with vSphere and the template, workspace and network devices set",
+			platformType:    osconfigv1.VSpherePlatformType,
+			clusterID:       "vsphere-cluster",
+			presetClusterID: true,
 			providerSpecValue: &runtime.RawExtension{
 				Object: &vsphere.VSphereMachineProviderSpec{
 					Template: "template",
@@ -256,6 +258,16 @@ func TestMachineSetCreation(t *testing.T) {
 					},
 				},
 			}
+
+			presetClusterID := "anything"
+			if tc.presetClusterID {
+				ms.Spec.Selector.MatchLabels = make(map[string]string)
+				ms.Spec.Selector.MatchLabels[MachineClusterIDLabel] = presetClusterID
+
+				ms.Spec.Template.Labels = make(map[string]string)
+				ms.Spec.Template.Labels[MachineClusterIDLabel] = presetClusterID
+			}
+
 			err = c.Create(ctx, ms)
 			if err == nil {
 				defer func() {
@@ -267,8 +279,14 @@ func TestMachineSetCreation(t *testing.T) {
 				gs.Expect(err).ToNot(BeNil())
 				gs.Expect(apierrors.ReasonForError(err)).To(BeEquivalentTo(tc.expectedError))
 			} else {
-				gs.Expect(ms.Spec.Selector.MatchLabels[MachineClusterIDLabel]).To(BeIdenticalTo(tc.clusterID))
-				gs.Expect(ms.Spec.Template.Labels[MachineClusterIDLabel]).To(BeIdenticalTo(tc.clusterID))
+				if tc.presetClusterID {
+					gs.Expect(ms.Spec.Selector.MatchLabels[MachineClusterIDLabel]).To(BeIdenticalTo(presetClusterID))
+					gs.Expect(ms.Spec.Template.Labels[MachineClusterIDLabel]).To(BeIdenticalTo(presetClusterID))
+
+				} else {
+					gs.Expect(ms.Spec.Selector.MatchLabels[MachineClusterIDLabel]).To(BeIdenticalTo(tc.clusterID))
+					gs.Expect(ms.Spec.Template.Labels[MachineClusterIDLabel]).To(BeIdenticalTo(tc.clusterID))
+				}
 				gs.Expect(err).To(BeNil())
 			}
 		})

@@ -131,12 +131,16 @@ func (h *machineSetDefaulterHandler) defaultMachineSet(ms *MachineSet) (bool, ut
 		if ms.Spec.Selector.MatchLabels == nil {
 			ms.Spec.Selector.MatchLabels = make(map[string]string)
 		}
-		ms.Spec.Selector.MatchLabels[MachineClusterIDLabel] = h.clusterID
+		if _, ok := ms.Spec.Selector.MatchLabels[MachineClusterIDLabel]; !ok {
+			ms.Spec.Selector.MatchLabels[MachineClusterIDLabel] = h.clusterID
+		}
 
 		if ms.Spec.Template.Labels == nil {
 			ms.Spec.Template.Labels = make(map[string]string)
 		}
-		ms.Spec.Template.Labels[MachineClusterIDLabel] = h.clusterID
+		if _, ok := ms.Spec.Template.Labels[MachineClusterIDLabel]; !ok {
+			ms.Spec.Template.Labels[MachineClusterIDLabel] = h.clusterID
+		}
 
 		// Restore the defaulted template
 		ms.Spec.Template.Spec = m.Spec

@@ -50,6 +50,7 @@ func TestMachineCreation(t *testing.T) {
 		name              string
 		platformType      osconfigv1.PlatformType
 		clusterID         string
+		presetClusterID   bool
 		expectedError     string
 		providerSpecValue *runtime.RawExtension
 	}{
@@ -176,9 +177,10 @@ func TestMachineCreation(t *testing.T) {
 			expectedError: "[providerSpec.template: Required value: template must be provided, providerSpec.workspace: Required value: workspace must be provided, providerSpec.network.devices: Required value: at least 1 network device must be provided]",
 		},
 		{
-			name:         "with vSphere and the template, workspace and network devices set",
-			platformType: osconfigv1.VSpherePlatformType,
-			clusterID:    "vsphere-cluster",
+			name:            "with vSphere and the template, workspace and network devices set",
+			platformType:    osconfigv1.VSpherePlatformType,
+			clusterID:       "vsphere-cluster",
+			presetClusterID: true,
 			providerSpecValue: &runtime.RawExtension{
 				Object: &vsphere.VSphereMachineProviderSpec{
 					Template: "template",
@@ -255,6 +257,13 @@ func TestMachineCreation(t *testing.T) {
 					},
 				},
 			}
+
+			presetClusterID := "anything"
+			if tc.presetClusterID {
+				m.Labels = make(map[string]string)
+				m.Labels[MachineClusterIDLabel] = presetClusterID
+			}
+
 			err = c.Create(ctx, m)
 			if err == nil {
 				defer func() {
@@ -266,7 +275,11 @@ func TestMachineCreation(t *testing.T) {
 				gs.Expect(err).ToNot(BeNil())
 				gs.Expect(apierrors.ReasonForError(err)).To(BeEquivalentTo(tc.expectedError))
 			} else {
-				gs.Expect(m.Labels[MachineClusterIDLabel]).To(BeIdenticalTo(tc.clusterID))
+				if tc.presetClusterID {
+					gs.Expect(m.Labels[MachineClusterIDLabel]).To(BeIdenticalTo(presetClusterID))
+				} else {
+					gs.Expect(m.Labels[MachineClusterIDLabel]).To(BeIdenticalTo(tc.clusterID))
+				}
 				gs.Expect(err).To(BeNil())
 			}
 		})
