@@ -109,10 +109,10 @@ func (optr *Operator) syncClusterAPIController(config *OperatorConfig) error {
 	}
 	if updated {
 		resourcemerge.SetDeploymentGeneration(&optr.generations, d)
-		err := optr.waitForDeploymentRollout(controllersDeployment, deploymentRolloutPollInterval, deploymentRolloutTimeout)
-		if err != nil {
-			return err
-		}
+	}
+
+	if err := optr.waitForDeploymentRollout(controllersDeployment, deploymentRolloutPollInterval, deploymentRolloutTimeout); err != nil {
+		return err
 	}
 
 	// Sync Termination Handler DaemonSet if supported
@@ -135,9 +135,8 @@ func (optr *Operator) syncTerminationHandler(config *OperatorConfig) error {
 	}
 	if updated {
 		resourcemerge.SetDaemonSetGeneration(&optr.generations, ds)
-		return optr.waitForDaemonSetRollout(terminationDaemonSet)
 	}
-	return nil
+	return optr.waitForDaemonSetRollout(terminationDaemonSet)
 }
 
 func (optr *Operator) syncWebhookConfiguration() error {
