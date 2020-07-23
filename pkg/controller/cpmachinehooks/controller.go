@@ -125,7 +125,7 @@ func (r *ReconcileMachine) Reconcile(request reconcile.Request) (reconcile.Resul
 
 	// At this point, we've checked to ensure this Machine is backed by a
 	// Control Plane MachineSet.
-	// ms = mss[0]
+	ms = mss[0]
 
 	machineName := m.GetName()
 	klog.Infof("%v: reconciling Machine", machineName)
@@ -151,13 +151,28 @@ func (r *ReconcileMachine) Reconcile(request reconcile.Request) (reconcile.Resul
 		return reconcile.Result{}, nil
 	}
 
-	// Machine has been marked for deletion, determine if we can remove hooks.
+	// Machine has been marked for deletion, see if it has hooks
+	annotations := m.ObjectMeta.GetAnnotations()
+	if _, exists := annotations[cpPreDrainHookKey]; !exists {
+		// Looks like it was already removed, nothing to do.
+		return reconcile.Result{}, nil
+	}
 
 	// Determine if machineset has enough ready replicas
+	// There's a potential race condition here, especially if the
+	// machineset controller is not running for some reason.
+	if ms.Status.Replicas == ms.Status.AvailableReplicas {
+		// Remove pre-drain hook
+		delete(annotations, cpPreDrainHookKey)
+		m.ObjectMeta.SetAnnotations(annotations)
+		if err := r.Client.Update(context.Background(), m); err != nil {
+			klog.Errorf("Failed to add/remove annotation %q: %v", m.Name, err)
+			return reconcile.Result{}, err
+		}
+		return reconcile.Result{}, nil
+	}
 
-	// Remove pre-drain hook
-
-	return reconcile.Result{}, nil
+	return reconcile.Result{RequeueAfter: requeueAfter}, errors.New("Waiting on replacement machine")
 }
 
 func (r *ReconcileMachine) getCPMachineSetsForMachine(m *v1beta1.Machine) []*v1beta1.MachineSet {
