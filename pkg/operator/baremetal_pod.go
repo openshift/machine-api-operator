@@ -19,6 +19,9 @@ const (
 	baremetalSharedVolume = "metal3-shared"
 	baremetalSecretName   = "metal3-mariadb-password"
 	baremetalSecretKey    = "password"
+	ironicSecretName      = "metal3-ironic-password"
+	ironicSecretKey       = "password"
+	ironicUsername        = "metal3"
 )
 
 var volumes = []corev1.Volume{
@@ -60,6 +63,20 @@ func setMariadbPassword() corev1.EnvVar {
 					Name: baremetalSecretName,
 				},
 				Key: baremetalSecretKey,
+			},
+		},
+	}
+}
+
+func setIronicPassword(name string) corev1.EnvVar {
+	return corev1.EnvVar{
+		Name: name,
+		ValueFrom: &corev1.EnvVarSource{
+			SecretKeyRef: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: ironicSecretName,
+				},
+				Key: ironicSecretKey,
 			},
 		},
 	}
@@ -108,6 +125,47 @@ func createMariadbPasswordSecret(client coreclientv1.SecretsGetter, config *Oper
 		metav1.CreateOptions{},
 	)
 	return err
+}
+
+func createIronicPasswordSecret(client coreclientv1.SecretsGetter, config *OperatorConfig) error {
+	glog.V(3).Info("Checking if the Ironic password secret already exists")
+	_, err := client.Secrets(config.TargetNamespace).Get(context.Background(), ironicSecretName, metav1.GetOptions{})
+	if !apierrors.IsNotFound(err) {
+		return err
+	}
+
+	// Secret does not already exist. So, create one.
+	password, err := generateRandomPassword()
+	if err != nil {
+		return err
+	}
+
+	_, err = client.Secrets(config.TargetNamespace).Create(
+		context.Background(),
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      ironicSecretName,
+				Namespace: config.TargetNamespace,
+			},
+			StringData: map[string]string{
+				ironicSecretKey: password,
+			},
+		},
+		metav1.CreateOptions{},
+	)
+	return err
+}
+
+func createMetal3PasswordSecrets(client coreclientv1.SecretsGetter, config *OperatorConfig) error {
+	if err := createMariadbPasswordSecret(client, config); err != nil {
+		glog.Error("Failed to create Mariadb password.")
+		return err
+	}
+	if err := createIronicPasswordSecret(client, config); err != nil {
+		glog.Error("Failed to create Ironic password.")
+		return err
+	}
+	return nil
 }
 
 func newMetal3Deployment(config *OperatorConfig, baremetalProvisioningConfig BaremetalProvisioningConfig) *appsv1.Deployment {
@@ -280,6 +338,20 @@ func newMetal3Containers(config *OperatorConfig, baremetalProvisioningConfig Bar
 				buildEnvVar("DEPLOY_RAMDISK_URL", baremetalProvisioningConfig),
 				buildEnvVar("IRONIC_ENDPOINT", baremetalProvisioningConfig),
 				buildEnvVar("IRONIC_INSPECTOR_ENDPOINT", baremetalProvisioningConfig),
+				{
+					Name:  "IRONIC_AUTH_STRATEGY",
+					Value: "http_basic",
+				},
+				{
+					Name:  "IRONIC_HTTP_BASIC_USERNAME",
+					Value: ironicUsername,
+				},
+				setIronicPassword("IRONIC_HTTP_BASIC_PASSWORD"),
+				{
+					Name:  "INSPECTOR_HTTP_BASIC_USERNAME",
+					Value: ironicUsername,
+				},
+				setIronicPassword("INSPECTOR_HTTP_BASIC_PASSWORD"),
 			},
 		},
 	}
@@ -369,6 +441,15 @@ func createContainerMetal3IronicConductor(config *OperatorConfig, baremetalProvi
 			buildEnvVar("HTTP_PORT", baremetalProvisioningConfig),
 			buildEnvVar("PROVISIONING_IP", baremetalProvisioningConfig),
 			buildEnvVar("PROVISIONING_INTERFACE", baremetalProvisioningConfig),
+			{
+				Name:  "USE_HTTP_BASIC",
+				Value: "true",
+			},
+			{
+				Name:  "IRONIC_HTTP_BASIC_USERNAME",
+				Value: ironicUsername,
+			},
+			setIronicPassword("IRONIC_HTTP_BASIC_PASSWORD"),
 		},
 	}
 	return container
@@ -390,6 +471,15 @@ func createContainerMetal3IronicApi(config *OperatorConfig, baremetalProvisionin
 			buildEnvVar("HTTP_PORT", baremetalProvisioningConfig),
 			buildEnvVar("PROVISIONING_IP", baremetalProvisioningConfig),
 			buildEnvVar("PROVISIONING_INTERFACE", baremetalProvisioningConfig),
+			{
+				Name:  "USE_HTTP_BASIC",
+				Value: "true",
+			},
+			{
+				Name:  "IRONIC_HTTP_BASIC_USERNAME",
+				Value: ironicUsername,
+			},
+			setIronicPassword("IRONIC_HTTP_BASIC_PASSWORD"),
 		},
 	}
 	return container
@@ -408,6 +498,20 @@ func createContainerMetal3IronicInspector(config *OperatorConfig, baremetalProvi
 		Env: []corev1.EnvVar{
 			buildEnvVar("PROVISIONING_IP", baremetalProvisioningConfig),
 			buildEnvVar("PROVISIONING_INTERFACE", baremetalProvisioningConfig),
+			{
+				Name:  "USE_HTTP_BASIC",
+				Value: "true",
+			},
+			{
+				Name:  "INSPECTOR_HTTP_BASIC_USERNAME",
+				Value: ironicUsername,
+			},
+			setIronicPassword("INSPECTOR_HTTP_BASIC_PASSWORD"),
+			{
+				Name:  "IRONIC_HTTP_BASIC_USERNAME",
+				Value: ironicUsername,
+			},
+			setIronicPassword("IRONIC_HTTP_BASIC_PASSWORD"),
 		},
 	}
 	return container
