@@ -39,3 +39,5 @@ require (
 replace sigs.k8s.io/cluster-api-provider-aws => github.com/openshift/cluster-api-provider-aws v0.2.1-0.20200713194048-b3f366f88cc5
 
 replace sigs.k8s.io/cluster-api-provider-azure => github.com/openshift/cluster-api-provider-azure v0.1.0-alpha.3.0.20200714223321-88a538beaf71
+
+replace golang.org/x/text => golang.org/x/text v0.3.3
