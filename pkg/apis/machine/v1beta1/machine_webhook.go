@@ -445,7 +445,7 @@ func (h *machineDefaulterHandler) Handle(ctx context.Context, req admission.Requ
 
 	klog.V(3).Infof("Mutate webhook called for Machine: %s", m.GetName())
 
-	// Enforce that the same clusterID is set for machineSet Selector and machine labels.
+	// Only enforce the clusterID if it's not set.
 	// Otherwise a discrepancy on the value would leave the machine orphan
 	// and would trigger a new machine creation by the machineSet.
 	// https://bugzilla.redhat.com/show_bug.cgi?id=1857175
