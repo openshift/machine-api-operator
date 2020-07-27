@@ -15,12 +15,14 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/pointer"
 	aws "sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsprovider/v1beta1"
 	azure "sigs.k8s.io/cluster-api-provider-azure/pkg/apis/azureprovider/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	yaml "sigs.k8s.io/yaml"
@@ -54,6 +56,17 @@ func TestMachineCreation(t *testing.T) {
 	g.Expect(c.Create(ctx, namespace)).To(Succeed())
 	defer func() {
 		g.Expect(c.Delete(ctx, namespace)).To(Succeed())
+	}()
+
+	awsSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultAWSCredentialsSecret,
+			Namespace: namespace.Name,
+		},
+	}
+	g.Expect(c.Create(ctx, awsSecret)).To(Succeed())
+	defer func() {
+		g.Expect(c.Delete(ctx, awsSecret)).To(Succeed())
 	}()
 
 	testCases := []struct {
@@ -249,7 +262,7 @@ func TestMachineCreation(t *testing.T) {
 				dns.Spec.PublicZone = &osconfigv1.DNSZone{}
 			}
 			machineDefaulter := createMachineDefaulter(platformStatus, tc.clusterID)
-			machineValidator := createMachineValidator(infra, dns)
+			machineValidator := createMachineValidator(infra, c, dns)
 			mgr.GetWebhookServer().Register(DefaultMachineMutatingHookPath, &webhook.Admission{Handler: machineDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineValidatingHookPath, &webhook.Admission{Handler: machineValidator})
 
@@ -425,6 +438,17 @@ func TestMachineUpdate(t *testing.T) {
 	g.Expect(c.Create(ctx, namespace)).To(Succeed())
 	defer func() {
 		g.Expect(c.Delete(ctx, namespace)).To(Succeed())
+	}()
+
+	awsSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultAWSCredentialsSecret,
+			Namespace: namespace.Name,
+		},
+	}
+	g.Expect(c.Create(ctx, awsSecret)).To(Succeed())
+	defer func() {
+		g.Expect(c.Delete(ctx, awsSecret)).To(Succeed())
 	}()
 
 	testCases := []struct {
@@ -726,7 +750,7 @@ func TestMachineUpdate(t *testing.T) {
 				},
 			}
 			machineDefaulter := createMachineDefaulter(platformStatus, tc.clusterID)
-			machineValidator := createMachineValidator(infra, plainDNS)
+			machineValidator := createMachineValidator(infra, c, plainDNS)
 			mgr.GetWebhookServer().Register(DefaultMachineMutatingHookPath, &webhook.Admission{Handler: machineDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineValidatingHookPath, &webhook.Admission{Handler: machineValidator})
 
@@ -779,6 +803,11 @@ func TestMachineUpdate(t *testing.T) {
 }
 
 func TestValidateAWSProviderSpec(t *testing.T) {
+	namespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "aws-validation-test",
+		},
+	}
 
 	testCases := []struct {
 		testCase         string
@@ -864,10 +893,18 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 		},
 	}
 
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "secret",
+			Namespace: namespace.Name,
+		},
+	}
+	c := fake.NewFakeClientWithScheme(scheme.Scheme, secret)
+
 	infra := plainInfra.DeepCopy()
 	infra.Status.InfrastructureName = "clusterID"
 	infra.Status.PlatformStatus.Type = osconfigv1.AWSPlatformType
-	h := createMachineValidator(infra, plainDNS)
+	h := createMachineValidator(infra, c, plainDNS)
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
@@ -901,7 +938,11 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 				tc.modifySpec(providerSpec)
 			}
 
-			m := &Machine{}
+			m := &Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: namespace.Name,
+				},
+			}
 			rawBytes, err := json.Marshal(providerSpec)
 			if err != nil {
 				t.Fatal(err)
@@ -1216,12 +1257,13 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
+			c := fake.NewFakeClientWithScheme(scheme.Scheme)
 			infra := plainInfra.DeepCopy()
 			infra.Status.InfrastructureName = "clusterID"
 			infra.Status.PlatformStatus.Type = osconfigv1.AzurePlatformType
 			infra.Status.PlatformStatus.Azure = tc.azurePlatformStatus
 
-			h := createMachineValidator(infra, plainDNS)
+			h := createMachineValidator(infra, c, plainDNS)
 
 			// create a valid spec that will then be 'broken' by modifySpec
 			providerSpec := &azure.AzureMachineProviderSpec{
@@ -1639,10 +1681,11 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 		},
 	}
 
+	c := fake.NewFakeClientWithScheme(scheme.Scheme)
 	infra := plainInfra.DeepCopy()
 	infra.Status.InfrastructureName = "clusterID"
 	infra.Status.PlatformStatus.Type = osconfigv1.GCPPlatformType
-	h := createMachineValidator(infra, plainDNS)
+	h := createMachineValidator(infra, c, plainDNS)
 
 	for _, tc := range testCases {
 		providerSpec := &gcp.GCPMachineProviderSpec{
@@ -2002,10 +2045,11 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 		},
 	}
 
+	c := fake.NewFakeClientWithScheme(scheme.Scheme)
 	infra := plainInfra.DeepCopy()
 	infra.Status.InfrastructureName = "clusterID"
 	infra.Status.PlatformStatus.Type = osconfigv1.VSpherePlatformType
-	h := createMachineValidator(infra, plainDNS)
+	h := createMachineValidator(infra, c, plainDNS)
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {

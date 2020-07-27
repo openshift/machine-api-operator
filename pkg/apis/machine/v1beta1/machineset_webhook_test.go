@@ -43,6 +43,17 @@ func TestMachineSetCreation(t *testing.T) {
 		g.Expect(c.Delete(ctx, namespace)).To(Succeed())
 	}()
 
+	awsSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultAWSCredentialsSecret,
+			Namespace: namespace.Name,
+		},
+	}
+	g.Expect(c.Create(ctx, awsSecret)).To(Succeed())
+	defer func() {
+		g.Expect(c.Delete(ctx, awsSecret)).To(Succeed())
+	}()
+
 	testCases := []struct {
 		name              string
 		platformType      osconfigv1.PlatformType
@@ -236,7 +247,7 @@ func TestMachineSetCreation(t *testing.T) {
 				dns.Spec.PublicZone = &osconfigv1.DNSZone{}
 			}
 			machineSetDefaulter := createMachineSetDefaulter(platformStatus, tc.clusterID)
-			machineSetValidator := createMachineSetValidator(infra, dns)
+			machineSetValidator := createMachineSetValidator(infra, c, dns)
 			mgr.GetWebhookServer().Register(DefaultMachineSetMutatingHookPath, &webhook.Admission{Handler: machineSetDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineSetValidatingHookPath, &webhook.Admission{Handler: machineSetValidator})
 
@@ -405,6 +416,17 @@ func TestMachineSetUpdate(t *testing.T) {
 	g.Expect(c.Create(ctx, namespace)).To(Succeed())
 	defer func() {
 		g.Expect(c.Delete(ctx, namespace)).To(Succeed())
+	}()
+
+	awsSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultAWSCredentialsSecret,
+			Namespace: namespace.Name,
+		},
+	}
+	g.Expect(c.Create(ctx, awsSecret)).To(Succeed())
+	defer func() {
+		g.Expect(c.Delete(ctx, awsSecret)).To(Succeed())
 	}()
 
 	testCases := []struct {
@@ -704,7 +726,7 @@ func TestMachineSetUpdate(t *testing.T) {
 			infra.Status.PlatformStatus = platformStatus
 
 			machineSetDefaulter := createMachineSetDefaulter(platformStatus, tc.clusterID)
-			machineSetValidator := createMachineSetValidator(infra, plainDNS)
+			machineSetValidator := createMachineSetValidator(infra, c, plainDNS)
 			mgr.GetWebhookServer().Register(DefaultMachineSetMutatingHookPath, &webhook.Admission{Handler: machineSetDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineSetValidatingHookPath, &webhook.Admission{Handler: machineSetValidator})
 
