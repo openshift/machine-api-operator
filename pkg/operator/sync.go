@@ -7,6 +7,7 @@ import (
 	"github.com/golang/glog"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
+	"github.com/openshift/library-go/pkg/operator/resource/resourcehash"
 	"github.com/openshift/library-go/pkg/operator/resource/resourcemerge"
 	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
@@ -37,6 +38,7 @@ const (
 	defaultMachineHealthCheckHealthPort = 9442
 	kubeRBACConfigName                  = "config"
 	certStoreName                       = "machine-api-controllers-tls"
+	externalTrustBundleConfigMapName    = "mao-trusted-ca"
 )
 
 func (optr *Operator) syncAll(config *OperatorConfig) error {
@@ -101,6 +103,17 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 
 func (optr *Operator) syncClusterAPIController(config *OperatorConfig) error {
 	controllersDeployment := newDeployment(config, nil)
+
+	// we watch some resources so that our deployment will redeploy without explicitly and carefully ordered resource creation
+	inputHashes, err := resourcehash.MultipleObjectHashStringMapForObjectReferences(
+		optr.kubeClient,
+		resourcehash.NewObjectRef().ForConfigMap().InNamespace(config.TargetNamespace).Named(externalTrustBundleConfigMapName),
+	)
+	if err != nil {
+		return fmt.Errorf("invalid dependency reference: %q", err)
+	}
+	ensureDependecyAnnotations(inputHashes, controllersDeployment)
+
 	expectedGeneration := resourcemerge.ExpectedDeploymentGeneration(controllersDeployment, optr.generations)
 	d, updated, err := resourceapply.ApplyDeployment(optr.kubeClient.AppsV1(),
 		events.NewLoggingEventRecorder(optr.name), controllersDeployment, expectedGeneration)
@@ -391,6 +404,18 @@ func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev
 				},
 			},
 		},
+		{
+			Name: "trusted-ca",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					Items: []corev1.KeyToPath{{Key: "ca-bundle.crt", Path: "tls-ca-bundle.pem"}},
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: externalTrustBundleConfigMapName,
+					},
+					Optional: pointer.BoolPtr(true),
+				},
+			},
+		},
 	}
 
 	return &corev1.PodTemplateSpec{
@@ -501,6 +526,13 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 						Path: "/readyz",
 						Port: intstr.Parse("healthz"),
 					},
+				},
+			},
+			VolumeMounts: []corev1.VolumeMount{
+				{
+					MountPath: "/etc/pki/ca-trust/extracted/pem",
+					Name:      "trusted-ca",
+					ReadOnly:  true,
 				},
 			},
 		},
@@ -672,5 +704,21 @@ func newTerminationContainers(config *OperatorConfig) []corev1.Container {
 				},
 			},
 		},
+	}
+}
+
+// ensureDependecyAnnotations uses inputHash map of external dependencies to force new generation of the deployment
+// triggering the Kubernetes rollout as defined when the inputHash changes by adding it annotation to the deployment object.
+func ensureDependecyAnnotations(inputHashes map[string]string, deployment *appsv1.Deployment) {
+	for k, v := range inputHashes {
+		annotationKey := fmt.Sprintf("operator.openshift.io/dep-%s", k)
+		if deployment.Annotations == nil {
+			deployment.Annotations = map[string]string{}
+		}
+		if deployment.Spec.Template.Annotations == nil {
+			deployment.Spec.Template.Annotations = map[string]string{}
+		}
+		deployment.Annotations[annotationKey] = v
+		deployment.Spec.Template.Annotations[annotationKey] = v
 	}
 }

@@ -14,6 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/diff"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/tools/cache"
 )
@@ -392,6 +393,127 @@ func testSyncWebhookConfiguration(
 				if err != nil || !equality.Semantic.DeepEqual(initialExistingWebhooks, existingWebhooks) {
 					t.Errorf("Expected webhhoks match initial configuration:\n%#v\n, got:\n%#v\n, error: %v", initialExistingWebhooks, existingWebhooks, err)
 				}
+			}
+		})
+	}
+}
+
+func Test_ensureDependecyAnnotations(t *testing.T) {
+	cases := []struct {
+		name string
+
+		input       *appsv1.Deployment
+		inputHashes map[string]string
+
+		expected *appsv1.Deployment
+	}{{
+		name:        "no previous hash tag",
+		input:       &appsv1.Deployment{},
+		inputHashes: map[string]string{"dep-1": "dep-1-state-1", "dep-2": "dep-2-state-1"},
+		expected: &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					"operator.openshift.io/dep-dep-1": "dep-1-state-1",
+					"operator.openshift.io/dep-dep-2": "dep-2-state-1",
+				},
+			},
+			Spec: appsv1.DeploymentSpec{
+				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: map[string]string{
+							"operator.openshift.io/dep-dep-1": "dep-1-state-1",
+							"operator.openshift.io/dep-dep-2": "dep-2-state-1",
+						},
+					},
+				},
+			},
+		},
+	}, {
+		name: "changed in on of the dependencies",
+		input: &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					"operator.openshift.io/dep-dep-1": "dep-1-state-1",
+					"operator.openshift.io/dep-dep-2": "dep-2-state-1",
+				},
+			},
+			Spec: appsv1.DeploymentSpec{
+				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: map[string]string{
+							"operator.openshift.io/dep-dep-1": "dep-1-state-1",
+							"operator.openshift.io/dep-dep-2": "dep-2-state-1",
+						},
+					},
+				},
+			},
+		},
+		inputHashes: map[string]string{"dep-1": "dep-1-state-1", "dep-2": "dep-2-state-2"},
+		expected: &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					"operator.openshift.io/dep-dep-1": "dep-1-state-1",
+					"operator.openshift.io/dep-dep-2": "dep-2-state-2",
+				},
+			},
+			Spec: appsv1.DeploymentSpec{
+				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: map[string]string{
+							"operator.openshift.io/dep-dep-1": "dep-1-state-1",
+							"operator.openshift.io/dep-dep-2": "dep-2-state-2",
+						},
+					},
+				},
+			},
+		},
+	}, {
+		name: "no change in dependencies",
+		input: &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					"operator.openshift.io/dep-dep-1": "dep-1-state-1",
+					"operator.openshift.io/dep-dep-2": "dep-2-state-1",
+				},
+			},
+			Spec: appsv1.DeploymentSpec{
+				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: map[string]string{
+							"operator.openshift.io/dep-dep-1": "dep-1-state-1",
+							"operator.openshift.io/dep-dep-2": "dep-2-state-1",
+						},
+					},
+				},
+			},
+		},
+		inputHashes: map[string]string{"dep-1": "dep-1-state-1", "dep-2": "dep-2-state-1"},
+		expected: &appsv1.Deployment{
+			ObjectMeta: metav1.ObjectMeta{
+				Annotations: map[string]string{
+					"operator.openshift.io/dep-dep-1": "dep-1-state-1",
+					"operator.openshift.io/dep-dep-2": "dep-2-state-1",
+				},
+			},
+			Spec: appsv1.DeploymentSpec{
+				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations: map[string]string{
+							"operator.openshift.io/dep-dep-1": "dep-1-state-1",
+							"operator.openshift.io/dep-dep-2": "dep-2-state-1",
+						},
+					},
+				},
+			},
+		},
+	}}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			input := test.input.DeepCopy()
+			ensureDependecyAnnotations(test.inputHashes, input)
+			if !equality.Semantic.DeepEqual(test.expected, input) {
+				t.Fatalf("unexpected: %s", diff.ObjectDiff(test.expected, input))
 			}
 		})
 	}
