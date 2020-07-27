@@ -450,6 +450,11 @@ func createContainerMetal3IronicConductor(config *OperatorConfig, baremetalProvi
 				Value: ironicUsername,
 			},
 			setIronicPassword("IRONIC_HTTP_BASIC_PASSWORD"),
+			{
+				Name:  "INSPECTOR_HTTP_BASIC_USERNAME",
+				Value: ironicUsername,
+			},
+			setIronicPassword("INSPECTOR_HTTP_BASIC_PASSWORD"),
 		},
 	}
 	return container
