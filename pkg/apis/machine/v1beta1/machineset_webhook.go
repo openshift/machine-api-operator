@@ -3,11 +3,15 @@ package v1beta1
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/klog"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
@@ -32,12 +36,22 @@ func NewMachineSetValidator() (*machineSetValidatorHandler, error) {
 		return nil, err
 	}
 
-	return createMachineSetValidator(infra.Status.PlatformStatus.Type, infra.Status.InfrastructureName), nil
+	cfg, err := ctrl.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+	c, err := client.New(cfg, client.Options{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to build kubernetes client: %v", err)
+	}
+
+	return createMachineSetValidator(infra.Status.PlatformStatus.Type, infra.Status.InfrastructureName, &c), nil
 }
 
-func createMachineSetValidator(platform osconfigv1.PlatformType, clusterID string) *machineSetValidatorHandler {
+func createMachineSetValidator(platform osconfigv1.PlatformType, clusterID string, client *client.Client) *machineSetValidatorHandler {
 	return &machineSetValidatorHandler{
 		admissionHandler: &admissionHandler{
+			client:            client,
 			clusterID:         clusterID,
 			webhookOperations: getMachineValidatorOperation(platform),
 		},
@@ -105,8 +119,13 @@ func (h *machineSetValidatorHandler) validateMachineSet(ms *MachineSet) (bool, u
 	var errs []error
 
 	// Create a Machine from the MachineSet and validate the Machine template
-	m := &Machine{Spec: ms.Spec.Template.Spec}
-	if ok, err := h.webhookOperations(m, h.clusterID); !ok {
+	m := &Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: ms.GetNamespace(),
+		},
+		Spec: ms.Spec.Template.Spec,
+	}
+	if ok, err := h.webhookOperations(m, h.clusterID, h.client); !ok {
 		errs = append(errs, err.Errors()...)
 	}
 
@@ -121,7 +140,7 @@ func (h *machineSetDefaulterHandler) defaultMachineSet(ms *MachineSet) (bool, ut
 
 	// Create a Machine from the MachineSet and default the Machine template
 	m := &Machine{Spec: ms.Spec.Template.Spec}
-	if ok, err := h.webhookOperations(m, h.clusterID); !ok {
+	if ok, err := h.webhookOperations(m, h.clusterID, nil); !ok {
 		errs = append(errs, err.Errors()...)
 	} else {
 		// Enforce that the same clusterID is set for machineSet Selector and machine labels.

@@ -14,6 +14,7 @@ import (
 	vsphere "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -24,6 +25,7 @@ import (
 	aws "sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsprovider/v1beta1"
 	azure "sigs.k8s.io/cluster-api-provider-azure/pkg/apis/azureprovider/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	client "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 	yaml "sigs.k8s.io/yaml"
 )
@@ -128,6 +130,22 @@ var (
 	webhookSideEffects   = admissionregistrationv1.SideEffectClassNone
 )
 
+func secretExists(c client.Client, name, namespace string) (bool, error) {
+	key := client.ObjectKey{
+		Name:      name,
+		Namespace: namespace,
+	}
+	obj := &corev1.Secret{}
+
+	if err := c.Get(context.Background(), key, obj); err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 func getInfra() (*osconfigv1.Infrastructure, error) {
 	cfg, err := ctrl.GetConfig()
 	if err != nil {
@@ -144,9 +162,10 @@ func getInfra() (*osconfigv1.Infrastructure, error) {
 	return infra, nil
 }
 
-type machineAdmissionFn func(m *Machine, clusterID string) (bool, utilerrors.Aggregate)
+type machineAdmissionFn func(m *Machine, clusterID string, client *client.Client) (bool, utilerrors.Aggregate)
 
 type admissionHandler struct {
+	client            *client.Client
 	clusterID         string
 	webhookOperations machineAdmissionFn
 	decoder           *admission.Decoder
@@ -179,12 +198,22 @@ func NewMachineValidator() (*machineValidatorHandler, error) {
 		return nil, err
 	}
 
-	return createMachineValidator(infra.Status.PlatformStatus.Type, infra.Status.InfrastructureName), nil
+	cfg, err := ctrl.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+	c, err := client.New(cfg, client.Options{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to build kubernetes client: %v", err)
+	}
+
+	return createMachineValidator(infra.Status.PlatformStatus.Type, infra.Status.InfrastructureName, &c), nil
 }
 
-func createMachineValidator(platform osconfigv1.PlatformType, clusterID string) *machineValidatorHandler {
+func createMachineValidator(platform osconfigv1.PlatformType, clusterID string, client *client.Client) *machineValidatorHandler {
 	return &machineValidatorHandler{
 		admissionHandler: &admissionHandler{
+			client:            client,
 			clusterID:         clusterID,
 			webhookOperations: getMachineValidatorOperation(platform),
 		},
@@ -203,7 +232,7 @@ func getMachineValidatorOperation(platform osconfigv1.PlatformType) machineAdmis
 		return validateVSphere
 	default:
 		// just no-op
-		return func(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
+		return func(m *Machine, clusterID string, client *client.Client) (bool, utilerrors.Aggregate) {
 			return true, nil
 		}
 	}
@@ -248,7 +277,7 @@ func getMachineDefaulterOperation(platformStatus *osconfigv1.PlatformStatus) mac
 		return defaultVSphere
 	default:
 		// just no-op
-		return func(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
+		return func(m *Machine, clusterID string, client *client.Client) (bool, utilerrors.Aggregate) {
 			return true, nil
 		}
 	}
@@ -427,8 +456,7 @@ func (h *machineValidatorHandler) Handle(ctx context.Context, req admission.Requ
 	}
 
 	klog.V(3).Infof("Validate webhook called for Machine: %s", m.GetName())
-
-	if ok, err := h.webhookOperations(m, h.clusterID); !ok {
+	if ok, err := h.webhookOperations(m, h.clusterID, h.client); !ok {
 		return admission.Denied(err.Error())
 	}
 
@@ -454,7 +482,7 @@ func (h *machineDefaulterHandler) Handle(ctx context.Context, req admission.Requ
 	}
 	m.Labels[MachineClusterIDLabel] = h.clusterID
 
-	if ok, err := h.webhookOperations(m, h.clusterID); !ok {
+	if ok, err := h.webhookOperations(m, h.clusterID, nil); !ok {
 		return admission.Denied(err.Error())
 	}
 
@@ -469,7 +497,7 @@ type awsDefaulter struct {
 	region string
 }
 
-func (a awsDefaulter) defaultAWS(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
+func (a awsDefaulter) defaultAWS(m *Machine, clusterID string, client *client.Client) (bool, utilerrors.Aggregate) {
 	klog.V(3).Infof("Defaulting AWS providerSpec")
 
 	var errs []error
@@ -544,7 +572,7 @@ func unmarshalInto(m *Machine, providerSpec interface{}) error {
 	return nil
 }
 
-func validateAWS(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
+func validateAWS(m *Machine, clusterID string, c *client.Client) (bool, utilerrors.Aggregate) {
 	klog.V(3).Infof("Validating AWS providerSpec")
 
 	var errs []error
@@ -612,6 +640,28 @@ func validateAWS(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
 				"expected providerSpec.credentialsSecret to be populated",
 			),
 		)
+	} else {
+		secretExists, err := secretExists(*c, providerSpec.CredentialsSecret.Name, m.GetNamespace())
+		if err != nil {
+			errs = append(
+				errs,
+				field.Invalid(
+					field.NewPath("providerSpec", "credentialsSecret"),
+					providerSpec.CredentialsSecret.Name,
+					fmt.Sprintf("failed to get credentialsSecret: %v", err),
+				),
+			)
+		}
+		if !secretExists && err == nil {
+			errs = append(
+				errs,
+				field.Invalid(
+					field.NewPath("providerSpec", "credentialsSecret"),
+					providerSpec.CredentialsSecret.Name,
+					fmt.Sprintf("not found. Expected CredentialsSecret to exist"),
+				),
+			)
+		}
 	}
 
 	if providerSpec.SecurityGroups == nil {
@@ -643,7 +693,7 @@ func validateAWS(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
 	return true, nil
 }
 
-func defaultAzure(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
+func defaultAzure(m *Machine, clusterID string, client *client.Client) (bool, utilerrors.Aggregate) {
 	klog.V(3).Infof("Defaulting Azure providerSpec")
 
 	var errs []error
@@ -719,7 +769,7 @@ func defaultAzure(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
 	return true, nil
 }
 
-func validateAzure(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
+func validateAzure(m *Machine, clusterID string, client *client.Client) (bool, utilerrors.Aggregate) {
 	klog.V(3).Infof("Validating Azure providerSpec")
 
 	var errs []error
@@ -830,7 +880,7 @@ type gcpDefaulter struct {
 	projectID string
 }
 
-func (g gcpDefaulter) defaultGCP(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
+func (g gcpDefaulter) defaultGCP(m *Machine, clusterID string, client *client.Client) (bool, utilerrors.Aggregate) {
 	klog.V(3).Infof("Defaulting GCP providerSpec")
 
 	var errs []error
@@ -908,7 +958,7 @@ func defaultGCPDisks(disks []*gcp.GCPDisk, clusterID string) []*gcp.GCPDisk {
 	return disks
 }
 
-func validateGCP(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
+func validateGCP(m *Machine, clusterID string, client *client.Client) (bool, utilerrors.Aggregate) {
 	klog.V(3).Infof("Validating GCP providerSpec")
 
 	var errs []error
@@ -1025,7 +1075,7 @@ func validateGCPServiceAccounts(serviceAccounts []gcp.GCPServiceAccount, parentP
 	return errs
 }
 
-func defaultVSphere(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
+func defaultVSphere(m *Machine, clusterID string, client *client.Client) (bool, utilerrors.Aggregate) {
 	klog.V(3).Infof("Defaulting vSphere providerSpec")
 
 	var errs []error
@@ -1056,7 +1106,7 @@ func defaultVSphere(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
 	return true, nil
 }
 
-func validateVSphere(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
+func validateVSphere(m *Machine, clusterID string, client *client.Client) (bool, utilerrors.Aggregate) {
 	klog.V(3).Infof("Validating vSphere providerSpec")
 
 	var errs []error

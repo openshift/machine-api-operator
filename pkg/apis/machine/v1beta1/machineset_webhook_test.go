@@ -43,6 +43,17 @@ func TestMachineSetCreation(t *testing.T) {
 		g.Expect(c.Delete(ctx, namespace)).To(Succeed())
 	}()
 
+	awsSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultAWSCredentialsSecret,
+			Namespace: namespace.Name,
+		},
+	}
+	g.Expect(c.Create(ctx, awsSecret)).To(Succeed())
+	defer func() {
+		g.Expect(c.Delete(ctx, awsSecret)).To(Succeed())
+	}()
+
 	testCases := []struct {
 		name              string
 		platformType      osconfigv1.PlatformType
@@ -218,7 +229,7 @@ func TestMachineSetCreation(t *testing.T) {
 			}
 
 			machineSetDefaulter := createMachineSetDefaulter(platformStatus, tc.clusterID)
-			machineSetValidator := createMachineSetValidator(platformStatus.Type, tc.clusterID)
+			machineSetValidator := createMachineSetValidator(platformStatus.Type, tc.clusterID, &c)
 			mgr.GetWebhookServer().Register(DefaultMachineSetMutatingHookPath, &webhook.Admission{Handler: machineSetDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineSetValidatingHookPath, &webhook.Admission{Handler: machineSetValidator})
 
@@ -412,6 +423,17 @@ func TestMachineSetUpdate(t *testing.T) {
 	g.Expect(c.Create(ctx, namespace)).To(Succeed())
 	defer func() {
 		g.Expect(c.Delete(ctx, namespace)).To(Succeed())
+	}()
+
+	awsSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultAWSCredentialsSecret,
+			Namespace: namespace.Name,
+		},
+	}
+	g.Expect(c.Create(ctx, awsSecret)).To(Succeed())
+	defer func() {
+		g.Expect(c.Delete(ctx, awsSecret)).To(Succeed())
 	}()
 
 	testCases := []struct {
@@ -710,7 +732,7 @@ func TestMachineSetUpdate(t *testing.T) {
 			}
 
 			machineSetDefaulter := createMachineSetDefaulter(platformStatus, tc.clusterID)
-			machineSetValidator := createMachineSetValidator(platformStatus.Type, tc.clusterID)
+			machineSetValidator := createMachineSetValidator(platformStatus.Type, tc.clusterID, &c)
 			mgr.GetWebhookServer().Register(DefaultMachineSetMutatingHookPath, &webhook.Admission{Handler: machineSetDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineSetValidatingHookPath, &webhook.Admission{Handler: machineSetValidator})
 

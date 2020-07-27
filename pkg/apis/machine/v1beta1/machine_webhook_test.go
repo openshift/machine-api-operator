@@ -14,12 +14,14 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/pointer"
 	aws "sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsprovider/v1beta1"
 	azure "sigs.k8s.io/cluster-api-provider-azure/pkg/apis/azureprovider/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	yaml "sigs.k8s.io/yaml"
@@ -44,6 +46,17 @@ func TestMachineCreation(t *testing.T) {
 	g.Expect(c.Create(ctx, namespace)).To(Succeed())
 	defer func() {
 		g.Expect(c.Delete(ctx, namespace)).To(Succeed())
+	}()
+
+	awsSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultAWSCredentialsSecret,
+			Namespace: namespace.Name,
+		},
+	}
+	g.Expect(c.Create(ctx, awsSecret)).To(Succeed())
+	defer func() {
+		g.Expect(c.Delete(ctx, awsSecret)).To(Succeed())
 	}()
 
 	testCases := []struct {
@@ -221,7 +234,7 @@ func TestMachineCreation(t *testing.T) {
 			}
 
 			machineDefaulter := createMachineDefaulter(platformStatus, tc.clusterID)
-			machineValidator := createMachineValidator(platformStatus.Type, tc.clusterID)
+			machineValidator := createMachineValidator(platformStatus.Type, tc.clusterID, &c)
 			mgr.GetWebhookServer().Register(DefaultMachineMutatingHookPath, &webhook.Admission{Handler: machineDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineValidatingHookPath, &webhook.Admission{Handler: machineValidator})
 
@@ -409,6 +422,17 @@ func TestMachineUpdate(t *testing.T) {
 	g.Expect(c.Create(ctx, namespace)).To(Succeed())
 	defer func() {
 		g.Expect(c.Delete(ctx, namespace)).To(Succeed())
+	}()
+
+	awsSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultAWSCredentialsSecret,
+			Namespace: namespace.Name,
+		},
+	}
+	g.Expect(c.Create(ctx, awsSecret)).To(Succeed())
+	defer func() {
+		g.Expect(c.Delete(ctx, awsSecret)).To(Succeed())
 	}()
 
 	testCases := []struct {
@@ -707,7 +731,7 @@ func TestMachineUpdate(t *testing.T) {
 			}
 
 			machineDefaulter := createMachineDefaulter(platformStatus, tc.clusterID)
-			machineValidator := createMachineValidator(platformStatus.Type, tc.clusterID)
+			machineValidator := createMachineValidator(platformStatus.Type, tc.clusterID, &c)
 			mgr.GetWebhookServer().Register(DefaultMachineMutatingHookPath, &webhook.Admission{Handler: machineDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineValidatingHookPath, &webhook.Admission{Handler: machineValidator})
 
@@ -847,7 +871,7 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 		},
 	}
 
-	h := createMachineValidator(osconfigv1.AWSPlatformType, "clusterID")
+	h := createMachineValidator(osconfigv1.AWSPlatformType, "clusterID", &c)
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
@@ -888,7 +912,13 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
 
-			ok, err := h.webhookOperations(m, h.clusterID)
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "secret",
+				},
+			}
+			c := fake.NewFakeClientWithScheme(scheme.Scheme, secret)
+			ok, err := h.webhookOperations(m, h.clusterID, &c)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -1020,7 +1050,7 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
 
-			ok, err := h.webhookOperations(m, h.clusterID)
+			ok, err := h.webhookOperations(m, h.clusterID, nil)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -1283,7 +1313,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 		},
 	}
 
-	h := createMachineValidator(osconfigv1.AzurePlatformType, "clusterID")
+	h := createMachineValidator(osconfigv1.AzurePlatformType, "clusterID", &c)
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
@@ -1322,7 +1352,8 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
 
-			ok, err := h.webhookOperations(m, h.clusterID)
+			c := fake.NewFakeClientWithScheme(scheme.Scheme)
+			ok, err := h.webhookOperations(m, h.clusterID, &c)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -1475,7 +1506,7 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
 
-			ok, err := h.webhookOperations(m, h.clusterID)
+			ok, err := h.webhookOperations(m, h.clusterID, nil)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -1700,7 +1731,7 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 		},
 	}
 
-	h := createMachineValidator(osconfigv1.GCPPlatformType, "clusterID")
+	h := createMachineValidator(osconfigv1.GCPPlatformType, "clusterID", &c)
 
 	for _, tc := range testCases {
 		providerSpec := &gcp.GCPMachineProviderSpec{
@@ -1744,7 +1775,8 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
 
-			ok, err := h.webhookOperations(m, h.clusterID)
+			c := fake.NewFakeClientWithScheme(scheme.Scheme)
+			ok, err := h.webhookOperations(m, h.clusterID, &c)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -1853,7 +1885,7 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
 
-			ok, err := h.webhookOperations(m, h.clusterID)
+			ok, err := h.webhookOperations(m, h.clusterID, nil)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -2015,7 +2047,7 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 		},
 	}
 
-	h := createMachineValidator(osconfigv1.VSpherePlatformType, "clusterID")
+	h := createMachineValidator(osconfigv1.VSpherePlatformType, "clusterID", &c)
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
@@ -2050,7 +2082,8 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
 
-			ok, err := h.webhookOperations(m, h.clusterID)
+			c := fake.NewFakeClientWithScheme(scheme.Scheme)
+			ok, err := h.webhookOperations(m, h.clusterID, &c)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -2110,7 +2143,7 @@ func TestDefaultVSphereProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
 
-			ok, err := h.webhookOperations(m, h.clusterID)
+			ok, err := h.webhookOperations(m, h.clusterID, nil)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
