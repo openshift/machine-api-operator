@@ -958,7 +958,7 @@ func defaultGCPDisks(disks []*gcp.GCPDisk, clusterID string) []*gcp.GCPDisk {
 	return disks
 }
 
-func validateGCP(m *Machine, clusterID string, client *client.Client) (bool, utilerrors.Aggregate) {
+func validateGCP(m *Machine, clusterID string, c *client.Client) (bool, utilerrors.Aggregate) {
 	klog.V(3).Infof("Validating GCP providerSpec")
 
 	var errs []error
@@ -997,6 +997,28 @@ func validateGCP(m *Machine, clusterID string, client *client.Client) (bool, uti
 	} else {
 		if providerSpec.CredentialsSecret.Name == "" {
 			errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret", "name"), "name must be provided"))
+		} else {
+			secretExists, err := secretExists(*c, providerSpec.CredentialsSecret.Name, m.GetNamespace())
+			if err != nil {
+				errs = append(
+					errs,
+					field.Invalid(
+						field.NewPath("providerSpec", "credentialsSecret"),
+						providerSpec.CredentialsSecret.Name,
+						fmt.Sprintf("failed to get credentialsSecret: %v", err),
+					),
+				)
+			}
+			if !secretExists && err == nil {
+				errs = append(
+					errs,
+					field.Invalid(
+						field.NewPath("providerSpec", "credentialsSecret"),
+						providerSpec.CredentialsSecret.Name,
+						fmt.Sprintf("not found. Expected CredentialsSecret to exist"),
+					),
+				)
+			}
 		}
 	}
 

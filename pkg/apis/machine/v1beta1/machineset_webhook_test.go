@@ -55,11 +55,19 @@ func TestMachineSetCreation(t *testing.T) {
 			Namespace: namespace.Name,
 		},
 	}
+	GCPSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultGCPCredentialsSecret,
+			Namespace: namespace.Name,
+		},
+	}
 	g.Expect(c.Create(ctx, awsSecret)).To(Succeed())
 	g.Expect(c.Create(ctx, vSphereSecret)).To(Succeed())
+	g.Expect(c.Create(ctx, GCPSecret)).To(Succeed())
 	defer func() {
 		g.Expect(c.Delete(ctx, awsSecret)).To(Succeed())
 		g.Expect(c.Delete(ctx, vSphereSecret)).To(Succeed())
+		g.Expect(c.Delete(ctx, GCPSecret)).To(Succeed())
 	}()
 
 	testCases := []struct {
@@ -445,11 +453,19 @@ func TestMachineSetUpdate(t *testing.T) {
 			Namespace: namespace.Name,
 		},
 	}
+	GCPSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultGCPCredentialsSecret,
+			Namespace: namespace.Name,
+		},
+	}
 	g.Expect(c.Create(ctx, awsSecret)).To(Succeed())
 	g.Expect(c.Create(ctx, vSphereSecret)).To(Succeed())
+	g.Expect(c.Create(ctx, GCPSecret)).To(Succeed())
 	defer func() {
 		g.Expect(c.Delete(ctx, awsSecret)).To(Succeed())
 		g.Expect(c.Delete(ctx, vSphereSecret)).To(Succeed())
+		g.Expect(c.Delete(ctx, GCPSecret)).To(Succeed())
 	}()
 
 	testCases := []struct {
