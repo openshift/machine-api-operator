@@ -18,18 +18,22 @@ import (
 )
 
 const (
-	baremetalConfigmap    = "metal3-config"
-	baremetalSharedVolume = "metal3-shared"
-	baremetalSecretName   = "metal3-mariadb-password"
-	baremetalSecretKey    = "password"
-	ironicUsernameKey     = "username"
-	ironicPasswordKey     = "password"
-	ironicHtpasswdKey     = "htpasswd"
-	ironicSecretName      = "metal3-ironic-password"
-	ironicUsername        = "ironic-user"
-	inspectorSecretName   = "metal3-ironic-inspector-password"
-	inspectorUsername     = "inspector-user"
-	htpasswdEnvVar        = "HTTP_BASIC_HTPASSWD"
+	baremetalConfigmap         = "metal3-config"
+	baremetalSharedVolume      = "metal3-shared"
+	baremetalSecretName        = "metal3-mariadb-password"
+	baremetalSecretKey         = "password"
+	ironicCredentialsVolume    = "metal3-ironic-basic-auth"
+	inspectorCredentialsVolume = "metal3-inspector-basic-auth"
+	ironicUsernameKey          = "username"
+	ironicPasswordKey          = "password"
+	ironicHtpasswdKey          = "htpasswd"
+	ironicConfigKey            = "auth-config"
+	ironicSecretName           = "metal3-ironic-password"
+	ironicUsername             = "ironic-user"
+	inspectorSecretName        = "metal3-ironic-inspector-password"
+	inspectorUsername          = "inspector-user"
+	metal3AuthRootDir          = "/auth"
+	htpasswdEnvVar             = "HTTP_BASIC_HTPASSWD"
 )
 
 var volumes = []corev1.Volume{
@@ -39,13 +43,49 @@ var volumes = []corev1.Volume{
 			EmptyDir: &corev1.EmptyDirVolumeSource{},
 		},
 	},
+	{
+		Name: ironicCredentialsVolume,
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName: ironicSecretName,
+				Items: []corev1.KeyToPath{
+					{Key: ironicUsernameKey, Path: ironicUsernameKey},
+					{Key: ironicPasswordKey, Path: ironicPasswordKey},
+					{Key: ironicConfigKey, Path: ironicConfigKey},
+				},
+			},
+		},
+	},
+	{
+		Name: inspectorCredentialsVolume,
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName: inspectorSecretName,
+				Items: []corev1.KeyToPath{
+					{Key: ironicUsernameKey, Path: ironicUsernameKey},
+					{Key: ironicPasswordKey, Path: ironicPasswordKey},
+					{Key: ironicConfigKey, Path: ironicConfigKey},
+				},
+			},
+		},
+	},
 }
 
-var volumeMounts = []corev1.VolumeMount{
-	{
-		Name:      baremetalSharedVolume,
-		MountPath: "/shared",
-	},
+var sharedVolumeMount = corev1.VolumeMount{
+	Name:      baremetalSharedVolume,
+	MountPath: "/shared",
+}
+
+var ironicCredentialsMount = corev1.VolumeMount{
+	Name:      ironicCredentialsVolume,
+	MountPath: metal3AuthRootDir + "/ironic",
+	ReadOnly:  true,
+}
+
+var inspectorCredentialsMount = corev1.VolumeMount{
+	Name:      inspectorCredentialsVolume,
+	MountPath: metal3AuthRootDir + "/ironic-inspector",
+	ReadOnly:  true,
 }
 
 func buildEnvVar(name string, baremetalProvisioningConfig BaremetalProvisioningConfig) corev1.EnvVar {
@@ -85,20 +125,6 @@ func setIronicHtpasswdHash(name string, secretName string) corev1.EnvVar {
 					Name: secretName,
 				},
 				Key: ironicHtpasswdKey,
-			},
-		},
-	}
-}
-
-func setIronicPassword(name string, secretName string) corev1.EnvVar {
-	return corev1.EnvVar{
-		Name: name,
-		ValueFrom: &corev1.EnvVarSource{
-			SecretKeyRef: &corev1.SecretKeySelector{
-				LocalObjectReference: corev1.LocalObjectReference{
-					Name: secretName,
-				},
-				Key: ironicPasswordKey,
 			},
 		},
 	}
@@ -149,7 +175,7 @@ func createMariadbPasswordSecret(client coreclientv1.SecretsGetter, config *Oper
 	return err
 }
 
-func createIronicPasswordSecret(client coreclientv1.SecretsGetter, config *OperatorConfig, name string, username string) error {
+func createIronicPasswordSecret(client coreclientv1.SecretsGetter, config *OperatorConfig, name string, username string, configSection string) error {
 	glog.V(3).Info(fmt.Sprintf("Checking if the %s password secret already exists", name))
 	_, err := client.Secrets(config.TargetNamespace).Get(context.Background(), name, metav1.GetOptions{})
 	if !apierrors.IsNotFound(err) {
@@ -180,6 +206,12 @@ func createIronicPasswordSecret(client coreclientv1.SecretsGetter, config *Opera
 				ironicUsernameKey: username,
 				ironicPasswordKey: password,
 				ironicHtpasswdKey: fmt.Sprintf("%s:%s", username, hash),
+				ironicConfigKey: fmt.Sprintf(`[%s]
+auth_type = http_basic
+username = %s
+password = %s
+`,
+					configSection, username, password),
 			},
 		},
 		metav1.CreateOptions{},
@@ -192,11 +224,11 @@ func createMetal3PasswordSecrets(client coreclientv1.SecretsGetter, config *Oper
 		glog.Error("Failed to create Mariadb password.")
 		return err
 	}
-	if err := createIronicPasswordSecret(client, config, ironicSecretName, ironicUsername); err != nil {
+	if err := createIronicPasswordSecret(client, config, ironicSecretName, ironicUsername, "ironic"); err != nil {
 		glog.Error("Failed to create Ironic password.")
 		return err
 	}
-	if err := createIronicPasswordSecret(client, config, inspectorSecretName, inspectorUsername); err != nil {
+	if err := createIronicPasswordSecret(client, config, inspectorSecretName, inspectorUsername, "inspector"); err != nil {
 		glog.Error("Failed to create Ironic Inspector password.")
 		return err
 	}
@@ -291,7 +323,7 @@ func newMetal3InitContainers(config *OperatorConfig, baremetalProvisioningConfig
 			SecurityContext: &corev1.SecurityContext{
 				Privileged: pointer.BoolPtr(true),
 			},
-			VolumeMounts: volumeMounts,
+			VolumeMounts: []corev1.VolumeMount{sharedVolumeMount},
 			Env:          []corev1.EnvVar{},
 		},
 	}
@@ -309,7 +341,7 @@ func createInitContainerMachineOsDownloader(config *OperatorConfig, baremetalPro
 		SecurityContext: &corev1.SecurityContext{
 			Privileged: pointer.BoolPtr(true),
 		},
-		VolumeMounts: volumeMounts,
+		VolumeMounts: []corev1.VolumeMount{sharedVolumeMount},
 		Env: []corev1.EnvVar{
 			buildEnvVar("RHCOS_IMAGE_URL", baremetalProvisioningConfig),
 		},
@@ -348,6 +380,10 @@ func newMetal3Containers(config *OperatorConfig, baremetalProvisioningConfig Bar
 			},
 			Command:         []string{"/baremetal-operator"},
 			ImagePullPolicy: "IfNotPresent",
+			VolumeMounts: []corev1.VolumeMount{
+				ironicCredentialsMount,
+				inspectorCredentialsMount,
+			},
 			Env: []corev1.EnvVar{
 				{
 					Name: "WATCH_NAMESPACE",
@@ -374,19 +410,9 @@ func newMetal3Containers(config *OperatorConfig, baremetalProvisioningConfig Bar
 				buildEnvVar("IRONIC_ENDPOINT", baremetalProvisioningConfig),
 				buildEnvVar("IRONIC_INSPECTOR_ENDPOINT", baremetalProvisioningConfig),
 				{
-					Name:  "IRONIC_AUTH_STRATEGY",
-					Value: "http_basic",
+					Name:  "METAL3_AUTH_ROOT_DIR",
+					Value: metal3AuthRootDir,
 				},
-				{
-					Name:  "IRONIC_HTTP_BASIC_USERNAME",
-					Value: ironicUsername,
-				},
-				setIronicPassword("IRONIC_HTTP_BASIC_PASSWORD", ironicSecretName),
-				{
-					Name:  "INSPECTOR_HTTP_BASIC_USERNAME",
-					Value: inspectorUsername,
-				},
-				setIronicPassword("INSPECTOR_HTTP_BASIC_PASSWORD", inspectorSecretName),
 			},
 		},
 	}
@@ -412,7 +438,7 @@ func createContainerMetal3Dnsmasq(config *OperatorConfig, baremetalProvisioningC
 			Privileged: pointer.BoolPtr(true),
 		},
 		Command:      []string{"/bin/rundnsmasq"},
-		VolumeMounts: volumeMounts,
+		VolumeMounts: []corev1.VolumeMount{sharedVolumeMount},
 		Env: []corev1.EnvVar{
 			buildEnvVar("HTTP_PORT", baremetalProvisioningConfig),
 			buildEnvVar("PROVISIONING_INTERFACE", baremetalProvisioningConfig),
@@ -432,7 +458,7 @@ func createContainerMetal3Mariadb(config *OperatorConfig) corev1.Container {
 			Privileged: pointer.BoolPtr(true),
 		},
 		Command:      []string{"/bin/runmariadb"},
-		VolumeMounts: volumeMounts,
+		VolumeMounts: []corev1.VolumeMount{sharedVolumeMount},
 		Env: []corev1.EnvVar{
 			setMariadbPassword(),
 		},
@@ -450,7 +476,7 @@ func createContainerMetal3Httpd(config *OperatorConfig, baremetalProvisioningCon
 			Privileged: pointer.BoolPtr(true),
 		},
 		Command:      []string{"/bin/runhttpd"},
-		VolumeMounts: volumeMounts,
+		VolumeMounts: []corev1.VolumeMount{sharedVolumeMount},
 		Env: []corev1.EnvVar{
 			buildEnvVar("HTTP_PORT", baremetalProvisioningConfig),
 			buildEnvVar("PROVISIONING_IP", baremetalProvisioningConfig),
@@ -469,15 +495,16 @@ func createContainerMetal3IronicConductor(config *OperatorConfig, baremetalProvi
 		SecurityContext: &corev1.SecurityContext{
 			Privileged: pointer.BoolPtr(true),
 		},
-		Command:      []string{"/bin/runironic-conductor"},
-		VolumeMounts: volumeMounts,
+		Command: []string{"/bin/runironic-conductor"},
+		VolumeMounts: []corev1.VolumeMount{
+			sharedVolumeMount,
+			inspectorCredentialsMount,
+		},
 		Env: []corev1.EnvVar{
 			setMariadbPassword(),
 			buildEnvVar("HTTP_PORT", baremetalProvisioningConfig),
 			buildEnvVar("PROVISIONING_IP", baremetalProvisioningConfig),
 			buildEnvVar("PROVISIONING_INTERFACE", baremetalProvisioningConfig),
-			setIronicHtpasswdHash(htpasswdEnvVar, ironicSecretName),
-			setIronicPassword("INSPECTOR_HTTP_BASIC_PASSWORD", inspectorSecretName),
 		},
 	}
 	return container
@@ -493,7 +520,7 @@ func createContainerMetal3IronicApi(config *OperatorConfig, baremetalProvisionin
 			Privileged: pointer.BoolPtr(true),
 		},
 		Command:      []string{"/bin/runironic-api"},
-		VolumeMounts: volumeMounts,
+		VolumeMounts: []corev1.VolumeMount{sharedVolumeMount},
 		Env: []corev1.EnvVar{
 			setMariadbPassword(),
 			buildEnvVar("HTTP_PORT", baremetalProvisioningConfig),
@@ -514,16 +541,14 @@ func createContainerMetal3IronicInspector(config *OperatorConfig, baremetalProvi
 		SecurityContext: &corev1.SecurityContext{
 			Privileged: pointer.BoolPtr(true),
 		},
-		VolumeMounts: volumeMounts,
+		VolumeMounts: []corev1.VolumeMount{
+			sharedVolumeMount,
+			ironicCredentialsMount,
+		},
 		Env: []corev1.EnvVar{
 			buildEnvVar("PROVISIONING_IP", baremetalProvisioningConfig),
 			buildEnvVar("PROVISIONING_INTERFACE", baremetalProvisioningConfig),
 			setIronicHtpasswdHash(htpasswdEnvVar, inspectorSecretName),
-			{
-				Name:  "IRONIC_HTTP_BASIC_USERNAME",
-				Value: ironicUsername,
-			},
-			setIronicPassword("IRONIC_HTTP_BASIC_PASSWORD", ironicSecretName),
 		},
 	}
 	return container
