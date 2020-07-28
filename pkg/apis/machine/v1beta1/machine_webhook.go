@@ -1106,7 +1106,7 @@ func defaultVSphere(m *Machine, clusterID string, client *client.Client) (bool, 
 	return true, nil
 }
 
-func validateVSphere(m *Machine, clusterID string, client *client.Client) (bool, utilerrors.Aggregate) {
+func validateVSphere(m *Machine, clusterID string, c *client.Client) (bool, utilerrors.Aggregate) {
 	klog.V(3).Infof("Validating vSphere providerSpec")
 
 	var errs []error
@@ -1143,6 +1143,28 @@ func validateVSphere(m *Machine, clusterID string, client *client.Client) (bool,
 	} else {
 		if providerSpec.CredentialsSecret.Name == "" {
 			errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret", "name"), "name must be provided"))
+		} else {
+			secretExists, err := secretExists(*c, providerSpec.CredentialsSecret.Name, m.GetNamespace())
+			if err != nil {
+				errs = append(
+					errs,
+					field.Invalid(
+						field.NewPath("providerSpec", "credentialsSecret"),
+						providerSpec.CredentialsSecret.Name,
+						fmt.Sprintf("failed to get credentialsSecret: %v", err),
+					),
+				)
+			}
+			if !secretExists && err == nil {
+				errs = append(
+					errs,
+					field.Invalid(
+						field.NewPath("providerSpec", "credentialsSecret"),
+						providerSpec.CredentialsSecret.Name,
+						fmt.Sprintf("not found. Expected CredentialsSecret to exist"),
+					),
+				)
+			}
 		}
 	}
 
