@@ -19,9 +19,11 @@ const (
 	baremetalSharedVolume = "metal3-shared"
 	baremetalSecretName   = "metal3-mariadb-password"
 	baremetalSecretKey    = "password"
-	ironicSecretName      = "metal3-ironic-password"
 	ironicSecretKey       = "password"
-	ironicUsername        = "metal3"
+	ironicSecretName      = "metal3-ironic-password"
+	ironicUsername        = "ironic-user"
+	inspectorSecretName   = "metal3-ironic-inspector-password"
+	inspectorUsername     = "inspector-user"
 )
 
 var volumes = []corev1.Volume{
@@ -68,13 +70,13 @@ func setMariadbPassword() corev1.EnvVar {
 	}
 }
 
-func setIronicPassword(name string) corev1.EnvVar {
+func setIronicPassword(name string, secretName string) corev1.EnvVar {
 	return corev1.EnvVar{
 		Name: name,
 		ValueFrom: &corev1.EnvVarSource{
 			SecretKeyRef: &corev1.SecretKeySelector{
 				LocalObjectReference: corev1.LocalObjectReference{
-					Name: ironicSecretName,
+					Name: secretName,
 				},
 				Key: ironicSecretKey,
 			},
@@ -127,9 +129,9 @@ func createMariadbPasswordSecret(client coreclientv1.SecretsGetter, config *Oper
 	return err
 }
 
-func createIronicPasswordSecret(client coreclientv1.SecretsGetter, config *OperatorConfig) error {
-	glog.V(3).Info("Checking if the Ironic password secret already exists")
-	_, err := client.Secrets(config.TargetNamespace).Get(context.Background(), ironicSecretName, metav1.GetOptions{})
+func createIronicPasswordSecret(client coreclientv1.SecretsGetter, config *OperatorConfig, name string) error {
+	glog.V(3).Info(fmt.Sprintf("Checking if the %s password secret already exists", name))
+	_, err := client.Secrets(config.TargetNamespace).Get(context.Background(), name, metav1.GetOptions{})
 	if !apierrors.IsNotFound(err) {
 		return err
 	}
@@ -144,7 +146,7 @@ func createIronicPasswordSecret(client coreclientv1.SecretsGetter, config *Opera
 		context.Background(),
 		&corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      ironicSecretName,
+				Name:      name,
 				Namespace: config.TargetNamespace,
 			},
 			StringData: map[string]string{
@@ -161,8 +163,12 @@ func createMetal3PasswordSecrets(client coreclientv1.SecretsGetter, config *Oper
 		glog.Error("Failed to create Mariadb password.")
 		return err
 	}
-	if err := createIronicPasswordSecret(client, config); err != nil {
+	if err := createIronicPasswordSecret(client, config, ironicSecretName); err != nil {
 		glog.Error("Failed to create Ironic password.")
+		return err
+	}
+	if err := createIronicPasswordSecret(client, config, inspectorSecretName); err != nil {
+		glog.Error("Failed to create Ironic Inspector password.")
 		return err
 	}
 	return nil
@@ -346,12 +352,12 @@ func newMetal3Containers(config *OperatorConfig, baremetalProvisioningConfig Bar
 					Name:  "IRONIC_HTTP_BASIC_USERNAME",
 					Value: ironicUsername,
 				},
-				setIronicPassword("IRONIC_HTTP_BASIC_PASSWORD"),
+				setIronicPassword("IRONIC_HTTP_BASIC_PASSWORD", ironicSecretName),
 				{
 					Name:  "INSPECTOR_HTTP_BASIC_USERNAME",
-					Value: ironicUsername,
+					Value: inspectorUsername,
 				},
-				setIronicPassword("INSPECTOR_HTTP_BASIC_PASSWORD"),
+				setIronicPassword("INSPECTOR_HTTP_BASIC_PASSWORD", inspectorSecretName),
 			},
 		},
 	}
@@ -449,12 +455,12 @@ func createContainerMetal3IronicConductor(config *OperatorConfig, baremetalProvi
 				Name:  "IRONIC_HTTP_BASIC_USERNAME",
 				Value: ironicUsername,
 			},
-			setIronicPassword("IRONIC_HTTP_BASIC_PASSWORD"),
+			setIronicPassword("IRONIC_HTTP_BASIC_PASSWORD", ironicSecretName),
 			{
 				Name:  "INSPECTOR_HTTP_BASIC_USERNAME",
 				Value: ironicUsername,
 			},
-			setIronicPassword("INSPECTOR_HTTP_BASIC_PASSWORD"),
+			setIronicPassword("INSPECTOR_HTTP_BASIC_PASSWORD", inspectorSecretName),
 		},
 	}
 	return container
@@ -484,7 +490,7 @@ func createContainerMetal3IronicApi(config *OperatorConfig, baremetalProvisionin
 				Name:  "IRONIC_HTTP_BASIC_USERNAME",
 				Value: ironicUsername,
 			},
-			setIronicPassword("IRONIC_HTTP_BASIC_PASSWORD"),
+			setIronicPassword("IRONIC_HTTP_BASIC_PASSWORD", ironicSecretName),
 		},
 	}
 	return container
@@ -509,14 +515,14 @@ func createContainerMetal3IronicInspector(config *OperatorConfig, baremetalProvi
 			},
 			{
 				Name:  "INSPECTOR_HTTP_BASIC_USERNAME",
-				Value: ironicUsername,
+				Value: inspectorUsername,
 			},
-			setIronicPassword("INSPECTOR_HTTP_BASIC_PASSWORD"),
+			setIronicPassword("INSPECTOR_HTTP_BASIC_PASSWORD", inspectorSecretName),
 			{
 				Name:  "IRONIC_HTTP_BASIC_USERNAME",
 				Value: ironicUsername,
 			},
-			setIronicPassword("IRONIC_HTTP_BASIC_PASSWORD"),
+			setIronicPassword("IRONIC_HTTP_BASIC_PASSWORD", ironicSecretName),
 		},
 	}
 	return container
