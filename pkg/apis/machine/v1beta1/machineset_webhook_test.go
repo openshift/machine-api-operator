@@ -49,9 +49,17 @@ func TestMachineSetCreation(t *testing.T) {
 			Namespace: namespace.Name,
 		},
 	}
+	vSphereSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultVSphereCredentialsSecret,
+			Namespace: namespace.Name,
+		},
+	}
 	g.Expect(c.Create(ctx, awsSecret)).To(Succeed())
+	g.Expect(c.Create(ctx, vSphereSecret)).To(Succeed())
 	defer func() {
 		g.Expect(c.Delete(ctx, awsSecret)).To(Succeed())
+		g.Expect(c.Delete(ctx, vSphereSecret)).To(Succeed())
 	}()
 
 	testCases := []struct {
@@ -424,9 +432,17 @@ func TestMachineSetUpdate(t *testing.T) {
 			Namespace: namespace.Name,
 		},
 	}
+	vSphereSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultVSphereCredentialsSecret,
+			Namespace: namespace.Name,
+		},
+	}
 	g.Expect(c.Create(ctx, awsSecret)).To(Succeed())
+	g.Expect(c.Create(ctx, vSphereSecret)).To(Succeed())
 	defer func() {
 		g.Expect(c.Delete(ctx, awsSecret)).To(Succeed())
+		g.Expect(c.Delete(ctx, vSphereSecret)).To(Succeed())
 	}()
 
 	testCases := []struct {

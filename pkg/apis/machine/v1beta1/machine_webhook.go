@@ -1113,6 +1113,8 @@ func validateVSphere(m *Machine, config *admissionConfig) (bool, []string, utile
 	} else {
 		if providerSpec.CredentialsSecret.Name == "" {
 			errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret", "name"), "name must be provided"))
+		} else {
+			errs = append(errs, credentialsSecretExists(config.client, providerSpec.CredentialsSecret.Name, m.GetNamespace())...)
 		}
 	}
 
