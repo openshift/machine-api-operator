@@ -959,6 +959,8 @@ func validateGCP(m *Machine, config *admissionConfig) (bool, []string, utilerror
 	} else {
 		if providerSpec.CredentialsSecret.Name == "" {
 			errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret", "name"), "name must be provided"))
+		} else {
+			errs = append(errs, credentialsSecretExists(config.client, providerSpec.CredentialsSecret.Name, m.GetNamespace())...)
 		}
 	}
 

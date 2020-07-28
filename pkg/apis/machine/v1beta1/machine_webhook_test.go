@@ -70,11 +70,19 @@ func TestMachineCreation(t *testing.T) {
 			Namespace: namespace.Name,
 		},
 	}
+	GCPSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultGCPCredentialsSecret,
+			Namespace: namespace.Name,
+		},
+	}
 	g.Expect(c.Create(ctx, awsSecret)).To(Succeed())
 	g.Expect(c.Create(ctx, vSphereSecret)).To(Succeed())
+	g.Expect(c.Create(ctx, GCPSecret)).To(Succeed())
 	defer func() {
 		g.Expect(c.Delete(ctx, awsSecret)).To(Succeed())
 		g.Expect(c.Delete(ctx, vSphereSecret)).To(Succeed())
+		g.Expect(c.Delete(ctx, GCPSecret)).To(Succeed())
 	}()
 
 	testCases := []struct {
@@ -460,11 +468,19 @@ func TestMachineUpdate(t *testing.T) {
 			Namespace: namespace.Name,
 		},
 	}
+	GCPSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultGCPCredentialsSecret,
+			Namespace: namespace.Name,
+		},
+	}
 	g.Expect(c.Create(ctx, awsSecret)).To(Succeed())
 	g.Expect(c.Create(ctx, vSphereSecret)).To(Succeed())
+	g.Expect(c.Create(ctx, GCPSecret)).To(Succeed())
 	defer func() {
 		g.Expect(c.Delete(ctx, awsSecret)).To(Succeed())
 		g.Expect(c.Delete(ctx, vSphereSecret)).To(Succeed())
+		g.Expect(c.Delete(ctx, GCPSecret)).To(Succeed())
 	}()
 
 	testCases := []struct {
@@ -1489,6 +1505,11 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 }
 
 func TestValidateGCPProviderSpec(t *testing.T) {
+	namespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "gcp-validation-test",
+		},
+	}
 
 	testCases := []struct {
 		testCase         string
@@ -1697,7 +1718,13 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 		},
 	}
 
-	c := fake.NewFakeClientWithScheme(scheme.Scheme)
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "name",
+			Namespace: namespace.Name,
+		},
+	}
+	c := fake.NewFakeClientWithScheme(scheme.Scheme, secret)
 	infra := plainInfra.DeepCopy()
 	infra.Status.InfrastructureName = "clusterID"
 	infra.Status.PlatformStatus.Type = osconfigv1.GCPPlatformType
@@ -1738,7 +1765,11 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 		}
 
 		t.Run(tc.testCase, func(t *testing.T) {
-			m := &Machine{}
+			m := &Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: namespace.Name,
+				},
+			}
 			rawBytes, err := json.Marshal(providerSpec)
 			if err != nil {
 				t.Fatal(err)
