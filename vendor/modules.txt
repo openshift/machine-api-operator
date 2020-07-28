@@ -274,6 +274,8 @@ github.com/vmware/govmomi/vim25/soap
 github.com/vmware/govmomi/vim25/types
 github.com/vmware/govmomi/vim25/xml
 # golang.org/x/crypto v0.0.0-20200220183623-bac4c82f6975
+golang.org/x/crypto/bcrypt
+golang.org/x/crypto/blowfish
 golang.org/x/crypto/ssh/terminal
 # golang.org/x/net v0.0.0-20200421231249-e086a090c8fd
 golang.org/x/net/context
