@@ -769,7 +769,7 @@ func defaultAzure(m *Machine, clusterID string, client *client.Client) (bool, ut
 	return true, nil
 }
 
-func validateAzure(m *Machine, clusterID string, client *client.Client) (bool, utilerrors.Aggregate) {
+func validateAzure(m *Machine, clusterID string, c *client.Client) (bool, utilerrors.Aggregate) {
 	klog.V(3).Infof("Validating Azure providerSpec")
 
 	var errs []error
@@ -826,6 +826,29 @@ func validateAzure(m *Machine, clusterID string, client *client.Client) (bool, u
 		}
 		if providerSpec.CredentialsSecret.Name == "" {
 			errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret", "name"), "name must be provided"))
+		}
+		if providerSpec.CredentialsSecret.Name != "" && providerSpec.CredentialsSecret.Namespace != "" {
+			secretExists, err := secretExists(*c, providerSpec.CredentialsSecret.Name, providerSpec.CredentialsSecret.Namespace)
+			if err != nil {
+				errs = append(
+					errs,
+					field.Invalid(
+						field.NewPath("providerSpec", "credentialsSecret"),
+						fmt.Sprintf("%v/%v", providerSpec.CredentialsSecret.Namespace, providerSpec.CredentialsSecret.Name),
+						fmt.Sprintf("failed to get credentialsSecret: %v", err),
+					),
+				)
+			}
+			if !secretExists && err == nil {
+				errs = append(
+					errs,
+					field.Invalid(
+						field.NewPath("providerSpec", "credentialsSecret"),
+						fmt.Sprintf("%v/:%v", providerSpec.CredentialsSecret.Namespace, providerSpec.CredentialsSecret.Name),
+						fmt.Sprintf("not found. Expected CredentialsSecret to exist"),
+					),
+				)
+			}
 		}
 	}
 

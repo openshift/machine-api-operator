@@ -66,13 +66,21 @@ func TestMachineCreation(t *testing.T) {
 			Namespace: namespace.Name,
 		},
 	}
+	azureSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultAzureCredentialsSecret,
+			Namespace: defaultSecretNamespace,
+		},
+	}
 	g.Expect(c.Create(ctx, awsSecret)).To(Succeed())
 	g.Expect(c.Create(ctx, vSphereSecret)).To(Succeed())
 	g.Expect(c.Create(ctx, GCPSecret)).To(Succeed())
+	g.Expect(c.Create(ctx, azureSecret)).To(Succeed())
 	defer func() {
 		g.Expect(c.Delete(ctx, awsSecret)).To(Succeed())
 		g.Expect(c.Delete(ctx, vSphereSecret)).To(Succeed())
 		g.Expect(c.Delete(ctx, GCPSecret)).To(Succeed())
+		g.Expect(c.Delete(ctx, azureSecret)).To(Succeed())
 	}()
 
 	testCases := []struct {
@@ -458,13 +466,21 @@ func TestMachineUpdate(t *testing.T) {
 			Namespace: namespace.Name,
 		},
 	}
+	azureSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultAzureCredentialsSecret,
+			Namespace: defaultSecretNamespace,
+		},
+	}
 	g.Expect(c.Create(ctx, awsSecret)).To(Succeed())
 	g.Expect(c.Create(ctx, vSphereSecret)).To(Succeed())
 	g.Expect(c.Create(ctx, GCPSecret)).To(Succeed())
+	g.Expect(c.Create(ctx, azureSecret)).To(Succeed())
 	defer func() {
 		g.Expect(c.Delete(ctx, awsSecret)).To(Succeed())
 		g.Expect(c.Delete(ctx, vSphereSecret)).To(Succeed())
 		g.Expect(c.Delete(ctx, GCPSecret)).To(Succeed())
+		g.Expect(c.Delete(ctx, azureSecret)).To(Succeed())
 	}()
 
 	testCases := []struct {
@@ -1384,7 +1400,13 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
 
-			c := fake.NewFakeClientWithScheme(scheme.Scheme)
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "name",
+					Namespace: "namespace",
+				},
+			}
+			c := fake.NewFakeClientWithScheme(scheme.Scheme, secret)
 			ok, err := h.webhookOperations(m, h.clusterID, &c)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
