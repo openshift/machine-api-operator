@@ -793,6 +793,9 @@ func validateAzure(m *Machine, config *admissionConfig) (bool, []string, utilerr
 		if providerSpec.CredentialsSecret.Name == "" {
 			errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret", "name"), "name must be provided"))
 		}
+		if providerSpec.CredentialsSecret.Name != "" && providerSpec.CredentialsSecret.Namespace != "" {
+			errs = append(errs, credentialsSecretExists(config.client, providerSpec.CredentialsSecret.Name, providerSpec.CredentialsSecret.Namespace)...)
+		}
 	}
 
 	if providerSpec.OSDisk.DiskSizeGB <= 0 || providerSpec.OSDisk.DiskSizeGB >= azureMaxDiskSizeGB {

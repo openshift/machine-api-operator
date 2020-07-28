@@ -76,13 +76,21 @@ func TestMachineCreation(t *testing.T) {
 			Namespace: namespace.Name,
 		},
 	}
+	azureSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultAzureCredentialsSecret,
+			Namespace: defaultSecretNamespace,
+		},
+	}
 	g.Expect(c.Create(ctx, awsSecret)).To(Succeed())
 	g.Expect(c.Create(ctx, vSphereSecret)).To(Succeed())
 	g.Expect(c.Create(ctx, GCPSecret)).To(Succeed())
+	g.Expect(c.Create(ctx, azureSecret)).To(Succeed())
 	defer func() {
 		g.Expect(c.Delete(ctx, awsSecret)).To(Succeed())
 		g.Expect(c.Delete(ctx, vSphereSecret)).To(Succeed())
 		g.Expect(c.Delete(ctx, GCPSecret)).To(Succeed())
+		g.Expect(c.Delete(ctx, azureSecret)).To(Succeed())
 	}()
 
 	testCases := []struct {
@@ -474,13 +482,21 @@ func TestMachineUpdate(t *testing.T) {
 			Namespace: namespace.Name,
 		},
 	}
+	azureSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultAzureCredentialsSecret,
+			Namespace: defaultSecretNamespace,
+		},
+	}
 	g.Expect(c.Create(ctx, awsSecret)).To(Succeed())
 	g.Expect(c.Create(ctx, vSphereSecret)).To(Succeed())
 	g.Expect(c.Create(ctx, GCPSecret)).To(Succeed())
+	g.Expect(c.Create(ctx, azureSecret)).To(Succeed())
 	defer func() {
 		g.Expect(c.Delete(ctx, awsSecret)).To(Succeed())
 		g.Expect(c.Delete(ctx, vSphereSecret)).To(Succeed())
 		g.Expect(c.Delete(ctx, GCPSecret)).To(Succeed())
+		g.Expect(c.Delete(ctx, azureSecret)).To(Succeed())
 	}()
 
 	testCases := []struct {
@@ -1086,6 +1102,11 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 }
 
 func TestValidateAzureProviderSpec(t *testing.T) {
+	namespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "azure-validation-test",
+		},
+	}
 
 	testCases := []struct {
 		testCase            string
@@ -1240,7 +1261,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 			testCase: "with no credentials secret name it fails",
 			modifySpec: func(p *azure.AzureMachineProviderSpec) {
 				p.CredentialsSecret = &corev1.SecretReference{
-					Namespace: "namespace",
+					Namespace: namespace.Name,
 				}
 			},
 			expectedOk:    false,
@@ -1289,7 +1310,13 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
-			c := fake.NewFakeClientWithScheme(scheme.Scheme)
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "name",
+					Namespace: namespace.Name,
+				},
+			}
+			c := fake.NewFakeClientWithScheme(scheme.Scheme, secret)
 			infra := plainInfra.DeepCopy()
 			infra.Status.InfrastructureName = "clusterID"
 			infra.Status.PlatformStatus.Type = osconfigv1.AzurePlatformType
@@ -1308,7 +1335,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 				},
 				CredentialsSecret: &corev1.SecretReference{
 					Name:      "name",
-					Namespace: "namespace",
+					Namespace: namespace.Name,
 				},
 				OSDisk: azure.OSDisk{
 					DiskSizeGB: 1,
@@ -1318,7 +1345,11 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 				tc.modifySpec(providerSpec)
 			}
 
-			m := &Machine{}
+			m := &Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: namespace.Name,
+				},
+			}
 			rawBytes, err := json.Marshal(providerSpec)
 			if err != nil {
 				t.Fatal(err)

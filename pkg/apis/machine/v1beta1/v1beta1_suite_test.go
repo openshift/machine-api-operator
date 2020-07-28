@@ -26,6 +26,8 @@ import (
 	"testing"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
+
 	fuzz "github.com/google/gofuzz"
 	osconfigv1 "github.com/openshift/api/config/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -78,6 +80,17 @@ func TestMain(m *testing.M) {
 	}
 
 	if c, err = client.New(cfg, client.Options{Scheme: scheme.Scheme}); err != nil {
+		log.Fatal(err)
+	}
+
+	// Azure credentialsSecret is a secretRef defaulting to defaultSecretNamespace instead of a localObjectRef.
+	// This is so the tests can assume this namespace exists.
+	namespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: defaultSecretNamespace,
+		},
+	}
+	if err = c.Create(ctx, namespace); err != nil {
 		log.Fatal(err)
 	}
 
