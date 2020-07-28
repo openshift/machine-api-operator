@@ -2,8 +2,8 @@ package operator
 
 import (
 	"context"
-	"math/rand"
-	"time"
+	"crypto/rand"
+	"math/big"
 
 	"github.com/golang/glog"
 	appsv1 "k8s.io/api/apps/v1"
@@ -65,25 +65,33 @@ func setMariadbPassword() corev1.EnvVar {
 	}
 }
 
-func generateRandomPassword() string {
-	rand.Seed(time.Now().UnixNano())
+func generateRandomPassword() (string, error) {
 	chars := []rune("ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
 		"abcdefghijklmnopqrstuvwxyz" +
 		"0123456789")
 	length := 16
 	buf := make([]rune, length)
+	numChars := big.NewInt(int64(len(chars)))
 	for i := range buf {
-		buf[i] = chars[rand.Intn(len(chars))]
+		c, err := rand.Int(rand.Reader, numChars)
+		if err != nil {
+			return "", err
+		}
+		buf[i] = chars[c.Uint64()]
 	}
-	return (string(buf))
+	return string(buf), nil
 }
 
 func createMariadbPasswordSecret(client coreclientv1.SecretsGetter, config *OperatorConfig) error {
-	glog.V(3).Info("Checking if the Maridb password secret already exists")
+	glog.V(3).Info("Checking if the MariaDB password secret already exists")
 	_, err := client.Secrets(config.TargetNamespace).Get(context.Background(), baremetalSecretName, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
 		// Secret does not already exist. So, create one.
-		_, err := client.Secrets(config.TargetNamespace).Create(
+		password, err := generateRandomPassword()
+		if err != nil {
+			return err
+		}
+		_, err = client.Secrets(config.TargetNamespace).Create(
 			context.Background(),
 			&corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
@@ -91,7 +99,7 @@ func createMariadbPasswordSecret(client coreclientv1.SecretsGetter, config *Oper
 					Namespace: config.TargetNamespace,
 				},
 				StringData: map[string]string{
-					baremetalSecretKey: generateRandomPassword(),
+					baremetalSecretKey: password,
 				},
 			},
 			metav1.CreateOptions{},
