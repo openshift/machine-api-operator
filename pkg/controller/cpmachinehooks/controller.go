@@ -162,6 +162,8 @@ func (r *ReconcileMachine) Reconcile(request reconcile.Request) (reconcile.Resul
 	// There's a potential race condition here, especially if the
 	// machineset controller is not running for some reason.
 	if ms.Status.Replicas == ms.Status.AvailableReplicas {
+		// TODO: check etcd operator status and verify this node is not part of
+		// quorum.
 		// Remove pre-drain hook
 		delete(annotations, cpPreDrainHookKey)
 		m.ObjectMeta.SetAnnotations(annotations)
