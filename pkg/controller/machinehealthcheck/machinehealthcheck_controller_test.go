@@ -230,7 +230,7 @@ func TestReconcile(t *testing.T) {
 
 	machineHealthCheck := maotesting.NewMachineHealthCheck("machineHealthCheck")
 	nodeStartupTimeout := 15 * time.Minute
-	machineHealthCheck.Spec.NodeStartupTimeout = nodeStartupTimeout.String()
+	machineHealthCheck.Spec.NodeStartupTimeout = metav1.Duration{Duration: nodeStartupTimeout}
 
 	// remediationExternal
 	nodeUnhealthyForTooLong := maotesting.NewNode("nodeUnhealthyForTooLong", false)
@@ -1382,12 +1382,12 @@ func TestNeedsRemediation(t *testing.T) {
 							{
 								Type:    "Ready",
 								Status:  "Unknown",
-								Timeout: "300s",
+								Timeout: metav1.Duration{Duration: 300 * time.Second},
 							},
 							{
 								Type:    "Ready",
 								Status:  "False",
-								Timeout: "300s",
+								Timeout: metav1.Duration{Duration: 300 * time.Second},
 							},
 						},
 					},
@@ -1422,12 +1422,12 @@ func TestNeedsRemediation(t *testing.T) {
 							{
 								Type:    "Ready",
 								Status:  "Unknown",
-								Timeout: "300s",
+								Timeout: metav1.Duration{Duration: 300 * time.Second},
 							},
 							{
 								Type:    "Ready",
 								Status:  "False",
-								Timeout: "300s",
+								Timeout: metav1.Duration{Duration: 300 * time.Second},
 							},
 						},
 					},
@@ -1475,12 +1475,12 @@ func TestNeedsRemediation(t *testing.T) {
 							{
 								Type:    "Ready",
 								Status:  "Unknown",
-								Timeout: "300s",
+								Timeout: metav1.Duration{Duration: 300 * time.Second},
 							},
 							{
 								Type:    "Ready",
 								Status:  "False",
-								Timeout: "300s",
+								Timeout: metav1.Duration{Duration: 300 * time.Second},
 							},
 						},
 					},
@@ -1550,12 +1550,12 @@ func TestNeedsRemediation(t *testing.T) {
 							{
 								Type:    "Ready",
 								Status:  "Unknown",
-								Timeout: "300s",
+								Timeout: metav1.Duration{Duration: 300 * time.Second},
 							},
 							{
 								Type:    "Ready",
 								Status:  "False",
-								Timeout: "300s",
+								Timeout: metav1.Duration{Duration: 300 * time.Second},
 							},
 						},
 					},
@@ -1603,12 +1603,12 @@ func TestNeedsRemediation(t *testing.T) {
 							{
 								Type:    "Ready",
 								Status:  "Unknown",
-								Timeout: "300s",
+								Timeout: metav1.Duration{Duration: 300 * time.Second},
 							},
 							{
 								Type:    "Ready",
 								Status:  "False",
-								Timeout: "300s",
+								Timeout: metav1.Duration{Duration: 300 * time.Second},
 							},
 						},
 					},
@@ -1678,12 +1678,12 @@ func TestNeedsRemediation(t *testing.T) {
 							{
 								Type:    "Ready",
 								Status:  "Unknown",
-								Timeout: "300s",
+								Timeout: metav1.Duration{Duration: 300 * time.Second},
 							},
 							{
 								Type:    "Ready",
 								Status:  "False",
-								Timeout: "300s",
+								Timeout: metav1.Duration{Duration: 300 * time.Second},
 							},
 						},
 					},
@@ -1694,81 +1694,6 @@ func TestNeedsRemediation(t *testing.T) {
 			expectedNeedsRemediation:    false,
 			expectedNextCheck:           time.Duration(1 * time.Minute), // 300-200 rounded
 			expectedError:               false,
-		},
-		{
-			testCase: "error bad conditions timeout",
-			target: &target{
-				Machine: mapiv1beta1.Machine{
-					TypeMeta: metav1.TypeMeta{Kind: "Machine"},
-					ObjectMeta: metav1.ObjectMeta{
-						Annotations:     make(map[string]string),
-						Name:            "machine",
-						Namespace:       namespace,
-						Labels:          map[string]string{"foo": "bar"},
-						OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
-					},
-					Spec: mapiv1beta1.MachineSpec{},
-					Status: mapiv1beta1.MachineStatus{
-						LastUpdated: &metav1.Time{Time: time.Now().Add(time.Duration(-defaultNodeStartupTimeout) - 1*time.Second)},
-					},
-				},
-				Node: &corev1.Node{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "node",
-						Namespace: metav1.NamespaceNone,
-						Annotations: map[string]string{
-							machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "machine"),
-						},
-						Labels: map[string]string{},
-						UID:    "uid",
-					},
-					TypeMeta: metav1.TypeMeta{
-						Kind: "Node",
-					},
-					Status: corev1.NodeStatus{
-						Conditions: []corev1.NodeCondition{
-							{
-								Type:               corev1.NodeReady,
-								Status:             corev1.ConditionFalse,
-								LastTransitionTime: metav1.Time{Time: time.Now().Add(time.Duration(-200) * time.Second)},
-							},
-						},
-					},
-				},
-				MHC: mapiv1beta1.MachineHealthCheck{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test",
-						Namespace: namespace,
-					},
-					TypeMeta: metav1.TypeMeta{
-						Kind: "MachineHealthCheck",
-					},
-					Spec: mapiv1beta1.MachineHealthCheckSpec{
-						Selector: metav1.LabelSelector{
-							MatchLabels: map[string]string{
-								"foo": "bar",
-							},
-						},
-						UnhealthyConditions: []mapiv1beta1.UnhealthyCondition{
-							{
-								Type:    "Ready",
-								Status:  "Unknown",
-								Timeout: "badTimeout",
-							},
-							{
-								Type:    "Ready",
-								Status:  "False",
-								Timeout: "300s",
-							},
-						},
-					},
-					Status: mapiv1beta1.MachineHealthCheckStatus{},
-				},
-			},
-			timeoutForMachineToHaveNode: defaultNodeStartupTimeout,
-			expectedNeedsRemediation:    false,
-			expectedNextCheck:           time.Duration(0),
-			expectedError:               true,
 		},
 	}
 
@@ -2127,12 +2052,12 @@ func TestHealthCheckTargets(t *testing.T) {
 								{
 									Type:    "Ready",
 									Status:  "Unknown",
-									Timeout: "300s",
+									Timeout: metav1.Duration{Duration: 300 * time.Second},
 								},
 								{
 									Type:    "Ready",
 									Status:  "False",
-									Timeout: "300s",
+									Timeout: metav1.Duration{Duration: 300 * time.Second},
 								},
 							},
 						},
@@ -2193,12 +2118,12 @@ func TestHealthCheckTargets(t *testing.T) {
 								{
 									Type:    "Ready",
 									Status:  "Unknown",
-									Timeout: "300s",
+									Timeout: metav1.Duration{Duration: 300 * time.Second},
 								},
 								{
 									Type:    "Ready",
 									Status:  "False",
-									Timeout: "300s",
+									Timeout: metav1.Duration{Duration: 300 * time.Second},
 								},
 							},
 						},
@@ -2263,12 +2188,12 @@ func TestHealthCheckTargets(t *testing.T) {
 								{
 									Type:    "Ready",
 									Status:  "Unknown",
-									Timeout: "300s",
+									Timeout: metav1.Duration{Duration: 300 * time.Second},
 								},
 								{
 									Type:    "Ready",
 									Status:  "False",
-									Timeout: "300s",
+									Timeout: metav1.Duration{Duration: 300 * time.Second},
 								},
 							},
 						},
@@ -2316,12 +2241,12 @@ func TestHealthCheckTargets(t *testing.T) {
 								{
 									Type:    "Ready",
 									Status:  "Unknown",
-									Timeout: "300s",
+									Timeout: metav1.Duration{Duration: 300 * time.Second},
 								},
 								{
 									Type:    "Ready",
 									Status:  "False",
-									Timeout: "300s",
+									Timeout: metav1.Duration{Duration: 300 * time.Second},
 								},
 							},
 						},
@@ -2382,12 +2307,12 @@ func TestHealthCheckTargets(t *testing.T) {
 								{
 									Type:    "Ready",
 									Status:  "Unknown",
-									Timeout: "300s",
+									Timeout: metav1.Duration{Duration: 300 * time.Second},
 								},
 								{
 									Type:    "Ready",
 									Status:  "False",
-									Timeout: "300s",
+									Timeout: metav1.Duration{Duration: 300 * time.Second},
 								},
 							},
 						},
@@ -2608,52 +2533,6 @@ func TestIsAllowedRemediation(t *testing.T) {
 		t.Run(tc.testCase, func(t *testing.T) {
 			if got := isAllowedRemediation(tc.mhc); got != tc.expected {
 				t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, got, tc.expected)
-			}
-		})
-	}
-}
-
-func TestGetNodeStartupTimeout(t *testing.T) {
-	testCases := []struct {
-		name            string
-		timeout         string
-		expectError     bool
-		expectedTimeout time.Duration
-	}{
-		{
-			name:            "when the timeout is not set",
-			timeout:         "",
-			expectError:     false,
-			expectedTimeout: defaultNodeStartupTimeout,
-		},
-		{
-			name:            "when the timeout is not parsable",
-			timeout:         "a",
-			expectError:     true,
-			expectedTimeout: time.Duration(0),
-		},
-		{
-			name:            "when the timeout is  parsable",
-			timeout:         "10s",
-			expectError:     false,
-			expectedTimeout: 10 * time.Second,
-		},
-	}
-
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			mhc := &mapiv1beta1.MachineHealthCheck{
-				Spec: mapiv1beta1.MachineHealthCheckSpec{
-					NodeStartupTimeout: tc.timeout,
-				},
-			}
-
-			timeout, err := getNodeStartupTimeout(mhc)
-			if tc.expectError != (err != nil) {
-				t.Errorf("Case: %s. Got: %v, expected: %v", tc.name, err, tc.expectError)
-			}
-			if timeout != tc.expectedTimeout {
-				t.Errorf("Case: %s. Got: %v, expected: %v", tc.name, timeout.String(), tc.expectedTimeout.String())
 			}
 		})
 	}

@@ -57,12 +57,23 @@ spec:
                 anyOf:
                 - type: integer
                 - type: string
+                default: 100%
                 description: Any farther remediation is only allowed if at most "MaxUnhealthy"
-                  machines selected by "selector" are not healthy.
+                  machines selected by "selector" are not healthy. Expects either
+                  a postive integer value or a percentage value. Percentage values
+                  must be positive whole numbers and are capped at 100%. Both 0 and
+                  0% are valid and will block all remediation.
+                pattern: ^((100|[0-9]{1,2})%|[0-9]+)$
+                type: string
                 x-kubernetes-int-or-string: true
               nodeStartupTimeout:
+                default: 10m
                 description: Machines older than this duration without a node will
-                  be considered to have failed and will be remediated.
+                  be considered to have failed and will be remediated. Expects an
+                  unsigned duration string of decimal numbers each with optional fraction
+                  and a unit suffix, eg "300ms", "1.5h" or "2h45m". Valid time units
+                  are "ns", "us" (or "µs"), "ms", "s", "m", "h".
+                pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h)*)+$
                 type: string
               selector:
                 description: 'Label selector to match machines whose health will be
@@ -124,7 +135,11 @@ spec:
                       minLength: 1
                       type: string
                     timeout:
-                      minLength: 1
+                      description: Expects an unsigned duration string of decimal
+                        numbers each with optional fraction and a unit suffix, eg
+                        "300ms", "1.5h" or "2h45m". Valid time units are "ns", "us"
+                        (or "µs"), "ms", "s", "m", "h".
+                      pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h)*)+$
                       type: string
                     type:
                       minLength: 1

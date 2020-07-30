@@ -18,7 +18,7 @@ dir=$(mktemp -d -t XXXXXXXX)
 echo $dir
 mkdir -p $dir/src/github.com/openshift/machine-api-operator/pkg/apis
 
-cp -r pkg/apis/machine $dir/src/github.com/openshift/machine-api-operator/pkg/apis
+cp -r pkg/apis/* $dir/src/github.com/openshift/machine-api-operator/pkg/apis
 # Some dependencies need to be copied as well. Othwerwise, controller-gen will complain about non-existing kind Unsupported
 cp -r vendor $dir/src/github.com/openshift/machine-api-operator/
 cp go.mod go.sum $dir/src/github.com/openshift/machine-api-operator/
@@ -27,7 +27,7 @@ cwd=$(pwd)
 pushd $dir/src/github.com/openshift/machine-api-operator
 GOPATH=$dir ${cwd}/bin/controller-gen crd \
     crd:crdVersions=v1 \
-    paths=$dir/src/github.com/openshift/machine-api-operator/pkg/apis/... \
+    paths=$dir/src/github.com/openshift/machine-api-operator/pkg/apis/machine/... \
     output:crd:dir=$dir/src/github.com/openshift/machine-api-operator/config/crds/
 
 #${cwd}/bin/controller-gen crd paths=$dir/src/github.com/openshift/machine-api-operator/pkg/apis/... output:crd:dir=$dir/src/github.com/openshift/machine-api-operator/config/crds/
