@@ -124,7 +124,7 @@ func (h *machineSetDefaulterHandler) defaultMachineSet(ms *MachineSet) (bool, ut
 	if ok, err := h.webhookOperations(m, h.clusterID); !ok {
 		errs = append(errs, err.Errors()...)
 	} else {
-		// Restore the defaulted template
+		// Update the template to the defaulted one.
 		ms.Spec.Template.Spec = m.Spec
 	}
 
