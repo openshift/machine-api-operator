@@ -67,9 +67,6 @@ var (
 	defaultGCPSubnetwork = func(clusterID string) string {
 		return fmt.Sprintf("%s-worker-subnet", clusterID)
 	}
-	defaultGCPDiskImage = func(clusterID string) string {
-		return fmt.Sprintf("%s-rhcos-image", clusterID)
-	}
 	defaultGCPTags = func(clusterID string) []string {
 		return []string{fmt.Sprintf("%s-worker", clusterID)}
 	}
@@ -113,6 +110,10 @@ const (
 	defaultGCPCredentialsSecret = "gcp-cloud-credentials"
 	defaultGCPDiskSizeGb        = 128
 	defaultGCPDiskType          = "pd-standard"
+	// https://releases-art-rhcos.svc.ci.openshift.org/art/storage/releases/rhcos-4.6/46.82.202007212240-0/x86_64/meta.json
+	// https://github.com/openshift/installer/pull/3808
+	// https://github.com/openshift/installer/blob/d75bf7ad98124b901ae7e22b5595e0392ed6ea3c/data/data/rhcos.json
+	defaultGCPDiskImage = "projects/rhcos-cloud/global/images/rhcos-46-82-202007212240-0-gcp-x86-64"
 
 	// vSphere Defaults
 	defaultVSphereCredentialsSecret = "vsphere-cloud-credentials"
@@ -892,7 +893,7 @@ func defaultGCPDisks(disks []*gcp.GCPDisk, clusterID string) []*gcp.GCPDisk {
 				Boot:       true,
 				SizeGb:     defaultGCPDiskSizeGb,
 				Type:       defaultGCPDiskType,
-				Image:      defaultGCPDiskImage(clusterID),
+				Image:      defaultGCPDiskImage,
 			},
 		}
 	}
@@ -903,7 +904,7 @@ func defaultGCPDisks(disks []*gcp.GCPDisk, clusterID string) []*gcp.GCPDisk {
 		}
 
 		if disk.Image == "" {
-			disk.Image = defaultGCPDiskImage(clusterID)
+			disk.Image = defaultGCPDiskImage
 		}
 	}
 

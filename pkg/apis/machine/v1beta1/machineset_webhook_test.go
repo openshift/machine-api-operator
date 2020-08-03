@@ -377,7 +377,7 @@ func TestMachineSetUpdate(t *testing.T) {
 				Boot:       true,
 				SizeGb:     defaultGCPDiskSizeGb,
 				Type:       defaultGCPDiskType,
-				Image:      defaultGCPDiskImage(gcpClusterID),
+				Image:      defaultGCPDiskImage,
 			},
 		},
 		ServiceAccounts: defaultGCPServiceAccounts(gcpClusterID, gcpProjectID),
