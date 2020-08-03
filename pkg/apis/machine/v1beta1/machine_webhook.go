@@ -95,7 +95,7 @@ const (
 	defaultWebhookServiceName       = "machine-api-operator-webhook"
 	defaultWebhookServiceNamespace  = "openshift-machine-api"
 
-	defaultUserDataSecret  = "worker-user-data"
+	defaultUserDataSecret  = "worker-user-data-managed"
 	defaultSecretNamespace = "openshift-machine-api"
 
 	// AWS Defaults
