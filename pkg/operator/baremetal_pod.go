@@ -39,7 +39,7 @@ const (
 	htpasswdEnvVar             = "HTTP_BASIC_HTPASSWD"
 )
 
-var volumes = []corev1.Volume{
+var defaultBaremetalVolumes = []corev1.Volume{
 	{
 		Name: baremetalSharedVolume,
 		VolumeSource: corev1.VolumeSource{
@@ -319,6 +319,13 @@ func newMetal3PodTemplateSpec(config *OperatorConfig, baremetalProvisioningConfi
 		},
 	}
 
+	volumes := []corev1.Volume{}
+	volumes = append(volumes, defaultBaremetalVolumes...)
+	// Include the volumes needed by newKubeProxyContainer from
+	// sync.go, used to set up the proxy container for metric
+	// collection.
+	volumes = append(volumes, newRBACConfigVolumes()...)
+
 	return &corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
 			Labels: map[string]string{
@@ -399,12 +406,6 @@ func createContainerMetal3BareMetalOperator(config *OperatorConfig, baremetalPro
 	return corev1.Container{
 		Name:  "metal3-baremetal-operator",
 		Image: config.BaremetalControllers.BaremetalOperator,
-		Ports: []corev1.ContainerPort{
-			{
-				Name:          "metrics",
-				ContainerPort: metal3ExposeMetricsPort,
-			},
-		},
 		Command: []string{"/baremetal-operator",
 			"-metrics-addr", metrics.DefaultMetal3MetricsAddress},
 		ImagePullPolicy: "IfNotPresent",
@@ -447,6 +448,8 @@ func createContainerMetal3BareMetalOperator(config *OperatorConfig, baremetalPro
 
 func newMetal3Containers(config *OperatorConfig, baremetalProvisioningConfig BaremetalProvisioningConfig) []corev1.Container {
 	containers := []corev1.Container{
+		newKubeProxyContainer(config.Controllers.KubeRBACProxy, "metrics",
+			metrics.DefaultMetal3MetricsAddress, metal3ExposeMetricsPort),
 		createContainerMetal3BareMetalOperator(config, baremetalProvisioningConfig),
 		createContainerMetal3Mariadb(config),
 		createContainerMetal3Httpd(config, baremetalProvisioningConfig),
