@@ -97,10 +97,9 @@ func buildEnvVar(name string, baremetalProvisioningConfig BaremetalProvisioningC
 			Name:  name,
 			Value: *value,
 		}
-	} else {
-		return corev1.EnvVar{
-			Name: name,
-		}
+	}
+	return corev1.EnvVar{
+		Name: name,
 	}
 }
 
@@ -395,65 +394,69 @@ func createInitContainerStaticIpSet(config *OperatorConfig, baremetalProvisionin
 	return initContainer
 }
 
-func newMetal3Containers(config *OperatorConfig, baremetalProvisioningConfig BaremetalProvisioningConfig) []corev1.Container {
-	//Starting off with the metal3-baremetal-operator container
-	containers := []corev1.Container{
-		{
-			Name:  "metal3-baremetal-operator",
-			Image: config.BaremetalControllers.BaremetalOperator,
-			Ports: []corev1.ContainerPort{
-				{
-					Name:          "metrics",
-					ContainerPort: 60000,
-				},
-			},
-			Command:         []string{"/baremetal-operator"},
-			ImagePullPolicy: "IfNotPresent",
-			VolumeMounts: []corev1.VolumeMount{
-				ironicCredentialsMount,
-				inspectorCredentialsMount,
-			},
-			Env: []corev1.EnvVar{
-				{
-					Name: "WATCH_NAMESPACE",
-					ValueFrom: &corev1.EnvVarSource{
-						FieldRef: &corev1.ObjectFieldSelector{
-							FieldPath: "metadata.namespace",
-						},
-					},
-				},
-				{
-					Name: "POD_NAME",
-					ValueFrom: &corev1.EnvVarSource{
-						FieldRef: &corev1.ObjectFieldSelector{
-							FieldPath: "metadata.name",
-						},
-					},
-				},
-				{
-					Name:  "OPERATOR_NAME",
-					Value: "baremetal-operator",
-				},
-				buildEnvVar("DEPLOY_KERNEL_URL", baremetalProvisioningConfig),
-				buildEnvVar("DEPLOY_RAMDISK_URL", baremetalProvisioningConfig),
-				buildEnvVar("IRONIC_ENDPOINT", baremetalProvisioningConfig),
-				buildEnvVar("IRONIC_INSPECTOR_ENDPOINT", baremetalProvisioningConfig),
-				{
-					Name:  "METAL3_AUTH_ROOT_DIR",
-					Value: metal3AuthRootDir,
-				},
+func createContainerMetal3BareMetalOperator(config *OperatorConfig, baremetalProvisioningConfig BaremetalProvisioningConfig) corev1.Container {
+	return corev1.Container{
+		Name:  "metal3-baremetal-operator",
+		Image: config.BaremetalControllers.BaremetalOperator,
+		Ports: []corev1.ContainerPort{
+			{
+				Name:          "metrics",
+				ContainerPort: 60000,
 			},
 		},
+		Command:         []string{"/baremetal-operator"},
+		ImagePullPolicy: "IfNotPresent",
+		VolumeMounts: []corev1.VolumeMount{
+			ironicCredentialsMount,
+			inspectorCredentialsMount,
+		},
+		Env: []corev1.EnvVar{
+			{
+				Name: "WATCH_NAMESPACE",
+				ValueFrom: &corev1.EnvVarSource{
+					FieldRef: &corev1.ObjectFieldSelector{
+						FieldPath: "metadata.namespace",
+					},
+				},
+			},
+			{
+				Name: "POD_NAME",
+				ValueFrom: &corev1.EnvVarSource{
+					FieldRef: &corev1.ObjectFieldSelector{
+						FieldPath: "metadata.name",
+					},
+				},
+			},
+			{
+				Name:  "OPERATOR_NAME",
+				Value: "baremetal-operator",
+			},
+			buildEnvVar("DEPLOY_KERNEL_URL", baremetalProvisioningConfig),
+			buildEnvVar("DEPLOY_RAMDISK_URL", baremetalProvisioningConfig),
+			buildEnvVar("IRONIC_ENDPOINT", baremetalProvisioningConfig),
+			buildEnvVar("IRONIC_INSPECTOR_ENDPOINT", baremetalProvisioningConfig),
+			{
+				Name:  "METAL3_AUTH_ROOT_DIR",
+				Value: metal3AuthRootDir,
+			},
+		},
+	}
+}
+
+func newMetal3Containers(config *OperatorConfig, baremetalProvisioningConfig BaremetalProvisioningConfig) []corev1.Container {
+	containers := []corev1.Container{
+		createContainerMetal3BareMetalOperator(config, baremetalProvisioningConfig),
+		createContainerMetal3Mariadb(config),
+		createContainerMetal3Httpd(config, baremetalProvisioningConfig),
+		createContainerMetal3IronicConductor(config, baremetalProvisioningConfig),
+		createContainerMetal3IronicApi(config, baremetalProvisioningConfig),
+		createContainerMetal3IronicInspector(config, baremetalProvisioningConfig),
+		createContainerMetal3StaticIpManager(config, baremetalProvisioningConfig),
 	}
 	if baremetalProvisioningConfig.ProvisioningNetwork != provisioningNetworkDisabled {
 		containers = append(containers, createContainerMetal3Dnsmasq(config, baremetalProvisioningConfig))
 	}
-	containers = append(containers, createContainerMetal3Mariadb(config))
-	containers = append(containers, createContainerMetal3Httpd(config, baremetalProvisioningConfig))
-	containers = append(containers, createContainerMetal3IronicConductor(config, baremetalProvisioningConfig))
-	containers = append(containers, createContainerMetal3IronicApi(config, baremetalProvisioningConfig))
-	containers = append(containers, createContainerMetal3IronicInspector(config, baremetalProvisioningConfig))
-	containers = append(containers, createContainerMetal3StaticIpManager(config, baremetalProvisioningConfig))
+
 	return containers
 }
 
