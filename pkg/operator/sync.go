@@ -449,6 +449,45 @@ func newDeployment(config *OperatorConfig, features map[string]bool) *appsv1.Dep
 	}
 }
 
+// List of the volumes needed by newKubeProxyContainer
+func newRBACConfigVolumes() []corev1.Volume {
+	var readOnly int32 = 420
+	return []corev1.Volume{
+		{
+			Name: kubeRBACConfigName,
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: "kube-rbac-proxy",
+					},
+					DefaultMode: pointer.Int32Ptr(readOnly),
+				},
+			},
+		},
+		{
+			Name: certStoreName,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName:  "machine-api-controllers-tls",
+					DefaultMode: pointer.Int32Ptr(readOnly),
+				},
+			},
+		},
+		{
+			Name: "trusted-ca",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					Items: []corev1.KeyToPath{{Key: "ca-bundle.crt", Path: "tls-ca-bundle.pem"}},
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: externalTrustBundleConfigMapName,
+					},
+					Optional: pointer.BoolPtr(true),
+				},
+			},
+		},
+	}
+}
+
 func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev1.PodTemplateSpec {
 	containers := newContainers(config, features)
 	proxyContainers := newKubeProxyContainers(config.Controllers.KubeRBACProxy)
@@ -478,26 +517,6 @@ func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev
 	var readOnly int32 = 420
 	volumes := []corev1.Volume{
 		{
-			Name: kubeRBACConfigName,
-			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: "kube-rbac-proxy",
-					},
-					DefaultMode: pointer.Int32Ptr(readOnly),
-				},
-			},
-		},
-		{
-			Name: certStoreName,
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName:  "machine-api-controllers-tls",
-					DefaultMode: pointer.Int32Ptr(readOnly),
-				},
-			},
-		},
-		{
 			Name: "cert",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
@@ -516,19 +535,8 @@ func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev
 				},
 			},
 		},
-		{
-			Name: "trusted-ca",
-			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					Items: []corev1.KeyToPath{{Key: "ca-bundle.crt", Path: "tls-ca-bundle.pem"}},
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: externalTrustBundleConfigMapName,
-					},
-					Optional: pointer.BoolPtr(true),
-				},
-			},
-		},
 	}
+	volumes = append(volumes, newRBACConfigVolumes()...)
 
 	return &corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
