@@ -36,6 +36,7 @@ const (
 	machineExposeMetricsPort            = 8441
 	machineSetExposeMetricsPort         = 8442
 	machineHealthCheckExposeMetricsPort = 8444
+	metal3ExposeMetricsPort             = 8445
 	defaultMachineHealthPort            = 9440
 	defaultMachineSetHealthPort         = 9441
 	defaultMachineHealthCheckHealthPort = 9442
