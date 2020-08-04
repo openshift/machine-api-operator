@@ -9,6 +9,7 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
+	"github.com/openshift/machine-api-operator/pkg/metrics"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -401,10 +402,11 @@ func createContainerMetal3BareMetalOperator(config *OperatorConfig, baremetalPro
 		Ports: []corev1.ContainerPort{
 			{
 				Name:          "metrics",
-				ContainerPort: 60000,
+				ContainerPort: metal3ExposeMetricsPort,
 			},
 		},
-		Command:         []string{"/baremetal-operator"},
+		Command: []string{"/baremetal-operator",
+			"-metrics-addr", metrics.DefaultMetal3MetricsAddress},
 		ImagePullPolicy: "IfNotPresent",
 		VolumeMounts: []corev1.VolumeMount{
 			ironicCredentialsMount,
