@@ -14,6 +14,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	appsclientv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	coreclientv1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/klog/v2"
@@ -262,6 +263,44 @@ func checkForBaremetalClusterOperator(osClient osclientset.Interface) (bool, err
 		return false, err
 	}
 	return true, nil
+}
+
+// we define this service in code instead of a yaml manifest because
+// we only want it to exist when metal3 is deployed
+func newMetal3Service(config *OperatorConfig, baremetalProvisioningConfig BaremetalProvisioningConfig) *corev1.Service {
+	return &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "metal3-metrics",
+			Namespace: config.TargetNamespace,
+			Annotations: map[string]string{
+				maoOwnedAnnotation: "",
+				// copied from settings for machine-api-controllers
+				// service in
+				// 0000_30_machine-api-operator_10_service.yaml
+				"service.alpha.openshift.io/serving-cert-secret-name":    certStoreName,
+				"exclude.release.openshift.io/internal-openshift-hosted": "true",
+			},
+			Labels: map[string]string{
+				"k8s-app": "controller",
+			},
+		},
+		Spec: corev1.ServiceSpec{
+			Type: corev1.ServiceTypeNodePort,
+			Ports: []corev1.ServicePort{
+				{
+					Name: "metrics",
+					Port: metal3ExposeMetricsPort,
+					TargetPort: intstr.IntOrString{
+						Type:   intstr.String,
+						StrVal: "metrics",
+					},
+				},
+			},
+			Selector: map[string]string{
+				"k8s-app": "controller",
+			},
+		},
+	}
 }
 
 func newMetal3Deployment(config *OperatorConfig, baremetalProvisioningConfig BaremetalProvisioningConfig) *appsv1.Deployment {
