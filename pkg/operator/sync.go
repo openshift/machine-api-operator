@@ -468,7 +468,7 @@ func newRBACConfigVolumes() []corev1.Volume {
 			Name: certStoreName,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
-					SecretName:  "machine-api-controllers-tls",
+					SecretName:  certStoreName,
 					DefaultMode: pointer.Int32Ptr(readOnly),
 				},
 			},
