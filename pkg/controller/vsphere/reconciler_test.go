@@ -795,21 +795,34 @@ func TestReconcileTags(t *testing.T) {
 	testCases := []struct {
 		name          string
 		expectedError bool
+		attachTag     bool
+		testCondition func()
 	}{
 		{
-			name:          "Fail when tag doesn't exist",
-			expectedError: true,
+			name:          "Don't fail when tag doesn't exist",
+			expectedError: false,
 		},
 		{
 			name:          "Successfully attach a tag",
 			expectedError: false,
+			attachTag:     true,
+			testCondition: func() {
+				createTagAndCategory(session, "CLUSTERID_CATEGORY", tagName)
+			},
+		},
+		{
+			name:          "Fail on vSphere API error",
+			expectedError: false,
+			testCondition: func() {
+				session.Logout(context.Background())
+			},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			if !tc.expectedError {
-				createTagAndCategory(session, "CLUSTERID_CATEGORY", tagName)
+			if tc.testCondition != nil {
+				tc.testCondition()
 			}
 
 			err := vm.reconcileTags(context.TODO(), session, &machinev1.Machine{
@@ -827,21 +840,24 @@ func TestReconcileTags(t *testing.T) {
 				if err != nil {
 					t.Fatalf("Not expected error %v", err)
 				}
-				if err := session.WithRestClient(context.TODO(), func(c *rest.Client) error {
-					tagsMgr := tags.NewManager(c)
 
-					tags, err := tagsMgr.GetAttachedTags(context.TODO(), managedObjRef)
-					if err != nil {
-						return err
+				if tc.attachTag {
+					if err := session.WithRestClient(context.TODO(), func(c *rest.Client) error {
+						tagsMgr := tags.NewManager(c)
+
+						tags, err := tagsMgr.GetAttachedTags(context.TODO(), managedObjRef)
+						if err != nil {
+							return err
+						}
+
+						if tags[0].Name != tagName {
+							t.Fatalf("Expected tag %s, got %s", tagName, tags[0].Name)
+						}
+
+						return nil
+					}); err != nil {
+						t.Fatal(err)
 					}
-
-					if tags[0].Name != tagName {
-						t.Fatalf("Expected tag %s, got %s", tagName, tags[0].Name)
-					}
-
-					return nil
-				}); err != nil {
-					t.Fatal(err)
 				}
 			}
 
@@ -864,6 +880,7 @@ func TestCheckAttachedTag(t *testing.T) {
 	}
 
 	tagName := "CLUSTERID"
+	nonAttachedTagName := "nonAttachedTag"
 
 	if err := session.WithRestClient(context.TODO(), func(c *rest.Client) error {
 		tagsMgr := tags.NewManager(c)
@@ -889,6 +906,14 @@ func TestCheckAttachedTag(t *testing.T) {
 			return err
 		}
 
+		_, err = tagsMgr.CreateTag(context.TODO(), &tags.Tag{
+			CategoryID: id,
+			Name:       nonAttachedTagName,
+		})
+		if err != nil {
+			return err
+		}
+
 		return nil
 	}); err != nil {
 		t.Fatal(err)
@@ -905,8 +930,13 @@ func TestCheckAttachedTag(t *testing.T) {
 			tagName: tagName,
 		},
 		{
-			name:    "Fail to find a tag",
+			name:    "Return true if a tag doesn't exist",
 			tagName: "non existent tag",
+			findTag: true,
+		},
+		{
+			name:    "Fail to find a tag",
+			tagName: nonAttachedTagName,
 		},
 	}
 

@@ -880,14 +880,44 @@ func (vm *virtualMachine) reconcileTags(ctx context.Context, session *session.Se
 	return nil
 }
 
-// checkAttachedTag returns true if tag is already attached to a vm
+// checkAttachedTag returns true if tag is already attached to a vm or tag doesn't exist
 func (vm *virtualMachine) checkAttachedTag(ctx context.Context, tagName string, m *tags.Manager) (bool, error) {
+	// cluster ID tag doesn't exists in UPI, we should skip tag attachment if it's not found
+	foundTag, err := vm.foundTag(ctx, tagName, m)
+	if err != nil {
+		return false, err
+	}
+
+	if !foundTag {
+		return true, nil
+	}
+
 	tags, err := m.GetAttachedTags(ctx, vm.Ref)
 	if err != nil {
 		return false, err
 	}
 
 	for _, tag := range tags {
+		if tag.Name == tagName {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
+func (vm *virtualMachine) foundTag(ctx context.Context, tagName string, m *tags.Manager) (bool, error) {
+	tags, err := m.ListTags(ctx)
+	if err != nil {
+		return false, err
+	}
+
+	for _, id := range tags {
+		tag, err := m.GetTag(ctx, id)
+		if err != nil {
+			return false, err
+		}
+
 		if tag.Name == tagName {
 			return true, nil
 		}
