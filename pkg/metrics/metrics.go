@@ -201,7 +201,7 @@ func RegisterFailedInstanceCreate(labels *MachineLabels) {
 }
 
 func RegisterFailedInstanceUpdate(labels *MachineLabels) {
-	failedInstanceCreateCount.With(prometheus.Labels{
+	failedInstanceUpdateCount.With(prometheus.Labels{
 		"name":      labels.Name,
 		"namespace": labels.Namespace,
 		"reason":    labels.Reason,
