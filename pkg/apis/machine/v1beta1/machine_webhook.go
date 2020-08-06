@@ -831,6 +831,20 @@ func defaultVSphere(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
 		providerSpec.CredentialsSecret = &corev1.LocalObjectReference{Name: defaultVSphereCredentialsSecret}
 	}
 
+	// Default values for number of cpu, memory and disk size come from installer
+	// https://github.com/openshift/installer/blob/0ceffc5c737b49ab59441e2fd02f51f997d54a53/pkg/asset/machines/worker.go#L134
+	if providerSpec.NumCPUs == 0 {
+		providerSpec.NumCPUs = minVSphereCPU
+	}
+
+	if providerSpec.MemoryMiB == 0 {
+		providerSpec.MemoryMiB = minVSphereMemoryMiB
+	}
+
+	if providerSpec.DiskGiB == 0 {
+		providerSpec.DiskGiB = minVSphereDiskGiB
+	}
+
 	rawBytes, err := json.Marshal(providerSpec)
 	if err != nil {
 		errs = append(errs, err)

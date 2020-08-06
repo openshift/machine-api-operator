@@ -2019,6 +2019,9 @@ func TestDefaultVSphereProviderSpec(t *testing.T) {
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: defaultVSphereCredentialsSecret,
 				},
+				NumCPUs:   minVSphereCPU,
+				MemoryMiB: minVSphereMemoryMiB,
+				DiskGiB:   minVSphereDiskGiB,
 			}
 			if tc.modifyDefault != nil {
 				tc.modifyDefault(defaultProviderSpec)
