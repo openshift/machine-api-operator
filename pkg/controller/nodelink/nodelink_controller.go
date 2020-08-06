@@ -259,10 +259,6 @@ func (r *ReconcileNodeLink) updateNodeRef(machine *mapiv1beta1.Machine, node *co
 	machine.Status.LastUpdated = &now
 
 	if !node.DeletionTimestamp.IsZero() {
-		machine.Status.NodeRef = nil
-		if err := r.client.Status().Update(context.Background(), machine); err != nil {
-			return fmt.Errorf("error updating machine %q: %v", machine.GetName(), err)
-		}
 		delete(r.nodeReadinessCache, node.GetName())
 		return nil
 	}
