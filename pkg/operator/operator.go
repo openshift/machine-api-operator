@@ -33,12 +33,16 @@ const (
 	// a machineconfig pool is going to be requeued:
 	//
 	// 5ms, 10ms, 20ms, 40ms, 80ms, 160ms, 320ms, 640ms, 1.3s, 2.6s, 5.1s, 10.2s, 20.4s, 41s, 82s
-	maxRetries         = 15
+	// maxRetries = 15
+	// Reconcile should take up to 10 minutes to sync. When changed we first have to wait for a full Deployment
+	// rollout (5 minutes) and DaemonSet rollout (another 5 minutes) before everything is synced.
+	maoSyncTimeout     = 10 * time.Minute
 	maoOwnedAnnotation = "machine.openshift.io/owned"
 )
 
 // Operator defines machine api operator.
 type Operator struct {
+	context         context.Context
 	namespace, name string
 
 	imagesFile string
@@ -49,7 +53,7 @@ type Operator struct {
 	dynamicClient dynamic.Interface
 	eventRecorder record.EventRecorder
 
-	syncHandler func(ic string) error
+	syncHandler func(ic string, deadline time.Time) error
 
 	deployLister       appslisterv1.DeploymentLister
 	deployListerSynced cache.InformerSynced
@@ -265,11 +269,13 @@ func isMachineWebhook(obj interface{}) bool {
 }
 
 func (optr *Operator) worker() {
-	for optr.processNextWorkItem() {
+	var cancel context.CancelFunc = func() {}
+	for optr.processNextWorkItem(cancel) {
 	}
+	cancel()
 }
 
-func (optr *Operator) processNextWorkItem() bool {
+func (optr *Operator) processNextWorkItem(cancel context.CancelFunc) bool {
 	key, quit := optr.queue.Get()
 	if quit {
 		return false
@@ -277,30 +283,25 @@ func (optr *Operator) processNextWorkItem() bool {
 	defer optr.queue.Done(key)
 
 	glog.V(4).Infof("Processing key %s", key)
-	err := optr.syncHandler(key.(string))
-	optr.handleErr(err, key)
+	// Cancel previous thread
+	cancel()
+
+	// Spawn a new one, set the deadline on 10 minutes
+	deadline := time.Now().Add(maoSyncTimeout)
+	optr.context, cancel = context.WithDeadline(context.Background(), deadline)
+	go func() {
+		// Give the deadline to the sync method, allowing to detirmine the cause of cancellation
+		if err := optr.syncHandler(key.(string), deadline); err != nil {
+			glog.V(1).Infof("Error syncing operator %v: %v", key, err)
+			optr.queue.AddRateLimited(key)
+			return
+		}
+	}()
 
 	return true
 }
 
-func (optr *Operator) handleErr(err error, key interface{}) {
-	if err == nil {
-		optr.queue.Forget(key)
-		return
-	}
-
-	if optr.queue.NumRequeues(key) < maxRetries {
-		glog.V(1).Infof("Error syncing operator %v: %v", key, err)
-		optr.queue.AddRateLimited(key)
-		return
-	}
-
-	utilruntime.HandleError(err)
-	glog.V(1).Infof("Dropping operator %q out of the queue: %v", key, err)
-	optr.queue.Forget(key)
-}
-
-func (optr *Operator) sync(key string) error {
+func (optr *Operator) sync(key string, deadline time.Time) error {
 	startTime := time.Now()
 	glog.V(4).Infof("Started syncing operator %q (%v)", key, startTime)
 	defer func() {
@@ -312,7 +313,23 @@ func (optr *Operator) sync(key string) error {
 		glog.Errorf("Failed getting operator config: %v", err)
 		return err
 	}
-	return optr.syncAll(operatorConfig)
+
+	err = optr.syncAll(operatorConfig)
+	if isTimedOut(err, deadline) {
+		// Process was cancelled by a global timeout, report degraded status and requeue
+		glog.Errorf("Deadline exceded waiting for resource readiness: %v", err)
+		if err := optr.statusDegraded(err.Error()); err != nil {
+			// Just log the error here.  We still want to
+			// return the outer error.
+			glog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
+		}
+		return err
+	} else if isCanceled(err) {
+		// Process was cancelled by a following thread, give drop the error
+		return nil
+	}
+
+	return err
 }
 
 func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {

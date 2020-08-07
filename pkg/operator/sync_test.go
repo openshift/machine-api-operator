@@ -113,9 +113,11 @@ func TestWaitForDeploymentRollout(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			var cancel context.CancelFunc
 			optr := newFakeOperator([]runtime.Object{tc.deployment}, nil, make(<-chan struct{}))
-
-			got := optr.waitForDeploymentRollout(tc.deployment, 1*time.Second, 3*time.Second)
+			optr.context, cancel = context.WithTimeout(context.Background(), 3*time.Second)
+			defer cancel()
+			got := optr.waitForDeploymentRollout(tc.deployment)
 			if tc.expected != nil {
 				if tc.expected.Error() != got.Error() {
 					t.Errorf("Got: %v, expected: %v", got, tc.expected)

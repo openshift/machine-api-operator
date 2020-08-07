@@ -1,7 +1,6 @@
 package operator
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -120,7 +119,7 @@ func TestOperatorStatusProgressing(t *testing.T) {
 		}
 
 		optr.statusProgressing()
-		gotCO, _ = optr.osClient.ConfigV1().ClusterOperators().Get(context.Background(), clusterOperatorName, metav1.GetOptions{})
+		gotCO, _ = optr.osClient.ConfigV1().ClusterOperators().Get(optr.context, clusterOperatorName, metav1.GetOptions{})
 		var conditionAfterAnotherSync osconfigv1.ClusterOperatorStatusCondition
 		for _, coCondition := range gotCO.Status.Conditions {
 			if coCondition.Type == osconfigv1.OperatorProgressing {

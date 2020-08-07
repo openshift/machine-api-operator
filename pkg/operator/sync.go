@@ -1,6 +1,8 @@
 package operator
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -24,11 +26,7 @@ import (
 )
 
 const (
-	deploymentRolloutPollInterval       = time.Second
-	deploymentRolloutTimeout            = 5 * time.Minute
 	deploymentMinimumAvailabilityTime   = 3 * time.Minute
-	daemonsetRolloutPollInterval        = time.Second
-	daemonsetRolloutTimeout             = 5 * time.Minute
 	machineAPITerminationHandler        = "machine-api-termination-handler"
 	machineExposeMetricsPort            = 8441
 	machineSetExposeMetricsPort         = 8442
@@ -69,6 +67,9 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 	glog.V(3).Info("Synced up all machine API webhook configurations")
 
 	if err := optr.syncClusterAPIController(config); err != nil {
+		if isCanceled(err) {
+			return err
+		}
 		if err := optr.statusDegraded(err.Error()); err != nil {
 			// Just log the error here.  We still want to
 			// return the outer error.
@@ -83,6 +84,9 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 	// the baremetal-operator pod
 	if config.BaremetalControllers.BaremetalOperator != "" {
 		if err := optr.syncBaremetalControllers(config); err != nil {
+			if isCanceled(err) {
+				return err
+			}
 			if err := optr.statusDegraded(err.Error()); err != nil {
 				// Just log the error here.  We still want to
 				// return the outer error.
@@ -124,7 +128,7 @@ func (optr *Operator) syncClusterAPIController(config *OperatorConfig) error {
 		resourcemerge.SetDeploymentGeneration(&optr.generations, d)
 	}
 
-	if err := optr.waitForDeploymentRollout(controllersDeployment, deploymentRolloutPollInterval, deploymentRolloutTimeout); err != nil {
+	if err := optr.waitForDeploymentRollout(controllersDeployment); err != nil {
 		return err
 	}
 
@@ -214,15 +218,15 @@ func (optr *Operator) syncBaremetalControllers(config *OperatorConfig) error {
 	}
 	if updated {
 		resourcemerge.SetDeploymentGeneration(&optr.generations, d)
-		return optr.waitForDeploymentRollout(metal3Deployment, deploymentRolloutPollInterval, deploymentRolloutTimeout)
+		return optr.waitForDeploymentRollout(metal3Deployment)
 	}
 
 	return nil
 }
 
-func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment, pollInterval, rolloutTimeout time.Duration) error {
+func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment) error {
 	var lastError error
-	err := wait.Poll(pollInterval, rolloutTimeout, func() (bool, error) {
+	err := wait.PollUntil(time.Second, func() (bool, error) {
 		d, err := optr.deployLister.Deployments(resource.Namespace).Get(resource.Name)
 		if apierrors.IsNotFound(err) {
 			lastError = fmt.Errorf("deployment %s is not found", resource.Name)
@@ -267,7 +271,7 @@ func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment, poll
 		lastError = fmt.Errorf("deployment %s is not ready. status: (replicas: %d, updated: %d, ready: %d, unavailable: %d)", d.Name, d.Status.Replicas, d.Status.UpdatedReplicas, d.Status.ReadyReplicas, d.Status.UnavailableReplicas)
 		glog.V(4).Info(lastError)
 		return false, nil
-	})
+	}, optr.context.Done())
 	if lastError != nil {
 		return lastError
 	}
@@ -276,7 +280,7 @@ func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment, poll
 
 func (optr *Operator) waitForDaemonSetRollout(resource *appsv1.DaemonSet) error {
 	var lastError error
-	err := wait.Poll(daemonsetRolloutPollInterval, daemonsetRolloutTimeout, func() (bool, error) {
+	err := wait.PollUntil(time.Second, func() (bool, error) {
 		d, err := optr.daemonsetLister.DaemonSets(resource.Namespace).Get(resource.Name)
 		if apierrors.IsNotFound(err) {
 			return false, nil
@@ -301,11 +305,19 @@ func (optr *Operator) waitForDaemonSetRollout(resource *appsv1.DaemonSet) error 
 		lastError = fmt.Errorf("daemonset %s is not ready. status: (desired: %d, updated: %d, available: %d, unavailable: %d)", d.Name, d.Status.DesiredNumberScheduled, d.Status.UpdatedNumberScheduled, d.Status.NumberAvailable, d.Status.NumberUnavailable)
 		glog.V(4).Info(lastError)
 		return false, nil
-	})
+	}, optr.context.Done())
 	if lastError != nil {
 		return lastError
 	}
 	return err
+}
+
+func isCanceled(err error) bool {
+	return errors.As(err, &context.Canceled)
+}
+
+func isTimedOut(err error, deadline time.Time) bool {
+	return isCanceled(err) && !time.Now().Before(deadline)
 }
 
 func newDeployment(config *OperatorConfig, features map[string]bool) *appsv1.Deployment {
