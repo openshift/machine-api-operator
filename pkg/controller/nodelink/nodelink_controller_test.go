@@ -68,7 +68,7 @@ func node(name, providerID string, addresses []corev1.NodeAddress, taints []core
 	return node
 }
 
-func machine(name, providerID string, addresses []corev1.NodeAddress, taints []corev1.Taint) *mapiv1beta1.Machine {
+func machine(name, providerID string, addresses []corev1.NodeAddress, taints []corev1.Taint, nodeRef *corev1.ObjectReference) *mapiv1beta1.Machine {
 	machine := &mapiv1beta1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
@@ -97,6 +97,10 @@ func machine(name, providerID string, addresses []corev1.NodeAddress, taints []c
 	}
 	if taints != nil {
 		machine.Spec.Taints = taints
+	}
+
+	if nodeRef != nil {
+		machine.Status.NodeRef = nodeRef
 	}
 	return machine
 }
@@ -165,17 +169,17 @@ func TestFindMachineFromNodeByProviderID(t *testing.T) {
 		expected *mapiv1beta1.Machine
 	}{
 		{
-			machine:  machine("noProviderID", "", nil, nil),
+			machine:  machine("noProviderID", "", nil, nil, nil),
 			node:     node("noProviderID", "", nil, nil),
 			expected: nil,
 		},
 		{
-			machine:  machine("matchingProviderID", "test", nil, nil),
+			machine:  machine("matchingProviderID", "test", nil, nil, nil),
 			node:     node("matchingProviderID", "test", nil, nil),
-			expected: machine("matchingProviderID", "test", nil, nil),
+			expected: machine("matchingProviderID", "test", nil, nil, nil),
 		},
 		{
-			machine:  machine("noMatchingProviderID", "providerID", nil, nil),
+			machine:  machine("noMatchingProviderID", "providerID", nil, nil, nil),
 			node:     node("noMatchingProviderID", "differentProviderID", nil, nil),
 			expected: nil,
 		},
@@ -201,7 +205,7 @@ func TestFindMachineFromNodeByIP(t *testing.T) {
 		expected *mapiv1beta1.Machine
 	}{
 		{
-			machine:  machine("noInternalIP", "", nil, nil),
+			machine:  machine("noInternalIP", "", nil, nil, nil),
 			node:     node("noInternalIP", "", nil, nil),
 			expected: nil,
 		},
@@ -211,7 +215,7 @@ func TestFindMachineFromNodeByIP(t *testing.T) {
 					Type:    corev1.NodeInternalIP,
 					Address: "matchingInternalIP",
 				},
-			}, nil),
+			}, nil, nil),
 			node: node("matchingInternalIP", "test", []corev1.NodeAddress{
 				{
 					Type:    corev1.NodeInternalIP,
@@ -223,7 +227,7 @@ func TestFindMachineFromNodeByIP(t *testing.T) {
 					Type:    corev1.NodeInternalIP,
 					Address: "matchingInternalIP",
 				},
-			}, nil),
+			}, nil, nil),
 		},
 		{
 			machine: machine("nonMatchingInternalIP", "test", []corev1.NodeAddress{
@@ -231,7 +235,7 @@ func TestFindMachineFromNodeByIP(t *testing.T) {
 					Type:    corev1.NodeInternalIP,
 					Address: "one IP",
 				},
-			}, nil),
+			}, nil, nil),
 			node: node("nonMatchingInternalIP", "test", []corev1.NodeAddress{
 				{
 					Type:    corev1.NodeInternalIP,
@@ -261,17 +265,17 @@ func TestFindNodeFromMachineByProviderID(t *testing.T) {
 		expected *corev1.Node
 	}{
 		{
-			machine:  machine("noProviderID", "", nil, nil),
+			machine:  machine("noProviderID", "", nil, nil, nil),
 			node:     node("noProviderID", "", nil, nil),
 			expected: nil,
 		},
 		{
-			machine:  machine("matchingProviderID", "test", nil, nil),
+			machine:  machine("matchingProviderID", "test", nil, nil, nil),
 			node:     node("matchingProviderID", "test", nil, nil),
 			expected: node("matchingProviderID", "test", nil, nil),
 		},
 		{
-			machine:  machine("noMatchingProviderID", "providerID", nil, nil),
+			machine:  machine("noMatchingProviderID", "providerID", nil, nil, nil),
 			node:     node("noMatchingProviderID", "differentProviderID", nil, nil),
 			expected: nil,
 		},
@@ -297,7 +301,7 @@ func TestFindNodeFromMachineByIP(t *testing.T) {
 		expected *corev1.Node
 	}{
 		{
-			machine: machine("noInternalIP", "", nil, nil),
+			machine: machine("noInternalIP", "", nil, nil, nil),
 			node: node("anyInternalIP", "", []corev1.NodeAddress{
 				{
 					Type:    corev1.NodeInternalIP,
@@ -312,7 +316,7 @@ func TestFindNodeFromMachineByIP(t *testing.T) {
 					Type:    corev1.NodeInternalIP,
 					Address: "matchingInternalIP",
 				},
-			}, nil),
+			}, nil, nil),
 			node: node("matchingInternalIP", "test", []corev1.NodeAddress{
 				{
 					Type:    corev1.NodeInternalIP,
@@ -332,7 +336,7 @@ func TestFindNodeFromMachineByIP(t *testing.T) {
 					Type:    corev1.NodeInternalIP,
 					Address: "one IP",
 				},
-			}, nil),
+			}, nil, nil),
 			node: node("nonMatchingInternalIP", "test", []corev1.NodeAddress{
 				{
 					Type:    corev1.NodeInternalIP,
@@ -390,7 +394,7 @@ func TestAddTaintsToNode(t *testing.T) {
 	}
 
 	for _, test := range testCases {
-		machine := machine("", "", nil, test.machineTaints)
+		machine := machine("", "", nil, test.machineTaints, nil)
 		node := node("", "", nil, test.nodeTaints)
 		addTaintsToNode(node, machine)
 		if !reflect.DeepEqual(node.Spec.Taints, test.expectedFinalNodeTaints) {
@@ -406,12 +410,12 @@ func TestNodeRequestFromMachine(t *testing.T) {
 		expected []reconcile.Request
 	}{
 		{
-			machine:  machine("noMatch", "", nil, nil),
+			machine:  machine("noMatch", "", nil, nil, nil),
 			node:     node("noMatch", "", nil, nil),
 			expected: []reconcile.Request{},
 		},
 		{
-			machine: machine("matchProviderID", "match", nil, nil),
+			machine: machine("matchProviderID", "match", nil, nil, nil),
 			node:    node("matchProviderID", "match", nil, nil),
 			expected: []reconcile.Request{
 				{
@@ -426,7 +430,7 @@ func TestNodeRequestFromMachine(t *testing.T) {
 			machine: machine("matchInternalIP", "", []corev1.NodeAddress{{
 				Type:    corev1.NodeInternalIP,
 				Address: "matchingInternalIP",
-			}}, nil),
+			}}, nil, nil),
 			node: node("matchInternalIP", "", []corev1.NodeAddress{{
 				Type:    corev1.NodeInternalIP,
 				Address: "matchingInternalIP",
@@ -444,7 +448,7 @@ func TestNodeRequestFromMachine(t *testing.T) {
 			machine: machine("matchInternalIPAndProviderID", "match", []corev1.NodeAddress{{
 				Type:    corev1.NodeInternalIP,
 				Address: "matchingInternalIP",
-			}}, nil),
+			}}, nil, nil),
 			node: node("matchInternalIPAndProviderID", "match", []corev1.NodeAddress{{
 				Type:    corev1.NodeInternalIP,
 				Address: "matchingInternalIP",
@@ -462,7 +466,7 @@ func TestNodeRequestFromMachine(t *testing.T) {
 			machine: machine("NonMatchInternalIPNorProviderID", "one providerID", []corev1.NodeAddress{{
 				Type:    corev1.NodeInternalIP,
 				Address: "one IP",
-			}}, nil),
+			}}, nil, nil),
 			node: node("NonMatchInternalIPNorProviderID", "different providerID", []corev1.NodeAddress{{
 				Type:    corev1.NodeInternalIP,
 				Address: "different IP",
@@ -494,14 +498,14 @@ func TestReconcile(t *testing.T) {
 		expectedNodeUpdate bool
 	}{
 		{
-			machine:            machine("noMatch", "", nil, nil),
+			machine:            machine("noMatch", "", nil, nil, nil),
 			node:               node("noMatch", "", nil, nil),
 			expected:           reconcile.Result{},
 			expectedError:      false,
 			expectedNodeUpdate: false,
 		},
 		{
-			machine:            machine("matchingProvideID", "match", nil, nil),
+			machine:            machine("matchingProvideID", "match", nil, nil, nil),
 			node:               node("matchingProvideID", "match", nil, nil),
 			expected:           reconcile.Result{},
 			expectedError:      false,
@@ -511,7 +515,7 @@ func TestReconcile(t *testing.T) {
 			machine: machine("matchInternalIP", "", []corev1.NodeAddress{{
 				Type:    corev1.NodeInternalIP,
 				Address: "matchingInternalIP",
-			}}, nil),
+			}}, nil, nil),
 			node: node("matchInternalIP", "", []corev1.NodeAddress{{
 				Type:    corev1.NodeInternalIP,
 				Address: "matchingInternalIP",
@@ -575,7 +579,7 @@ func TestIndexNodeByProviderID(t *testing.T) {
 			expected: nil,
 		},
 		{
-			object:   machine("wrongObject", "test", nil, nil),
+			object:   machine("wrongObject", "test", nil, nil, nil),
 			expected: nil,
 		},
 		{
@@ -598,7 +602,7 @@ func TestIndexMachineByProvider(t *testing.T) {
 		expected []string
 	}{
 		{
-			object:   machine("noProviderID", "", nil, nil),
+			object:   machine("noProviderID", "", nil, nil, nil),
 			expected: nil,
 		},
 		{
@@ -606,7 +610,7 @@ func TestIndexMachineByProvider(t *testing.T) {
 			expected: nil,
 		},
 		{
-			object:   machine("withProviderID", "test", nil, nil),
+			object:   machine("withProviderID", "test", nil, nil, nil),
 			expected: []string{"test"},
 		},
 	}
@@ -629,7 +633,7 @@ func TestIndexNodeByInternalIP(t *testing.T) {
 			expected: nil,
 		},
 		{
-			object:   machine("wrongObject", "test", nil, nil),
+			object:   machine("wrongObject", "test", nil, nil, nil),
 			expected: nil,
 		},
 		{
@@ -670,7 +674,7 @@ func TestIndexMachineByInternalIP(t *testing.T) {
 		expected []string
 	}{
 		{
-			object:   machine("noInternalIP", "", nil, nil),
+			object:   machine("noInternalIP", "", nil, nil, nil),
 			expected: nil,
 		},
 		{
@@ -683,7 +687,7 @@ func TestIndexMachineByInternalIP(t *testing.T) {
 					Type:    corev1.NodeInternalIP,
 					Address: "ip",
 				},
-			}, nil),
+			}, nil, nil),
 			expected: []string{"ip"},
 		},
 		{
@@ -696,7 +700,7 @@ func TestIndexMachineByInternalIP(t *testing.T) {
 					Type:    corev1.NodeInternalIP,
 					Address: "ip2",
 				},
-			}, nil),
+			}, nil, nil),
 			expected: []string{"ip1", "ip2"},
 		},
 	}
@@ -717,7 +721,7 @@ func TestUpdateNodeRef(t *testing.T) {
 		nodeReadinessCache map[string]bool
 	}{
 		{
-			machine: machine("fakeMachine", "", nil, nil),
+			machine: machine("fakeMachine", "", nil, nil, nil),
 			node:    node("newNode", "", nil, nil),
 			nodeRef: &corev1.ObjectReference{
 				Kind: "Node",
@@ -727,7 +731,7 @@ func TestUpdateNodeRef(t *testing.T) {
 			nodeReadinessCache: map[string]bool{},
 		},
 		{
-			machine: machine("fakeMachine", "", nil, nil),
+			machine: machine("fakeMachine", "", nil, nil, nil),
 			node:    node("readinessChangedNode", "", nil, nil),
 			nodeRef: &corev1.ObjectReference{
 				Kind: "Node",
@@ -737,9 +741,23 @@ func TestUpdateNodeRef(t *testing.T) {
 			nodeReadinessCache: map[string]bool{"readinessChangedNode": false},
 		},
 		{
-			machine:            machine("fakeMachine", "", nil, nil),
+			machine:            machine("fakeMachine", "", nil, nil, nil),
 			node:               node("deleting", "", nil, nil),
 			nodeRef:            nil,
+			nodeReadinessCache: map[string]bool{},
+		},
+		{
+			machine: machine("fakeMachine", "", nil, nil, &corev1.ObjectReference{
+				Kind: "Node",
+				Name: "newNode",
+				UID:  "",
+			}),
+			node: node("deleting", "", nil, nil),
+			nodeRef: &corev1.ObjectReference{
+				Kind: "Node",
+				Name: "newNode",
+				UID:  "",
+			},
 			nodeReadinessCache: map[string]bool{},
 		},
 	}
@@ -779,7 +797,7 @@ func TestFindMachineFromNodeDoesNotPanicBZ1747246(t *testing.T) {
 			Type:    corev1.NodeInternalIP,
 			Address: "matchingInternalIP",
 		},
-	}, nil)
+	}, nil, nil)
 
 	testNode := node("matchingInternalIP", "", []corev1.NodeAddress{
 		{
