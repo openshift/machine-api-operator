@@ -1990,6 +1990,14 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 			expectedError: "providerSpec.memoryMiB: Invalid value: 1024: memoryMiB is below minimum value (2048)",
 		},
 		{
+			testCase: "with too little disk size provided",
+			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+				p.DiskGiB = 1
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.diskGiB: Invalid value: 1: diskGiB is below minimum value (120)",
+		},
+		{
 			testCase: "with no user data secret provided",
 			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
 				p.UserDataSecret = nil
@@ -2111,6 +2119,9 @@ func TestDefaultVSphereProviderSpec(t *testing.T) {
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: defaultVSphereCredentialsSecret,
 				},
+				NumCPUs:   minVSphereCPU,
+				MemoryMiB: minVSphereMemoryMiB,
+				DiskGiB:   minVSphereDiskGiB,
 			}
 			if tc.modifyDefault != nil {
 				tc.modifyDefault(defaultProviderSpec)

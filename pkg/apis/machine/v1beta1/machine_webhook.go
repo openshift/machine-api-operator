@@ -120,6 +120,8 @@ const (
 	// Minimum vSphere values taken from vSphere reconciler
 	minVSphereCPU       = 2
 	minVSphereMemoryMiB = 2048
+	// https://docs.openshift.com/container-platform/4.1/installing/installing_vsphere/installing-vsphere.html#minimum-resource-requirements_installing-vsphere
+	minVSphereDiskGiB = 120
 )
 
 var (
@@ -1046,6 +1048,20 @@ func defaultVSphere(m *Machine, clusterID string) (bool, utilerrors.Aggregate) {
 		providerSpec.CredentialsSecret = &corev1.LocalObjectReference{Name: defaultVSphereCredentialsSecret}
 	}
 
+	// Default values for number of cpu, memory and disk size come from installer
+	// https://github.com/openshift/installer/blob/0ceffc5c737b49ab59441e2fd02f51f997d54a53/pkg/asset/machines/worker.go#L134
+	if providerSpec.NumCPUs == 0 {
+		providerSpec.NumCPUs = minVSphereCPU
+	}
+
+	if providerSpec.MemoryMiB == 0 {
+		providerSpec.MemoryMiB = minVSphereMemoryMiB
+	}
+
+	if providerSpec.DiskGiB == 0 {
+		providerSpec.DiskGiB = minVSphereDiskGiB
+	}
+
 	rawBytes, err := json.Marshal(providerSpec)
 	if err != nil {
 		errs = append(errs, err)
@@ -1081,6 +1097,9 @@ func validateVSphere(m *Machine, clusterID string) (bool, utilerrors.Aggregate) 
 	}
 	if providerSpec.MemoryMiB != 0 && providerSpec.MemoryMiB < minVSphereMemoryMiB {
 		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "memoryMiB"), providerSpec.MemoryMiB, fmt.Sprintf("memoryMiB is below minimum value (%d)", minVSphereMemoryMiB)))
+	}
+	if providerSpec.DiskGiB != 0 && providerSpec.DiskGiB < minVSphereDiskGiB {
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "diskGiB"), providerSpec.DiskGiB, fmt.Sprintf("diskGiB is below minimum value (%d)", minVSphereDiskGiB)))
 	}
 
 	if providerSpec.UserDataSecret == nil {
