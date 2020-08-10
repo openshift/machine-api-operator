@@ -59,11 +59,11 @@ spec:
             provisioningDHCPExternal:
               description: provisioningDHCPExternal indicates whether the DHCP server for IP
                 addresses in the provisioning DHCP range is present within the metal3 cluster
-                or external to it.
+                or external to it. This field is being deprecated in favor of provisioningNetwork.
               type: boolean
             provisioningDHCPRange:
-              description: Needs to be interpreted along with provisioningDHCPExternal.
-                If the value of provisioningDHCPExternal is set to False, then
+              description: Needs to be interpreted along with provisioningDHCPExternal or
+                provisioningNetwork. If the value of provisioningDHCPExternal is set to False,
                 provisioningDHCPRange represents the range of IP addresses that the DHCP server
                 running within the metal3 cluster can use while provisioning baremetal servers.
                 If the value of provisioningDHCPExternal is set to True, then the value of
@@ -75,11 +75,30 @@ spec:
                 installer has created the CR. This value needs to be two comma sererated IP
                 addresses within the provisioningNetworkCIDR where the 1st address represents the
                 start of the range and the 2nd address represents the last usable address in the
-                range.
+                range. When the provisioningNetwork is set to `Managed`, the value of
+                provisioningDHCPRange would be used and ignored in the other 2 modes.
               type: string
             provisioningOSDownloadURL:
               description: provisioningOSDownloadURL is the location from which the OS Image used to boot
                 baremetal host machines can be downloaded by the metal3 cluster.
+              type: string
+            provisioningNetwork:
+              description: provisioningNetwork provides a way to indicate the state of the underlying
+                network configuration for the provisioning network. This field can have one of the
+                following values -
+                `Managed`- when the provisioning network is completely managed by the Baremetal IPI
+                solution.
+                `Unmanaged`- when the provsioning network is present and used but the user is
+                responsible for managing DHCP. Virtual media provisioning is recommended but PXE
+                is still available if required.
+                `Disabled`- when the provisioning network is fully disabled. User can bring up the
+                baremetal cluster using virtual media or assisted installation. If using metal3 for
+                power management, BMCs must be accessible from the machine networks. User should
+                provide two IPs on the external network that would be used for provisioning services.
+              enum:
+              - Managed
+              - Unmanaged
+              - Disabled
               type: string
         status:
           description: status holds observed values from the cluster. They may not
