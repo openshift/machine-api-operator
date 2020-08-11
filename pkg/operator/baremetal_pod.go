@@ -85,27 +85,28 @@ func generateRandomPassword() (string, error) {
 func createMariadbPasswordSecret(client coreclientv1.SecretsGetter, config *OperatorConfig) error {
 	glog.V(3).Info("Checking if the MariaDB password secret already exists")
 	_, err := client.Secrets(config.TargetNamespace).Get(context.Background(), baremetalSecretName, metav1.GetOptions{})
-	if apierrors.IsNotFound(err) {
-		// Secret does not already exist. So, create one.
-		password, err := generateRandomPassword()
-		if err != nil {
-			return err
-		}
-		_, err = client.Secrets(config.TargetNamespace).Create(
-			context.Background(),
-			&corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      baremetalSecretName,
-					Namespace: config.TargetNamespace,
-				},
-				StringData: map[string]string{
-					baremetalSecretKey: password,
-				},
-			},
-			metav1.CreateOptions{},
-		)
+	if !apierrors.IsNotFound(err) {
 		return err
 	}
+
+	// Secret does not already exist. So, create one.
+	password, err := generateRandomPassword()
+	if err != nil {
+		return err
+	}
+	_, err = client.Secrets(config.TargetNamespace).Create(
+		context.Background(),
+		&corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      baremetalSecretName,
+				Namespace: config.TargetNamespace,
+			},
+			StringData: map[string]string{
+				baremetalSecretKey: password,
+			},
+		},
+		metav1.CreateOptions{},
+	)
 	return err
 }
 
