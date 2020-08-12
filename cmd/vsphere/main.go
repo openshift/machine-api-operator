@@ -20,6 +20,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/runtime/signals"
 )
 
+// The default durations for the leader electrion operations.
+var (
+	retryPeriod  = 30 * time.Second
+	renewDealine = 90 * time.Second
+)
+
 func main() {
 	var printVersion bool
 	flag.BoolVar(&printVersion, "version", false, "print version and exit")
@@ -79,6 +85,9 @@ func main() {
 		LeaderElectionNamespace: *leaderElectResourceNamespace,
 		LeaderElectionID:        "cluster-api-provider-vsphere-leader",
 		LeaseDuration:           leaderElectLeaseDuration,
+		// Slow the default retry and renew election rate to reduce etcd writes at idle: BZ 1858400
+		RetryPeriod:   &retryPeriod,
+		RenewDeadline: &renewDealine,
 	}
 
 	if *watchNamespace != "" {
