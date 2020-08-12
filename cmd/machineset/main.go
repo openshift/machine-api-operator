@@ -39,6 +39,12 @@ const (
 	defaultWebhookCertdir = "/etc/machine-api-operator/tls"
 )
 
+// The default durations for the leader electrion operations.
+var (
+	retryPeriod  = 30 * time.Second
+	renewDealine = 90 * time.Second
+)
+
 func main() {
 	flag.Set("logtostderr", "true")
 	klog.InitFlags(nil)
@@ -102,6 +108,9 @@ func main() {
 		LeaderElectionNamespace: *leaderElectResourceNamespace,
 		LeaderElectionID:        "cluster-api-provider-machineset-leader",
 		LeaseDuration:           leaderElectLeaseDuration,
+		// Slow the default retry and renew election rate to reduce etcd writes at idle: BZ 1858400
+		RetryPeriod:   &retryPeriod,
+		RenewDeadline: &renewDealine,
 	}
 
 	mgr, err := manager.New(cfg, opts)
