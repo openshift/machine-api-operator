@@ -337,6 +337,7 @@ func createContainerMetal3Httpd(config *OperatorConfig, baremetalProvisioningCon
 		VolumeMounts: volumeMounts,
 		Env: []corev1.EnvVar{
 			buildEnvVar("HTTP_PORT", baremetalProvisioningConfig),
+			buildEnvVar("PROVISIONING_IP", baremetalProvisioningConfig),
 			buildEnvVar("PROVISIONING_INTERFACE", baremetalProvisioningConfig),
 		},
 	}
@@ -357,6 +358,7 @@ func createContainerMetal3IronicConductor(config *OperatorConfig, baremetalProvi
 		Env: []corev1.EnvVar{
 			setMariadbPassword(),
 			buildEnvVar("HTTP_PORT", baremetalProvisioningConfig),
+			buildEnvVar("PROVISIONING_IP", baremetalProvisioningConfig),
 			buildEnvVar("PROVISIONING_INTERFACE", baremetalProvisioningConfig),
 		},
 	}
@@ -377,6 +379,7 @@ func createContainerMetal3IronicApi(config *OperatorConfig, baremetalProvisionin
 		Env: []corev1.EnvVar{
 			setMariadbPassword(),
 			buildEnvVar("HTTP_PORT", baremetalProvisioningConfig),
+			buildEnvVar("PROVISIONING_IP", baremetalProvisioningConfig),
 			buildEnvVar("PROVISIONING_INTERFACE", baremetalProvisioningConfig),
 		},
 	}
@@ -394,6 +397,7 @@ func createContainerMetal3IronicInspector(config *OperatorConfig, baremetalProvi
 		},
 		VolumeMounts: volumeMounts,
 		Env: []corev1.EnvVar{
+			buildEnvVar("PROVISIONING_IP", baremetalProvisioningConfig),
 			buildEnvVar("PROVISIONING_INTERFACE", baremetalProvisioningConfig),
 		},
 	}
