@@ -15,9 +15,9 @@ spec:
         - alert: MachineWithoutValidNode
           expr: |
              (mapi_machine_created_timestamp_seconds unless on(node) kube_node_info) > 0
-          for: 10m
+          for: 60m
           labels:
-            severity: critical
+            severity: warning
           annotations:
             message: "machine {{ $labels.name }} does not have valid node reference"
     - name: machine-with-no-running-phase
@@ -25,9 +25,9 @@ spec:
         - alert: MachineWithNoRunningPhase
           expr: |
             (mapi_machine_created_timestamp_seconds{phase!="Running"}) > 0
-          for: 10m
+          for: 60m
           labels:
-            severity: critical
+            severity: warning
           annotations:
             message: "machine {{ $labels.name }} is in phase: {{ $labels.phase }}"
     - name: machine-api-operator-metrics-collector-up
