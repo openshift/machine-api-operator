@@ -15,6 +15,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/runtime/signals"
 )
 
+// The default durations for the leader electrion operations.
+var (
+	retryPeriod  = 30 * time.Second
+	renewDealine = 90 * time.Second
+)
+
 func printVersion() {
 	klog.Infof("Go Version: %s", runtime.Version())
 	klog.Infof("Go OS/Arch: %s/%s", runtime.GOOS, runtime.GOARCH)
@@ -65,6 +71,9 @@ func main() {
 		LeaderElectionNamespace: *leaderElectResourceNamespace,
 		LeaderElectionID:        "cluster-api-provider-nodelink-leader",
 		LeaseDuration:           leaderElectLeaseDuration,
+		// Slow the default retry and renew election rate to reduce etcd writes at idle: BZ 1858400
+		RetryPeriod:   &retryPeriod,
+		RenewDeadline: &renewDealine,
 	}
 	if *watchNamespace != "" {
 		opts.Namespace = *watchNamespace
