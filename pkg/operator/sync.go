@@ -82,7 +82,13 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 	// In addition, if the Provider is BareMetal, then bring up
 	// the baremetal-operator pod
 	if config.BaremetalControllers.BaremetalOperator != "" {
-		if err := optr.syncBaremetalControllers(config); err != nil {
+		err := optr.syncBaremetalControllers(config, baremetalProvisioningCR)
+		switch true {
+		case apierrors.IsNotFound(err):
+			glog.V(3).Info("Provisioning configuration not found. Skipping metal3 deployment.")
+		case err == nil:
+			glog.V(3).Info("Synced up all metal3 components")
+		case err != nil:
 			if err := optr.statusDegraded(err.Error()); err != nil {
 				// Just log the error here.  We still want to
 				// return the outer error.
@@ -91,7 +97,6 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 			glog.Errorf("Error syncing metal3-controller: %v", err)
 			return err
 		}
-		glog.V(3).Info("Synced up all metal3 components")
 	}
 
 	if err := optr.statusAvailable(); err != nil {
@@ -192,9 +197,12 @@ func (optr *Operator) syncMutatingWebhook() error {
 	return nil
 }
 
-func (optr *Operator) syncBaremetalControllers(config *OperatorConfig) error {
+func (optr *Operator) syncBaremetalControllers(config *OperatorConfig, configName string) error {
 	// Try to get baremetal provisioning config from a CR
-	baremetalProvisioningConfig, err := getBaremetalProvisioningConfig(optr.dynamicClient, baremetalProvisioningCR)
+	baremetalProvisioningConfig, err := getBaremetalProvisioningConfig(optr.dynamicClient, configName)
+	if err == nil && baremetalProvisioningConfig == nil {
+		return apierrors.NewNotFound(provisioningGR, configName)
+	}
 	if err != nil {
 		return err
 	}
@@ -204,7 +212,7 @@ func (optr *Operator) syncBaremetalControllers(config *OperatorConfig) error {
 		return err
 	}
 
-	metal3Deployment := newMetal3Deployment(config, baremetalProvisioningConfig)
+	metal3Deployment := newMetal3Deployment(config, *baremetalProvisioningConfig)
 	expectedGeneration := resourcemerge.ExpectedDeploymentGeneration(metal3Deployment, optr.generations)
 	d, updated, err := resourceapply.ApplyDeployment(optr.kubeClient.AppsV1(),
 		events.NewLoggingEventRecorder(optr.name), metal3Deployment, expectedGeneration)
