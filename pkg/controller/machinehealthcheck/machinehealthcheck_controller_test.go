@@ -232,6 +232,10 @@ func TestReconcile(t *testing.T) {
 	nodeStartupTimeout := 15 * time.Minute
 	machineHealthCheck.Spec.NodeStartupTimeout = metav1.Duration{Duration: nodeStartupTimeout}
 
+	machineHealthCheckNegativeMaxUnhealthy := maotesting.NewMachineHealthCheck("machineHealthCheckNegativeMaxUnhealthy")
+	negativeOne := intstr.FromInt(-1)
+	machineHealthCheckNegativeMaxUnhealthy.Spec.MaxUnhealthy = &negativeOne
+
 	// remediationExternal
 	nodeUnhealthyForTooLong := maotesting.NewNode("nodeUnhealthyForTooLong", false)
 	nodeUnhealthyForTooLong.Annotations = map[string]string{
@@ -250,6 +254,7 @@ func TestReconcile(t *testing.T) {
 		testCase       string
 		machine        *mapiv1beta1.Machine
 		node           *corev1.Node
+		mhc            *mapiv1beta1.MachineHealthCheck
 		expected       expectedReconcile
 		expectedEvents []string
 	}{
@@ -257,6 +262,7 @@ func TestReconcile(t *testing.T) {
 			testCase: "machine unhealthy",
 			machine:  machineUnhealthyForTooLong,
 			node:     nodeUnhealthyForTooLong,
+			mhc:      machineHealthCheck,
 			expected: expectedReconcile{
 				result: reconcile.Result{},
 				error:  false,
@@ -267,6 +273,7 @@ func TestReconcile(t *testing.T) {
 			testCase: "machine with node unhealthy",
 			machine:  machineWithNodeHealthy,
 			node:     nodeHealthy,
+			mhc:      machineHealthCheck,
 			expected: expectedReconcile{
 				result: reconcile.Result{},
 				error:  false,
@@ -277,6 +284,7 @@ func TestReconcile(t *testing.T) {
 			testCase: "machine with node likely to go unhealthy",
 			machine:  machineWithNodeRecentlyUnhealthy,
 			node:     nodeRecentlyUnhealthy,
+			mhc:      machineHealthCheck,
 			expected: expectedReconcile{
 				result: reconcile.Result{
 					Requeue:      true,
@@ -290,6 +298,7 @@ func TestReconcile(t *testing.T) {
 			testCase: "no target: no machine and bad node annotation",
 			machine:  nil,
 			node:     nodeWithoutMachineAnnotation,
+			mhc:      machineHealthCheck,
 			expected: expectedReconcile{
 				result: reconcile.Result{},
 				error:  false,
@@ -300,6 +309,7 @@ func TestReconcile(t *testing.T) {
 			testCase: "no target: no machine",
 			machine:  nil,
 			node:     nodeAnnotatedWithNoExistentMachine,
+			mhc:      machineHealthCheck,
 			expected: expectedReconcile{
 				result: reconcile.Result{},
 				error:  false,
@@ -310,6 +320,7 @@ func TestReconcile(t *testing.T) {
 			testCase: "machine no controller owner",
 			machine:  machineWithoutOwnerController,
 			node:     nodeAnnotatedWithMachineWithoutOwnerReference,
+			mhc:      machineHealthCheck,
 			expected: expectedReconcile{
 				result: reconcile.Result{},
 				error:  false,
@@ -320,6 +331,7 @@ func TestReconcile(t *testing.T) {
 			testCase: "machine no noderef",
 			machine:  machineWithoutNodeRef,
 			node:     nodeAnnotatedWithMachineWithoutNodeReference,
+			mhc:      machineHealthCheck,
 			expected: expectedReconcile{
 				result: reconcile.Result{
 					RequeueAfter: nodeStartupTimeout,
@@ -332,6 +344,18 @@ func TestReconcile(t *testing.T) {
 			testCase: "machine already deleted",
 			machine:  machineAlreadyDeleted,
 			node:     nodeAlreadyDeleted,
+			mhc:      machineHealthCheck,
+			expected: expectedReconcile{
+				result: reconcile.Result{},
+				error:  false,
+			},
+			expectedEvents: []string{},
+		},
+		{
+			testCase: "machine healthy with MHC negative maxUnhealthy",
+			machine:  machineWithNodeHealthy,
+			node:     nodeHealthy,
+			mhc:      machineHealthCheckNegativeMaxUnhealthy,
 			expected: expectedReconcile{
 				result: reconcile.Result{},
 				error:  false,
@@ -343,7 +367,7 @@ func TestReconcile(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
 			var objects []runtime.Object
-			objects = append(objects, machineHealthCheck)
+			objects = append(objects, tc.mhc)
 			if tc.machine != nil {
 				objects = append(objects, tc.machine)
 			}
@@ -353,8 +377,8 @@ func TestReconcile(t *testing.T) {
 
 			request := reconcile.Request{
 				NamespacedName: types.NamespacedName{
-					Namespace: machineHealthCheck.GetNamespace(),
-					Name:      machineHealthCheck.GetName(),
+					Namespace: tc.mhc.GetNamespace(),
+					Name:      tc.mhc.GetName(),
 				},
 			}
 			result, err := r.Reconcile(request)
@@ -2350,6 +2374,7 @@ func TestHealthCheckTargets(t *testing.T) {
 func TestIsAllowedRemediation(t *testing.T) {
 	// short circuit if ever more than 2 out of 5 go unhealthy
 	maxUnhealthyInt := intstr.FromInt(2)
+	maxUnhealthyNegative := intstr.FromInt(-2)
 	maxUnhealthyString := intstr.FromString("40%")
 	maxUnhealthyIntInString := intstr.FromString("2")
 	maxUnhealthyMixedString := intstr.FromString("foo%50")
@@ -2393,6 +2418,27 @@ func TestIsAllowedRemediation(t *testing.T) {
 				Spec: mapiv1beta1.MachineHealthCheckSpec{
 					Selector:     metav1.LabelSelector{},
 					MaxUnhealthy: &maxUnhealthyInt,
+				},
+				Status: mapiv1beta1.MachineHealthCheckStatus{
+					ExpectedMachines: IntPtr(5),
+					CurrentHealthy:   IntPtr(2),
+				},
+			},
+			expected: false,
+		},
+		{
+			testCase: "maxUnhealthy is negative",
+			mhc: &mapiv1beta1.MachineHealthCheck{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: namespace,
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind: "MachineHealthCheck",
+				},
+				Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Selector:     metav1.LabelSelector{},
+					MaxUnhealthy: &maxUnhealthyNegative,
 				},
 				Status: mapiv1beta1.MachineHealthCheckStatus{
 					ExpectedMachines: IntPtr(5),
