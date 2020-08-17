@@ -12,7 +12,7 @@ require (
 	github.com/onsi/gomega v1.8.1
 	github.com/openshift/api v0.0.0-20200424083944-0422dc17083e
 	github.com/openshift/client-go v0.0.0-20200326155132-2a6cd50aedd0
-	github.com/openshift/cluster-api-provider-gcp v0.0.1-0.20200713133651-5c8a640669ac
+	github.com/openshift/cluster-api-provider-gcp v0.0.1-0.20200813171611-46c5454e7175
 	github.com/openshift/library-go v0.0.0-20200512120242-21a1ff978534
 	github.com/operator-framework/operator-sdk v0.5.1-0.20190301204940-c2efe6f74e7b
 	github.com/prometheus/client_golang v1.1.0
@@ -21,7 +21,6 @@ require (
 	github.com/vmware/govmomi v0.22.2
 	golang.org/x/net v0.0.0-20200421231249-e086a090c8fd
 	gopkg.in/gcfg.v1 v1.2.3
-	gopkg.in/warnings.v0 v0.1.2 // indirect
 	k8s.io/api v0.18.2
 	k8s.io/apimachinery v0.18.2
 	k8s.io/client-go v0.18.2

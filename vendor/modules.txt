@@ -203,7 +203,7 @@ github.com/openshift/client-go/config/informers/externalversions/config
 github.com/openshift/client-go/config/informers/externalversions/config/v1
 github.com/openshift/client-go/config/informers/externalversions/internalinterfaces
 github.com/openshift/client-go/config/listers/config/v1
-# github.com/openshift/cluster-api-provider-gcp v0.0.1-0.20200713133651-5c8a640669ac
+# github.com/openshift/cluster-api-provider-gcp v0.0.1-0.20200813171611-46c5454e7175
 github.com/openshift/cluster-api-provider-gcp/pkg/apis/gcpprovider/v1beta1
 # github.com/openshift/library-go v0.0.0-20200512120242-21a1ff978534
 github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers
