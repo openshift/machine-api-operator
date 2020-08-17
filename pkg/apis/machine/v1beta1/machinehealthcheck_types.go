@@ -60,6 +60,7 @@ type MachineHealthCheckSpec struct {
 	// +kubebuilder:default:="100%"
 	// +kubebuilder:validation:Pattern="^((100|[0-9]{1,2})%|[0-9]+)$"
 	// +kubebuilder:validation:Type:=string
+	// +kubebuilder:validation:Minimum:=0
 	MaxUnhealthy *intstr.IntOrString `json:"maxUnhealthy,omitempty"`
 
 	// Machines older than this duration without a node will be considered to have
