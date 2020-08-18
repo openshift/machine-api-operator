@@ -130,6 +130,10 @@ func TestOperatorSync_NoOp(t *testing.T) {
 			expectedNoop: false,
 		},
 		{
+			platform:     openshiftv1.EquinixMetalPlatformType,
+			expectedNoop: false,
+		},
+		{
 			platform:     openshiftv1.NonePlatformType,
 			expectedNoop: true,
 		},
@@ -446,6 +450,24 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				Proxy:           proxy,
 				Controllers: Controllers{
 					Provider:           images.ClusterAPIControllerOvirt,
+					MachineSet:         images.MachineAPIOperator,
+					NodeLink:           images.MachineAPIOperator,
+					MachineHealthCheck: images.MachineAPIOperator,
+					TerminationHandler: clusterAPIControllerNoOp,
+					KubeRBACProxy:      images.KubeRBACProxy,
+				},
+			},
+		},
+		{
+			name:     string(openshiftv1.EquinixMetalPlatformType),
+			platform: openshiftv1.EquinixMetalPlatformType,
+			infra:    infra,
+			proxy:    proxy,
+			expectedConfig: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				Proxy:           proxy,
+				Controllers: Controllers{
+					Provider:           images.ClusterAPIControllerEquinixMetal,
 					MachineSet:         images.MachineAPIOperator,
 					NodeLink:           images.MachineAPIOperator,
 					MachineHealthCheck: images.MachineAPIOperator,

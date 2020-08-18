@@ -20,5 +20,6 @@ data:
       "clusterAPIControllerGCP": "registry.svc.ci.openshift.org/openshift:gcp-machine-controllers",
       "clusterAPIControllerOvirt": "registry.svc.ci.openshift.org/openshift:ovirt-machine-controllers",
       "clusterAPIControllerKubevirt": "registry.svc.ci.openshift.org/openshift:kubevirt-machine-controllers",
+      "clusterAPIControllerEquinixMetal": "registry.svc.ci.openshift.org/openshift:equinix-metal-machine-controllers",      
       "clusterAPIControllerVSphere": "registry.svc.ci.openshift.org/openshift:machine-api-operator"
     }

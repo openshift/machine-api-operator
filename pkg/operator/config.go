@@ -36,17 +36,18 @@ type Controllers struct {
 
 // Images allows build systems to inject images for MAO components
 type Images struct {
-	MachineAPIOperator            string `json:"machineAPIOperator"`
-	ClusterAPIControllerAWS       string `json:"clusterAPIControllerAWS"`
-	ClusterAPIControllerOpenStack string `json:"clusterAPIControllerOpenStack"`
-	ClusterAPIControllerLibvirt   string `json:"clusterAPIControllerLibvirt"`
-	ClusterAPIControllerBareMetal string `json:"clusterAPIControllerBareMetal"`
-	ClusterAPIControllerAzure     string `json:"clusterAPIControllerAzure"`
-	ClusterAPIControllerGCP       string `json:"clusterAPIControllerGCP"`
-	ClusterAPIControllerOvirt     string `json:"clusterAPIControllerOvirt"`
-	ClusterAPIControllerVSphere   string `json:"clusterAPIControllerVSphere"`
-	ClusterAPIControllerKubevirt  string `json:"clusterAPIControllerKubevirt"`
-	KubeRBACProxy                 string `json:"kubeRBACProxy"`
+	MachineAPIOperator               string `json:"machineAPIOperator"`
+	ClusterAPIControllerAWS          string `json:"clusterAPIControllerAWS"`
+	ClusterAPIControllerOpenStack    string `json:"clusterAPIControllerOpenStack"`
+	ClusterAPIControllerLibvirt      string `json:"clusterAPIControllerLibvirt"`
+	ClusterAPIControllerBareMetal    string `json:"clusterAPIControllerBareMetal"`
+	ClusterAPIControllerAzure        string `json:"clusterAPIControllerAzure"`
+	ClusterAPIControllerGCP          string `json:"clusterAPIControllerGCP"`
+	ClusterAPIControllerOvirt        string `json:"clusterAPIControllerOvirt"`
+	ClusterAPIControllerVSphere      string `json:"clusterAPIControllerVSphere"`
+	ClusterAPIControllerKubevirt     string `json:"clusterAPIControllerKubevirt"`
+	ClusterAPIControllerEquinixMetal string `json:"clusterAPIControllerEquinixMetal"`
+	KubeRBACProxy                    string `json:"kubeRBACProxy"`
 }
 
 func getProviderFromInfrastructure(infra *configv1.Infrastructure) (configv1.PlatformType, error) {
@@ -91,6 +92,8 @@ func getProviderControllerFromImages(platform configv1.PlatformType, images Imag
 		return images.ClusterAPIControllerKubevirt, nil
 	case kubemarkPlatform:
 		return clusterAPIControllerKubemark, nil
+	case configv1.EquinixMetalPlatformType:
+		return images.ClusterAPIControllerEquinixMetal, nil
 	default:
 		return clusterAPIControllerNoOp, nil
 	}

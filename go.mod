@@ -8,7 +8,7 @@ require (
 	github.com/google/uuid v1.1.2
 	github.com/onsi/ginkgo v1.14.1
 	github.com/onsi/gomega v1.10.2
-	github.com/openshift/api v0.0.0-20201216151826-78a19e96f9eb
+	github.com/openshift/api v0.0.0-20210225162315-bae60f47eed7
 	github.com/openshift/client-go v0.0.0-20201214125552-e615e336eb49
 	github.com/openshift/cluster-api-provider-gcp v0.0.1-0.20201201000827-1117a4fc438c
 	github.com/openshift/library-go v0.0.0-20201215165635-4ee79b1caed5
