@@ -238,6 +238,10 @@ func isAllowedRemediation(mhc *mapiv1.MachineHealthCheck) bool {
 		return false
 	}
 
+	if maxUnhealthy < 0 {
+		maxUnhealthy = 0
+	}
+
 	// if noHealthy are above maxUnhealthy we short circuit any farther remediation
 	noHealthy := derefInt(mhc.Status.ExpectedMachines) - derefInt(mhc.Status.CurrentHealthy)
 	return (maxUnhealthy - noHealthy) >= 0
