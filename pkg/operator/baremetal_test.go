@@ -86,7 +86,10 @@ spec:
 )
 
 func TestGenerateRandomPassword(t *testing.T) {
-	pwd := generateRandomPassword()
+	pwd, err := generateRandomPassword()
+	if err != nil {
+		t.Errorf("Unexpected error: %s", err)
+	}
 	if pwd == "" {
 		t.Errorf("Expected a valid string but got null")
 	}

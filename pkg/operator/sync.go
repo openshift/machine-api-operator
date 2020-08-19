@@ -198,9 +198,9 @@ func (optr *Operator) syncBaremetalControllers(config *OperatorConfig) error {
 	if err != nil {
 		return err
 	}
-	// Create a Secret needed for the Metal3 deployment
-	if err := createMariadbPasswordSecret(optr.kubeClient.CoreV1(), config); err != nil {
-		glog.Error("Not proceeding with Metal3 deployment. Failed to create Mariadb password.")
+	// Create Secrets needed for the Metal3 deployment
+	if err := createMetal3PasswordSecrets(optr.kubeClient.CoreV1(), config); err != nil {
+		glog.Error("Not proceeding with Metal3 deployment.")
 		return err
 	}
 
