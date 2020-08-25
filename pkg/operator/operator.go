@@ -35,6 +35,10 @@ const (
 	// 5ms, 10ms, 20ms, 40ms, 80ms, 160ms, 320ms, 640ms, 1.3s, 2.6s, 5.1s, 10.2s, 20.4s, 41s, 82s
 	maxRetries         = 15
 	maoOwnedAnnotation = "machine.openshift.io/owned"
+	// Indicates that the metal3 deployment is being managed by cluster-baremetal-operator
+	cboOwnedAnnotation = "baremetal.openshift.io/owned"
+	// The name of the clusteroperator for cluster-baremetal-operator
+	cboClusterOperatorName = "baremetal"
 )
 
 // Operator defines machine api operator.

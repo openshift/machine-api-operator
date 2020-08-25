@@ -9,15 +9,18 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/golang/glog"
+	osclientset "github.com/openshift/client-go/config/clientset/versioned"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	appsclientv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	coreclientv1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/utils/pointer"
 )
 
 const (
+	baremetalDeploymentName    = "metal3"
 	baremetalSharedVolume      = "metal3-shared"
 	baremetalSecretName        = "metal3-mariadb-password"
 	baremetalSecretKey         = "password"
@@ -234,13 +237,40 @@ func createMetal3PasswordSecrets(client coreclientv1.SecretsGetter, config *Oper
 	return nil
 }
 
+// Return false on error or if "baremetal.openshift.io/owned" annotation set
+func checkMetal3DeploymentMAOOwned(client appsclientv1.DeploymentsGetter, config *OperatorConfig) (bool, error) {
+	existing, err := client.Deployments(config.TargetNamespace).Get(context.Background(), baremetalDeploymentName, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return true, nil
+		}
+		return false, err
+	}
+	if _, exists := existing.ObjectMeta.Annotations[cboOwnedAnnotation]; exists {
+		return false, nil
+	}
+	return true, nil
+}
+
+// Return true if the baremetal clusteroperator exists
+func checkForBaremetalClusterOperator(osClient osclientset.Interface) (bool, error) {
+	_, err := osClient.ConfigV1().ClusterOperators().Get(context.Background(), cboClusterOperatorName, metav1.GetOptions{})
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
 func newMetal3Deployment(config *OperatorConfig, baremetalProvisioningConfig BaremetalProvisioningConfig) *appsv1.Deployment {
 	replicas := int32(1)
 	template := newMetal3PodTemplateSpec(config, baremetalProvisioningConfig)
 
 	return &appsv1.Deployment{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "metal3",
+			Name:      baremetalDeploymentName,
 			Namespace: config.TargetNamespace,
 			Annotations: map[string]string{
 				maoOwnedAnnotation: "",

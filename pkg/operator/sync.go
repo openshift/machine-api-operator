@@ -198,6 +198,23 @@ func (optr *Operator) syncMutatingWebhook() error {
 }
 
 func (optr *Operator) syncBaremetalControllers(config *OperatorConfig, configName string) error {
+	// Stand down if cluster-bare-metal operator has claimed the metal3 deployment
+	// and if the baremetal clusteroperator exists
+	maoOwned, err := checkMetal3DeploymentMAOOwned(optr.kubeClient.AppsV1(), config)
+	if err != nil {
+		return err
+	}
+	if !maoOwned {
+		cboExists, err := checkForBaremetalClusterOperator(optr.osClient)
+		if err != nil {
+			return err
+		}
+		if cboExists {
+			glog.Infof("cluster-baremetal-operator is running and managing the Metal3 deployment, standing down.")
+			return nil
+		}
+	}
+
 	// Try to get baremetal provisioning config from a CR
 	baremetalProvisioningConfig, err := getBaremetalProvisioningConfig(optr.dynamicClient, configName)
 	if err == nil && baremetalProvisioningConfig == nil {
