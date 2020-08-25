@@ -170,10 +170,16 @@ func applyUnstructured(resourceClient dynamic.ResourceInterface, path string, re
 	}
 
 	existing, err := resourceClient.Get(context.TODO(), required.GetName(), metav1.GetOptions{})
-	if apierrors.IsNotFound(err) {
-		actual, err := resourceClient.Create(context.TODO(), required, metav1.CreateOptions{})
-		reportCreateEvent(recorder, required, err)
-		return actual, true, err
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			actual, err := resourceClient.Create(context.TODO(), required, metav1.CreateOptions{})
+			reportCreateEvent(recorder, required, err)
+			if err != nil {
+				return nil, false, err
+			}
+			return actual, true, nil
+		}
+		return nil, false, err
 	}
 
 	existingCopy := existing.DeepCopy()
@@ -207,5 +213,8 @@ func applyUnstructured(resourceClient dynamic.ResourceInterface, path string, re
 
 	actual, err := resourceClient.Update(context.TODO(), toWrite, metav1.UpdateOptions{})
 	reportUpdateEvent(recorder, required, err)
-	return actual, true, err
+	if err != nil {
+		return nil, false, err
+	}
+	return actual, true, nil
 }

@@ -14,8 +14,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/diff"
-	"k8s.io/client-go/dynamic"
+	fakedynamic "k8s.io/client-go/dynamic/fake"
+	"k8s.io/client-go/kubernetes/scheme"
+	clientTesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -128,9 +131,10 @@ func TestWaitForDeploymentRollout(t *testing.T) {
 }
 
 type webhookTestCase struct {
-	testCase       string
-	shouldSync     bool
-	exisingWebhook func() *unstructured.Unstructured
+	testCase             string
+	shouldSync           bool
+	serverOperationError string
+	exisingWebhook       func() *unstructured.Unstructured
 }
 
 func TestSyncValidatingWebhooks(t *testing.T) {
@@ -148,6 +152,15 @@ func TestSyncValidatingWebhooks(t *testing.T) {
 				return &unstructured.Unstructured{Object: exisingWebhook}
 			},
 			shouldSync: false,
+		},
+		{
+			testCase: "It should not create webhookConfiguration if the server is down",
+			exisingWebhook: func() *unstructured.Unstructured {
+				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(defaultConfiguration.DeepCopy())
+				return &unstructured.Unstructured{Object: exisingWebhook}
+			},
+			serverOperationError: "get",
+			shouldSync:           false,
 		},
 		{
 			testCase: "It shouldn't update webhookConfiguration if only caBundle field have changed",
@@ -168,6 +181,17 @@ func TestSyncValidatingWebhooks(t *testing.T) {
 				return &unstructured.Unstructured{Object: exisingWebhook}
 			},
 			shouldSync: true,
+		},
+		{
+			testCase: "It should not update webhookConfiguration if some of their webhooks differ, but the server is down",
+			exisingWebhook: func() *unstructured.Unstructured {
+				webhook := defaultConfiguration.DeepCopy()
+				webhook.Webhooks[0].Name = "test"
+				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook)
+				return &unstructured.Unstructured{Object: exisingWebhook}
+			},
+			serverOperationError: "update",
+			shouldSync:           false,
 		},
 		{
 			testCase: "It should update webhookConfiguration if its webhook list is missing an element",
@@ -218,8 +242,8 @@ func TestSyncValidatingWebhooks(t *testing.T) {
 	optr.syncHandler = nil
 
 	configuration, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(defaultConfiguration.DeepCopy())
-	testSyncWebhookConfiguration(t,
-		optr.dynamicClient.Resource(admissionregistrationv1.SchemeGroupVersion.WithResource("validatingwebhookconfigurations")),
+	testSyncWebhookConfiguration(t, optr,
+		admissionregistrationv1.SchemeGroupVersion.WithResource("validatingwebhookconfigurations"),
 		&unstructured.Unstructured{Object: configuration},
 		optr.syncValidatingWebhook,
 		stop,
@@ -243,6 +267,15 @@ func TestSyncMutatingWebhooks(t *testing.T) {
 			shouldSync: false,
 		},
 		{
+			testCase: "It should not create webhookConfiguration if the server is down",
+			exisingWebhook: func() *unstructured.Unstructured {
+				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(defaultConfiguration.DeepCopy())
+				return &unstructured.Unstructured{Object: exisingWebhook}
+			},
+			serverOperationError: "get",
+			shouldSync:           false,
+		},
+		{
 			testCase: "It shouldn't update webhookConfiguration if only caBundle field have changed",
 			exisingWebhook: func() *unstructured.Unstructured {
 				webhook := defaultConfiguration.DeepCopy()
@@ -261,6 +294,17 @@ func TestSyncMutatingWebhooks(t *testing.T) {
 				return &unstructured.Unstructured{Object: exisingWebhook}
 			},
 			shouldSync: true,
+		},
+		{
+			testCase: "It should not update webhookConfiguration if some of their webhooks differ, but the server is down",
+			exisingWebhook: func() *unstructured.Unstructured {
+				webhook := defaultConfiguration.DeepCopy()
+				webhook.Webhooks[0].Name = "test"
+				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook)
+				return &unstructured.Unstructured{Object: exisingWebhook}
+			},
+			serverOperationError: "update",
+			shouldSync:           false,
 		},
 		{
 			testCase: "It should update webhookConfiguration if its webhook list is missing an element",
@@ -311,8 +355,8 @@ func TestSyncMutatingWebhooks(t *testing.T) {
 	optr.syncHandler = nil
 
 	configuration, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(defaultConfiguration.DeepCopy())
-	testSyncWebhookConfiguration(t,
-		optr.dynamicClient.Resource(admissionregistrationv1.SchemeGroupVersion.WithResource("mutatingwebhookconfigurations")),
+	testSyncWebhookConfiguration(t, optr,
+		admissionregistrationv1.SchemeGroupVersion.WithResource("mutatingwebhookconfigurations"),
 		&unstructured.Unstructured{Object: configuration},
 		optr.syncMutatingWebhook,
 		stop,
@@ -321,7 +365,8 @@ func TestSyncMutatingWebhooks(t *testing.T) {
 
 func testSyncWebhookConfiguration(
 	t *testing.T,
-	client dynamic.NamespaceableResourceInterface,
+	optr *Operator,
+	gvr schema.GroupVersionResource,
 	defaultConfiguration *unstructured.Unstructured,
 	sync func() error,
 	stop chan struct{},
@@ -332,6 +377,22 @@ func testSyncWebhookConfiguration(
 	expectedUnstructured := defaultConfiguration.DeepCopy()
 	expectedUnstructured.SetName(expectedName)
 	expectedMap, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(expectedUnstructured)
+	clientIn := fakedynamic.NewSimpleDynamicClient(scheme.Scheme, []runtime.Object{}...)
+	optr.dynamicClient = clientIn
+
+	serverError := fmt.Errorf("Server error")
+	addReactor := func(operation string) {
+		reactor := func(action clientTesting.Action) (bool, runtime.Object, error) {
+			return true, &admissionregistrationv1.ValidatingWebhookConfiguration{}, serverError
+		}
+		clientIn.PrependReactor(operation, gvr.Resource, reactor)
+	}
+
+	removeReactor := func() {
+		clientIn.ReactionChain = clientIn.ReactionChain[1:]
+	}
+
+	client := clientIn.Resource(gvr)
 	expected, err := client.Create(context.Background(), &unstructured.Unstructured{Object: expectedMap}, metav1.CreateOptions{})
 	if err != nil {
 		t.Fatalf("Unexpected error during creation of an expected webhook configuration: %q", err.Error())
@@ -341,7 +402,6 @@ func testSyncWebhookConfiguration(
 			t.Fatalf("Unexpected error during deletion of an expected webhook configuration: %q", err.Error())
 		}
 	}()
-
 	expectedWebhooks, _, err := unstructured.NestedSlice(expected.Object, "webhooks")
 	if err != nil {
 		t.Fatalf("Unexpected error while fetching expected webhook list: %v", err)
@@ -367,8 +427,16 @@ func testSyncWebhookConfiguration(
 				t.Fatalf("Failed to sync caches")
 			}
 
-			if err := sync(); err != nil {
-				t.Fatalf("Unexpected error during webhook syncronization: %q", err.Error())
+			if tc.serverOperationError != "" {
+				addReactor(tc.serverOperationError)
+				if err := sync(); err != serverError {
+					t.Fatalf("Unexpected error during webhook syncronization: %q, expected %q", err.Error(), serverError)
+				}
+				removeReactor()
+			} else {
+				if err := sync(); err != nil {
+					t.Fatalf("Unexpected error during webhook syncronization: %q", err.Error())
+				}
 			}
 
 			existing, err := client.Get(context.Background(), defaultConfiguration.GetName(), metav1.GetOptions{})
@@ -389,7 +457,7 @@ func testSyncWebhookConfiguration(
 					t.Errorf("Expected webhhoks match:\n%#v\n, got:\n%#v\n", expectedWebhooks, existingWebhooks)
 				}
 			} else {
-				initialExistingWebhooks, _, _ := unstructured.NestedSlice(tc.exisingWebhook().Object, "webhooks")
+				initialExistingWebhooks, _, err := unstructured.NestedSlice(tc.exisingWebhook().Object, "webhooks")
 				if err != nil || !equality.Semantic.DeepEqual(initialExistingWebhooks, existingWebhooks) {
 					t.Errorf("Expected webhhoks match initial configuration:\n%#v\n, got:\n%#v\n, error: %v", initialExistingWebhooks, existingWebhooks, err)
 				}
