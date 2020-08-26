@@ -435,10 +435,11 @@ func (r *ReconcileMachineHealthCheck) mhcRequestsFromMachine(o handler.MapObject
 func (t *target) remediate(r *ReconcileMachineHealthCheck) error {
 	glog.Infof(" %s: start remediation logic", t.string())
 
-	remediationStrategy, ok := t.MHC.Annotations[remediationStrategyAnnotation]
-	if ok {
-		if mapiv1.RemediationStrategyType(remediationStrategy) == remediationStrategyExternal {
-			return t.remediationStrategyExternal(r)
+	if derefStringPointer(t.Machine.Status.Phase) != machinePhaseFailed {
+		if remediationStrategy, ok := t.MHC.Annotations[remediationStrategyAnnotation]; ok {
+			if mapiv1.RemediationStrategyType(remediationStrategy) == remediationStrategyExternal {
+				return t.remediationStrategyExternal(r)
+			}
 		}
 	}
 
