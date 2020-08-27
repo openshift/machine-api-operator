@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/golang/glog"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -14,6 +13,7 @@ import (
 )
 
 var provisioningGVR = schema.GroupVersionResource{Group: "metal3.io", Resource: "provisionings", Version: "v1alpha1"}
+var provisioningGR = schema.GroupResource{Group: "metal3.io", Resource: "provisionings"}
 
 const (
 	baremetalProvisioningCR        = "provisioning-configuration"
@@ -48,47 +48,47 @@ func reportError(found bool, err error, configItem string, configName string) er
 	return fmt.Errorf("Unknown Error while reading %s from Baremetal provisioning CR %s", configItem, configName)
 }
 
-func getBaremetalProvisioningConfig(dc dynamic.Interface, configName string) (BaremetalProvisioningConfig, error) {
+func getBaremetalProvisioningConfig(dc dynamic.Interface, configName string) (*BaremetalProvisioningConfig, error) {
 	provisioningClient := dc.Resource(provisioningGVR)
 	provisioningConfig, err := provisioningClient.Get(context.Background(), configName, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		glog.V(3).Infof("Baremetal provisioning CR %s is not found", configName)
-		return BaremetalProvisioningConfig{}, nil
+		// The provisioning CR is not present and that is not considered an error.
+		return nil, nil
 	}
 	if err != nil {
-		return BaremetalProvisioningConfig{}, reportError(true, err, "provisioning configuration", configName)
+		return nil, reportError(true, err, "provisioning configuration", configName)
 	}
 	provisioningSpec, found, err := unstructured.NestedMap(provisioningConfig.UnstructuredContent(), "spec")
 	if !found || err != nil {
-		return BaremetalProvisioningConfig{}, reportError(found, err, "Spec field", configName)
+		return nil, reportError(found, err, "Spec field", configName)
 	}
 	provisioningInterface, found, err := unstructured.NestedString(provisioningSpec, "provisioningInterface")
 	if !found || err != nil {
-		return BaremetalProvisioningConfig{}, reportError(found, err, "provisioningInterface", configName)
+		return nil, reportError(found, err, "provisioningInterface", configName)
 	}
 	provisioningIP, found, err := unstructured.NestedString(provisioningSpec, "provisioningIP")
 	if !found || err != nil {
-		return BaremetalProvisioningConfig{}, reportError(found, err, "provisioningIP", configName)
+		return nil, reportError(found, err, "provisioningIP", configName)
 	}
 	provisioningDHCPRange, found, err := unstructured.NestedString(provisioningSpec, "provisioningDHCPRange")
 	if !found || err != nil {
-		return BaremetalProvisioningConfig{}, reportError(found, err, "provisioningDHCPRange", configName)
+		return nil, reportError(found, err, "provisioningDHCPRange", configName)
 	}
 	provisioningOSDownloadURL, found, err := unstructured.NestedString(provisioningSpec, "provisioningOSDownloadURL")
 	if !found || err != nil {
-		return BaremetalProvisioningConfig{}, reportError(found, err, "provisioningOSDownloadURL", configName)
+		return nil, reportError(found, err, "provisioningOSDownloadURL", configName)
 	}
 	// If provisioningNetwork is not provided, set its value based on provisioningDHCPExternal
 	provisioningNetwork, foundNetworkState, err := unstructured.NestedString(provisioningSpec, "provisioningNetwork")
 	if err != nil {
-		return BaremetalProvisioningConfig{}, reportError(true, err, "provisioningNetwork", configName)
+		return nil, reportError(true, err, "provisioningNetwork", configName)
 	}
 	if !foundNetworkState {
 		// Check if provisioningDHCPExternal is present in the config
 		provisioningDHCPExternal, foundDHCP, err := unstructured.NestedBool(provisioningSpec, "provisioningDHCPExternal")
 		if !foundDHCP || err != nil {
 			// Both the new provisioningNetwork and the old provisioningDHCPExternal configs are not found.
-			return BaremetalProvisioningConfig{}, reportError(foundDHCP, err, "provisioningNetwork and provisioningDHCPExternal", configName)
+			return nil, reportError(foundDHCP, err, "provisioningNetwork and provisioningDHCPExternal", configName)
 		}
 		if !provisioningDHCPExternal {
 			provisioningNetwork = provisioningNetworkManaged
@@ -100,23 +100,24 @@ func getBaremetalProvisioningConfig(dc dynamic.Interface, configName string) (Ba
 	// The CIDR of the network needs to be extracted to form the provisioningIPCIDR
 	provisioningNetworkCIDR, found, err := unstructured.NestedString(provisioningSpec, "provisioningNetworkCIDR")
 	if !found || err != nil {
-		return BaremetalProvisioningConfig{}, reportError(found, err, "provisioningNetworkCIDR", configName)
+		return nil, reportError(found, err, "provisioningNetworkCIDR", configName)
 	}
 	// Check if the other config values make sense for the provisioningNetwork configured.
 	if provisioningInterface == "" && provisioningNetwork == provisioningNetworkManaged {
-		return BaremetalProvisioningConfig{}, fmt.Errorf("provisioningInterface cannot be empty when provisioningNetwork is Managed.")
+		return nil, fmt.Errorf("provisioningInterface cannot be empty when provisioningNetwork is Managed.")
 	}
 	if provisioningDHCPRange == "" && provisioningNetwork == provisioningNetworkManaged {
-		return BaremetalProvisioningConfig{}, fmt.Errorf("provisioningDHCPRange cannot be empty when provisioningNetwork is Managed or when the DHCP server needs to run with the metal3 cluster.")
+		return nil, fmt.Errorf("provisioningDHCPRange cannot be empty when provisioningNetwork is Managed or when the DHCP server needs to run with the metal3 cluster.")
 	}
-	return BaremetalProvisioningConfig{
+	baremetalConfig := BaremetalProvisioningConfig{
 		ProvisioningInterface:     provisioningInterface,
 		ProvisioningIp:            provisioningIP,
 		ProvisioningNetworkCIDR:   provisioningNetworkCIDR,
 		ProvisioningDHCPRange:     provisioningDHCPRange,
 		ProvisioningOSDownloadURL: provisioningOSDownloadURL,
 		ProvisioningNetwork:       provisioningNetwork,
-	}, nil
+	}
+	return &baremetalConfig, nil
 }
 
 func getProvisioningIPCIDR(baremetalConfig BaremetalProvisioningConfig) *string {

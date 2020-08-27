@@ -18,7 +18,6 @@ import (
 )
 
 const (
-	baremetalConfigmap         = "metal3-config"
 	baremetalSharedVolume      = "metal3-shared"
 	baremetalSecretName        = "metal3-mariadb-password"
 	baremetalSecretKey         = "password"
