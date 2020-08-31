@@ -4,7 +4,10 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
+	osconfigv1 "github.com/openshift/api/config/v1"
+	fakeos "github.com/openshift/client-go/config/clientset/versioned/fake"
 	"golang.org/x/net/context"
+	appsv1 "k8s.io/api/apps/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -375,7 +378,163 @@ func TestSyncBaremetalControllers(t *testing.T) {
 
 			err := optr.syncBaremetalControllers(operatorConfig, tc.configCRName)
 			g.Expect(err).To(Equal(tc.expectedError))
+		})
+	}
+}
 
+func TestCheckMetal3DeploymentOwned(t *testing.T) {
+	kubeClient := fakekube.NewSimpleClientset(nil...)
+	operatorConfig := newOperatorWithBaremetalConfig()
+	client := kubeClient.AppsV1()
+
+	testCases := []struct {
+		testCase      string
+		deployment    *appsv1.Deployment
+		expected      bool
+		expectedError bool
+	}{
+		{
+			testCase: "Only maoOwnedAnnotation",
+			deployment: &appsv1.Deployment{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Deployment",
+					APIVersion: "apps/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: baremetalDeploymentName,
+					Annotations: map[string]string{
+						maoOwnedAnnotation: "",
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			testCase: "Only cboOwnedAnnotation",
+			deployment: &appsv1.Deployment{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Deployment",
+					APIVersion: "apps/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: baremetalDeploymentName,
+					Annotations: map[string]string{
+						cboOwnedAnnotation: "",
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			testCase: "Both cboOwnedAnnotation and maoOwnedAnnotation",
+			deployment: &appsv1.Deployment{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Deployment",
+					APIVersion: "apps/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: baremetalDeploymentName,
+					Annotations: map[string]string{
+						cboOwnedAnnotation: "",
+						maoOwnedAnnotation: "",
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			testCase: "No cboOwnedAnnotation or maoOwnedAnnotation",
+			deployment: &appsv1.Deployment{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "Deployment",
+					APIVersion: "apps/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:        baremetalDeploymentName,
+					Annotations: map[string]string{},
+				},
+			},
+			expected: true,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(string(tc.testCase), func(t *testing.T) {
+
+			_, err := client.Deployments("test-namespace").Create(context.Background(), tc.deployment, metav1.CreateOptions{})
+			if err != nil {
+				t.Fatalf("Could not create metal3 test deployment.\n")
+			}
+			maoOwned, err := checkMetal3DeploymentMAOOwned(client, operatorConfig)
+			if maoOwned != tc.expected {
+				t.Errorf("Expected: %v, got: %v", tc.expected, maoOwned)
+			}
+			if tc.expectedError != (err != nil) {
+				t.Errorf("ExpectedError: %v, got: %v", tc.expectedError, err)
+			}
+			err = client.Deployments("test-namespace").Delete(context.Background(), baremetalDeploymentName, metav1.DeleteOptions{})
+			if err != nil {
+				t.Errorf("Could not delete metal3 test deployment.\n")
+			}
+		})
+	}
+
+}
+
+func TestCheckForBaremetalClusterOperator(t *testing.T) {
+	testCases := []struct {
+		testCase        string
+		clusterOperator *osconfigv1.ClusterOperator
+		expected        bool
+		expectedError   bool
+	}{
+		{
+			testCase: cboClusterOperatorName,
+			clusterOperator: &osconfigv1.ClusterOperator{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "ClusterOperator",
+					APIVersion: "config.openshift.io/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: cboClusterOperatorName,
+				},
+				Status: osconfigv1.ClusterOperatorStatus{
+					RelatedObjects: []osconfigv1.ObjectReference{
+						{
+							Group:    "",
+							Resource: "namespaces",
+							Name:     "openshift-machine-api",
+						},
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			testCase: "invalidCO",
+			clusterOperator: &osconfigv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "invalidCO",
+				},
+			},
+			expected: false,
+		},
+	}
+	for _, tc := range testCases {
+		t.Run(string(tc.testCase), func(t *testing.T) {
+			var osClient *fakeos.Clientset
+			osClient = fakeos.NewSimpleClientset(tc.clusterOperator)
+			_, err := osClient.ConfigV1().ClusterOperators().Create(context.Background(), tc.clusterOperator, metav1.CreateOptions{})
+			if err != nil && !apierrors.IsAlreadyExists(err) {
+				t.Fatalf("Unable to create ClusterOperator for test: %v", err)
+			}
+			exists, err := checkForBaremetalClusterOperator(osClient)
+			if exists != tc.expected {
+				t.Errorf("Expected: %v, got: %v", tc.expected, exists)
+			}
+			if tc.expectedError != (err != nil) {
+				t.Errorf("ExpectedError: %v, got: %v", tc.expectedError, err)
+			}
+			err = osClient.ConfigV1().ClusterOperators().Delete(context.Background(), tc.testCase, metav1.DeleteOptions{})
 		})
 	}
 }
