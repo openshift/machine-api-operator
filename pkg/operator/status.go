@@ -58,20 +58,21 @@ func (optr *Operator) statusProgressing() error {
 		return err
 	}
 
-	var message string
+	var message, reason string
 	if !reflect.DeepEqual(desiredVersions, currentVersions) {
 		glog.V(2).Info("Syncing status: progressing")
 		message = fmt.Sprintf("Progressing towards %s", optr.printOperandVersions())
 		optr.eventRecorder.Eventf(co, v1.EventTypeNormal, "Status upgrade", message)
 		isProgressing = osconfigv1.ConditionTrue
+		reason = string(ReasonSyncing)
 	} else {
 		glog.V(2).Info("Syncing status: re-syncing")
-		message = fmt.Sprintf("Running resync for %s", optr.printOperandVersions())
+		reason = string(ReasonAsExpected)
 		isProgressing = osconfigv1.ConditionFalse
 	}
 
 	conds := []osconfigv1.ClusterOperatorStatusCondition{
-		newClusterOperatorStatusCondition(osconfigv1.OperatorProgressing, isProgressing, string(ReasonSyncing), message),
+		newClusterOperatorStatusCondition(osconfigv1.OperatorProgressing, isProgressing, reason, message),
 		operatorUpgradeable,
 	}
 
