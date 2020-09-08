@@ -75,6 +75,35 @@ var defaultBaremetalVolumes = []corev1.Volume{
 	},
 }
 
+// we define this service monitor in code instead of a yaml manifest
+// because we only want it to exist when metal3 is deployed
+const metal3ServiceMonitorDefinition = `
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  namespace: openshift-machine-api
+  name: metal3-metrics
+  labels:
+    k8s-app: controller
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
+spec:
+  namespaceSelector:
+    matchNames:
+      - openshift-machine-api
+  selector:
+    matchLabels:
+      k8s-app: controller
+  endpoints:
+  - port: metrics
+    bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    interval: 30s
+    scheme: https
+    tlsConfig:
+      caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
+      serverName: machine-api-controllers.openshift-machine-api.svc
+`
+
 var sharedVolumeMount = corev1.VolumeMount{
 	Name:      baremetalSharedVolume,
 	MountPath: "/shared",

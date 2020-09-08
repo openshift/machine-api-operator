@@ -329,6 +329,16 @@ func (optr *Operator) syncBaremetalControllers(config *OperatorConfig, configNam
 		klog.V(3).Infof("updated service %s/%s", s.Namespace, s.Name)
 	}
 
+	metal3ServiceMonitor := []byte(metal3ServiceMonitorDefinition)
+	updated, err = resourceapply.ApplyServiceMonitor(optr.dynamicClient,
+		events.NewLoggingEventRecorder(optr.name), metal3ServiceMonitor)
+	if err != nil {
+		return err
+	}
+	if updated {
+		klog.V(3).Infof("updated service monitor openshift-machine-api/metal3")
+	}
+
 	expectedGeneration := resourcemerge.ExpectedDeploymentGeneration(metal3Deployment, optr.generations)
 	d, updated, err := resourceapply.ApplyDeployment(optr.kubeClient.AppsV1(),
 		events.NewLoggingEventRecorder(optr.name), metal3Deployment, expectedGeneration)
