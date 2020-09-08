@@ -22,7 +22,7 @@ const specHashAnnotation = "operator.openshift.io/spec-hash"
 
 // This is based on resourcemerge.EnsureObjectMeta but uses the metav1.Object interface instead
 // TODO: Update this to use resourcemerge.EnsureObjectMeta or update resourcemerge.EnsureObjectMeta to use the interface
-func ensureObjectMeta(existing, required metav1.Object) (bool, error) {
+func ensureObjectMeta(existing, required metav1.Object) bool {
 	modified := resourcemerge.BoolPtr(false)
 
 	namespace := existing.GetNamespace()
@@ -40,7 +40,7 @@ func ensureObjectMeta(existing, required metav1.Object) (bool, error) {
 	existing.SetLabels(labels)
 	existing.SetAnnotations(annotations)
 
-	return *modified, nil
+	return *modified
 }
 
 // setSpecHashAnnotation computes the hash of the provided spec and sets an annotation of the

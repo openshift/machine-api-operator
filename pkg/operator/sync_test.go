@@ -2,10 +2,12 @@ package operator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
 
+	"github.com/openshift/library-go/pkg/operator/events/eventstesting"
 	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -204,6 +206,18 @@ func TestSyncValidatingWebhooks(t *testing.T) {
 			shouldSync: true,
 		},
 		{
+			testCase: "It should update webhookConfiguration if its some webhook has a change in a field populated by defaults",
+			exisingWebhook: func() *unstructured.Unstructured {
+				webhook := defaultConfiguration.DeepCopy()
+				// Set a non default policy
+				policy := admissionregistrationv1.Exact
+				webhook.Webhooks[0].MatchPolicy = &policy
+				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook)
+				return &unstructured.Unstructured{Object: exisingWebhook}
+			},
+			shouldSync: true,
+		},
+		{
 			testCase: "It shoud update webhookConfiguration if some webhooks are removed from the list",
 			exisingWebhook: func() *unstructured.Unstructured {
 				webhook := defaultConfiguration.DeepCopy()
@@ -380,7 +394,7 @@ func testSyncWebhookConfiguration(
 	clientIn := fakedynamic.NewSimpleDynamicClient(scheme.Scheme, []runtime.Object{}...)
 	optr.dynamicClient = clientIn
 
-	serverError := fmt.Errorf("Server error")
+	serverError := errors.New("Server error")
 	addReactor := func(operation string) {
 		reactor := func(action clientTesting.Action) (bool, runtime.Object, error) {
 			return true, &admissionregistrationv1.ValidatingWebhookConfiguration{}, serverError
@@ -461,6 +475,138 @@ func testSyncWebhookConfiguration(
 				if err != nil || !equality.Semantic.DeepEqual(initialExistingWebhooks, existingWebhooks) {
 					t.Errorf("Expected webhhoks match initial configuration:\n%#v\n, got:\n%#v\n, error: %v", initialExistingWebhooks, existingWebhooks, err)
 				}
+			}
+		})
+	}
+}
+
+func TestApplyUnstructured(t *testing.T) {
+	testResource := admissionregistrationv1.SchemeGroupVersion.WithResource("mutatingwebhookconfigurations")
+
+	cases := []struct {
+		name           string
+		path           string
+		existing       runtime.Object
+		object         func() *unstructured.Unstructured
+		expectModified bool
+		serverError    string
+		err            error
+	}{
+		{
+			name: "Successfully create an object",
+			path: "webhooks",
+			object: func() *unstructured.Unstructured {
+				obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(mapiv1.NewMutatingWebhookConfiguration())
+				if err != nil {
+					t.Fatalf("Failed to covnert resource to unstructured: %v", err)
+				}
+				return &unstructured.Unstructured{Object: obj}
+			},
+			expectModified: true,
+		},
+		{
+			name: "Successfully update an object",
+			path: "webhooks",
+			object: func() *unstructured.Unstructured {
+				resource := mapiv1.NewMutatingWebhookConfiguration()
+				resource.Webhooks = append(resource.Webhooks, resource.Webhooks[0])
+				obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(resource)
+				if err != nil {
+					t.Fatalf("Failed to covnert resource to unstructured: %v", err)
+				}
+				return &unstructured.Unstructured{Object: obj}
+			},
+			existing:       mapiv1.NewMutatingWebhookConfiguration(),
+			expectModified: true,
+		},
+		{
+			name:   "Fail to apply a nil object",
+			object: func() *unstructured.Unstructured { return nil },
+			err:    errors.New("Unexpected nil instead of an object"),
+		},
+		{
+			name:   "Fail to apply an empty object",
+			path:   "webhooks",
+			object: func() *unstructured.Unstructured { return &unstructured.Unstructured{} },
+			err:    errors.New("Object does not contain the specified path: webhooks"),
+		},
+		{
+			name: "Fail to create an object in case of a server error on 'get' requests",
+			path: "webhooks",
+			object: func() *unstructured.Unstructured {
+				obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(mapiv1.NewMutatingWebhookConfiguration())
+				if err != nil {
+					t.Fatalf("Failed to covnert resource to unstructured: %v", err)
+				}
+				return &unstructured.Unstructured{Object: obj}
+			},
+			serverError: "get",
+			err:         errors.New("Custom server error"),
+		},
+		{
+			name: "Fail to create an object in case of a server error on 'create' requests",
+			path: "webhooks",
+			object: func() *unstructured.Unstructured {
+				obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(mapiv1.NewMutatingWebhookConfiguration())
+				if err != nil {
+					t.Fatalf("Failed to covnert resource to unstructured: %v", err)
+				}
+				return &unstructured.Unstructured{Object: obj}
+			},
+			serverError: "create",
+			err:         errors.New("Custom server error"),
+		},
+		{
+			name: "Fail to update an object in case of a server error on 'create' requests",
+			path: "webhooks",
+			object: func() *unstructured.Unstructured {
+				resource := mapiv1.NewMutatingWebhookConfiguration()
+				resource.Webhooks = append(resource.Webhooks, resource.Webhooks[0])
+				obj, err := runtime.DefaultUnstructuredConverter.ToUnstructured(resource)
+				if err != nil {
+					t.Fatalf("Failed to covnert resource to unstructured: %v", err)
+				}
+				return &unstructured.Unstructured{Object: obj}
+			},
+			existing:    mapiv1.NewMutatingWebhookConfiguration(),
+			serverError: "update",
+			err:         errors.New("Custom server error"),
+		},
+	}
+
+	for _, test := range cases {
+		t.Run(test.name, func(t *testing.T) {
+			var objects []runtime.Object
+			if test.existing != nil {
+				objects = append(objects, test.existing)
+			}
+			clientIn := fakedynamic.NewSimpleDynamicClient(scheme.Scheme, objects...)
+			client := clientIn.Resource(testResource)
+			if test.serverError != "" {
+				reactor := func(action clientTesting.Action) (bool, runtime.Object, error) {
+					return true, nil, test.err
+				}
+				clientIn.PrependReactor(test.serverError, "*", reactor)
+			}
+
+			applied, modified, err := applyUnstructured(client, test.path, eventstesting.NewTestingEventRecorder(t), test.object(), 0)
+			if test.err != nil {
+				if err == nil || test.err.Error() != err.Error() {
+					t.Fatalf("Expected error to be equal %v, got %v", test.err, err)
+				}
+				return
+			}
+
+			if test.expectModified != modified {
+				t.Errorf("Expected modified to be %v, got %v", test.expectModified, modified)
+				return
+			}
+
+			expectedChange := test.err == nil
+			if expectedChange && equality.Semantic.DeepEqual(applied, test.object) {
+				t.Error("Expected object to be updated")
+			} else if !expectedChange && !equality.Semantic.DeepEqual(applied, test.object) {
+				t.Error("Expected object to not be updated")
 			}
 		})
 	}

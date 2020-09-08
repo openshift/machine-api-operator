@@ -2,6 +2,7 @@ package operator
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/openshift/library-go/pkg/operator/events"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
@@ -28,10 +29,10 @@ func applyMutatingWebhookConfiguration(client dynamic.Interface, recorder events
 	gvr := admissionregistrationv1.SchemeGroupVersion.WithResource("mutatingwebhookconfigurations")
 	resourcedClient := client.Resource(gvr)
 
+	required := requiredOriginal.DeepCopy()
 	// Providing upgrade compatibility with service-ca-bundle operator
 	// and ignore clientConfig.caBundle changes on "inject-cabundle" label
-	required := requiredOriginal.DeepCopy()
-	if required.GetAnnotations() != nil && required.GetAnnotations()[genericCABundleInjectorLabel] != "" {
+	if required != nil && required.GetAnnotations() != nil && required.GetAnnotations()[genericCABundleInjectorLabel] != "" {
 		if err := copyMutatingWebhookCABundle(resourcedClient, required); err != nil {
 			return nil, false, err
 		}
@@ -100,7 +101,7 @@ func applyValidatingWebhookConfiguration(client dynamic.Interface, recorder even
 	required := requiredOriginal.DeepCopy()
 	// Providing upgrade compatibility with service-ca-bundle operator
 	// and ignore clientConfig.caBundle changes on "inject-cabundle" label
-	if required.GetAnnotations() != nil && required.GetAnnotations()[genericCABundleInjectorLabel] != "" {
+	if required != nil && required.GetAnnotations() != nil && required.GetAnnotations()[genericCABundleInjectorLabel] != "" {
 		if err := copyValidatingWebhookCABundle(resourcedClient, required); err != nil {
 			return nil, false, err
 		}
@@ -162,10 +163,20 @@ func copyValidatingWebhookCABundle(resourceClient dynamic.ResourceInterface, req
 // For further detail, check the top-level comment.
 func applyUnstructured(resourceClient dynamic.ResourceInterface, path string, recorder events.Recorder,
 	requiredOriginal *unstructured.Unstructured, expectedGeneration int64) (*unstructured.Unstructured, bool, error) {
-
+	if requiredOriginal == nil {
+		return nil, false, fmt.Errorf("Unexpected nil instead of an object")
+	}
 	required := requiredOriginal.DeepCopy()
 
-	if err := setSpecHashAnnotation(required, required.Object[path]); err != nil {
+	requiredSpec, exists, err := unstructured.NestedFieldNoCopy(required.Object, path)
+	if err != nil {
+		return nil, false, err
+	}
+	if !exists {
+		return nil, false, fmt.Errorf("Object does not contain the specified path: %s", path)
+	}
+
+	if err := setSpecHashAnnotation(required, requiredSpec); err != nil {
 		return nil, false, err
 	}
 
@@ -183,21 +194,14 @@ func applyUnstructured(resourceClient dynamic.ResourceInterface, path string, re
 	}
 
 	existingCopy := existing.DeepCopy()
-	modified, err := ensureObjectMeta(existingCopy, required)
+	existingSpec, _, err := unstructured.NestedFieldNoCopy(existingCopy.Object, path)
 	if err != nil {
 		return nil, false, err
 	}
-
-	if !modified {
-		return existingCopy, false, nil
-	}
-
-	requiredSpec, exists, err := unstructured.NestedFieldNoCopy(required.Object, path)
-	if err != nil {
+	if err := setSpecHashAnnotation(existingCopy, existingSpec); err != nil {
 		return nil, false, err
 	}
-	if !exists {
-		// No spec to update
+	if modified := ensureObjectMeta(existingCopy, required); !modified {
 		return existingCopy, false, nil
 	}
 
@@ -207,9 +211,7 @@ func applyUnstructured(resourceClient dynamic.ResourceInterface, path string, re
 		return nil, false, err
 	}
 
-	if klog.V(4) {
-		klog.Infof("%s %q changes: %v", required.GetKind(), required.GetNamespace()+"/"+required.GetName(), jsonPatchNoError(existing, toWrite))
-	}
+	klog.V(4).Infof("%s %q changes: %v", required.GetKind(), required.GetNamespace()+"/"+required.GetName(), jsonPatchNoError(existing, toWrite))
 
 	actual, err := resourceClient.Update(context.TODO(), toWrite, metav1.UpdateOptions{})
 	reportUpdateEvent(recorder, required, err)
