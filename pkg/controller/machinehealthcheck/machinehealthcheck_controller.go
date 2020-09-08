@@ -50,10 +50,9 @@ const (
 	// EventDetectedUnhealthy is emitted in case a node asociated with a
 	// machine was detected unhealthy
 	EventDetectedUnhealthy string = "DetectedUnhealthy"
-	// EventSkippedMaster is emitted in case an unhealthy node (or a machine
-	// associated with the node) has Master role and external remediation strategy
-	// is not enabled
-	EventSkippedMaster string = "SkippedMaster"
+	// EventSkippedNoController is emitted in case an unhealthy node (or a machine
+	// associated with the node) has no controller owner
+	EventSkippedNoController string = "SkippedNoController"
 	// EventMachineDeletionFailed is emitted in case remediation of a machine
 	// is required but deletion of its Machine object failed
 	EventMachineDeletionFailed string = "MachineDeletionFailed"
@@ -443,6 +442,13 @@ func (t *target) remediate(r *ReconcileMachineHealthCheck) error {
 	}
 
 	if !t.hasControllerOwner() {
+		r.recorder.Eventf(
+			&t.Machine,
+			corev1.EventTypeNormal,
+			EventSkippedNoController,
+			"Machine %v has no controller owner, skipping remediation",
+			t.string(),
+		)
 		glog.Infof("%s: no controller owner, skipping remediation", t.string())
 		return nil
 	}

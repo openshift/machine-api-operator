@@ -213,7 +213,7 @@ func TestReconcile(t *testing.T) {
 	nodeAnnotatedWithNoExistentMachine.Annotations[machineAnnotationKey] = "annotatedWithNoExistentMachine"
 
 	// node annotated with machine without owner reference
-	nodeAnnotatedWithMachineWithoutOwnerReference := maotesting.NewNode("annotatedWithMachineWithoutOwnerReference", true)
+	nodeAnnotatedWithMachineWithoutOwnerReference := maotesting.NewNode("annotatedWithMachineWithoutOwnerReference", false)
 	nodeAnnotatedWithMachineWithoutOwnerReference.Annotations = map[string]string{
 		machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "machineWithoutOwnerController"),
 	}
@@ -325,7 +325,7 @@ func TestReconcile(t *testing.T) {
 				result: reconcile.Result{},
 				error:  false,
 			},
-			expectedEvents: []string{},
+			expectedEvents: []string{EventSkippedNoController},
 		},
 		{
 			testCase: "machine no noderef",
