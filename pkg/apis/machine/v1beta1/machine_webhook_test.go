@@ -3,6 +3,7 @@ package v1beta1
 import (
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -775,10 +776,11 @@ func TestMachineUpdate(t *testing.T) {
 func TestValidateAWSProviderSpec(t *testing.T) {
 
 	testCases := []struct {
-		testCase      string
-		modifySpec    func(*aws.AWSMachineProviderConfig)
-		expectedError string
-		expectedOk    bool
+		testCase         string
+		modifySpec       func(*aws.AWSMachineProviderConfig)
+		expectedError    string
+		expectedOk       bool
+		expectedWarnings []string
 	}{
 		{
 			testCase: "with no ami values it fails",
@@ -901,7 +903,7 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
 
-			ok, err := h.webhookOperations(m, h.clusterID)
+			ok, warnings, err := h.webhookOperations(m, h.clusterID)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -914,6 +916,10 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 				if err.Error() != tc.expectedError {
 					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
 				}
+			}
+
+			if !reflect.DeepEqual(warnings, tc.expectedWarnings) {
+				t.Errorf("expected: %q, got: %q", tc.expectedWarnings, warnings)
 			}
 		})
 	}
@@ -929,6 +935,7 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 		expectedProviderSpec *aws.AWSMachineProviderConfig
 		expectedError        string
 		expectedOk           bool
+		expectedWarnings     []string
 	}{
 		{
 			testCase: "it defaults Region, InstanceType, IAMInstanceProfile, UserDataSecret, CredentialsSecret, SecurityGroups and Subnet when an AvailabilityZone is set",
@@ -1033,7 +1040,7 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
 
-			ok, err := h.webhookOperations(m, h.clusterID)
+			ok, warnings, err := h.webhookOperations(m, h.clusterID)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -1055,6 +1062,10 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
 				}
 			}
+
+			if !reflect.DeepEqual(warnings, tc.expectedWarnings) {
+				t.Errorf("expected: %q, got: %q", tc.expectedWarnings, warnings)
+			}
 		})
 	}
 }
@@ -1062,10 +1073,11 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 func TestValidateAzureProviderSpec(t *testing.T) {
 
 	testCases := []struct {
-		testCase      string
-		modifySpec    func(providerSpec *azure.AzureMachineProviderSpec)
-		expectedError string
-		expectedOk    bool
+		testCase         string
+		modifySpec       func(providerSpec *azure.AzureMachineProviderSpec)
+		expectedError    string
+		expectedOk       bool
+		expectedWarnings []string
 	}{
 		{
 			testCase: "with no location it fails",
@@ -1335,7 +1347,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
 
-			ok, err := h.webhookOperations(m, h.clusterID)
+			ok, warnings, err := h.webhookOperations(m, h.clusterID)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -1349,6 +1361,10 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
 				}
 			}
+
+			if !reflect.DeepEqual(warnings, tc.expectedWarnings) {
+				t.Errorf("expected: %q, got: %q", tc.expectedWarnings, warnings)
+			}
 		})
 	}
 }
@@ -1357,11 +1373,12 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 
 	clusterID := "clusterID"
 	testCases := []struct {
-		testCase      string
-		providerSpec  *azure.AzureMachineProviderSpec
-		modifyDefault func(*azure.AzureMachineProviderSpec)
-		expectedError string
-		expectedOk    bool
+		testCase         string
+		providerSpec     *azure.AzureMachineProviderSpec
+		modifyDefault    func(*azure.AzureMachineProviderSpec)
+		expectedError    string
+		expectedOk       bool
+		expectedWarnings []string
 	}{
 		{
 			testCase:      "it defaults defaultable fields",
@@ -1488,7 +1505,7 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
 
-			ok, err := h.webhookOperations(m, h.clusterID)
+			ok, warnings, err := h.webhookOperations(m, h.clusterID)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -1510,6 +1527,10 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
 				}
 			}
+
+			if !reflect.DeepEqual(warnings, tc.expectedWarnings) {
+				t.Errorf("expected: %q, got: %q", tc.expectedWarnings, warnings)
+			}
 		})
 	}
 }
@@ -1517,10 +1538,11 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 func TestValidateGCPProviderSpec(t *testing.T) {
 
 	testCases := []struct {
-		testCase      string
-		modifySpec    func(*gcp.GCPMachineProviderSpec)
-		expectedError string
-		expectedOk    bool
+		testCase         string
+		modifySpec       func(*gcp.GCPMachineProviderSpec)
+		expectedError    string
+		expectedOk       bool
+		expectedWarnings []string
 	}{
 		{
 			testCase: "with no region",
@@ -1757,7 +1779,7 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
 
-			ok, err := h.webhookOperations(m, h.clusterID)
+			ok, warnings, err := h.webhookOperations(m, h.clusterID)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -1771,6 +1793,10 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
 				}
 			}
+
+			if !reflect.DeepEqual(warnings, tc.expectedWarnings) {
+				t.Errorf("expected: %q, got: %q", tc.expectedWarnings, warnings)
+			}
 		})
 	}
 }
@@ -1780,11 +1806,12 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 	clusterID := "clusterID"
 	projectID := "projectID"
 	testCases := []struct {
-		testCase      string
-		providerSpec  *gcp.GCPMachineProviderSpec
-		modifyDefault func(*gcp.GCPMachineProviderSpec)
-		expectedError string
-		expectedOk    bool
+		testCase         string
+		providerSpec     *gcp.GCPMachineProviderSpec
+		modifyDefault    func(*gcp.GCPMachineProviderSpec)
+		expectedError    string
+		expectedOk       bool
+		expectedWarnings []string
 	}{
 		{
 			testCase:      "it defaults defaultable fields",
@@ -1866,7 +1893,7 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
 
-			ok, err := h.webhookOperations(m, h.clusterID)
+			ok, warnings, err := h.webhookOperations(m, h.clusterID)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -1888,6 +1915,10 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
 				}
 			}
+
+			if !reflect.DeepEqual(warnings, tc.expectedWarnings) {
+				t.Errorf("expected: %q, got: %q", tc.expectedWarnings, warnings)
+			}
 		})
 	}
 }
@@ -1895,10 +1926,11 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 func TestValidateVSphereProviderSpec(t *testing.T) {
 
 	testCases := []struct {
-		testCase      string
-		modifySpec    func(*vsphere.VSphereMachineProviderSpec)
-		expectedError string
-		expectedOk    bool
+		testCase         string
+		modifySpec       func(*vsphere.VSphereMachineProviderSpec)
+		expectedError    string
+		expectedOk       bool
+		expectedWarnings []string
 	}{
 		{
 			testCase: "with no template provided",
@@ -2071,7 +2103,7 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
 
-			ok, err := h.webhookOperations(m, h.clusterID)
+			ok, warnings, err := h.webhookOperations(m, h.clusterID)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -2085,6 +2117,10 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
 				}
 			}
+
+			if !reflect.DeepEqual(warnings, tc.expectedWarnings) {
+				t.Errorf("expected: %q, got: %q", tc.expectedWarnings, warnings)
+			}
 		})
 	}
 }
@@ -2093,11 +2129,12 @@ func TestDefaultVSphereProviderSpec(t *testing.T) {
 
 	clusterID := "clusterID"
 	testCases := []struct {
-		testCase      string
-		providerSpec  *vsphere.VSphereMachineProviderSpec
-		modifyDefault func(*vsphere.VSphereMachineProviderSpec)
-		expectedError string
-		expectedOk    bool
+		testCase         string
+		providerSpec     *vsphere.VSphereMachineProviderSpec
+		modifyDefault    func(*vsphere.VSphereMachineProviderSpec)
+		expectedError    string
+		expectedOk       bool
+		expectedWarnings []string
 	}{
 		{
 			testCase:      "it defaults defaultable fields",
@@ -2134,7 +2171,7 @@ func TestDefaultVSphereProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
 
-			ok, err := h.webhookOperations(m, h.clusterID)
+			ok, warnings, err := h.webhookOperations(m, h.clusterID)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -2155,6 +2192,10 @@ func TestDefaultVSphereProviderSpec(t *testing.T) {
 				if err.Error() != tc.expectedError {
 					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
 				}
+			}
+
+			if !reflect.DeepEqual(warnings, tc.expectedWarnings) {
+				t.Errorf("expected: %q, got: %q", tc.expectedWarnings, warnings)
 			}
 		})
 	}
