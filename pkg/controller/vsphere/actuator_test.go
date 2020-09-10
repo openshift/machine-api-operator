@@ -260,6 +260,7 @@ func TestMachineEvents(t *testing.T) {
 				UserDataSecret: &corev1.LocalObjectReference{
 					Name: userDataSecretName,
 				},
+				DiskGiB: 1,
 			})
 			gs.Expect(err).ToNot(HaveOccurred())
 

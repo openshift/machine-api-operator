@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	vspherev1 "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
+	machineapierros "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
 	"github.com/openshift/machine-api-operator/pkg/metrics"
@@ -616,7 +617,13 @@ func getDiskSpec(s *machineScope, devices object.VirtualDeviceList) (types.BaseV
 	}
 
 	disk := disks[0].(*types.VirtualDisk)
-	disk.CapacityInKB = int64(s.providerSpec.DiskGiB) * 1024 * 1024
+	cloneCapacityKB := int64(s.providerSpec.DiskGiB) * 1024 * 1024
+	if disk.CapacityInKB > cloneCapacityKB {
+		return nil, machineapierros.InvalidMachineConfiguration(
+			"can't resize template disk down, initial capacity is larger: %dKiB > %dKiB",
+			disk.CapacityInKB, cloneCapacityKB)
+	}
+	disk.CapacityInKB = cloneCapacityKB
 
 	return &types.VirtualDeviceConfigSpec{
 		Operation: types.VirtualDeviceConfigSpecOperationEdit,
