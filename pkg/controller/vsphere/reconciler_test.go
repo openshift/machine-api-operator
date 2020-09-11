@@ -94,7 +94,23 @@ func TestClone(t *testing.T) {
 
 	password, _ := server.URL.User.Password()
 	namespace := "test"
+	defaultSizeGiB := int32(5)
 	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+
+	machine := object.NewVirtualMachine(session.Client.Client, vm.Reference())
+	devices, err := machine.Device(context.TODO())
+	if err != nil {
+		t.Fatalf("Failed to obtain vm devices: %w", err)
+	}
+	disks := devices.SelectByType((*types.VirtualDisk)(nil))
+	if len(disks) < 1 {
+		t.Fatal("Unable to find attached disk for resize")
+	}
+	disk := disks[0].(*types.VirtualDisk)
+	disk.CapacityInKB = int64(defaultSizeGiB) * 1024 * 1024 // GiB
+	if err := machine.EditDevice(context.TODO(), disk); err != nil {
+		t.Fatalf("Can't resize disk for specified size")
+	}
 
 	credentialsSecret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -135,6 +151,7 @@ func TestClone(t *testing.T) {
 				Workspace: &vsphereapi.Workspace{
 					Server: server.URL.Host,
 				},
+				DiskGiB:  defaultSizeGiB,
 				Template: vm.Name,
 				UserDataSecret: &corev1.LocalObjectReference{
 					Name: userDataSecretName,
@@ -153,6 +170,7 @@ func TestClone(t *testing.T) {
 					Server: server.URL.Host,
 					Folder: "custom-folder",
 				},
+				DiskGiB:  defaultSizeGiB,
 				Template: vm.Name,
 				UserDataSecret: &corev1.LocalObjectReference{
 					Name: userDataSecretName,
@@ -160,6 +178,41 @@ func TestClone(t *testing.T) {
 			},
 			cloneVM:     true,
 			machineName: "test1",
+		},
+		{
+			testCase: "clone machine and increase disk",
+			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: "test",
+				},
+				Workspace: &vsphereapi.Workspace{
+					Server: server.URL.Host,
+				},
+				DiskGiB:  defaultSizeGiB + 1,
+				Template: vm.Name,
+				UserDataSecret: &corev1.LocalObjectReference{
+					Name: userDataSecretName,
+				},
+			},
+			cloneVM:     true,
+			machineName: "test0",
+		},
+		{
+			testCase: "fail on disc resize down",
+			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: "test",
+				},
+				Workspace: &vsphereapi.Workspace{
+					Server: server.URL.Host,
+				},
+				DiskGiB:  defaultSizeGiB - 1,
+				Template: vm.Name,
+				UserDataSecret: &corev1.LocalObjectReference{
+					Name: userDataSecretName,
+				},
+			},
+			expectedError: errors.New("error getting disk spec for \"\": can't resize template disk down, initial capacity is larger: 5242880KiB > 4194304KiB"),
 		},
 		{
 			testCase: "fail on invalid resource pool",
@@ -507,9 +560,10 @@ func TestTaskIsFinished(t *testing.T) {
 			testCase: "task error is finished",
 			moTask: func() *mo.Task {
 				moTask.Info.State = types.TaskInfoStateError
+				moTask.Info.Error = &types.LocalizedMethodFault{}
 				return &moTask
 			},
-			expectError: false,
+			expectError: true,
 			finished:    true,
 		},
 		{
@@ -1327,6 +1381,7 @@ func TestCreate(t *testing.T) {
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: "test",
 				},
+				DiskGiB: 1,
 				UserDataSecret: &corev1.LocalObjectReference{
 					Name: userDataSecretName,
 				},
