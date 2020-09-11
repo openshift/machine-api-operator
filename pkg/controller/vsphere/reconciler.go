@@ -705,7 +705,7 @@ func taskIsFinished(task *mo.Task) (bool, error) {
 	case types.TaskInfoStateSuccess:
 		return true, nil
 	case types.TaskInfoStateError:
-		return true, nil
+		return true, errors.New(task.Info.Error.LocalizedMessage)
 	default:
 		return false, fmt.Errorf("task: %v, unknown state %v", task.Reference().Value, task.Info.State)
 	}
