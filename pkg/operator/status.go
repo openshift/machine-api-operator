@@ -205,6 +205,14 @@ func (optr *Operator) relatedObjects() []osconfigv1.ObjectReference {
 			Name:      "",
 			Namespace: optr.namespace,
 		},
+		{
+			// the machine-api-operator runs a machine-approver which approvers CSRs originated by nodes.  Some failure modes
+			// we have debugged result from these not being approved.  Gather the information about them (non-sensitive)
+			// for debuggging
+			Group: "certificates.k8s.io",
+			Resource: "certificatesigningrequests",
+		},
+
 	}
 }
 
