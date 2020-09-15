@@ -29,17 +29,6 @@ import (
 )
 
 var (
-	// AWS Defaults
-	defaultAWSIAMInstanceProfile = func(clusterID string) *string {
-		return pointer.StringPtr(fmt.Sprintf("%s-worker-profile", clusterID))
-	}
-	defaultAWSSecurityGroup = func(clusterID string) string {
-		return fmt.Sprintf("%s-worker-sg", clusterID)
-	}
-	defaultAWSSubnet = func(clusterID, az string) string {
-		return fmt.Sprintf("%s-private-%s", clusterID, az)
-	}
-
 	// Azure Defaults
 	defaultAzureVnet = func(clusterID string) string {
 		return fmt.Sprintf("%s-vnet", clusterID)
@@ -495,9 +484,6 @@ func (a awsDefaulter) defaultAWS(m *Machine, clusterID string) (bool, []string, 
 	if providerSpec.InstanceType == "" {
 		providerSpec.InstanceType = defaultAWSInstanceType
 	}
-	if providerSpec.IAMInstanceProfile == nil {
-		providerSpec.IAMInstanceProfile = &aws.AWSResourceReference{ID: defaultAWSIAMInstanceProfile(clusterID)}
-	}
 
 	if providerSpec.Placement.Region == "" {
 		providerSpec.Placement.Region = a.region
@@ -509,28 +495,6 @@ func (a awsDefaulter) defaultAWS(m *Machine, clusterID string) (bool, []string, 
 
 	if providerSpec.CredentialsSecret == nil {
 		providerSpec.CredentialsSecret = &corev1.LocalObjectReference{Name: defaultAWSCredentialsSecret}
-	}
-
-	if providerSpec.SecurityGroups == nil {
-		providerSpec.SecurityGroups = []aws.AWSResourceReference{
-			{
-				Filters: []aws.Filter{
-					{
-						Name:   "tag:Name",
-						Values: []string{defaultAWSSecurityGroup(clusterID)},
-					},
-				},
-			},
-		}
-	}
-
-	if providerSpec.Subnet.ARN == nil && providerSpec.Subnet.ID == nil && providerSpec.Subnet.Filters == nil && providerSpec.Placement.AvailabilityZone != "" {
-		providerSpec.Subnet.Filters = []aws.Filter{
-			{
-				Name:   "tag:Name",
-				Values: []string{defaultAWSSubnet(clusterID, providerSpec.Placement.AvailabilityZone)},
-			},
-		}
 	}
 
 	rawBytes, err := json.Marshal(providerSpec)
@@ -598,16 +562,6 @@ func validateAWS(m *Machine, clusterID string) (bool, []string, utilerrors.Aggre
 		)
 	}
 
-	if providerSpec.IAMInstanceProfile == nil {
-		errs = append(
-			errs,
-			field.Required(
-				field.NewPath("providerSpec", "iamInstanceProfile"),
-				"expected providerSpec.iamInstanceProfile to be populated",
-			),
-		)
-	}
-
 	if providerSpec.UserDataSecret == nil {
 		errs = append(
 			errs,
@@ -628,23 +582,10 @@ func validateAWS(m *Machine, clusterID string) (bool, []string, utilerrors.Aggre
 		)
 	}
 
-	if providerSpec.SecurityGroups == nil {
-		errs = append(
-			errs,
-			field.Required(
-				field.NewPath("providerSpec", "securityGroups"),
-				"expected providerSpec.securityGroups to be populated",
-			),
-		)
-	}
-
-	if providerSpec.Subnet.ARN == nil && providerSpec.Subnet.ID == nil && providerSpec.Subnet.Filters == nil && providerSpec.Placement.AvailabilityZone == "" {
-		errs = append(
-			errs,
-			field.Required(
-				field.NewPath("providerSpec", "subnet"),
-				"expected either providerSpec.subnet.arn or providerSpec.subnet.id or providerSpec.subnet.filters or providerSpec.placement.availabilityZone to be populated",
-			),
+	if providerSpec.Subnet.ARN == nil && providerSpec.Subnet.ID == nil && providerSpec.Subnet.Filters == nil {
+		warnings = append(
+			warnings,
+			"providerSpec.subnet: No subnet has been provided. Instances may be created in an unexpected subnet and may not join the cluster.",
 		)
 	}
 	// TODO(alberto): Validate providerSpec.BlockDevices.

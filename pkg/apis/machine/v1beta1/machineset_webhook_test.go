@@ -64,35 +64,16 @@ func TestMachineSetCreation(t *testing.T) {
 			providerSpecValue: &runtime.RawExtension{
 				Object: &aws.AWSMachineProviderConfig{},
 			},
-			expectedError: "[providerSpec.ami: Required value: expected either providerSpec.ami.arn or providerSpec.ami.filters or providerSpec.ami.id to be populated, providerSpec.subnet: Required value: expected either providerSpec.subnet.arn or providerSpec.subnet.id or providerSpec.subnet.filters or providerSpec.placement.availabilityZone to be populated]",
+			expectedError: "providerSpec.ami: Required value: expected either providerSpec.ami.arn or providerSpec.ami.filters or providerSpec.ami.id to be populated",
 		},
 		{
-			name:         "with AWS, an AMI ID and an AvailabilityZone set",
+			name:         "with AWS and an AMI ID",
 			platformType: osconfigv1.AWSPlatformType,
 			clusterID:    "aws-cluster",
 			providerSpecValue: &runtime.RawExtension{
 				Object: &aws.AWSMachineProviderConfig{
 					AMI: aws.AWSResourceReference{
 						ID: pointer.StringPtr("ami"),
-					},
-					Placement: aws.Placement{
-						AvailabilityZone: "availabilityZone",
-					},
-				},
-			},
-			expectedError: "",
-		},
-		{
-			name:         "with AWS, an AMI ID and an Subnet ID set",
-			platformType: osconfigv1.AWSPlatformType,
-			clusterID:    "aws-cluster",
-			providerSpecValue: &runtime.RawExtension{
-				Object: &aws.AWSMachineProviderConfig{
-					AMI: aws.AWSResourceReference{
-						ID: pointer.StringPtr("ami"),
-					},
-					Subnet: aws.AWSResourceReference{
-						ID: pointer.StringPtr("subnetID"),
 					},
 				},
 			},
@@ -281,33 +262,11 @@ func TestMachineSetUpdate(t *testing.T) {
 		AMI: aws.AWSResourceReference{
 			ID: pointer.StringPtr("ami"),
 		},
-		InstanceType: defaultAWSInstanceType,
-		IAMInstanceProfile: &aws.AWSResourceReference{
-			ID: defaultAWSIAMInstanceProfile(awsClusterID),
-		},
+		InstanceType:      defaultAWSInstanceType,
 		UserDataSecret:    &corev1.LocalObjectReference{Name: defaultUserDataSecret},
 		CredentialsSecret: &corev1.LocalObjectReference{Name: defaultAWSCredentialsSecret},
-		SecurityGroups: []aws.AWSResourceReference{
-			{
-				Filters: []aws.Filter{
-					{
-						Name:   "tag:Name",
-						Values: []string{defaultAWSSecurityGroup(awsClusterID)},
-					},
-				},
-			},
-		},
 		Placement: aws.Placement{
-			Region:           awsRegion,
-			AvailabilityZone: "zone",
-		},
-		Subnet: aws.AWSResourceReference{
-			Filters: []aws.Filter{
-				{
-					Name:   "tag:Name",
-					Values: []string{defaultAWSSubnet(awsClusterID, "zone")},
-				},
-			},
+			Region: awsRegion,
 		},
 	}
 
@@ -452,7 +411,7 @@ func TestMachineSetUpdate(t *testing.T) {
 			expectedError: "providerSpec.instanceType: Required value: expected providerSpec.instanceType to be populated",
 		},
 		{
-			name:         "with an AWS ProviderSpec, removing the instance profile",
+			name:         "with an AWS ProviderSpec, removing the region",
 			platformType: osconfigv1.AWSPlatformType,
 			clusterID:    awsClusterID,
 			baseProviderSpecValue: &runtime.RawExtension{
@@ -460,12 +419,12 @@ func TestMachineSetUpdate(t *testing.T) {
 			},
 			updatedProviderSpecValue: func() *runtime.RawExtension {
 				object := defaultAWSProviderSpec.DeepCopy()
-				object.IAMInstanceProfile = nil
+				object.Placement.Region = ""
 				return &runtime.RawExtension{
 					Object: object,
 				}
 			},
-			expectedError: "providerSpec.iamInstanceProfile: Required value: expected providerSpec.iamInstanceProfile to be populated",
+			expectedError: "providerSpec.placement.region: Required value: expected providerSpec.placement.region to be populated",
 		},
 		{
 			name:         "with an AWS ProviderSpec, removing the user data secret",
