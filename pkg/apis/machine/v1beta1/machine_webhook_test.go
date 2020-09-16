@@ -1762,8 +1762,9 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 					Server: "server",
 				}
 			},
-			expectedOk:    false,
-			expectedError: "providerSpec.workspace.datacenter: Required value: datacenter must be provided",
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: []string{"providerSpec.workspace.datacenter: datacenter is unset: if more than one datacenter is present, VMs cannot be created"},
 		},
 		{
 			testCase: "with a workspace folder outside of the current datacenter",
@@ -1807,24 +1808,27 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
 				p.NumCPUs = 1
 			},
-			expectedOk:    false,
-			expectedError: "providerSpec.numCPUs: Invalid value: 1: numCPUs is below minimum value (2)",
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: []string{"providerSpec.numCPUs: 1 is less than the minimum value (2): the minimum value will be used instead"},
 		},
 		{
 			testCase: "with too little memory provided",
 			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
 				p.MemoryMiB = 1024
 			},
-			expectedOk:    false,
-			expectedError: "providerSpec.memoryMiB: Invalid value: 1024: memoryMiB is below minimum value (2048)",
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: []string{"providerSpec.memoryMiB: 1024 is less than the recommended minimum value (2048): nodes may not boot correctly"},
 		},
 		{
 			testCase: "with too little disk size provided",
 			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
 				p.DiskGiB = 1
 			},
-			expectedOk:    false,
-			expectedError: "providerSpec.diskGiB: Invalid value: 1: diskGiB is below minimum value (120)",
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: []string{"providerSpec.diskGiB: 1 is less than the recommended minimum (120): nodes may fail to start if disk size is too low"},
 		},
 		{
 			testCase: "with no user data secret provided",
@@ -1888,6 +1892,9 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: "name",
 				},
+				NumCPUs:   minVSphereCPU,
+				MemoryMiB: minVSphereMemoryMiB,
+				DiskGiB:   minVSphereDiskGiB,
 			}
 			if tc.modifySpec != nil {
 				tc.modifySpec(providerSpec)
@@ -1953,9 +1960,6 @@ func TestDefaultVSphereProviderSpec(t *testing.T) {
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: defaultVSphereCredentialsSecret,
 				},
-				NumCPUs:   minVSphereCPU,
-				MemoryMiB: minVSphereMemoryMiB,
-				DiskGiB:   minVSphereDiskGiB,
 			}
 			if tc.modifyDefault != nil {
 				tc.modifyDefault(defaultProviderSpec)

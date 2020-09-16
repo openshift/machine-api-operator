@@ -958,20 +958,6 @@ func defaultVSphere(m *Machine, clusterID string) (bool, []string, utilerrors.Ag
 		providerSpec.CredentialsSecret = &corev1.LocalObjectReference{Name: defaultVSphereCredentialsSecret}
 	}
 
-	// Default values for number of cpu, memory and disk size come from installer
-	// https://github.com/openshift/installer/blob/0ceffc5c737b49ab59441e2fd02f51f997d54a53/pkg/asset/machines/worker.go#L134
-	if providerSpec.NumCPUs == 0 {
-		providerSpec.NumCPUs = minVSphereCPU
-	}
-
-	if providerSpec.MemoryMiB == 0 {
-		providerSpec.MemoryMiB = minVSphereMemoryMiB
-	}
-
-	if providerSpec.DiskGiB == 0 {
-		providerSpec.DiskGiB = minVSphereDiskGiB
-	}
-
 	rawBytes, err := json.Marshal(providerSpec)
 	if err != nil {
 		errs = append(errs, err)
@@ -1000,17 +986,20 @@ func validateVSphere(m *Machine, clusterID string) (bool, []string, utilerrors.A
 		errs = append(errs, field.Required(field.NewPath("providerSpec", "template"), "template must be provided"))
 	}
 
-	errs = append(errs, validateVSphereWorkspace(providerSpec.Workspace, field.NewPath("providerSpec", "workspace"))...)
+	workspaceWarnings, workspaceErrors := validateVSphereWorkspace(providerSpec.Workspace, field.NewPath("providerSpec", "workspace"))
+	warnings = append(warnings, workspaceWarnings...)
+	errs = append(errs, workspaceErrors...)
+
 	errs = append(errs, validateVSphereNetwork(providerSpec.Network, field.NewPath("providerSpec", "network"))...)
 
-	if providerSpec.NumCPUs != 0 && providerSpec.NumCPUs < minVSphereCPU {
-		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "numCPUs"), providerSpec.NumCPUs, fmt.Sprintf("numCPUs is below minimum value (%d)", minVSphereCPU)))
+	if providerSpec.NumCPUs < minVSphereCPU {
+		warnings = append(warnings, fmt.Sprintf("providerSpec.numCPUs: %d is less than the minimum value (%d): the minimum value will be used instead", providerSpec.NumCPUs, minVSphereCPU))
 	}
-	if providerSpec.MemoryMiB != 0 && providerSpec.MemoryMiB < minVSphereMemoryMiB {
-		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "memoryMiB"), providerSpec.MemoryMiB, fmt.Sprintf("memoryMiB is below minimum value (%d)", minVSphereMemoryMiB)))
+	if providerSpec.MemoryMiB < minVSphereMemoryMiB {
+		warnings = append(warnings, fmt.Sprintf("providerSpec.memoryMiB: %d is less than the recommended minimum value (%d): nodes may not boot correctly", providerSpec.MemoryMiB, minVSphereMemoryMiB))
 	}
-	if providerSpec.DiskGiB != 0 && providerSpec.DiskGiB < minVSphereDiskGiB {
-		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "diskGiB"), providerSpec.DiskGiB, fmt.Sprintf("diskGiB is below minimum value (%d)", minVSphereDiskGiB)))
+	if providerSpec.DiskGiB < minVSphereDiskGiB {
+		warnings = append(warnings, fmt.Sprintf("providerSpec.diskGiB: %d is less than the recommended minimum (%d): nodes may fail to start if disk size is too low", providerSpec.DiskGiB, minVSphereDiskGiB))
 	}
 
 	if providerSpec.UserDataSecret == nil {
@@ -1035,17 +1024,18 @@ func validateVSphere(m *Machine, clusterID string) (bool, []string, utilerrors.A
 	return true, warnings, nil
 }
 
-func validateVSphereWorkspace(workspace *vsphere.Workspace, parentPath *field.Path) []error {
+func validateVSphereWorkspace(workspace *vsphere.Workspace, parentPath *field.Path) ([]string, []error) {
 	if workspace == nil {
-		return []error{field.Required(parentPath, "workspace must be provided")}
+		return []string{}, []error{field.Required(parentPath, "workspace must be provided")}
 	}
 
 	var errs []error
+	var warnings []string
 	if workspace.Server == "" {
 		errs = append(errs, field.Required(parentPath.Child("server"), "server must be provided"))
 	}
 	if workspace.Datacenter == "" {
-		errs = append(errs, field.Required(parentPath.Child("datacenter"), "datacenter must be provided"))
+		warnings = append(warnings, fmt.Sprintf("%s: datacenter is unset: if more than one datacenter is present, VMs cannot be created", parentPath.Child("datacenter")))
 	}
 	if workspace.Folder != "" {
 		expectedPrefix := fmt.Sprintf("/%s/vm/", workspace.Datacenter)
@@ -1055,7 +1045,7 @@ func validateVSphereWorkspace(workspace *vsphere.Workspace, parentPath *field.Pa
 		}
 	}
 
-	return errs
+	return warnings, errs
 }
 
 func validateVSphereNetwork(network vsphere.NetworkSpec, parentPath *field.Path) []error {
