@@ -98,15 +98,14 @@ func TestMachineCreation(t *testing.T) {
 			providerSpecValue: &runtime.RawExtension{
 				Object: &azure.AzureMachineProviderSpec{},
 			},
-			expectedError: "[providerSpec.location: Required value: location should be set to one of the supported Azure regions, providerSpec.osDisk.diskSizeGB: Invalid value: 0: diskSizeGB must be greater than zero]",
+			expectedError: "providerSpec.osDisk.diskSizeGB: Invalid value: 0: diskSizeGB must be greater than zero and less than 32768",
 		},
 		{
-			name:         "with Azure and a location and disk size set",
+			name:         "with Azure and a disk size set",
 			platformType: osconfigv1.AzurePlatformType,
 			clusterID:    "azure-cluster",
 			providerSpecValue: &runtime.RawExtension{
 				Object: &azure.AzureMachineProviderSpec{
-					Location: "location",
 					OSDisk: azure.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -952,14 +951,6 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 		expectedWarnings []string
 	}{
 		{
-			testCase: "with no location it fails",
-			modifySpec: func(p *azure.AzureMachineProviderSpec) {
-				p.Location = ""
-			},
-			expectedOk:    false,
-			expectedError: "providerSpec.location: Required value: location should be set to one of the supported Azure regions",
-		},
-		{
 			testCase: "with no vmsize it fails",
 			modifySpec: func(p *azure.AzureMachineProviderSpec) {
 				p.VMSize = ""
@@ -986,16 +977,6 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 			},
 			expectedOk:    false,
 			expectedError: "providerSpec.vnet: Required value: must provide a virtual network when supplying subnets",
-		},
-		{
-			testCase: "with a vnet and subnet but no resource group it fails",
-			modifySpec: func(p *azure.AzureMachineProviderSpec) {
-				p.Vnet = "vnet"
-				p.Subnet = "subnet"
-				p.NetworkResourceGroup = ""
-			},
-			expectedOk:    false,
-			expectedError: "providerSpec.networkResourceGroup: Required value: must provide a network resource group when a virtual network or subnet is specified",
 		},
 		{
 			testCase: "with no image it fails",
@@ -1077,22 +1058,6 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 			expectedOk: true,
 		},
 		{
-			testCase: "with no managed identity it fails",
-			modifySpec: func(p *azure.AzureMachineProviderSpec) {
-				p.ManagedIdentity = ""
-			},
-			expectedOk:    false,
-			expectedError: "providerSpec.managedIdentity: Required value: managedIdentity must be provided",
-		},
-		{
-			testCase: "with no resource group it fails",
-			modifySpec: func(p *azure.AzureMachineProviderSpec) {
-				p.ResourceGroup = ""
-			},
-			expectedOk:    false,
-			expectedError: "providerSpec.resourceGroup: Required value: resourceGroup must be provided",
-		},
-		{
 			testCase: "with no user data secret it fails",
 			modifySpec: func(p *azure.AzureMachineProviderSpec) {
 				p.UserDataSecret = nil
@@ -1147,31 +1112,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 				}
 			},
 			expectedOk:    false,
-			expectedError: "providerSpec.osDisk.diskSizeGB: Invalid value: 0: diskSizeGB must be greater than zero",
-		},
-		{
-			testCase: "with no os disk type it fails",
-			modifySpec: func(p *azure.AzureMachineProviderSpec) {
-				p.OSDisk = azure.OSDisk{
-					DiskSizeGB: 1,
-					ManagedDisk: azure.ManagedDisk{
-						StorageAccountType: "storageAccountType",
-					},
-				}
-			},
-			expectedOk:    false,
-			expectedError: "providerSpec.osDisk.osType: Required value: osType must be provided",
-		},
-		{
-			testCase: "with no os disk storage account type it fails",
-			modifySpec: func(p *azure.AzureMachineProviderSpec) {
-				p.OSDisk = azure.OSDisk{
-					DiskSizeGB: 1,
-					OSType:     "osType",
-				}
-			},
-			expectedOk:    false,
-			expectedError: "providerSpec.osDisk.managedDisk.storageAccountType: Required value: storageAccountType must be provided",
+			expectedError: "providerSpec.osDisk.diskSizeGB: Invalid value: 0: diskSizeGB must be greater than zero and less than 32768",
 		},
 		{
 			testCase:      "with all required fields it succeeds",
@@ -1186,13 +1127,10 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 		t.Run(tc.testCase, func(t *testing.T) {
 			// create a valid spec that will then be 'broken' by modifySpec
 			providerSpec := &azure.AzureMachineProviderSpec{
-				Location: "location",
-				VMSize:   "vmSize",
+				VMSize: "vmSize",
 				Image: azure.Image{
 					ResourceID: "resourceID",
 				},
-				ManagedIdentity: "managedIdentity",
-				ResourceGroup:   "resourceGroup",
 				UserDataSecret: &corev1.SecretReference{
 					Name: "name",
 				},
@@ -1202,10 +1140,6 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 				},
 				OSDisk: azure.OSDisk{
 					DiskSizeGB: 1,
-					OSType:     "osType",
-					ManagedDisk: azure.ManagedDisk{
-						StorageAccountType: "storageAccountType",
-					},
 				},
 			}
 			if tc.modifySpec != nil {
@@ -1343,27 +1277,18 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
 			defaultProviderSpec := &azure.AzureMachineProviderSpec{
-				VMSize:               defaultAzureVMSize,
-				Vnet:                 defaultAzureVnet(clusterID),
-				Subnet:               defaultAzureSubnet(clusterID),
-				NetworkResourceGroup: defaultAzureNetworkResourceGroup(clusterID),
+				VMSize: defaultAzureVMSize,
+				Vnet:   defaultAzureVnet(clusterID),
+				Subnet: defaultAzureSubnet(clusterID),
 				Image: azure.Image{
 					ResourceID: defaultAzureImageResourceID(clusterID),
 				},
-				ManagedIdentity: defaultAzureManagedIdentiy(clusterID),
-				ResourceGroup:   defaultAzureResourceGroup(clusterID),
 				UserDataSecret: &corev1.SecretReference{
 					Name: defaultUserDataSecret,
 				},
 				CredentialsSecret: &corev1.SecretReference{
 					Name:      defaultAzureCredentialsSecret,
 					Namespace: defaultSecretNamespace,
-				},
-				OSDisk: azure.OSDisk{
-					OSType: defaultAzureOSDiskOSType,
-					ManagedDisk: azure.ManagedDisk{
-						StorageAccountType: defaultAzureOSDiskStorageType,
-					},
 				},
 			}
 			if tc.modifyDefault != nil {

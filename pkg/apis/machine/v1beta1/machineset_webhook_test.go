@@ -93,7 +93,7 @@ func TestMachineSetCreation(t *testing.T) {
 			providerSpecValue: &runtime.RawExtension{
 				Object: &azure.AzureMachineProviderSpec{},
 			},
-			expectedError: "[providerSpec.location: Required value: location should be set to one of the supported Azure regions, providerSpec.osDisk.diskSizeGB: Invalid value: 0: diskSizeGB must be greater than zero]",
+			expectedError: "providerSpec.osDisk.diskSizeGB: Invalid value: 0: diskSizeGB must be greater than zero and less than 32768",
 		},
 		{
 			name:         "with Azure and a location and disk size set",
