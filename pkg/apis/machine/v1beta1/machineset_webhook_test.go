@@ -300,7 +300,6 @@ func TestMachineSetUpdate(t *testing.T) {
 	}
 
 	gcpClusterID := "gcp-cluster"
-	gcpProjectID := "gcp-project-id"
 	defaultGCPProviderSpec := &gcp.GCPMachineProviderSpec{
 		Region:      "region",
 		Zone:        "region-zone",
@@ -320,8 +319,7 @@ func TestMachineSetUpdate(t *testing.T) {
 				Image:      defaultGCPDiskImage,
 			},
 		},
-		ServiceAccounts: defaultGCPServiceAccounts(gcpClusterID, gcpProjectID),
-		Tags:            defaultGCPTags(gcpClusterID),
+		Tags: defaultGCPTags(gcpClusterID),
 		UserDataSecret: &corev1.LocalObjectReference{
 			Name: defaultUserDataSecret,
 		},
@@ -567,7 +565,7 @@ func TestMachineSetUpdate(t *testing.T) {
 			expectedError: "providerSpec.disks: Required value: at least 1 disk is required",
 		},
 		{
-			name:         "with a GCP ProviderSpec, removing the service accounts",
+			name:         "with a GCP ProviderSpec, removing the network interfaces",
 			platformType: osconfigv1.GCPPlatformType,
 			clusterID:    gcpClusterID,
 			baseProviderSpecValue: &runtime.RawExtension{
@@ -575,12 +573,12 @@ func TestMachineSetUpdate(t *testing.T) {
 			},
 			updatedProviderSpecValue: func() *runtime.RawExtension {
 				object := defaultGCPProviderSpec.DeepCopy()
-				object.ServiceAccounts = nil
+				object.NetworkInterfaces = nil
 				return &runtime.RawExtension{
 					Object: object,
 				}
 			},
-			expectedError: "providerSpec.serviceAccounts: Invalid value: \"0 service accounts supplied\": exactly 1 service account must be supplied",
+			expectedError: "providerSpec.networkInterfaces: Required value: at least 1 network interface is required",
 		},
 		{
 			name:         "with a valid VSphere ProviderSpec",
@@ -659,9 +657,6 @@ func TestMachineSetUpdate(t *testing.T) {
 
 			platformStatus := &osconfigv1.PlatformStatus{
 				Type: tc.platformType,
-				GCP: &osconfigv1.GCPPlatformStatus{
-					ProjectID: gcpProjectID,
-				},
 				AWS: &osconfigv1.AWSPlatformStatus{
 					Region: awsRegion,
 				},

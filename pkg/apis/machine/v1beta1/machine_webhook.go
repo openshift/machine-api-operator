@@ -59,16 +59,6 @@ var (
 	defaultGCPTags = func(clusterID string) []string {
 		return []string{fmt.Sprintf("%s-worker", clusterID)}
 	}
-	defaultGCPServiceAccounts = func(clusterID, projectID string) []gcp.GCPServiceAccount {
-		if clusterID == "" || projectID == "" {
-			return []gcp.GCPServiceAccount{}
-		}
-
-		return []gcp.GCPServiceAccount{{
-			Email:  fmt.Sprintf("%s-w@%s.iam.gserviceaccount.com", clusterID, projectID),
-			Scopes: []string{"https://www.googleapis.com/auth/cloud-platform"},
-		}}
-	}
 )
 
 const (
@@ -232,11 +222,7 @@ func getMachineDefaulterOperation(platformStatus *osconfigv1.PlatformStatus) mac
 	case osconfigv1.AzurePlatformType:
 		return defaultAzure
 	case osconfigv1.GCPPlatformType:
-		projectID := ""
-		if platformStatus.GCP != nil {
-			projectID = platformStatus.GCP.ProjectID
-		}
-		return gcpDefaulter{projectID: projectID}.defaultGCP
+		return defaultGCP
 	case osconfigv1.VSpherePlatformType:
 		return defaultVSphere
 	default:
@@ -738,11 +724,7 @@ func validateAzureImage(image azure.Image) []error {
 	return errors
 }
 
-type gcpDefaulter struct {
-	projectID string
-}
-
-func (g gcpDefaulter) defaultGCP(m *Machine, clusterID string) (bool, []string, utilerrors.Aggregate) {
+func defaultGCP(m *Machine, clusterID string) (bool, []string, utilerrors.Aggregate) {
 	klog.V(3).Infof("Defaulting GCP providerSpec")
 
 	var errs []error
@@ -776,10 +758,6 @@ func (g gcpDefaulter) defaultGCP(m *Machine, clusterID string) (bool, []string, 
 
 	if providerSpec.CredentialsSecret == nil {
 		providerSpec.CredentialsSecret = &corev1.LocalObjectReference{Name: defaultGCPCredentialsSecret}
-	}
-
-	if len(providerSpec.ServiceAccounts) == 0 {
-		providerSpec.ServiceAccounts = defaultGCPServiceAccounts(clusterID, g.projectID)
 	}
 
 	rawBytes, err := json.Marshal(providerSpec)
@@ -846,7 +824,12 @@ func validateGCP(m *Machine, clusterID string) (bool, []string, utilerrors.Aggre
 
 	errs = append(errs, validateGCPNetworkInterfaces(providerSpec.NetworkInterfaces, field.NewPath("providerSpec", "networkInterfaces"))...)
 	errs = append(errs, validateGCPDisks(providerSpec.Disks, field.NewPath("providerSpec", "disks"))...)
-	errs = append(errs, validateGCPServiceAccounts(providerSpec.ServiceAccounts, field.NewPath("providerSpec", "serviceAccounts"))...)
+
+	if len(providerSpec.ServiceAccounts) == 0 {
+		warnings = append(warnings, "providerSpec.serviceAccounts: no service account provided: nodes may be unable to join the cluster")
+	} else {
+		errs = append(errs, validateGCPServiceAccounts(providerSpec.ServiceAccounts, field.NewPath("providerSpec", "serviceAccounts"))...)
+	}
 
 	if providerSpec.UserDataSecret == nil {
 		errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret"), "userDataSecret must be provided"))

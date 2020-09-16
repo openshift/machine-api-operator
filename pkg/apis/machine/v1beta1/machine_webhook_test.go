@@ -312,7 +312,6 @@ func TestMachineUpdate(t *testing.T) {
 	}
 
 	gcpClusterID := "gcp-cluster"
-	gcpProjectID := "gcp-project-id"
 	defaultGCPProviderSpec := &gcp.GCPMachineProviderSpec{
 		Region:      "region",
 		Zone:        "region-zone",
@@ -332,8 +331,7 @@ func TestMachineUpdate(t *testing.T) {
 				Image:      defaultGCPDiskImage,
 			},
 		},
-		ServiceAccounts: defaultGCPServiceAccounts(gcpClusterID, gcpProjectID),
-		Tags:            defaultGCPTags(gcpClusterID),
+		Tags: defaultGCPTags(gcpClusterID),
 		UserDataSecret: &corev1.LocalObjectReference{
 			Name: defaultUserDataSecret,
 		},
@@ -579,7 +577,7 @@ func TestMachineUpdate(t *testing.T) {
 			expectedError: "providerSpec.disks: Required value: at least 1 disk is required",
 		},
 		{
-			name:         "with a GCP ProviderSpec, removing the service accounts",
+			name:         "with a GCP ProviderSpec, removing the network interfaces",
 			platformType: osconfigv1.GCPPlatformType,
 			clusterID:    gcpClusterID,
 			baseProviderSpecValue: &runtime.RawExtension{
@@ -587,12 +585,12 @@ func TestMachineUpdate(t *testing.T) {
 			},
 			updatedProviderSpecValue: func() *runtime.RawExtension {
 				object := defaultGCPProviderSpec.DeepCopy()
-				object.ServiceAccounts = nil
+				object.NetworkInterfaces = nil
 				return &runtime.RawExtension{
 					Object: object,
 				}
 			},
-			expectedError: "providerSpec.serviceAccounts: Invalid value: \"0 service accounts supplied\": exactly 1 service account must be supplied",
+			expectedError: "providerSpec.networkInterfaces: Required value: at least 1 network interface is required",
 		},
 		{
 			name:         "with a valid VSphere ProviderSpec",
@@ -671,9 +669,6 @@ func TestMachineUpdate(t *testing.T) {
 
 			platformStatus := &osconfigv1.PlatformStatus{
 				Type: tc.platformType,
-				GCP: &osconfigv1.GCPPlatformStatus{
-					ProjectID: gcpProjectID,
-				},
 				AWS: &osconfigv1.AWSPlatformStatus{
 					Region: awsRegion,
 				},
@@ -1459,6 +1454,15 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 			expectedError: "providerSpec.disks[0].type: Unsupported value: \"invalid\": supported values: \"pd-ssd\", \"pd-standard\"",
 		},
 		{
+			testCase: "with no service accounts",
+			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+				p.ServiceAccounts = nil
+			},
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: []string{"providerSpec.serviceAccounts: no service account provided: nodes may be unable to join the cluster"},
+		},
+		{
 			testCase: "with multiple service accounts",
 			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
 				p.ServiceAccounts = []gcp.GCPServiceAccount{
@@ -1669,8 +1673,7 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 					Image:      defaultGCPDiskImage,
 				},
 			},
-			ServiceAccounts: defaultGCPServiceAccounts(clusterID, projectID),
-			Tags:            defaultGCPTags(clusterID),
+			Tags: defaultGCPTags(clusterID),
 			UserDataSecret: &corev1.LocalObjectReference{
 				Name: defaultUserDataSecret,
 			},
