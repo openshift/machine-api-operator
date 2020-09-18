@@ -611,9 +611,9 @@ func clone(s *machineScope) (string, error) {
 		})
 		return "", err
 	}
-
-	klog.V(3).Infof("%v: running task: %+v", s.machine.GetName(), s.providerStatus.TaskRef)
-	return task.Reference().Value, nil
+	taskVal := task.Reference().Value
+	klog.V(3).Infof("%v: running task: %+v", s.machine.GetName(), taskVal)
+	return taskVal, nil
 }
 
 func getDiskSpec(s *machineScope, devices object.VirtualDeviceList) (types.BaseVirtualDeviceConfigSpec, error) {
