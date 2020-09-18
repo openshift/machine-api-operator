@@ -62,53 +62,53 @@ func (r *Reconciler) create() error {
 		return fmt.Errorf("%v: failed validating machine provider spec: %v", r.machine.GetName(), err)
 	}
 
-	if r.providerStatus.TaskRef != "" {
-		moTask, err := r.session.GetTask(r.Context, r.providerStatus.TaskRef)
+	// We only clone the VM template if we have no taskRef.
+	if r.providerStatus.TaskRef == "" {
+		if !r.machineScope.session.IsVC() {
+			return fmt.Errorf("%v: not connected to a vCenter", r.machine.GetName())
+		}
+		klog.Infof("%v: cloning", r.machine.GetName())
+		task, err := clone(r.machineScope)
 		if err != nil {
-			if !isRetrieveMONotFound(r.providerStatus.TaskRef, err) {
-				return err
+			conditionFailed := conditionFailed()
+			conditionFailed.Message = err.Error()
+			statusError := setProviderStatus(task, conditionFailed, r.machineScope, nil)
+			if statusError != nil {
+				return fmt.Errorf("Failed to set provider status: %w", err)
 			}
-		}
-
-		if moTask != nil {
-			if moTask.Info.State == types.TaskInfoStateError {
-				metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
-					Name:      r.machine.Name,
-					Namespace: r.machine.Namespace,
-					Reason:    fmt.Sprintf("Create machine task finished with error: %+v", moTask.Info.Error),
-				})
-			}
-			if taskIsFinished, err := taskIsFinished(moTask); err != nil || !taskIsFinished {
-				if !taskIsFinished {
-					return fmt.Errorf("task %v has not finished", moTask.Reference().Value)
-				}
-				return err
-			}
-		}
-	}
-
-	if _, err := findVM(r.machineScope); err != nil {
-		if !isNotFound(err) {
 			return err
 		}
-		if r.machineScope.session.IsVC() {
-			klog.Infof("%v: cloning", r.machine.GetName())
-			task, err := clone(r.machineScope)
-			if err != nil {
-				conditionFailed := conditionFailed()
-				conditionFailed.Message = err.Error()
-				statusError := setProviderStatus(task, conditionFailed, r.machineScope, nil)
-				if statusError != nil {
-					return fmt.Errorf("Failed to set provider status: %w", err)
-				}
-				return err
-			}
-
-			return setProviderStatus(task, conditionSuccess(), r.machineScope, nil)
-		}
-		return fmt.Errorf("%v: not connected to a vCenter", r.machine.GetName())
+		return setProviderStatus(task, conditionSuccess(), r.machineScope, nil)
 	}
 
+	moTask, err := r.session.GetTask(r.Context, r.providerStatus.TaskRef)
+	if err != nil {
+		return err
+	}
+
+	if moTask == nil {
+		// Possible eventual consistency problem from vsphere
+		// TODO: change error message here to indicate this might be expected.
+		return fmt.Errorf("Unexpected moTask nil")
+	}
+
+	// TODO: this should be handled on the machine-controller side, we should
+	// pass an specific error type for this case.
+	// TODO: this should probably be terminal and we should set failed.
+	if moTask.Info.State == types.TaskInfoStateError {
+		metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
+			Name:      r.machine.Name,
+			Namespace: r.machine.Namespace,
+			Reason:    fmt.Sprintf("Create machine task finished with error: %+v", moTask.Info.Error),
+		})
+	}
+	if taskIsFinished, err := taskIsFinished(moTask); err != nil || !taskIsFinished {
+		if !taskIsFinished {
+			return fmt.Errorf("task %v has not finished", moTask.Reference().Value)
+		}
+		return err
+	}
+	// If taskIsFinished then next reconcile should result in update.
 	return nil
 }
 
@@ -182,6 +182,8 @@ func (r *Reconciler) exists() (bool, error) {
 
 func (r *Reconciler) delete() error {
 	if r.providerStatus.TaskRef != "" {
+		// TODO: We need to use a separate status field for the create and the
+		// delete taskref.
 		moTask, err := r.session.GetTask(r.Context, r.providerStatus.TaskRef)
 		if err != nil {
 			if !isRetrieveMONotFound(r.providerStatus.TaskRef, err) {
@@ -190,6 +192,7 @@ func (r *Reconciler) delete() error {
 		}
 		if moTask != nil {
 			if moTask.Info.State == types.TaskInfoStateError {
+				// TODO: this should be DeleteInstance event.
 				metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
 					Name:      r.machine.Name,
 					Namespace: r.machine.Namespace,
@@ -229,6 +232,8 @@ func (r *Reconciler) delete() error {
 		return err
 	}
 
+	// Will this error if VM not all the way powered off yet?  Don't want to
+	// emit an event for a transient condition.
 	task, err := vm.Obj.Destroy(r.Context)
 	if err != nil {
 		metrics.RegisterFailedInstanceDelete(&metrics.MachineLabels{
@@ -243,6 +248,7 @@ func (r *Reconciler) delete() error {
 		return fmt.Errorf("Failed to set provider status: %w", err)
 	}
 
+	// TODO: consider returning an error to specify retry time here
 	return fmt.Errorf("destroying vm in progress, reconciling")
 }
 
