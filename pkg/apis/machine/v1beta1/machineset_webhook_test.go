@@ -1,6 +1,7 @@
 package v1beta1
 
 import (
+	"context"
 	"fmt"
 	"testing"
 
@@ -275,14 +276,14 @@ func TestMachineSetCreation(t *testing.T) {
 			mgr.GetWebhookServer().Register(DefaultMachineSetMutatingHookPath, &webhook.Admission{Handler: machineSetDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineSetValidatingHookPath, &webhook.Admission{Handler: machineSetValidator})
 
-			done := make(chan struct{})
+			mgrCtx, cancel := context.WithCancel(context.Background())
 			stopped := make(chan struct{})
 			go func() {
-				gs.Expect(mgr.Start(done)).To(Succeed())
+				gs.Expect(mgr.Start(mgrCtx)).To(Succeed())
 				close(stopped)
 			}()
 			defer func() {
-				close(done)
+				cancel()
 				<-stopped
 			}()
 
@@ -778,14 +779,14 @@ func TestMachineSetUpdate(t *testing.T) {
 			mgr.GetWebhookServer().Register(DefaultMachineSetMutatingHookPath, &webhook.Admission{Handler: machineSetDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineSetValidatingHookPath, &webhook.Admission{Handler: machineSetValidator})
 
-			done := make(chan struct{})
+			mgrCtx, cancel := context.WithCancel(context.Background())
 			stopped := make(chan struct{})
 			go func() {
-				gs.Expect(mgr.Start(done)).To(Succeed())
+				gs.Expect(mgr.Start(mgrCtx)).To(Succeed())
 				close(stopped)
 			}()
 			defer func() {
-				close(done)
+				cancel()
 				<-stopped
 			}()
 

@@ -68,7 +68,7 @@ func TestReconcile(t *testing.T) {
 
 	stop, errChan := StartTestManager(mgr, t)
 	defer func() {
-		close(stop)
+		stop()
 		if err := <-errChan; err != nil {
 			t.Fatalf("error starting test manager: %v", err)
 		}

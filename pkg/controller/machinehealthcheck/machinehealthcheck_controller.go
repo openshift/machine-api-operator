@@ -96,7 +96,7 @@ func newReconciler(mgr manager.Manager, opts manager.Options) (*ReconcileMachine
 	}, nil
 }
 
-func indexMachineByNodeName(object runtime.Object) []string {
+func indexMachineByNodeName(object client.Object) []string {
 	machine, ok := object.(*mapiv1.Machine)
 	if !ok {
 		klog.Warningf("Expected a machine for indexing field, got: %T", object)
@@ -111,7 +111,7 @@ func indexMachineByNodeName(object runtime.Object) []string {
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
-func add(mgr manager.Manager, r reconcile.Reconciler, mapMachineToMHC, mapNodeToMHC handler.ToRequestsFunc) error {
+func add(mgr manager.Manager, r reconcile.Reconciler, mapMachineToMHC, mapNodeToMHC handler.MapFunc) error {
 	c, err := controller.New(controllerName, mgr, controller.Options{Reconciler: r})
 	if err != nil {
 		return err
@@ -122,12 +122,12 @@ func add(mgr manager.Manager, r reconcile.Reconciler, mapMachineToMHC, mapNodeTo
 		return err
 	}
 
-	err = c.Watch(&source.Kind{Type: &mapiv1.Machine{}}, &handler.EnqueueRequestsFromMapFunc{ToRequests: mapMachineToMHC})
+	err = c.Watch(&source.Kind{Type: &mapiv1.Machine{}}, handler.EnqueueRequestsFromMapFunc(mapMachineToMHC))
 	if err != nil {
 		return err
 	}
 
-	return c.Watch(&source.Kind{Type: &corev1.Node{}}, &handler.EnqueueRequestsFromMapFunc{ToRequests: mapNodeToMHC})
+	return c.Watch(&source.Kind{Type: &corev1.Node{}}, handler.EnqueueRequestsFromMapFunc(mapNodeToMHC))
 }
 
 var _ reconcile.Reconciler = &ReconcileMachineHealthCheck{}
@@ -149,7 +149,7 @@ type target struct {
 }
 
 // Reconcile fetch all targets for a MachineHealthCheck request and does health checking for each of them
-func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reconcile.Result, error) {
+func (r *ReconcileMachineHealthCheck) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
 	klog.Infof("Reconciling %s", request.String())
 
 	mhc := &mapiv1.MachineHealthCheck{}
@@ -425,14 +425,14 @@ func (r *ReconcileMachineHealthCheck) getMachineFromNode(nodeName string) (*mapi
 	return &machineList.Items[0], nil
 }
 
-func (r *ReconcileMachineHealthCheck) mhcRequestsFromNode(o handler.MapObject) []reconcile.Request {
-	klog.V(4).Infof("Getting MHC requests from node %q", namespacedName(o.Meta).String())
+func (r *ReconcileMachineHealthCheck) mhcRequestsFromNode(o client.Object) []reconcile.Request {
+	klog.V(4).Infof("Getting MHC requests from node %q", namespacedName(o).String())
 	node := &corev1.Node{}
-	if err := r.client.Get(context.Background(), namespacedName(o.Meta), node); err != nil {
+	if err := r.client.Get(context.Background(), namespacedName(o), node); err != nil {
 		if apimachineryerrors.IsNotFound(err) {
-			node.Name = o.Meta.GetName()
+			node.Name = o.GetName()
 		} else {
-			klog.Errorf("No-op: Unable to retrieve node %q from store: %v", namespacedName(o.Meta).String(), err)
+			klog.Errorf("No-op: Unable to retrieve node %q from store: %v", namespacedName(o).String(), err)
 			return nil
 		}
 	}
@@ -459,17 +459,17 @@ func (r *ReconcileMachineHealthCheck) mhcRequestsFromNode(o handler.MapObject) [
 	return requests
 }
 
-func (r *ReconcileMachineHealthCheck) mhcRequestsFromMachine(o handler.MapObject) []reconcile.Request {
-	klog.V(4).Infof("Getting MHC requests from machine %q", namespacedName(o.Meta).String())
+func (r *ReconcileMachineHealthCheck) mhcRequestsFromMachine(o client.Object) []reconcile.Request {
+	klog.V(4).Infof("Getting MHC requests from machine %q", namespacedName(o).String())
 	machine := &mapiv1.Machine{}
 	if err := r.client.Get(context.Background(),
 		client.ObjectKey{
-			Namespace: o.Meta.GetNamespace(),
-			Name:      o.Meta.GetName(),
+			Namespace: o.GetNamespace(),
+			Name:      o.GetName(),
 		},
 		machine,
 	); err != nil {
-		klog.Errorf("No-op: Unable to retrieve machine %q from store: %v", namespacedName(o.Meta).String(), err)
+		klog.Errorf("No-op: Unable to retrieve machine %q from store: %v", namespacedName(o).String(), err)
 		return nil
 	}
 

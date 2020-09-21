@@ -17,6 +17,8 @@ limitations under the License.
 package machineset
 
 import (
+	"context"
+
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
@@ -28,6 +30,7 @@ import (
 
 var _ = Describe("MachineSet Reconciler", func() {
 	namespace := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "ms-test"}}
+	var mgrCtxCancel context.CancelFunc
 
 	BeforeEach(func() {
 		By("Setting up a new manager")
@@ -45,7 +48,9 @@ var _ = Describe("MachineSet Reconciler", func() {
 		By("Starting the manager")
 		go func() {
 			defer GinkgoRecover()
-			Expect(mgr.Start(doneMgr)).To(Succeed())
+			var mgrCtx context.Context
+			mgrCtx, mgrCtxCancel = context.WithCancel(ctx)
+			Expect(mgr.Start(mgrCtx)).To(Succeed())
 		}()
 
 		By("Creating the namespace")
@@ -60,7 +65,7 @@ var _ = Describe("MachineSet Reconciler", func() {
 		Expect(k8sClient.Delete(ctx, namespace)).To(Succeed())
 
 		By("Closing the manager")
-		close(doneMgr)
+		mgrCtxCancel()
 	})
 
 	It("Should reconcile a MachineSet", func() {

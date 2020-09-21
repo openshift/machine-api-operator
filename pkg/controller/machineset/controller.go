@@ -69,7 +69,7 @@ func newReconciler(mgr manager.Manager) *ReconcileMachineSet {
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler.
-func add(mgr manager.Manager, r reconcile.Reconciler, mapFn handler.ToRequestsFunc) error {
+func add(mgr manager.Manager, r reconcile.Reconciler, mapFn handler.MapFunc) error {
 	// Create a new controller.
 	c, err := controller.New(controllerName, mgr, controller.Options{Reconciler: r})
 	if err != nil {
@@ -97,7 +97,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler, mapFn handler.ToRequestsFu
 	// Map Machine changes to MachineSets by machining labels.
 	return c.Watch(
 		&source.Kind{Type: &machinev1beta1.Machine{}},
-		&handler.EnqueueRequestsFromMapFunc{ToRequests: mapFn},
+		handler.EnqueueRequestsFromMapFunc(mapFn),
 	)
 }
 
@@ -108,10 +108,10 @@ type ReconcileMachineSet struct {
 	recorder record.EventRecorder
 }
 
-func (r *ReconcileMachineSet) MachineToMachineSets(o handler.MapObject) []reconcile.Request {
+func (r *ReconcileMachineSet) MachineToMachineSets(o client.Object) []reconcile.Request {
 	result := []reconcile.Request{}
 	m := &machinev1beta1.Machine{}
-	key := client.ObjectKey{Namespace: o.Meta.GetNamespace(), Name: o.Meta.GetName()}
+	key := client.ObjectKey{Namespace: o.GetNamespace(), Name: o.GetName()}
 	err := r.Client.Get(context.Background(), key, m)
 	if err != nil {
 		klog.Errorf("Unable to retrieve Machine %v from store: %v", key, err)
@@ -143,9 +143,8 @@ func (r *ReconcileMachineSet) MachineToMachineSets(o handler.MapObject) []reconc
 // Automatically generate RBAC rules to allow the Controller to read and write Deployments
 // +kubebuilder:rbac:groups=machine.openshift.io,resources=machinesets,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=machine.openshift.io,resources=machines,verbs=get;list;watch;create;update;patch;delete
-func (r *ReconcileMachineSet) Reconcile(request reconcile.Request) (reconcile.Result, error) {
+func (r *ReconcileMachineSet) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
 	// Fetch the MachineSet instance
-	ctx := context.TODO()
 	machineSet := &machinev1beta1.MachineSet{}
 	if err := r.Get(ctx, request.NamespacedName, machineSet); err != nil {
 		if apierrors.IsNotFound(err) {

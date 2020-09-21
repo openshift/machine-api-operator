@@ -52,15 +52,15 @@ func TestMain(m *testing.M) {
 }
 
 // StartTestManager adds recFn
-func StartTestManager(mgr manager.Manager, t *testing.T) (chan struct{}, chan error) {
+func StartTestManager(mgr manager.Manager, t *testing.T) (context.CancelFunc, chan error) {
 	t.Helper()
 
-	stop := make(chan struct{})
+	mgrCtx, cancel := context.WithCancel(ctx)
 	errs := make(chan error, 1)
 
 	go func() {
-		errs <- mgr.Start(stop)
+		errs <- mgr.Start(mgrCtx)
 	}()
 
-	return stop, errs
+	return cancel, errs
 }

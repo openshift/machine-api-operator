@@ -149,10 +149,7 @@ type ReconcileMachine struct {
 // Reconcile reads that state of the cluster for a Machine object and makes changes based on the state read
 // and what is in the Machine.Spec
 // +kubebuilder:rbac:groups=machine.openshift.io,resources=machines;machines/status,verbs=get;list;watch;create;update;patch;delete
-func (r *ReconcileMachine) Reconcile(request reconcile.Request) (reconcile.Result, error) {
-	// TODO(mvladev): Can context be passed from Kubebuilder?
-	ctx := context.TODO()
-
+func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
 	// Fetch the Machine instance
 	m := &machinev1.Machine{}
 	if err := r.Client.Get(ctx, request.NamespacedName, m); err != nil {

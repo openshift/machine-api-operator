@@ -30,7 +30,6 @@ import (
 	"k8s.io/client-go/tools/record"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
@@ -104,32 +103,23 @@ func TestMachineSetToMachines(t *testing.T) {
 		},
 	}
 	testsCases := []struct {
-		machine   v1beta1.Machine
-		mapObject handler.MapObject
-		expected  []reconcile.Request
+		machine  v1beta1.Machine
+		object   client.Object
+		expected []reconcile.Request
 	}{
 		{
-			machine: m,
-			mapObject: handler.MapObject{
-				Meta:   m.GetObjectMeta(),
-				Object: &m,
-			},
+			machine:  m,
+			object:   &m,
 			expected: []reconcile.Request{},
 		},
 		{
-			machine: m2,
-			mapObject: handler.MapObject{
-				Meta:   m2.GetObjectMeta(),
-				Object: &m2,
-			},
+			machine:  m2,
+			object:   &m2,
 			expected: nil,
 		},
 		{
 			machine: m3,
-			mapObject: handler.MapObject{
-				Meta:   m3.GetObjectMeta(),
-				Object: &m3,
-			},
+			object:  &m3,
 			expected: []reconcile.Request{
 				{NamespacedName: client.ObjectKey{Namespace: "test", Name: "withMatchingLabels"}},
 			},
@@ -143,7 +133,7 @@ func TestMachineSetToMachines(t *testing.T) {
 	}
 
 	for _, tc := range testsCases {
-		got := r.MachineToMachineSets(tc.mapObject)
+		got := r.MachineToMachineSets(tc.object)
 		if !reflect.DeepEqual(got, tc.expected) {
 			t.Errorf("Case %s. Got: %v, expected: %v", tc.machine.Name, got, tc.expected)
 		}
@@ -285,7 +275,7 @@ var _ = Describe("MachineSet Reconcile", func() {
 
 	JustBeforeEach(func() {
 		request := reconcile.Request{NamespacedName: types.NamespacedName{Name: "machineset1", Namespace: "default"}}
-		result, reconcileErr = r.Reconcile(request)
+		result, reconcileErr = r.Reconcile(ctx, request)
 	})
 
 	Context("ignore machine sets marked for deletion", func() {
