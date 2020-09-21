@@ -58,6 +58,7 @@ func (a *Actuator) handleMachineError(machine *machinev1.Machine, err error, eve
 // Create creates a machine and is invoked by the machine controller.
 func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error {
 	klog.Infof("%s: actuator creating machine", machine.GetName())
+	klog.V(3).Infof("xxxdebug %v: input machine resource version: %v", machine.GetName(), machine.ResourceVersion)
 	scope, err := newMachineScope(machineScopeParams{
 		Context:   ctx,
 		client:    a.client,
