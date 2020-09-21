@@ -101,6 +101,7 @@ func newMachineScope(params machineScopeParams) (*machineScope, error) {
 func (s *machineScope) PatchMachine() error {
 	klog.V(3).Infof("%v: patching machine", s.machine.GetName())
 
+	klog.V(3).Infof("xxxdebug %v: input task id: %v", s.machine.GetName(), s.providerStatus.TaskRef)
 	providerStatus, err := apivsphere.RawExtensionFromProviderStatus(s.providerStatus)
 	if err != nil {
 		return machineapierros.InvalidMachineConfiguration("failed to get machine provider status: %v", err.Error())
@@ -117,10 +118,23 @@ func (s *machineScope) PatchMachine() error {
 
 	s.machine.Status = statusCopy
 
+	debugTaskProviderStatus, err := apivsphere.ProviderStatusFromRawExtension(statusCopy.ProviderStatus)
+	if err != nil {
+		klog.V(3).Infof("xxxdebug %v: failed to decode provider status from copy", s.machine.GetName())
+	} else {
+		klog.V(3).Infof("xxxdebug %v: statusCopy task id: %v", s.machine.GetName(), debugTaskProviderStatus.TaskRef)
+	}
 	// patch status
 	if err := s.client.Status().Patch(context.Background(), s.machine, s.machineToBePatched); err != nil {
 		klog.Errorf("Failed to patch machine status %q: %v", s.machine.GetName(), err)
 		return err
+	}
+	debugTaskProviderStatus2, err := apivsphere.ProviderStatusFromRawExtension(s.machine.Status.ProviderStatus)
+	if err != nil {
+		klog.V(3).Infof("xxxdebug %v: failed to decode provider status from patched machine status", s.machine.GetName())
+	} else {
+		// This might introduce interference into suspected race condition.
+		klog.V(3).Infof("xxxdebug %v: patched machine providerStatus task id: %v", s.machine.GetName(), debugTaskProviderStatus2.TaskRef)
 	}
 
 	return nil
