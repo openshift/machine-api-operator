@@ -409,6 +409,7 @@ func TestSetPhase(t *testing.T) {
 			}
 
 			g.Expect(k8sClient.Create(ctx, machine)).To(Succeed())
+			defer k8sClient.Delete(ctx, machine)
 
 			if tc.existingProviderStatus != "" {
 				machine.Status.ProviderStatus = &runtime.RawExtension{
