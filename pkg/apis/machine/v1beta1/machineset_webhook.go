@@ -98,10 +98,10 @@ func (h *machineSetValidatorHandler) Handle(ctx context.Context, req admission.R
 
 	ok, warnings, errs := h.validateMachineSet(ms)
 	if !ok {
-		return responseWithWarnings(admission.Denied(errs.Error()), warnings)
+		return admission.Denied(errs.Error()).WithWarnings(warnings...)
 	}
 
-	return responseWithWarnings(admission.Allowed("MachineSet valid"), warnings)
+	return admission.Allowed("MachineSet valid").WithWarnings(warnings...)
 }
 
 // Handle handles HTTP requests for admission webhook servers.
@@ -116,14 +116,14 @@ func (h *machineSetDefaulterHandler) Handle(ctx context.Context, req admission.R
 
 	ok, warnings, errs := h.defaultMachineSet(ms)
 	if !ok {
-		return responseWithWarnings(admission.Denied(errs.Error()), warnings)
+		return admission.Denied(errs.Error()).WithWarnings(warnings...)
 	}
 
 	marshaledMachineSet, err := json.Marshal(ms)
 	if err != nil {
-		return responseWithWarnings(admission.Errored(http.StatusInternalServerError, err), warnings)
+		return admission.Errored(http.StatusInternalServerError, err).WithWarnings(warnings...)
 	}
-	return responseWithWarnings(admission.PatchResponseFromRaw(req.Object.Raw, marshaledMachineSet), warnings)
+	return admission.PatchResponseFromRaw(req.Object.Raw, marshaledMachineSet).WithWarnings(warnings...)
 }
 
 func (h *machineSetValidatorHandler) validateMachineSet(ms *MachineSet) (bool, []string, utilerrors.Aggregate) {
