@@ -6,20 +6,16 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/onsi/gomega"
 	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/diff"
-	fakedynamic "k8s.io/client-go/dynamic/fake"
-	"k8s.io/client-go/kubernetes/scheme"
-	clientTesting "k8s.io/client-go/testing"
-	"k8s.io/client-go/tools/cache"
+	"k8s.io/utils/pointer"
 )
 
 func TestWaitForDeploymentRollout(t *testing.T) {
@@ -130,338 +126,170 @@ func TestWaitForDeploymentRollout(t *testing.T) {
 	}
 }
 
-type webhookTestCase struct {
-	testCase             string
-	shouldSync           bool
-	serverOperationError string
-	exisingWebhook       func() *unstructured.Unstructured
-}
-
 func TestSyncValidatingWebhooks(t *testing.T) {
 	defaultConfiguration := mapiv1.NewValidatingWebhookConfiguration()
 
-	testCases := []webhookTestCase{
+	withCABundle := defaultConfiguration.DeepCopy()
+	for i, webhook := range withCABundle.Webhooks {
+		webhook.ClientConfig.CABundle = []byte("test")
+		webhook.TimeoutSeconds = pointer.Int32Ptr(10)
+		withCABundle.Webhooks[i] = webhook
+	}
+
+	fail := admissionregistrationv1.Fail
+	withExtraWebhook := withCABundle.DeepCopy()
+	withExtraWebhook.Webhooks = append(withExtraWebhook.Webhooks, admissionregistrationv1.ValidatingWebhook{
+		Name:          "extra.webhook",
+		FailurePolicy: &fail,
+	})
+
+	withChangedFields := withCABundle.DeepCopy()
+	for i, webhook := range withChangedFields.Webhooks {
+		fail := admissionregistrationv1.Fail
+		webhook.FailurePolicy = &fail
+
+		webhook.ClientConfig.Service.Name = "wrong.service.name"
+		webhook.Rules = append(webhook.Rules, webhook.Rules...)
+		withChangedFields.Webhooks[i] = webhook
+	}
+
+	cases := []struct {
+		name            string
+		existingWebhook *admissionregistrationv1.ValidatingWebhookConfiguration
+		expectedWebhook *admissionregistrationv1.ValidatingWebhookConfiguration
+	}{
 		{
-			testCase:   "It should create webhookConfiguration if it does not exsit",
-			shouldSync: true,
+			name:            "It should create the configuration if it does not exist",
+			expectedWebhook: defaultConfiguration.DeepCopy(),
 		},
 		{
-			testCase: "It should not update webhookConfiguration if it already exist and is equal expected",
-			exisingWebhook: func() *unstructured.Unstructured {
-				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(defaultConfiguration.DeepCopy())
-				return &unstructured.Unstructured{Object: exisingWebhook}
-			},
-			shouldSync: false,
+			name:            "It should not overwrite the cabundle or defaulted fields once populated",
+			expectedWebhook: withCABundle.DeepCopy(),
+			existingWebhook: withCABundle.DeepCopy(),
 		},
 		{
-			testCase: "It should not create webhookConfiguration if the server is down",
-			exisingWebhook: func() *unstructured.Unstructured {
-				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(defaultConfiguration.DeepCopy())
-				return &unstructured.Unstructured{Object: exisingWebhook}
-			},
-			serverOperationError: "get",
-			shouldSync:           false,
+			name:            "It should drop any extra webhooks present",
+			expectedWebhook: withCABundle.DeepCopy(),
+			existingWebhook: withExtraWebhook.DeepCopy(),
 		},
 		{
-			testCase: "It shouldn't update webhookConfiguration if only caBundle field have changed",
-			exisingWebhook: func() *unstructured.Unstructured {
-				webhook := defaultConfiguration.DeepCopy()
-				webhook.Webhooks[0].ClientConfig.CABundle = []byte("test")
-				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook.DeepCopy())
-				return &unstructured.Unstructured{Object: exisingWebhook}
-			},
-			shouldSync: false,
-		},
-		{
-			testCase: "It should update webhookConfiguration if some of their webhooks differ",
-			exisingWebhook: func() *unstructured.Unstructured {
-				webhook := defaultConfiguration.DeepCopy()
-				webhook.Webhooks[0].Name = "test"
-				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook)
-				return &unstructured.Unstructured{Object: exisingWebhook}
-			},
-			shouldSync: true,
-		},
-		{
-			testCase: "It should not update webhookConfiguration if some of their webhooks differ, but the server is down",
-			exisingWebhook: func() *unstructured.Unstructured {
-				webhook := defaultConfiguration.DeepCopy()
-				webhook.Webhooks[0].Name = "test"
-				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook)
-				return &unstructured.Unstructured{Object: exisingWebhook}
-			},
-			serverOperationError: "update",
-			shouldSync:           false,
-		},
-		{
-			testCase: "It should update webhookConfiguration if its webhook list is missing an element",
-			exisingWebhook: func() *unstructured.Unstructured {
-				webhook := defaultConfiguration.DeepCopy()
-				webhook.Webhooks = webhook.Webhooks[:1]
-				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook)
-				return &unstructured.Unstructured{Object: exisingWebhook}
-			},
-			shouldSync: true,
-		},
-		{
-			testCase: "It shoud update webhookConfiguration if some webhooks are removed from the list",
-			exisingWebhook: func() *unstructured.Unstructured {
-				webhook := defaultConfiguration.DeepCopy()
-				webhook.Webhooks = append(webhook.Webhooks, mapiv1.MachineValidatingWebhook())
-				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook)
-				return &unstructured.Unstructured{Object: exisingWebhook}
-			},
-			shouldSync: true,
-		},
-		{
-			testCase: "It shoud update webhookConfiguration if some slice subelement was extended with items",
-			exisingWebhook: func() *unstructured.Unstructured {
-				webhook := defaultConfiguration.DeepCopy()
-				webhook.Webhooks[0].Rules[0].Operations = append(webhook.Webhooks[0].Rules[0].Operations, admissionregistrationv1.Connect)
-				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook)
-				return &unstructured.Unstructured{Object: exisingWebhook}
-			},
-			shouldSync: true,
-		},
-		{
-			testCase: "It should update webhookConfiguration if some slice subelement had a change in the order",
-			exisingWebhook: func() *unstructured.Unstructured {
-				webhook := defaultConfiguration.DeepCopy()
-				rules := []admissionregistrationv1.OperationType{admissionregistrationv1.Connect}
-				webhook.Webhooks[0].Rules[0].Operations = append(rules, webhook.Webhooks[0].Rules[0].Operations...)
-				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook)
-				return &unstructured.Unstructured{Object: exisingWebhook}
-			},
-			shouldSync: true,
+			name:            "It should overwrite any fields that have been changed",
+			expectedWebhook: withCABundle.DeepCopy(),
+			existingWebhook: withChangedFields.DeepCopy(),
 		},
 	}
 
-	stop := make(chan struct{})
-	defer close(stop)
-	optr := newFakeOperator(nil, nil, stop)
-	optr.syncHandler = nil
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
 
-	configuration, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(defaultConfiguration.DeepCopy())
-	testSyncWebhookConfiguration(t, optr,
-		admissionregistrationv1.SchemeGroupVersion.WithResource("validatingwebhookconfigurations"),
-		&unstructured.Unstructured{Object: configuration},
-		optr.syncValidatingWebhook,
-		stop,
-		optr.validatingWebhookListerSynced, testCases)
+			stop := make(chan struct{})
+			defer close(stop)
+
+			kubeObjs := []runtime.Object{}
+			if tc.existingWebhook != nil {
+				kubeObjs = append(kubeObjs, tc.existingWebhook)
+			}
+
+			optr := newFakeOperator(kubeObjs, nil, stop)
+
+			err := optr.syncValidatingWebhook()
+			g.Expect(err).ToNot(HaveOccurred())
+
+			if tc.expectedWebhook == nil {
+				// Nothing to check
+				return
+			}
+
+			client := optr.kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations()
+			gotWebhook, err := client.Get(context.Background(), tc.expectedWebhook.Name, metav1.GetOptions{})
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(gotWebhook).To(Equal(tc.expectedWebhook))
+		})
+	}
 }
 
 func TestSyncMutatingWebhooks(t *testing.T) {
 	defaultConfiguration := mapiv1.NewMutatingWebhookConfiguration()
 
-	testCases := []webhookTestCase{
+	withCABundle := defaultConfiguration.DeepCopy()
+	for i, webhook := range withCABundle.Webhooks {
+		webhook.ClientConfig.CABundle = []byte("test")
+		webhook.TimeoutSeconds = pointer.Int32Ptr(10)
+		never := admissionregistrationv1.NeverReinvocationPolicy
+		webhook.ReinvocationPolicy = &never
+		withCABundle.Webhooks[i] = webhook
+	}
+
+	fail := admissionregistrationv1.Fail
+	withExtraWebhook := withCABundle.DeepCopy()
+	withExtraWebhook.Webhooks = append(withExtraWebhook.Webhooks, admissionregistrationv1.MutatingWebhook{
+		Name:          "extra.webhook",
+		FailurePolicy: &fail,
+	})
+
+	withChangedFields := withCABundle.DeepCopy()
+	for i, webhook := range withChangedFields.Webhooks {
+		fail := admissionregistrationv1.Fail
+		webhook.FailurePolicy = &fail
+
+		webhook.ClientConfig.Service.Name = "wrong.service.name"
+		webhook.Rules = append(webhook.Rules, webhook.Rules...)
+		withChangedFields.Webhooks[i] = webhook
+	}
+
+	cases := []struct {
+		name            string
+		existingWebhook *admissionregistrationv1.MutatingWebhookConfiguration
+		expectedWebhook *admissionregistrationv1.MutatingWebhookConfiguration
+	}{
 		{
-			testCase:   "It should create webhookConfiguration if it does not exsit",
-			shouldSync: true,
+			name:            "It should create the configuration if it does not exist",
+			expectedWebhook: defaultConfiguration.DeepCopy(),
 		},
 		{
-			testCase: "It should not update webhookConfiguration if it already exist and is equal expected",
-			exisingWebhook: func() *unstructured.Unstructured {
-				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(defaultConfiguration.DeepCopy())
-				return &unstructured.Unstructured{Object: exisingWebhook}
-			},
-			shouldSync: false,
+			name:            "It should not overwrite the cabundle or defaulted fields once populated",
+			expectedWebhook: withCABundle.DeepCopy(),
+			existingWebhook: withCABundle.DeepCopy(),
 		},
 		{
-			testCase: "It should not create webhookConfiguration if the server is down",
-			exisingWebhook: func() *unstructured.Unstructured {
-				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(defaultConfiguration.DeepCopy())
-				return &unstructured.Unstructured{Object: exisingWebhook}
-			},
-			serverOperationError: "get",
-			shouldSync:           false,
+			name:            "It should drop any extra webhooks present",
+			expectedWebhook: withCABundle.DeepCopy(),
+			existingWebhook: withExtraWebhook.DeepCopy(),
 		},
 		{
-			testCase: "It shouldn't update webhookConfiguration if only caBundle field have changed",
-			exisingWebhook: func() *unstructured.Unstructured {
-				webhook := defaultConfiguration.DeepCopy()
-				webhook.Webhooks[0].ClientConfig.CABundle = []byte("test")
-				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook.DeepCopy())
-				return &unstructured.Unstructured{Object: exisingWebhook}
-			},
-			shouldSync: false,
-		},
-		{
-			testCase: "It should update webhookConfiguration if some of their webhooks differ",
-			exisingWebhook: func() *unstructured.Unstructured {
-				webhook := defaultConfiguration.DeepCopy()
-				webhook.Webhooks[0].Name = "test"
-				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook)
-				return &unstructured.Unstructured{Object: exisingWebhook}
-			},
-			shouldSync: true,
-		},
-		{
-			testCase: "It should not update webhookConfiguration if some of their webhooks differ, but the server is down",
-			exisingWebhook: func() *unstructured.Unstructured {
-				webhook := defaultConfiguration.DeepCopy()
-				webhook.Webhooks[0].Name = "test"
-				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook)
-				return &unstructured.Unstructured{Object: exisingWebhook}
-			},
-			serverOperationError: "update",
-			shouldSync:           false,
-		},
-		{
-			testCase: "It should update webhookConfiguration if its webhook list is missing an element",
-			exisingWebhook: func() *unstructured.Unstructured {
-				webhook := defaultConfiguration.DeepCopy()
-				webhook.Webhooks = webhook.Webhooks[:1]
-				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook)
-				return &unstructured.Unstructured{Object: exisingWebhook}
-			},
-			shouldSync: true,
-		},
-		{
-			testCase: "It shoud update webhookConfiguration if some webhooks are removed from the list",
-			exisingWebhook: func() *unstructured.Unstructured {
-				webhook := defaultConfiguration.DeepCopy()
-				webhook.Webhooks = append(webhook.Webhooks, mapiv1.MachineMutatingWebhook())
-				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook)
-				return &unstructured.Unstructured{Object: exisingWebhook}
-			},
-			shouldSync: true,
-		},
-		{
-			testCase: "It shoud update webhookConfiguration if some slice subelement was extended with items",
-			exisingWebhook: func() *unstructured.Unstructured {
-				webhook := defaultConfiguration.DeepCopy()
-				webhook.Webhooks[0].Rules[0].Operations = append(webhook.Webhooks[0].Rules[0].Operations, admissionregistrationv1.Connect)
-				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook)
-				return &unstructured.Unstructured{Object: exisingWebhook}
-			},
-			shouldSync: true,
-		},
-		{
-			testCase: "It should update webhookConfiguration if some slice subelement had a change in the order",
-			exisingWebhook: func() *unstructured.Unstructured {
-				webhook := defaultConfiguration.DeepCopy()
-				rules := []admissionregistrationv1.OperationType{admissionregistrationv1.Connect}
-				webhook.Webhooks[0].Rules[0].Operations = append(rules, webhook.Webhooks[0].Rules[0].Operations...)
-				exisingWebhook, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(webhook)
-				return &unstructured.Unstructured{Object: exisingWebhook}
-			},
-			shouldSync: true,
+			name:            "It should overwrite any fields that have been changed",
+			expectedWebhook: withCABundle.DeepCopy(),
+			existingWebhook: withChangedFields.DeepCopy(),
 		},
 	}
 
-	stop := make(chan struct{})
-	defer close(stop)
-	optr := newFakeOperator(nil, nil, stop)
-	optr.syncHandler = nil
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
 
-	configuration, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(defaultConfiguration.DeepCopy())
-	testSyncWebhookConfiguration(t, optr,
-		admissionregistrationv1.SchemeGroupVersion.WithResource("mutatingwebhookconfigurations"),
-		&unstructured.Unstructured{Object: configuration},
-		optr.syncMutatingWebhook,
-		stop,
-		optr.mutatingWebhookListerSynced, testCases)
-}
+			stop := make(chan struct{})
+			defer close(stop)
 
-func testSyncWebhookConfiguration(
-	t *testing.T,
-	optr *Operator,
-	gvr schema.GroupVersionResource,
-	defaultConfiguration *unstructured.Unstructured,
-	sync func() error,
-	stop chan struct{},
-	waitForSync cache.InformerSynced,
-	testCases []webhookTestCase,
-) {
-	expectedName := "test"
-	expectedUnstructured := defaultConfiguration.DeepCopy()
-	expectedUnstructured.SetName(expectedName)
-	expectedMap, _ := runtime.DefaultUnstructuredConverter.ToUnstructured(expectedUnstructured)
-	clientIn := fakedynamic.NewSimpleDynamicClient(scheme.Scheme, []runtime.Object{}...)
-	optr.dynamicClient = clientIn
-
-	serverError := fmt.Errorf("Server error")
-	addReactor := func(operation string) {
-		reactor := func(action clientTesting.Action) (bool, runtime.Object, error) {
-			return true, &admissionregistrationv1.ValidatingWebhookConfiguration{}, serverError
-		}
-		clientIn.PrependReactor(operation, gvr.Resource, reactor)
-	}
-
-	removeReactor := func() {
-		clientIn.ReactionChain = clientIn.ReactionChain[1:]
-	}
-
-	client := clientIn.Resource(gvr)
-	expected, err := client.Create(context.Background(), &unstructured.Unstructured{Object: expectedMap}, metav1.CreateOptions{})
-	if err != nil {
-		t.Fatalf("Unexpected error during creation of an expected webhook configuration: %q", err.Error())
-	}
-	defer func() {
-		if err = client.Delete(context.Background(), expectedName, metav1.DeleteOptions{}); err != nil {
-			t.Fatalf("Unexpected error during deletion of an expected webhook configuration: %q", err.Error())
-		}
-	}()
-	expectedWebhooks, _, err := unstructured.NestedSlice(expected.Object, "webhooks")
-	if err != nil {
-		t.Fatalf("Unexpected error while fetching expected webhook list: %v", err)
-	}
-	for _, tc := range testCases {
-		t.Run(tc.testCase, func(t *testing.T) {
-			if !cache.WaitForCacheSync(stop, waitForSync) {
-				t.Fatalf("Failed to sync caches")
+			kubeObjs := []runtime.Object{}
+			if tc.existingWebhook != nil {
+				kubeObjs = append(kubeObjs, tc.existingWebhook)
 			}
 
-			if tc.exisingWebhook != nil {
-				if _, err = client.Create(context.Background(), tc.exisingWebhook(), metav1.CreateOptions{}); err != nil {
-					t.Fatalf("Unexpected error during creation of an exising webhook configuration: %q", err.Error())
-				}
-			}
-			defer func() {
-				if err = client.Delete(context.Background(), defaultConfiguration.GetName(), metav1.DeleteOptions{}); err != nil {
-					t.Fatalf("Unexpected error during deletion of an exising webhook configuration: %q", err.Error())
-				}
-			}()
+			optr := newFakeOperator(kubeObjs, nil, stop)
 
-			if !cache.WaitForCacheSync(stop, waitForSync) {
-				t.Fatalf("Failed to sync caches")
+			err := optr.syncMutatingWebhook()
+			g.Expect(err).ToNot(HaveOccurred())
+
+			if tc.expectedWebhook == nil {
+				// Nothing to check
+				return
 			}
 
-			if tc.serverOperationError != "" {
-				addReactor(tc.serverOperationError)
-				if err := sync(); err != serverError {
-					t.Fatalf("Unexpected error during webhook syncronization: %q, expected %q", err.Error(), serverError)
-				}
-				removeReactor()
-			} else {
-				if err := sync(); err != nil {
-					t.Fatalf("Unexpected error during webhook syncronization: %q", err.Error())
-				}
-			}
-
-			existing, err := client.Get(context.Background(), defaultConfiguration.GetName(), metav1.GetOptions{})
-			if err != nil {
-				t.Fatalf("Unexpected error while getting validating webhook: %q", err.Error())
-			}
-
-			existingWebhooks, _, err := unstructured.NestedSlice(existing.Object, "webhooks")
-			if err != nil {
-				t.Fatalf("Unexpected error reading updated webhooks list: %v", err)
-			}
-			if tc.shouldSync {
-				if annotations, _, err := unstructured.NestedStringMap(existing.Object, "metadata", "annotations"); err != nil ||
-					!equality.Semantic.DeepDerivative(expectedUnstructured.GetAnnotations(), annotations) {
-					t.Errorf("Expected hook annotations match:\n%#v\n, got:\n%#v\n, error: %v", expectedUnstructured.GetAnnotations(), annotations, err)
-				}
-				if !equality.Semantic.DeepEqual(expectedWebhooks, existingWebhooks) {
-					t.Errorf("Expected webhhoks match:\n%#v\n, got:\n%#v\n", expectedWebhooks, existingWebhooks)
-				}
-			} else {
-				initialExistingWebhooks, _, err := unstructured.NestedSlice(tc.exisingWebhook().Object, "webhooks")
-				if err != nil || !equality.Semantic.DeepEqual(initialExistingWebhooks, existingWebhooks) {
-					t.Errorf("Expected webhhoks match initial configuration:\n%#v\n, got:\n%#v\n, error: %v", initialExistingWebhooks, existingWebhooks, err)
-				}
-			}
+			client := optr.kubeClient.AdmissionregistrationV1().MutatingWebhookConfigurations()
+			gotWebhook, err := client.Get(context.Background(), tc.expectedWebhook.Name, metav1.GetOptions{})
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(gotWebhook).To(Equal(tc.expectedWebhook))
 		})
 	}
 }
