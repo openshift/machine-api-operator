@@ -128,8 +128,12 @@ const (
 var (
 	// webhookFailurePolicy is ignore so we don't want to block machine lifecycle on the webhook operational aspects.
 	// This would be particularly problematic for chicken egg issues when bootstrapping a cluster.
-	webhookFailurePolicy = admissionregistrationv1.Ignore
-	webhookSideEffects   = admissionregistrationv1.SideEffectClassNone
+	webhookFailurePolicy      = admissionregistrationv1.Ignore
+	webhookSideEffects        = admissionregistrationv1.SideEffectClassNone
+	webhookMatchPolicy        = admissionregistrationv1.Equivalent
+	webhookResourceSelector   = metav1.LabelSelector{}
+	webhookScope              = admissionregistrationv1.NamespacedScope
+	webhookReinvocationPolicy = admissionregistrationv1.IfNeededReinvocationPolicy
 )
 
 func getInfra() (*osconfigv1.Infrastructure, error) {
@@ -292,6 +296,9 @@ func MachineValidatingWebhook() admissionregistrationv1.ValidatingWebhook {
 		Name:                    "validation.machine.machine.openshift.io",
 		FailurePolicy:           &webhookFailurePolicy,
 		SideEffects:             &webhookSideEffects,
+		MatchPolicy:             &webhookMatchPolicy,
+		NamespaceSelector:       &webhookResourceSelector,
+		ObjectSelector:          &webhookResourceSelector,
 		ClientConfig: admissionregistrationv1.WebhookClientConfig{
 			Service: &serviceReference,
 		},
@@ -301,6 +308,7 @@ func MachineValidatingWebhook() admissionregistrationv1.ValidatingWebhook {
 					APIGroups:   []string{machine.GroupName},
 					APIVersions: []string{SchemeGroupVersion.Version},
 					Resources:   []string{"machines"},
+					Scope:       &webhookScope,
 				},
 				Operations: []admissionregistrationv1.OperationType{
 					admissionregistrationv1.Create,
@@ -324,6 +332,9 @@ func MachineSetValidatingWebhook() admissionregistrationv1.ValidatingWebhook {
 		Name:                    "validation.machineset.machine.openshift.io",
 		FailurePolicy:           &webhookFailurePolicy,
 		SideEffects:             &webhookSideEffects,
+		MatchPolicy:             &webhookMatchPolicy,
+		NamespaceSelector:       &webhookResourceSelector,
+		ObjectSelector:          &webhookResourceSelector,
 		ClientConfig: admissionregistrationv1.WebhookClientConfig{
 			Service: &machinesetServiceReference,
 		},
@@ -333,6 +344,7 @@ func MachineSetValidatingWebhook() admissionregistrationv1.ValidatingWebhook {
 					APIGroups:   []string{machine.GroupName},
 					APIVersions: []string{SchemeGroupVersion.Version},
 					Resources:   []string{"machinesets"},
+					Scope:       &webhookScope,
 				},
 				Operations: []admissionregistrationv1.OperationType{
 					admissionregistrationv1.Create,
@@ -377,6 +389,10 @@ func MachineMutatingWebhook() admissionregistrationv1.MutatingWebhook {
 		Name:                    "default.machine.machine.openshift.io",
 		FailurePolicy:           &webhookFailurePolicy,
 		SideEffects:             &webhookSideEffects,
+		MatchPolicy:             &webhookMatchPolicy,
+		NamespaceSelector:       &webhookResourceSelector,
+		ObjectSelector:          &webhookResourceSelector,
+		ReinvocationPolicy:      &webhookReinvocationPolicy,
 		ClientConfig: admissionregistrationv1.WebhookClientConfig{
 			Service: &machineServiceReference,
 		},
@@ -386,6 +402,7 @@ func MachineMutatingWebhook() admissionregistrationv1.MutatingWebhook {
 					APIGroups:   []string{machine.GroupName},
 					APIVersions: []string{SchemeGroupVersion.Version},
 					Resources:   []string{"machines"},
+					Scope:       &webhookScope,
 				},
 				Operations: []admissionregistrationv1.OperationType{
 					admissionregistrationv1.Create,
@@ -408,6 +425,10 @@ func MachineSetMutatingWebhook() admissionregistrationv1.MutatingWebhook {
 		Name:                    "default.machineset.machine.openshift.io",
 		FailurePolicy:           &webhookFailurePolicy,
 		SideEffects:             &webhookSideEffects,
+		MatchPolicy:             &webhookMatchPolicy,
+		NamespaceSelector:       &webhookResourceSelector,
+		ObjectSelector:          &webhookResourceSelector,
+		ReinvocationPolicy:      &webhookReinvocationPolicy,
 		ClientConfig: admissionregistrationv1.WebhookClientConfig{
 			Service: &machineSetServiceReference,
 		},
@@ -417,6 +438,7 @@ func MachineSetMutatingWebhook() admissionregistrationv1.MutatingWebhook {
 					APIGroups:   []string{machine.GroupName},
 					APIVersions: []string{SchemeGroupVersion.Version},
 					Resources:   []string{"machinesets"},
+					Scope:       &webhookScope,
 				},
 				Operations: []admissionregistrationv1.OperationType{
 					admissionregistrationv1.Create,
