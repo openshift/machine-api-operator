@@ -326,10 +326,12 @@ func TestReconcileRequest(t *testing.T) {
 
 func TestSetPhase(t *testing.T) {
 	testCases := []struct {
-		name         string
-		phase        string
-		errorMessage string
-		annotations  map[string]string
+		name                   string
+		phase                  string
+		errorMessage           string
+		annotations            map[string]string
+		existingProviderStatus string
+		expectedProviderStatus string
 	}{
 		{
 			name:         "when updating the phase to Running",
@@ -344,6 +346,36 @@ func TestSetPhase(t *testing.T) {
 			annotations: map[string]string{
 				MachineInstanceStateAnnotationName: unknownInstanceState,
 			},
+		},
+		{
+			name:         "when updating the phase to Failed with instanceState Set",
+			phase:        phaseFailed,
+			errorMessage: "test",
+			annotations: map[string]string{
+				MachineInstanceStateAnnotationName: unknownInstanceState,
+			},
+			existingProviderStatus: `{"instanceState":"Running"}`,
+			expectedProviderStatus: `{"instanceState":"Unknown"}`,
+		},
+		{
+			name:         "when updating the phase to Failed with vmState Set",
+			phase:        phaseFailed,
+			errorMessage: "test",
+			annotations: map[string]string{
+				MachineInstanceStateAnnotationName: unknownInstanceState,
+			},
+			existingProviderStatus: `{"vmState":"Running"}`,
+			expectedProviderStatus: `{"vmState":"Unknown"}`,
+		},
+		{
+			name:         "when updating the phase to Failed with state Set",
+			phase:        phaseFailed,
+			errorMessage: "test",
+			annotations: map[string]string{
+				MachineInstanceStateAnnotationName: unknownInstanceState,
+			},
+			existingProviderStatus: `{"state":"Running"}`,
+			expectedProviderStatus: `{"state":"Running"}`,
 		},
 	}
 
@@ -374,9 +406,18 @@ func TestSetPhase(t *testing.T) {
 					GenerateName: name,
 					Namespace:    namespace.Name,
 				},
-				Status: machinev1.MachineStatus{},
 			}
+
 			g.Expect(k8sClient.Create(ctx, machine)).To(Succeed())
+			defer k8sClient.Delete(ctx, machine)
+
+			if tc.existingProviderStatus != "" {
+				machine.Status.ProviderStatus = &runtime.RawExtension{
+					Raw: []byte(tc.existingProviderStatus),
+				}
+			}
+
+			g.Expect(k8sClient.Status().Update(ctx, machine)).To(Succeed())
 
 			namespacedName := types.NamespacedName{
 				Namespace: machine.Namespace,
@@ -422,6 +463,11 @@ func TestSetPhase(t *testing.T) {
 
 			g.Expect(got.GetAnnotations()).To(Equal(tc.annotations))
 			g.Expect(machine.GetAnnotations()).To(Equal(tc.annotations))
+
+			if tc.existingProviderStatus != "" {
+				g.Expect(got.Status.ProviderStatus).ToNot(BeNil())
+				g.Expect(got.Status.ProviderStatus.Raw).To(BeEquivalentTo(tc.expectedProviderStatus))
+			}
 		})
 	}
 }
