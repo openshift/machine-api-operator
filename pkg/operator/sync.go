@@ -168,7 +168,7 @@ func (optr *Operator) syncWebhookConfiguration() error {
 func (optr *Operator) syncValidatingWebhook() error {
 	expected := mapiv1.NewValidatingWebhookConfiguration()
 	if webhook, updated, err := applyValidatingWebhookConfiguration(
-		optr.dynamicClient,
+		optr.kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations(),
 		events.NewLoggingEventRecorder(optr.name),
 		expected,
 		expectedValidatingWebhooksConfiguration(expected.Name, optr.generations),
@@ -184,7 +184,7 @@ func (optr *Operator) syncValidatingWebhook() error {
 func (optr *Operator) syncMutatingWebhook() error {
 	expected := mapiv1.NewMutatingWebhookConfiguration()
 	if webhook, updated, err := applyMutatingWebhookConfiguration(
-		optr.dynamicClient,
+		optr.kubeClient.AdmissionregistrationV1().MutatingWebhookConfigurations(),
 		events.NewLoggingEventRecorder(optr.name),
 		expected,
 		expectedMutatingWebhooksConfiguration(expected.Name, optr.generations),

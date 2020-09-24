@@ -1,8 +1,6 @@
 package operator
 
 import (
-	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -12,55 +10,10 @@ import (
 	"github.com/openshift/library-go/pkg/operator/resource/resourcehelper"
 	"github.com/openshift/library-go/pkg/operator/resource/resourcemerge"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
-
-const specHashAnnotation = "operator.openshift.io/spec-hash"
-
-// This is based on resourcemerge.EnsureObjectMeta but uses the metav1.Object interface instead
-// TODO: Update this to use resourcemerge.EnsureObjectMeta or update resourcemerge.EnsureObjectMeta to use the interface
-func ensureObjectMeta(existing, required metav1.Object) bool {
-	modified := resourcemerge.BoolPtr(false)
-
-	namespace := existing.GetNamespace()
-	name := existing.GetName()
-	labels := existing.GetLabels()
-	annotations := existing.GetAnnotations()
-
-	resourcemerge.SetStringIfSet(modified, &namespace, required.GetNamespace())
-	resourcemerge.SetStringIfSet(modified, &name, required.GetName())
-	resourcemerge.MergeMap(modified, &labels, required.GetLabels())
-	resourcemerge.MergeMap(modified, &annotations, required.GetAnnotations())
-
-	existing.SetNamespace(namespace)
-	existing.SetName(name)
-	existing.SetLabels(labels)
-	existing.SetAnnotations(annotations)
-
-	return *modified
-}
-
-// setSpecHashAnnotation computes the hash of the provided spec and sets an annotation of the
-// hash on the provided ObjectMeta. This method is used internally by Apply<type> methods, and
-// is exposed to support testing with fake clients that need to know the mutated form of the
-// resource resulting from an Apply<type> call.
-func setSpecHashAnnotation(objMeta metav1.Object, spec interface{}) error {
-	jsonBytes, err := json.Marshal(spec)
-	if err != nil {
-		return err
-	}
-	specHash := fmt.Sprintf("%x", sha256.Sum256(jsonBytes))
-	annotations := objMeta.GetAnnotations()
-	if annotations == nil {
-		annotations = map[string]string{}
-	}
-	annotations[specHashAnnotation] = specHash
-	objMeta.SetAnnotations(annotations)
-	return nil
-}
 
 func reportCreateEvent(recorder events.Recorder, obj runtime.Object, originalErr error) {
 	gvk := resourcehelper.GuessObjectGroupVersionKind(obj)
