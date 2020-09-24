@@ -64,35 +64,16 @@ func TestMachineSetCreation(t *testing.T) {
 			providerSpecValue: &runtime.RawExtension{
 				Object: &aws.AWSMachineProviderConfig{},
 			},
-			expectedError: "[providerSpec.ami: Required value: expected either providerSpec.ami.arn or providerSpec.ami.filters or providerSpec.ami.id to be populated, providerSpec.subnet: Required value: expected either providerSpec.subnet.arn or providerSpec.subnet.id or providerSpec.subnet.filters or providerSpec.placement.availabilityZone to be populated]",
+			expectedError: "providerSpec.ami: Required value: expected either providerSpec.ami.arn or providerSpec.ami.filters or providerSpec.ami.id to be populated",
 		},
 		{
-			name:         "with AWS, an AMI ID and an AvailabilityZone set",
+			name:         "with AWS and an AMI ID",
 			platformType: osconfigv1.AWSPlatformType,
 			clusterID:    "aws-cluster",
 			providerSpecValue: &runtime.RawExtension{
 				Object: &aws.AWSMachineProviderConfig{
 					AMI: aws.AWSResourceReference{
 						ID: pointer.StringPtr("ami"),
-					},
-					Placement: aws.Placement{
-						AvailabilityZone: "availabilityZone",
-					},
-				},
-			},
-			expectedError: "",
-		},
-		{
-			name:         "with AWS, an AMI ID and an Subnet ID set",
-			platformType: osconfigv1.AWSPlatformType,
-			clusterID:    "aws-cluster",
-			providerSpecValue: &runtime.RawExtension{
-				Object: &aws.AWSMachineProviderConfig{
-					AMI: aws.AWSResourceReference{
-						ID: pointer.StringPtr("ami"),
-					},
-					Subnet: aws.AWSResourceReference{
-						ID: pointer.StringPtr("subnetID"),
 					},
 				},
 			},
@@ -112,7 +93,7 @@ func TestMachineSetCreation(t *testing.T) {
 			providerSpecValue: &runtime.RawExtension{
 				Object: &azure.AzureMachineProviderSpec{},
 			},
-			expectedError: "[providerSpec.location: Required value: location should be set to one of the supported Azure regions, providerSpec.osDisk.diskSizeGB: Invalid value: 0: diskSizeGB must be greater than zero]",
+			expectedError: "providerSpec.osDisk.diskSizeGB: Invalid value: 0: diskSizeGB must be greater than zero and less than 32768",
 		},
 		{
 			name:         "with Azure and a location and disk size set",
@@ -281,33 +262,11 @@ func TestMachineSetUpdate(t *testing.T) {
 		AMI: aws.AWSResourceReference{
 			ID: pointer.StringPtr("ami"),
 		},
-		InstanceType: defaultAWSInstanceType,
-		IAMInstanceProfile: &aws.AWSResourceReference{
-			ID: defaultAWSIAMInstanceProfile(awsClusterID),
-		},
+		InstanceType:      defaultAWSInstanceType,
 		UserDataSecret:    &corev1.LocalObjectReference{Name: defaultUserDataSecret},
 		CredentialsSecret: &corev1.LocalObjectReference{Name: defaultAWSCredentialsSecret},
-		SecurityGroups: []aws.AWSResourceReference{
-			{
-				Filters: []aws.Filter{
-					{
-						Name:   "tag:Name",
-						Values: []string{defaultAWSSecurityGroup(awsClusterID)},
-					},
-				},
-			},
-		},
 		Placement: aws.Placement{
-			Region:           awsRegion,
-			AvailabilityZone: "zone",
-		},
-		Subnet: aws.AWSResourceReference{
-			Filters: []aws.Filter{
-				{
-					Name:   "tag:Name",
-					Values: []string{defaultAWSSubnet(awsClusterID, "zone")},
-				},
-			},
+			Region: awsRegion,
 		},
 	}
 
@@ -341,7 +300,6 @@ func TestMachineSetUpdate(t *testing.T) {
 	}
 
 	gcpClusterID := "gcp-cluster"
-	gcpProjectID := "gcp-project-id"
 	defaultGCPProviderSpec := &gcp.GCPMachineProviderSpec{
 		Region:      "region",
 		Zone:        "region-zone",
@@ -361,8 +319,7 @@ func TestMachineSetUpdate(t *testing.T) {
 				Image:      defaultGCPDiskImage,
 			},
 		},
-		ServiceAccounts: defaultGCPServiceAccounts(gcpClusterID, gcpProjectID),
-		Tags:            defaultGCPTags(gcpClusterID),
+		Tags: defaultGCPTags(gcpClusterID),
 		UserDataSecret: &corev1.LocalObjectReference{
 			Name: defaultUserDataSecret,
 		},
@@ -452,7 +409,7 @@ func TestMachineSetUpdate(t *testing.T) {
 			expectedError: "providerSpec.instanceType: Required value: expected providerSpec.instanceType to be populated",
 		},
 		{
-			name:         "with an AWS ProviderSpec, removing the instance profile",
+			name:         "with an AWS ProviderSpec, removing the region",
 			platformType: osconfigv1.AWSPlatformType,
 			clusterID:    awsClusterID,
 			baseProviderSpecValue: &runtime.RawExtension{
@@ -460,12 +417,12 @@ func TestMachineSetUpdate(t *testing.T) {
 			},
 			updatedProviderSpecValue: func() *runtime.RawExtension {
 				object := defaultAWSProviderSpec.DeepCopy()
-				object.IAMInstanceProfile = nil
+				object.Placement.Region = ""
 				return &runtime.RawExtension{
 					Object: object,
 				}
 			},
-			expectedError: "providerSpec.iamInstanceProfile: Required value: expected providerSpec.iamInstanceProfile to be populated",
+			expectedError: "providerSpec.placement.region: Required value: expected providerSpec.placement.region to be populated",
 		},
 		{
 			name:         "with an AWS ProviderSpec, removing the user data secret",
@@ -608,7 +565,7 @@ func TestMachineSetUpdate(t *testing.T) {
 			expectedError: "providerSpec.disks: Required value: at least 1 disk is required",
 		},
 		{
-			name:         "with a GCP ProviderSpec, removing the service accounts",
+			name:         "with a GCP ProviderSpec, removing the network interfaces",
 			platformType: osconfigv1.GCPPlatformType,
 			clusterID:    gcpClusterID,
 			baseProviderSpecValue: &runtime.RawExtension{
@@ -616,12 +573,12 @@ func TestMachineSetUpdate(t *testing.T) {
 			},
 			updatedProviderSpecValue: func() *runtime.RawExtension {
 				object := defaultGCPProviderSpec.DeepCopy()
-				object.ServiceAccounts = nil
+				object.NetworkInterfaces = nil
 				return &runtime.RawExtension{
 					Object: object,
 				}
 			},
-			expectedError: "providerSpec.serviceAccounts: Invalid value: \"0 service accounts supplied\": exactly 1 service account must be supplied",
+			expectedError: "providerSpec.networkInterfaces: Required value: at least 1 network interface is required",
 		},
 		{
 			name:         "with a valid VSphere ProviderSpec",
@@ -700,9 +657,6 @@ func TestMachineSetUpdate(t *testing.T) {
 
 			platformStatus := &osconfigv1.PlatformStatus{
 				Type: tc.platformType,
-				GCP: &osconfigv1.GCPPlatformStatus{
-					ProjectID: gcpProjectID,
-				},
 				AWS: &osconfigv1.AWSPlatformStatus{
 					Region: awsRegion,
 				},
