@@ -131,7 +131,6 @@ var (
 	webhookFailurePolicy      = admissionregistrationv1.Ignore
 	webhookSideEffects        = admissionregistrationv1.SideEffectClassNone
 	webhookMatchPolicy        = admissionregistrationv1.Equivalent
-	webhookResourceSelector   = metav1.LabelSelector{}
 	webhookScope              = admissionregistrationv1.NamespacedScope
 	webhookReinvocationPolicy = admissionregistrationv1.IfNeededReinvocationPolicy
 )
@@ -296,9 +295,6 @@ func MachineValidatingWebhook() admissionregistrationv1.ValidatingWebhook {
 		Name:                    "validation.machine.machine.openshift.io",
 		FailurePolicy:           &webhookFailurePolicy,
 		SideEffects:             &webhookSideEffects,
-		MatchPolicy:             &webhookMatchPolicy,
-		NamespaceSelector:       &webhookResourceSelector,
-		ObjectSelector:          &webhookResourceSelector,
 		ClientConfig: admissionregistrationv1.WebhookClientConfig{
 			Service: &serviceReference,
 		},
@@ -333,8 +329,6 @@ func MachineSetValidatingWebhook() admissionregistrationv1.ValidatingWebhook {
 		FailurePolicy:           &webhookFailurePolicy,
 		SideEffects:             &webhookSideEffects,
 		MatchPolicy:             &webhookMatchPolicy,
-		NamespaceSelector:       &webhookResourceSelector,
-		ObjectSelector:          &webhookResourceSelector,
 		ClientConfig: admissionregistrationv1.WebhookClientConfig{
 			Service: &machinesetServiceReference,
 		},
@@ -390,8 +384,6 @@ func MachineMutatingWebhook() admissionregistrationv1.MutatingWebhook {
 		FailurePolicy:           &webhookFailurePolicy,
 		SideEffects:             &webhookSideEffects,
 		MatchPolicy:             &webhookMatchPolicy,
-		NamespaceSelector:       &webhookResourceSelector,
-		ObjectSelector:          &webhookResourceSelector,
 		ReinvocationPolicy:      &webhookReinvocationPolicy,
 		ClientConfig: admissionregistrationv1.WebhookClientConfig{
 			Service: &machineServiceReference,
@@ -426,8 +418,6 @@ func MachineSetMutatingWebhook() admissionregistrationv1.MutatingWebhook {
 		FailurePolicy:           &webhookFailurePolicy,
 		SideEffects:             &webhookSideEffects,
 		MatchPolicy:             &webhookMatchPolicy,
-		NamespaceSelector:       &webhookResourceSelector,
-		ObjectSelector:          &webhookResourceSelector,
 		ReinvocationPolicy:      &webhookReinvocationPolicy,
 		ClientConfig: admissionregistrationv1.WebhookClientConfig{
 			Service: &machineSetServiceReference,

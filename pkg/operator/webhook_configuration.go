@@ -176,10 +176,6 @@ func applyUnstructured(resourceClient dynamic.ResourceInterface, path string, re
 		return nil, false, fmt.Errorf("Object does not contain the specified path: %s", path)
 	}
 
-	if err := setSpecHashAnnotation(required, requiredSpec); err != nil {
-		return nil, false, err
-	}
-
 	existing, err := resourceClient.Get(context.TODO(), required.GetName(), metav1.GetOptions{})
 	if err != nil {
 		if apierrors.IsNotFound(err) {
@@ -194,29 +190,26 @@ func applyUnstructured(resourceClient dynamic.ResourceInterface, path string, re
 	}
 
 	existingCopy := existing.DeepCopy()
-	existingSpec, _, err := unstructured.NestedFieldNoCopy(existingCopy.Object, path)
-	if err != nil {
-		return nil, false, err
-	}
-	if err := setSpecHashAnnotation(existingCopy, existingSpec); err != nil {
-		return nil, false, err
-	}
-	if modified := ensureObjectMeta(existingCopy, required); !modified {
+	modified := ensureObjectMeta(existingCopy, required)
+	if !modified && existingCopy.GetGeneration() == expectedGeneration {
 		return existingCopy, false, nil
+	}
+	if err := unstructured.SetNestedField(existingCopy.Object, requiredSpec, path); err != nil {
+		return nil, false, err
 	}
 
 	// at this point we know that we're going to perform a write.  We're just trying to get the object correct
 	toWrite := existingCopy // shallow copy so the code reads easier
-	if err := unstructured.SetNestedField(toWrite.Object, requiredSpec, path); err != nil {
-		return nil, false, err
-	}
 
 	klog.V(4).Infof("%s %q changes: %v", required.GetKind(), required.GetNamespace()+"/"+required.GetName(), jsonPatchNoError(existing, toWrite))
 
 	actual, err := resourceClient.Update(context.TODO(), toWrite, metav1.UpdateOptions{})
-	reportUpdateEvent(recorder, required, err)
 	if err != nil {
 		return nil, false, err
 	}
-	return actual, true, nil
+	if actual.GetGeneration() > expectedGeneration || modified {
+		reportUpdateEvent(recorder, required, err)
+		return actual, true, nil
+	}
+	return actual, false, nil
 }
