@@ -5,8 +5,10 @@ package vsphere
 import (
 	"context"
 	"fmt"
+	"time"
 
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog"
@@ -14,12 +16,13 @@ import (
 )
 
 const (
-	scopeFailFmt      = "%s: failed to create scope for machine: %v"
-	reconcilerFailFmt = "%s: reconciler failed to %s machine: %w"
-	createEventAction = "Create"
-	updateEventAction = "Update"
-	deleteEventAction = "Delete"
-	noEventAction     = ""
+	scopeFailFmt        = "%s: failed to create scope for machine: %v"
+	reconcilerFailFmt   = "%s: reconciler failed to %s machine: %w"
+	createEventAction   = "Create"
+	updateEventAction   = "Update"
+	deleteEventAction   = "Delete"
+	noEventAction       = ""
+	requeueAfterSeconds = 20
 )
 
 // Actuator is responsible for performing machine reconciliation.
@@ -76,7 +79,17 @@ func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error
 		return a.handleMachineError(machine, fmtErr, createEventAction)
 	}
 	a.eventRecorder.Eventf(machine, corev1.EventTypeNormal, createEventAction, "Created Machine %v", machine.GetName())
-	return scope.PatchMachine()
+
+	if err := scope.PatchMachine(); err != nil {
+		return err
+	}
+	// Return a requeue after error to add a brief delay between reconciles
+	// otherwise we might get a stale object from cache without a taskID and
+	// issue a double create.  This will not actually result in a 20 second delay
+	// in most cases as the machine should have been patched and the corresponding
+	// informer event will result in the machine being reconciled sooner. This
+	// ensures that we're reconciling with the latest patched machine object.
+	return &machinecontroller.RequeueAfterError{RequeueAfter: requeueAfterSeconds * time.Second}
 }
 
 func (a *Actuator) Exists(ctx context.Context, machine *machinev1.Machine) (bool, error) {
