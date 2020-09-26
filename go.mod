@@ -4,11 +4,11 @@ go 1.13
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/evanphx/json-patch v4.9.0+incompatible
 	github.com/go-logr/logr v0.2.1 // indirect
 	github.com/golang/glog v0.0.0-20160126235308-23def4e6c14b
 	github.com/google/gofuzz v1.1.0
 	github.com/google/uuid v1.1.1
+	github.com/imdario/mergo v0.3.9
 	github.com/onsi/ginkgo v1.12.1
 	github.com/onsi/gomega v1.10.1
 	github.com/openshift/api v0.0.0-20200901182017-7ac89ba6b971
