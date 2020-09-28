@@ -95,7 +95,7 @@ spec:
     matchLabels:
       k8s-app: controller
   endpoints:
-  - port: metrics
+  - port: metal3-mtrc
     bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
     interval: 30s
     scheme: https
@@ -317,11 +317,11 @@ func newMetal3Service(config *OperatorConfig, baremetalProvisioningConfig Bareme
 			Type: corev1.ServiceTypeNodePort,
 			Ports: []corev1.ServicePort{
 				{
-					Name: "metrics",
+					Name: "metal3-mtrc",
 					Port: metal3ExposeMetricsPort,
 					TargetPort: intstr.IntOrString{
 						Type:   intstr.String,
-						StrVal: "metrics",
+						StrVal: "metal3-mtrc",
 					},
 				},
 			},
@@ -516,7 +516,7 @@ func createContainerMetal3BareMetalOperator(config *OperatorConfig, baremetalPro
 
 func newMetal3Containers(config *OperatorConfig, baremetalProvisioningConfig BaremetalProvisioningConfig) []corev1.Container {
 	containers := []corev1.Container{
-		newKubeProxyContainer(config.Controllers.KubeRBACProxy, "metrics",
+		newKubeProxyContainer(config.Controllers.KubeRBACProxy, "metal3-mtrc",
 			metrics.DefaultMetal3MetricsAddress, metal3ExposeMetricsPort),
 		createContainerMetal3BareMetalOperator(config, baremetalProvisioningConfig),
 		createContainerMetal3Mariadb(config),
