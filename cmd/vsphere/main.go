@@ -102,11 +102,16 @@ func main() {
 		klog.Fatalf("Failed to set up overall controller manager: %v", err)
 	}
 
+	// Create a taskIDCache for create task IDs in case they are lost due to
+	// network error or stale cache.
+	taskIDCache := make(map[string]string)
+
 	// Initialize machine actuator.
 	machineActuator := machine.NewActuator(machine.ActuatorParams{
 		Client:        mgr.GetClient(),
 		APIReader:     mgr.GetAPIReader(),
 		EventRecorder: mgr.GetEventRecorderFor("vspherecontroller"),
+		TaskIDCache:   taskIDCache,
 	})
 
 	if err := configv1.AddToScheme(mgr.GetScheme()); err != nil {

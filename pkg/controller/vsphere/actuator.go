@@ -30,6 +30,7 @@ type Actuator struct {
 	client        runtimeclient.Client
 	apiReader     runtimeclient.Reader
 	eventRecorder record.EventRecorder
+	TaskIDCache   map[string]string
 }
 
 // ActuatorParams holds parameter information for Actuator.
@@ -37,6 +38,7 @@ type ActuatorParams struct {
 	Client        runtimeclient.Client
 	APIReader     runtimeclient.Reader
 	EventRecorder record.EventRecorder
+	TaskIDCache   map[string]string
 }
 
 // NewActuator returns an actuator.
@@ -45,6 +47,7 @@ func NewActuator(params ActuatorParams) *Actuator {
 		client:        params.Client,
 		apiReader:     params.APIReader,
 		eventRecorder: params.EventRecorder,
+		TaskIDCache:   params.TaskIDCache,
 	}
 }
 
@@ -61,6 +64,7 @@ func (a *Actuator) handleMachineError(machine *machinev1.Machine, err error, eve
 // Create creates a machine and is invoked by the machine controller.
 func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error {
 	klog.Infof("%s: actuator creating machine", machine.GetName())
+
 	scope, err := newMachineScope(machineScopeParams{
 		Context:   ctx,
 		client:    a.client,
@@ -71,25 +75,34 @@ func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error
 		fmtErr := fmt.Errorf(scopeFailFmt, machine.GetName(), err)
 		return a.handleMachineError(machine, fmtErr, createEventAction)
 	}
-	if err := newReconciler(scope).create(); err != nil {
-		if err := scope.PatchMachine(); err != nil {
-			return err
+
+	// Ensure we're not reconciling a stale machine by checking our task-id.
+	// This is a workaround for a cache race condition.
+	if val, ok := a.TaskIDCache[machine.Name]; ok {
+		if val != scope.providerStatus.TaskRef {
+			klog.Errorf("%s: machine object missing expected provider task ID, requeue", machine.GetName())
+			return &machinecontroller.RequeueAfterError{RequeueAfter: requeueAfterSeconds * time.Second}
 		}
-		fmtErr := fmt.Errorf(reconcilerFailFmt, machine.GetName(), createEventAction, err)
-		return a.handleMachineError(machine, fmtErr, createEventAction)
 	}
-	a.eventRecorder.Eventf(machine, corev1.EventTypeNormal, createEventAction, "Created Machine %v", machine.GetName())
+
+	var retErr error
+	err = newReconciler(scope).create()
+	// save the taskRef in our cache in case of any error with patch.
+	if scope.providerStatus.TaskRef != "" {
+		a.TaskIDCache[machine.Name] = scope.providerStatus.TaskRef
+	}
+	if err != nil {
+		fmtErr := fmt.Errorf(reconcilerFailFmt, machine.GetName(), createEventAction, err)
+		retErr = a.handleMachineError(machine, fmtErr, createEventAction)
+	} else {
+		a.eventRecorder.Eventf(machine, corev1.EventTypeNormal, createEventAction, "Created Machine %v", machine.GetName())
+	}
 
 	if err := scope.PatchMachine(); err != nil {
 		return err
 	}
-	// Return a requeue after error to add a brief delay between reconciles
-	// otherwise we might get a stale object from cache without a taskID and
-	// issue a double create.  This will not actually result in a 20 second delay
-	// in most cases as the machine should have been patched and the corresponding
-	// informer event will result in the machine being reconciled sooner. This
-	// ensures that we're reconciling with the latest patched machine object.
-	return &machinecontroller.RequeueAfterError{RequeueAfter: requeueAfterSeconds * time.Second}
+
+	return retErr
 }
 
 func (a *Actuator) Exists(ctx context.Context, machine *machinev1.Machine) (bool, error) {
@@ -108,6 +121,9 @@ func (a *Actuator) Exists(ctx context.Context, machine *machinev1.Machine) (bool
 
 func (a *Actuator) Update(ctx context.Context, machine *machinev1.Machine) error {
 	klog.Infof("%s: actuator updating machine", machine.GetName())
+	// Cleanup TaskIDCache so we don't continually grow
+	delete(a.TaskIDCache, machine.Name)
+
 	scope, err := newMachineScope(machineScopeParams{
 		Context:   ctx,
 		client:    a.client,
@@ -132,6 +148,10 @@ func (a *Actuator) Update(ctx context.Context, machine *machinev1.Machine) error
 
 func (a *Actuator) Delete(ctx context.Context, machine *machinev1.Machine) error {
 	klog.Infof("%s: actuator deleting machine", machine.GetName())
+	// Cleanup TaskIDCache so we don't continually grow
+	// Cleanup here as well in case Update() was never successfully called.
+	delete(a.TaskIDCache, machine.Name)
+
 	scope, err := newMachineScope(machineScopeParams{
 		Context:   ctx,
 		client:    a.client,

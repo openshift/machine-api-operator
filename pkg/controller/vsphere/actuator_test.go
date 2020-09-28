@@ -292,10 +292,12 @@ func TestMachineEvents(t *testing.T) {
 			}
 			gs.Eventually(getMachine, timeout).Should(Succeed())
 
+			taskIDCache := make(map[string]string)
 			params := ActuatorParams{
 				Client:        k8sClient,
 				EventRecorder: eventRecorder,
 				APIReader:     k8sClient,
+				TaskIDCache:   taskIDCache,
 			}
 
 			actuator := NewActuator(params)
