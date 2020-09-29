@@ -814,9 +814,9 @@ k8s.io/gengo/parser
 k8s.io/gengo/types
 # k8s.io/klog v1.0.0
 k8s.io/klog
-k8s.io/klog/klogr
 # k8s.io/klog/v2 v2.3.0
 k8s.io/klog/v2
+k8s.io/klog/v2/klogr
 # k8s.io/kube-aggregator v0.19.0
 k8s.io/kube-aggregator/pkg/apis/apiregistration
 k8s.io/kube-aggregator/pkg/apis/apiregistration/v1
