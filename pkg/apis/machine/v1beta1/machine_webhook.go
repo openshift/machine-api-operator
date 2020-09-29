@@ -72,7 +72,7 @@ const (
 	defaultWebhookServiceNamespace  = "openshift-machine-api"
 	defaultWebhookServicePort       = 443
 
-	defaultUserDataSecret  = "worker-user-data-managed"
+	defaultUserDataSecret  = "worker-user-data"
 	defaultSecretNamespace = "openshift-machine-api"
 
 	// AWS Defaults
