@@ -388,7 +388,7 @@ func createInitContainerStaticIpSet(config *OperatorConfig, baremetalProvisionin
 			Privileged: pointer.BoolPtr(true),
 		},
 		Env: []corev1.EnvVar{
-			buildEnvVar("PROVISIONING_IP", baremetalProvisioningConfig),
+			buildEnvVar("PROVISIONING_CIDR", baremetalProvisioningConfig),
 			buildEnvVar("PROVISIONING_INTERFACE", baremetalProvisioningConfig),
 		},
 	}
@@ -594,7 +594,7 @@ func createContainerMetal3StaticIpManager(config *OperatorConfig, baremetalProvi
 			Privileged: pointer.BoolPtr(true),
 		},
 		Env: []corev1.EnvVar{
-			buildEnvVar("PROVISIONING_IP", baremetalProvisioningConfig),
+			buildEnvVar("PROVISIONING_CIDR", baremetalProvisioningConfig),
 			buildEnvVar("PROVISIONING_INTERFACE", baremetalProvisioningConfig),
 		},
 	}

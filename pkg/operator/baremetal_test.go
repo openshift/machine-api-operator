@@ -224,7 +224,7 @@ func TestGetMetal3DeploymentConfig(t *testing.T) {
 	} else {
 		t.Errorf("OS Image Download URL is not available.")
 	}
-	actualProvisioningIPCIDR := getMetal3DeploymentConfig("PROVISIONING_IP", *baremetalConfig)
+	actualProvisioningIPCIDR := getMetal3DeploymentConfig("PROVISIONING_CIDR", *baremetalConfig)
 	if actualProvisioningIPCIDR != nil {
 		t.Logf("Actual ProvisioningIP with CIDR is %s, Expected is %s", *actualProvisioningIPCIDR, expectedProvisioningIPCIDR)
 		if *actualProvisioningIPCIDR != expectedProvisioningIPCIDR {
@@ -297,7 +297,7 @@ func TestGetMetal3DeploymentConfig(t *testing.T) {
 // Test interpretation of different provisioning config
 func TestBaremetalProvisionigConfig(t *testing.T) {
 	testConfigResource := "test"
-	configNames := []string{"PROVISIONING_IP", "PROVISIONING_INTERFACE", "DEPLOY_KERNEL_URL", "DEPLOY_RAMDISK_URL", "IRONIC_ENDPOINT", "IRONIC_INSPECTOR_ENDPOINT", "HTTP_PORT", "DHCP_RANGE", "RHCOS_IMAGE_URL"}
+	configNames := []string{"PROVISIONING_IP", "PROVISIONING_CIDR", "PROVISIONING_INTERFACE", "DEPLOY_KERNEL_URL", "DEPLOY_RAMDISK_URL", "IRONIC_ENDPOINT", "IRONIC_INSPECTOR_ENDPOINT", "HTTP_PORT", "DHCP_RANGE", "RHCOS_IMAGE_URL"}
 
 	testCases := []struct {
 		name                 string
@@ -307,17 +307,17 @@ func TestBaremetalProvisionigConfig(t *testing.T) {
 		{
 			name:                 "Managed",
 			config:               Managed,
-			expectedConfigValues: []string{"172.30.20.3/24", "ensp0", "http://172.30.20.3:6180/images/ironic-python-agent.kernel", "http://172.30.20.3:6180/images/ironic-python-agent.initramfs", "http://172.30.20.3:6385/v1/", "http://172.30.20.3:5050/v1/", expectedHttpPort, "172.30.20.11, 172.30.20.101", "http://172.22.0.1/images/rhcos-44.81.202001171431.0-openstack.x86_64.qcow2.gz?sha256=e98f83a2b9d4043719664a2be75fe8134dc6ca1fdbde807996622f8cc7ecd234"},
+			expectedConfigValues: []string{"172.30.20.3", "172.30.20.3/24", "ensp0", "http://172.30.20.3:6180/images/ironic-python-agent.kernel", "http://172.30.20.3:6180/images/ironic-python-agent.initramfs", "http://172.30.20.3:6385/v1/", "http://172.30.20.3:5050/v1/", expectedHttpPort, "172.30.20.11, 172.30.20.101", "http://172.22.0.1/images/rhcos-44.81.202001171431.0-openstack.x86_64.qcow2.gz?sha256=e98f83a2b9d4043719664a2be75fe8134dc6ca1fdbde807996622f8cc7ecd234"},
 		},
 		{
 			name:                 "Unmanaged",
 			config:               Unmanaged,
-			expectedConfigValues: []string{"172.30.20.3/24", "ensp0", "http://172.30.20.3:6180/images/ironic-python-agent.kernel", "http://172.30.20.3:6180/images/ironic-python-agent.initramfs", "http://172.30.20.3:6385/v1/", "http://172.30.20.3:5050/v1/", expectedHttpPort, "", "http://172.22.0.1/images/rhcos-44.81.202001171431.0-openstack.x86_64.qcow2.gz?sha256=e98f83a2b9d4043719664a2be75fe8134dc6ca1fdbde807996622f8cc7ecd234"},
+			expectedConfigValues: []string{"172.30.20.3", "172.30.20.3/24", "ensp0", "http://172.30.20.3:6180/images/ironic-python-agent.kernel", "http://172.30.20.3:6180/images/ironic-python-agent.initramfs", "http://172.30.20.3:6385/v1/", "http://172.30.20.3:5050/v1/", expectedHttpPort, "", "http://172.22.0.1/images/rhcos-44.81.202001171431.0-openstack.x86_64.qcow2.gz?sha256=e98f83a2b9d4043719664a2be75fe8134dc6ca1fdbde807996622f8cc7ecd234"},
 		},
 		{
 			name:                 "Disabled",
 			config:               Disabled,
-			expectedConfigValues: []string{"172.30.20.3/24", "", "http://172.30.20.3:6180/images/ironic-python-agent.kernel", "http://172.30.20.3:6180/images/ironic-python-agent.initramfs", "http://172.30.20.3:6385/v1/", "http://172.30.20.3:5050/v1/", expectedHttpPort, "", "http://172.22.0.1/images/rhcos-44.81.202001171431.0-openstack.x86_64.qcow2.gz?sha256=e98f83a2b9d4043719664a2be75fe8134dc6ca1fdbde807996622f8cc7ecd234"},
+			expectedConfigValues: []string{"172.30.20.3", "172.30.20.3/24", "", "http://172.30.20.3:6180/images/ironic-python-agent.kernel", "http://172.30.20.3:6180/images/ironic-python-agent.initramfs", "http://172.30.20.3:6385/v1/", "http://172.30.20.3:5050/v1/", expectedHttpPort, "", "http://172.22.0.1/images/rhcos-44.81.202001171431.0-openstack.x86_64.qcow2.gz?sha256=e98f83a2b9d4043719664a2be75fe8134dc6ca1fdbde807996622f8cc7ecd234"},
 		},
 	}
 	for _, tc := range testCases {

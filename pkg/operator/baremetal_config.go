@@ -175,6 +175,8 @@ func getMetal3DeploymentConfig(name string, baremetalConfig BaremetalProvisionin
 	configValue := ""
 	switch name {
 	case "PROVISIONING_IP":
+		return &baremetalConfig.ProvisioningIp
+	case "PROVISIONING_CIDR":
 		return getProvisioningIPCIDR(baremetalConfig)
 	case "PROVISIONING_INTERFACE":
 		return &baremetalConfig.ProvisioningInterface
