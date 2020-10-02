@@ -26,7 +26,7 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/controller/machineset"
 	"github.com/openshift/machine-api-operator/pkg/metrics"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"

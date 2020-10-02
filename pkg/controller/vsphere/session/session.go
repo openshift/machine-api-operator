@@ -32,7 +32,7 @@ import (
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/vim25/soap"
-	"k8s.io/klog"
+	"k8s.io/klog/v2"
 )
 
 var sessionCache = map[string]Session{}
