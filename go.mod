@@ -27,9 +27,9 @@ require (
 	google.golang.org/appengine v1.6.4 // indirect
 	gopkg.in/gcfg.v1 v1.2.3
 	gopkg.in/warnings.v0 v0.1.2 // indirect
-	k8s.io/api v0.18.2
-	k8s.io/apimachinery v0.18.2
-	k8s.io/client-go v0.18.2
+	k8s.io/api v0.18.9
+	k8s.io/apimachinery v0.18.9
+	k8s.io/client-go v0.18.9
 	k8s.io/code-generator v0.18.2
 	k8s.io/klog v1.0.0
 	k8s.io/kubectl v0.18.0-rc.1
