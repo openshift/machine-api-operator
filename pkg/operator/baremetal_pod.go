@@ -25,16 +25,19 @@ const (
 	baremetalSecretName        = "metal3-mariadb-password"
 	baremetalSecretKey         = "password"
 	ironicCredentialsVolume    = "metal3-ironic-basic-auth"
+	ironicrpcCredentialsVolume = "metal3-ironic-rpc-basic-auth"
 	inspectorCredentialsVolume = "metal3-inspector-basic-auth"
 	ironicUsernameKey          = "username"
 	ironicPasswordKey          = "password"
 	ironicHtpasswdKey          = "htpasswd"
 	ironicConfigKey            = "auth-config"
 	ironicSecretName           = "metal3-ironic-password"
+	ironicrpcSecretName        = "metal3-ironic-rpc-password"
 	ironicUsername             = "ironic-user"
 	inspectorSecretName        = "metal3-ironic-inspector-password"
 	inspectorUsername          = "inspector-user"
 	metal3AuthRootDir          = "/auth"
+	ironicrpcUsername          = "rpc-user"
 	htpasswdEnvVar             = "HTTP_BASIC_HTPASSWD"
 )
 
@@ -71,6 +74,19 @@ var volumes = []corev1.Volume{
 			},
 		},
 	},
+	{
+		Name: ironicrpcCredentialsVolume,
+		VolumeSource: corev1.VolumeSource{
+			Secret: &corev1.SecretVolumeSource{
+				SecretName: ironicrpcSecretName,
+				Items: []corev1.KeyToPath{
+					{Key: ironicUsernameKey, Path: ironicUsernameKey},
+					{Key: ironicPasswordKey, Path: ironicPasswordKey},
+					{Key: ironicConfigKey, Path: ironicConfigKey},
+				},
+			},
+		},
+	},
 }
 
 var sharedVolumeMount = corev1.VolumeMount{
@@ -87,6 +103,12 @@ var ironicCredentialsMount = corev1.VolumeMount{
 var inspectorCredentialsMount = corev1.VolumeMount{
 	Name:      inspectorCredentialsVolume,
 	MountPath: metal3AuthRootDir + "/ironic-inspector",
+	ReadOnly:  true,
+}
+
+var rpcCredentialsMount = corev1.VolumeMount{
+	Name:      ironicrpcCredentialsVolume,
+	MountPath: metal3AuthRootDir + "/ironic-rpc",
 	ReadOnly:  true,
 }
 
@@ -232,6 +254,10 @@ func createMetal3PasswordSecrets(client coreclientv1.SecretsGetter, config *Oper
 	}
 	if err := createIronicPasswordSecret(client, config, inspectorSecretName, inspectorUsername, "inspector"); err != nil {
 		glog.Error("Failed to create Ironic Inspector password.")
+		return err
+	}
+	if err := createIronicPasswordSecret(client, config, ironicrpcSecretName, ironicrpcUsername, "json_rpc"); err != nil {
+		glog.Error("Failed to create Ironic rpc password.")
 		return err
 	}
 	return nil
@@ -528,12 +554,14 @@ func createContainerMetal3IronicConductor(config *OperatorConfig, baremetalProvi
 		VolumeMounts: []corev1.VolumeMount{
 			sharedVolumeMount,
 			inspectorCredentialsMount,
+			rpcCredentialsMount,
 		},
 		Env: []corev1.EnvVar{
 			setMariadbPassword(),
 			buildEnvVar("HTTP_PORT", baremetalProvisioningConfig),
 			buildEnvVar("PROVISIONING_IP", baremetalProvisioningConfig),
 			buildEnvVar("PROVISIONING_INTERFACE", baremetalProvisioningConfig),
+			setIronicHtpasswdHash(htpasswdEnvVar, ironicrpcSecretName),
 		},
 	}
 	return container
@@ -548,8 +576,11 @@ func createContainerMetal3IronicApi(config *OperatorConfig, baremetalProvisionin
 		SecurityContext: &corev1.SecurityContext{
 			Privileged: pointer.BoolPtr(true),
 		},
-		Command:      []string{"/bin/runironic-api"},
-		VolumeMounts: []corev1.VolumeMount{sharedVolumeMount},
+		Command: []string{"/bin/runironic-api"},
+		VolumeMounts: []corev1.VolumeMount{
+			sharedVolumeMount,
+			rpcCredentialsMount,
+		},
 		Env: []corev1.EnvVar{
 			setMariadbPassword(),
 			buildEnvVar("HTTP_PORT", baremetalProvisioningConfig),
