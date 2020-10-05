@@ -12,6 +12,7 @@ For in-depth information and steps to replace
 a Master/Control Plane machine, please refer
 to this guide: https://docs.openshift.com/container-platform/4.5/backup_and_restore/replacing-unhealthy-etcd-member.html
 
+# Table of Contents
 <!-- toc -->
 - [Document Purpose](#document-purpose)
 - [Important Pod Logs](#important-pod-logs)
