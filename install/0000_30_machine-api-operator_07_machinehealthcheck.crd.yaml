@@ -35,18 +35,13 @@ spec:
     name: v1beta1
     schema:
       openAPIV3Schema:
-        description: MachineHealthCheck is the Schema for the machinehealthchecks
-          API
+        description: MachineHealthCheck is the Schema for the machinehealthchecks API
         properties:
           apiVersion:
-            description: 'APIVersion defines the versioned schema of this representation
-              of an object. Servers should convert recognized schemas to the latest
-              internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
+            description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
             type: string
           kind:
-            description: 'Kind is a string value representing the REST resource this
-              object represents. Servers may infer this from the endpoint the client
-              submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
+            description: 'Kind is a string value representing the REST resource this object represents. Servers may infer this from the endpoint the client submits requests to. Cannot be updated. In CamelCase. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds'
             type: string
           metadata:
             type: object
@@ -58,50 +53,31 @@ spec:
                 - type: integer
                 - type: string
                 default: 100%
-                description: Any farther remediation is only allowed if at most "MaxUnhealthy"
-                  machines selected by "selector" are not healthy. Expects either
-                  a postive integer value or a percentage value. Percentage values
-                  must be positive whole numbers and are capped at 100%. Both 0 and
-                  0% are valid and will block all remediation.
+                description: Any farther remediation is only allowed if at most "MaxUnhealthy" machines selected by "selector" are not healthy. Expects either a postive integer value or a percentage value. Percentage values must be positive whole numbers and are capped at 100%. Both 0 and 0% are valid and will block all remediation.
                 pattern: ^((100|[0-9]{1,2})%|[0-9]+)$
                 type: string
                 x-kubernetes-int-or-string: true
               nodeStartupTimeout:
                 default: 10m
-                description: Machines older than this duration without a node will
-                  be considered to have failed and will be remediated. Expects an
-                  unsigned duration string of decimal numbers each with optional fraction
-                  and a unit suffix, eg "300ms", "1.5h" or "2h45m". Valid time units
-                  are "ns", "us" (or "µs"), "ms", "s", "m", "h".
+                description: Machines older than this duration without a node will be considered to have failed and will be remediated. Expects an unsigned duration string of decimal numbers each with optional fraction and a unit suffix, eg "300ms", "1.5h" or "2h45m". Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".
                 pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
                 type: string
               selector:
-                description: 'Label selector to match machines whose health will be
-                  exercised. Note: An empty selector will match all machines.'
+                description: 'Label selector to match machines whose health will be exercised. Note: An empty selector will match all machines.'
                 properties:
                   matchExpressions:
-                    description: matchExpressions is a list of label selector requirements.
-                      The requirements are ANDed.
+                    description: matchExpressions is a list of label selector requirements. The requirements are ANDed.
                     items:
-                      description: A label selector requirement is a selector that
-                        contains values, a key, and an operator that relates the key
-                        and values.
+                      description: A label selector requirement is a selector that contains values, a key, and an operator that relates the key and values.
                       properties:
                         key:
-                          description: key is the label key that the selector applies
-                            to.
+                          description: key is the label key that the selector applies to.
                           type: string
                         operator:
-                          description: operator represents a key's relationship to
-                            a set of values. Valid operators are In, NotIn, Exists
-                            and DoesNotExist.
+                          description: operator represents a key's relationship to a set of values. Valid operators are In, NotIn, Exists and DoesNotExist.
                           type: string
                         values:
-                          description: values is an array of string values. If the
-                            operator is In or NotIn, the values array must be non-empty.
-                            If the operator is Exists or DoesNotExist, the values
-                            array must be empty. This array is replaced during a strategic
-                            merge patch.
+                          description: values is an array of string values. If the operator is In or NotIn, the values array must be non-empty. If the operator is Exists or DoesNotExist, the values array must be empty. This array is replaced during a strategic merge patch.
                           items:
                             type: string
                           type: array
@@ -113,32 +89,19 @@ spec:
                   matchLabels:
                     additionalProperties:
                       type: string
-                    description: matchLabels is a map of {key,value} pairs. A single
-                      {key,value} in the matchLabels map is equivalent to an element
-                      of matchExpressions, whose key field is "key", the operator
-                      is "In", and the values array contains only "value". The requirements
-                      are ANDed.
+                    description: matchLabels is a map of {key,value} pairs. A single {key,value} in the matchLabels map is equivalent to an element of matchExpressions, whose key field is "key", the operator is "In", and the values array contains only "value". The requirements are ANDed.
                     type: object
                 type: object
               unhealthyConditions:
-                description: UnhealthyConditions contains a list of the conditions
-                  that determine whether a node is considered unhealthy.  The conditions
-                  are combined in a logical OR, i.e. if any of the conditions is met,
-                  the node is unhealthy.
+                description: UnhealthyConditions contains a list of the conditions that determine whether a node is considered unhealthy.  The conditions are combined in a logical OR, i.e. if any of the conditions is met, the node is unhealthy.
                 items:
-                  description: UnhealthyCondition represents a Node condition type
-                    and value with a timeout specified as a duration.  When the named
-                    condition has been in the given status for at least the timeout
-                    value, a node is considered unhealthy.
+                  description: UnhealthyCondition represents a Node condition type and value with a timeout specified as a duration.  When the named condition has been in the given status for at least the timeout value, a node is considered unhealthy.
                   properties:
                     status:
                       minLength: 1
                       type: string
                     timeout:
-                      description: Expects an unsigned duration string of decimal
-                        numbers each with optional fraction and a unit suffix, eg
-                        "300ms", "1.5h" or "2h45m". Valid time units are "ns", "us"
-                        (or "µs"), "ms", "s", "m", "h".
+                      description: Expects an unsigned duration string of decimal numbers each with optional fraction and a unit suffix, eg "300ms", "1.5h" or "2h45m". Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".
                       pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
                       type: string
                     type:
@@ -159,13 +122,11 @@ spec:
             description: Most recently observed status of MachineHealthCheck resource
             properties:
               currentHealthy:
-                description: total number of machines counted by this machine health
-                  check
+                description: total number of machines counted by this machine health check
                 minimum: 0
                 type: integer
               expectedMachines:
-                description: total number of machines counted by this machine health
-                  check
+                description: total number of machines counted by this machine health check
                 minimum: 0
                 type: integer
             required:
