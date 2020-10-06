@@ -23,7 +23,9 @@ CODEGEN_PKG=${CODEGEN_PKG:-$(cd "${SCRIPT_ROOT}"; ls -d -1 ./vendor/k8s.io/code-
 
 # The provider types don't need all the extra bits that generate-groups.sh
 # creates.  A simple `go generate` is enough for these.
-go generate ./pkg/apis/vsphereprovider/...
+# Also use this for generating deepcopy for all types (so that we use the same generator).
+echo "Generating deepcopy funcs"
+go generate ./pkg/apis/...
 
 # generate the code with:
 # --output-base    because this script should also be able to run inside the vendor dir of
@@ -32,7 +34,7 @@ go generate ./pkg/apis/vsphereprovider/...
 
 # go modules do not bring this file so we create a runtime symbolic link from our copy.
 cp "${SCRIPT_ROOT}"/hack/generate-groups.sh "${CODEGEN_PKG}"/generate-groups.sh
-"${CODEGEN_PKG}"/generate-groups.sh "all" \
+"${CODEGEN_PKG}"/generate-groups.sh client,lister,informer \
   github.com/openshift/machine-api-operator/pkg/generated \
   github.com/openshift/machine-api-operator/pkg/apis \
   machine:v1beta1 \
