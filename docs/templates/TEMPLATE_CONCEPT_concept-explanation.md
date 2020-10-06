@@ -1,0 +1,22 @@
+# Concept explanation
+
+{% comment %}
+In the title of concept modules, include nouns or noun phrases that are used in the body text. This helps readers and search engines find the information quickly.
+Do not start the title of concept modules with a verb.
+{% endcomment %}
+
+A short introductory paragraph is required for the concept module.
+It will provide an overview of the module.
+
+The contents of a concept module give the user descriptions and explanations needed to understand and use a product.
+
+* Look at nouns and noun phrases in related procedure modules and assemblies to find the concepts to explain to users.
+* Explain only things that are visible to users. Even if a concept is interesting, it probably does not require explanation if it is not visible to users.
+* Do not include any instructions to perform an action, such as executing a command. Action items belong in procedure modules.
+
+## Additional resources
+
+* A bulleted list of links to other material closely related to the contents of the concept module.
+* Currently, modules cannot include xrefs, so you cannot include links to other content in your collection. If you need to link to another assembly, add the xref to the assembly that includes this module.
+* For more details on writing concept modules, see the link:https://github.com/redhat-documentation/modular-docs#modular-documentation-reference-guide[Modular Documentation Reference Guide].
+* Use a consistent system for file names, IDs, and titles. For tips, see _Anchor Names and File Names_ in [Modular Documentation Reference Guide](https://github.com/redhat-documentation/modular-docs#modular-documentation-reference-guide).
