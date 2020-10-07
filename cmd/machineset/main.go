@@ -31,11 +31,36 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/runtime/signals"
 )
 
+// The default durations for the leader electrion operations.
+var (
+	leaseDuration = 120 * time.Second
+	renewDealine  = 110 * time.Second
+	retryPeriod   = 90 * time.Second
+)
+
 func main() {
 	flag.Set("logtostderr", "true")
 	klog.InitFlags(nil)
 	watchNamespace := flag.String("namespace", "",
 		"Namespace that the controller watches to reconcile cluster-api objects. If unspecified, the controller watches for cluster-api objects across all namespaces.")
+
+	leaderElectResourceNamespace := flag.String(
+		"leader-elect-resource-namespace",
+		"",
+		"The namespace of resource object that is used for locking during leader election. If unspecified and running in cluster, defaults to the service account namespace for the controller. Required for leader-election outside of a cluster.",
+	)
+
+	leaderElect := flag.Bool(
+		"leader-elect",
+		false,
+		"Start a leader election client and gain leadership before executing the main loop. Enable this when running replicated components for high availability.",
+	)
+
+	leaderElectLeaseDuration := flag.Duration(
+		"leader-elect-lease-duration",
+		leaseDuration,
+		"The duration that non-leader candidates will wait after observing a leadership renewal until attempting to acquire leadership of a led but unrenewed leader slot. This is effectively the maximum duration that a leader can be stopped before it is replaced by another candidate. This is only applicable if leader election is enabled.",
+	)
 
 	flag.Parse()
 	if *watchNamespace != "" {
@@ -52,9 +77,16 @@ func main() {
 	syncPeriod := 10 * time.Minute
 	opts := manager.Options{
 		// Disable metrics serving
-		MetricsBindAddress: "0",
-		SyncPeriod:         &syncPeriod,
-		Namespace:          *watchNamespace,
+		MetricsBindAddress:      "0",
+		SyncPeriod:              &syncPeriod,
+		Namespace:               *watchNamespace,
+		LeaderElection:          *leaderElect,
+		LeaderElectionNamespace: *leaderElectResourceNamespace,
+		LeaderElectionID:        "cluster-api-provider-machineset-leader",
+		LeaseDuration:           leaderElectLeaseDuration,
+		// Slow the default retry and renew election rate to reduce etcd writes at idle: BZ 1858400
+		RetryPeriod:   &retryPeriod,
+		RenewDeadline: &renewDealine,
 	}
 	mgr, err := manager.New(cfg, opts)
 	if err != nil {
