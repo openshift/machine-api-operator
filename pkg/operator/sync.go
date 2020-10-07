@@ -547,6 +547,33 @@ func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev
 	}
 }
 
+func getProxyArgs(config *OperatorConfig) []corev1.EnvVar {
+	var envVars []corev1.EnvVar
+
+	if config.Proxy == nil {
+		return envVars
+	}
+	if config.Proxy.Status.HTTPProxy != "" {
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  "HTTP_PROXY",
+			Value: config.Proxy.Spec.HTTPProxy,
+		})
+	}
+	if config.Proxy.Status.HTTPSProxy != "" {
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  "HTTPS_PROXY",
+			Value: config.Proxy.Spec.HTTPSProxy,
+		})
+	}
+	if config.Proxy.Status.NoProxy != "" {
+		envVars = append(envVars, corev1.EnvVar{
+			Name:  "NO_PROXY",
+			Value: config.Proxy.Status.NoProxy,
+		})
+	}
+	return envVars
+}
+
 func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Container {
 	resources := corev1.ResourceRequirements{
 		Requests: map[corev1.ResourceName]resource.Quantity{
@@ -562,6 +589,8 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 		fmt.Sprintf("--namespace=%s", config.TargetNamespace),
 	}
 
+	proxyEnvArgs := getProxyArgs(config)
+
 	containers := []corev1.Container{
 		{
 			Name:      "machineset-controller",
@@ -569,6 +598,7 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 			Command:   []string{"/machineset-controller"},
 			Args:      args,
 			Resources: resources,
+			Env:       proxyEnvArgs,
 			Ports: []corev1.ContainerPort{
 				{
 					Name:          "webhook-server",
@@ -609,16 +639,14 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 			Command:   []string{"/machine-controller-manager"},
 			Args:      args,
 			Resources: resources,
-			Env: []corev1.EnvVar{
-				{
-					Name: "NODE_NAME",
-					ValueFrom: &corev1.EnvVarSource{
-						FieldRef: &corev1.ObjectFieldSelector{
-							FieldPath: "spec.nodeName",
-						},
+			Env: append(proxyEnvArgs, corev1.EnvVar{
+				Name: "NODE_NAME",
+				ValueFrom: &corev1.EnvVarSource{
+					FieldRef: &corev1.ObjectFieldSelector{
+						FieldPath: "spec.nodeName",
 					},
 				},
-			},
+			}),
 			Ports: []corev1.ContainerPort{{
 				Name:          "healthz",
 				ContainerPort: defaultMachineHealthPort,
@@ -652,6 +680,7 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 			Image:     config.Controllers.NodeLink,
 			Command:   []string{"/nodelink-controller"},
 			Args:      args,
+			Env:       proxyEnvArgs,
 			Resources: resources,
 		},
 		{
@@ -659,6 +688,7 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 			Image:     config.Controllers.MachineHealthCheck,
 			Command:   []string{"/machine-healthcheck"},
 			Args:      args,
+			Env:       proxyEnvArgs,
 			Resources: resources,
 			Ports: []corev1.ContainerPort{
 				{
@@ -797,6 +827,9 @@ func newTerminationContainers(config *OperatorConfig) []corev1.Container {
 		fmt.Sprintf("--namespace=%s", config.TargetNamespace),
 		"--poll-interval-seconds=5",
 	}
+
+	proxyEnvArgs := getProxyArgs(config)
+
 	return []corev1.Container{
 		{
 			Name:      "termination-handler",
@@ -804,16 +837,14 @@ func newTerminationContainers(config *OperatorConfig) []corev1.Container {
 			Command:   []string{"/termination-handler"},
 			Args:      terminationArgs,
 			Resources: resources,
-			Env: []corev1.EnvVar{
-				{
-					Name: "NODE_NAME",
-					ValueFrom: &corev1.EnvVarSource{
-						FieldRef: &corev1.ObjectFieldSelector{
-							FieldPath: "spec.nodeName",
-						},
+			Env: append(proxyEnvArgs, corev1.EnvVar{
+				Name: "NODE_NAME",
+				ValueFrom: &corev1.EnvVarSource{
+					FieldRef: &corev1.ObjectFieldSelector{
+						FieldPath: "spec.nodeName",
 					},
 				},
-			},
+			}),
 		},
 	}
 }
