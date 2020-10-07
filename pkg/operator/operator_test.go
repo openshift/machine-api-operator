@@ -45,6 +45,7 @@ func newFakeOperator(kubeObjects []runtime.Object, osObjects []runtime.Object, s
 	configSharedInformer := configinformersv1.NewSharedInformerFactoryWithOptions(osClient, 2*time.Minute)
 	featureGateInformer := configSharedInformer.Config().V1().FeatureGates()
 	deployInformer := kubeNamespacedSharedInformer.Apps().V1().Deployments()
+	proxyInformer := configSharedInformer.Config().V1().Proxies()
 	daemonsetInformer := kubeNamespacedSharedInformer.Apps().V1().DaemonSets()
 	mutatingWebhookInformer := kubeNamespacedSharedInformer.Admissionregistration().V1().MutatingWebhookConfigurations()
 	validatingWebhookInformer := kubeNamespacedSharedInformer.Admissionregistration().V1().ValidatingWebhookConfigurations()
@@ -55,6 +56,7 @@ func newFakeOperator(kubeObjects []runtime.Object, osObjects []runtime.Object, s
 		dynamicClient:                 dynamicClient,
 		featureGateLister:             featureGateInformer.Lister(),
 		deployLister:                  deployInformer.Lister(),
+		proxyLister:                   proxyInformer.Lister(),
 		daemonsetLister:               daemonsetInformer.Lister(),
 		mutatingWebhookLister:         mutatingWebhookInformer.Lister(),
 		validatingWebhookLister:       validatingWebhookInformer.Lister(),
@@ -63,6 +65,7 @@ func newFakeOperator(kubeObjects []runtime.Object, osObjects []runtime.Object, s
 		eventRecorder:                 record.NewFakeRecorder(50),
 		queue:                         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
 		deployListerSynced:            deployInformer.Informer().HasSynced,
+		proxyListerSynced:             proxyInformer.Informer().HasSynced,
 		daemonsetListerSynced:         daemonsetInformer.Informer().HasSynced,
 		featureGateCacheSynced:        featureGateInformer.Informer().HasSynced,
 		mutatingWebhookListerSynced:   mutatingWebhookInformer.Informer().HasSynced,
@@ -147,8 +150,14 @@ func TestOperatorSync_NoOp(t *testing.T) {
 				},
 			}
 
+			proxy := &openshiftv1.Proxy{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+			}
+
 			stopCh := make(<-chan struct{})
-			optr := newFakeOperator(nil, []runtime.Object{infra}, stopCh)
+			optr := newFakeOperator(nil, []runtime.Object{infra, proxy}, stopCh)
 			optr.queue.Add("trigger")
 			go optr.Run(1, stopCh)
 
@@ -268,10 +277,17 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 		},
 	}
 
+	proxy := &openshiftv1.Proxy{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster",
+		},
+	}
+
 	testCases := []struct {
 		name           string
 		platform       openshiftv1.PlatformType
 		infra          *openshiftv1.Infrastructure
+		proxy          *openshiftv1.Proxy
 		imagesFile     string
 		expectedConfig *OperatorConfig
 		expectedError  error
@@ -280,8 +296,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			name:     string(openshiftv1.AWSPlatformType),
 			platform: openshiftv1.AWSPlatformType,
 			infra:    infra,
+			proxy:    proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
+				Proxy:           proxy,
 				Controllers: Controllers{
 					Provider:           images.ClusterAPIControllerAWS,
 					MachineSet:         images.MachineAPIOperator,
@@ -296,8 +314,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			name:     string(openshiftv1.LibvirtPlatformType),
 			platform: openshiftv1.LibvirtPlatformType,
 			infra:    infra,
+			proxy:    proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
+				Proxy:           proxy,
 				Controllers: Controllers{
 					Provider:           images.ClusterAPIControllerLibvirt,
 					MachineSet:         images.MachineAPIOperator,
@@ -312,8 +332,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			name:     string(openshiftv1.OpenStackPlatformType),
 			platform: openshiftv1.OpenStackPlatformType,
 			infra:    infra,
+			proxy:    proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
+				Proxy:           proxy,
 				Controllers: Controllers{
 					Provider:           images.ClusterAPIControllerOpenStack,
 					MachineSet:         images.MachineAPIOperator,
@@ -328,8 +350,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			name:     string(openshiftv1.AzurePlatformType),
 			platform: openshiftv1.AzurePlatformType,
 			infra:    infra,
+			proxy:    proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
+				Proxy:           proxy,
 				Controllers: Controllers{
 					Provider:           images.ClusterAPIControllerAzure,
 					MachineSet:         images.MachineAPIOperator,
@@ -344,8 +368,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			name:     string(openshiftv1.BareMetalPlatformType),
 			platform: openshiftv1.BareMetalPlatformType,
 			infra:    infra,
+			proxy:    proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
+				Proxy:           proxy,
 				Controllers: Controllers{
 					Provider:           images.ClusterAPIControllerBareMetal,
 					MachineSet:         images.MachineAPIOperator,
@@ -368,8 +394,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			name:     string(openshiftv1.GCPPlatformType),
 			platform: openshiftv1.GCPPlatformType,
 			infra:    infra,
+			proxy:    proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
+				Proxy:           proxy,
 				Controllers: Controllers{
 					Provider:           images.ClusterAPIControllerGCP,
 					MachineSet:         images.MachineAPIOperator,
@@ -384,8 +412,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			name:     string(kubemarkPlatform),
 			platform: kubemarkPlatform,
 			infra:    infra,
+			proxy:    proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
+				Proxy:           proxy,
 				Controllers: Controllers{
 					Provider:           clusterAPIControllerKubemark,
 					MachineSet:         images.MachineAPIOperator,
@@ -400,8 +430,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			name:     string(openshiftv1.VSpherePlatformType),
 			platform: openshiftv1.VSpherePlatformType,
 			infra:    infra,
+			proxy:    proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
+				Proxy:           proxy,
 				Controllers: Controllers{
 					Provider:           images.ClusterAPIControllerVSphere,
 					MachineSet:         images.MachineAPIOperator,
@@ -416,8 +448,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			name:     string(openshiftv1.OvirtPlatformType),
 			platform: openshiftv1.OvirtPlatformType,
 			infra:    infra,
+			proxy:    proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
+				Proxy:           proxy,
 				Controllers: Controllers{
 					Provider:           images.ClusterAPIControllerOvirt,
 					MachineSet:         images.MachineAPIOperator,
@@ -432,8 +466,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			name:     string(openshiftv1.NonePlatformType),
 			platform: openshiftv1.NonePlatformType,
 			infra:    infra,
+			proxy:    proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
+				Proxy:           proxy,
 				Controllers: Controllers{
 					Provider:           clusterAPIControllerNoOp,
 					MachineSet:         images.MachineAPIOperator,
@@ -448,8 +484,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			name:     "bad-platform",
 			platform: "bad-platform",
 			infra:    infra,
+			proxy:    proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
+				Proxy:           proxy,
 				Controllers: Controllers{
 					Provider:           clusterAPIControllerNoOp,
 					MachineSet:         images.MachineAPIOperator,
@@ -464,13 +502,23 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			name:           "no-infra",
 			platform:       "no-infra",
 			infra:          nil,
+			proxy:          proxy,
 			expectedConfig: nil,
 			expectedError:  kerrors.NewNotFound(schema.GroupResource{Group: "config.openshift.io", Resource: "infrastructures"}, "cluster"),
+		},
+		{
+			name:           "no-proxy",
+			platform:       "no-proxy",
+			infra:          infra,
+			proxy:          nil,
+			expectedConfig: nil,
+			expectedError:  kerrors.NewNotFound(schema.GroupResource{Group: "config.openshift.io", Resource: "proxies"}, "cluster"),
 		},
 		{
 			name:           "no-platform",
 			platform:       "",
 			infra:          infra,
+			proxy:          proxy,
 			expectedConfig: nil,
 			expectedError:  errors.New("no platform provider found on install config"),
 		},
@@ -478,6 +526,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			name:           "no-images-file",
 			platform:       openshiftv1.NonePlatformType,
 			infra:          infra,
+			proxy:          proxy,
 			imagesFile:     "fixtures/not-found.json",
 			expectedConfig: nil,
 			expectedError:  &os.PathError{Op: "open", Path: "fixtures/not-found.json", Err: syscall.ENOENT},
@@ -495,7 +544,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				inf.Status.Platform = tc.platform
 				objects = append(objects, inf)
 			}
-
+			if tc.proxy != nil {
+				proxy := tc.proxy.DeepCopy()
+				objects = append(objects, proxy)
+			}
 			stopCh := make(<-chan struct{})
 			optr := newFakeOperator(nil, objects, stopCh)
 			optr.queue.Add("trigger")

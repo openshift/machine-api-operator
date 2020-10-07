@@ -325,6 +325,7 @@ rules:
     resources:
       - featuregates
       - featuregates/status
+      - proxies
     verbs:
       - get
       - list
