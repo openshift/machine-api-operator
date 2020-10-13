@@ -47,6 +47,7 @@ cluster-api-provider-aws
 cluster-api-provider-azure
 cluster-api-provider-baremetal
 cluster-api-provider-gcp
+cluster-api-provider-libvirt
 cluster-api-provider-openstack
 "
 TITLE=""
