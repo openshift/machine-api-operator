@@ -406,8 +406,8 @@ github.com/openshift/client-go v0.0.0-20200827190008-3062137373b5 h1:E6WhVL5p3rf
 github.com/openshift/client-go v0.0.0-20200827190008-3062137373b5/go.mod h1:5rGmrkQ8DJEUXA+AR3rEjfH+HFyg4/apY9iCQFgvPfE=
 github.com/openshift/cluster-api-provider-aws v0.2.1-0.20200929152424-eab2e087f366 h1:1ZzO3pdbKE36/yvI50g0ZDwXhLtE0S1RflaECVE/guM=
 github.com/openshift/cluster-api-provider-aws v0.2.1-0.20200929152424-eab2e087f366/go.mod h1:jUPi2GGrdWiL7tuaoaqAIDnMWr4njJVv4+lGthx1jws=
-github.com/openshift/cluster-api-provider-azure v0.1.0-alpha.3.0.20200929220456-04e680e51d03 h1:hb5gKoBVESySRn1cEqTERywRq/5rM0V3+2AzLqfs9Tk=
-github.com/openshift/cluster-api-provider-azure v0.1.0-alpha.3.0.20200929220456-04e680e51d03/go.mod h1:Dnw19Xx5j+75KZ70MVBdpzvXUp8eMDJldteJsYBTcpk=
+github.com/openshift/cluster-api-provider-azure v0.1.0-alpha.3.0.20201016155852-4090a6970205 h1:CIW1iJdHO6gz30wd+MPZAxrmCKfL/MsixgZeiSlDdRk=
+github.com/openshift/cluster-api-provider-azure v0.1.0-alpha.3.0.20201016155852-4090a6970205/go.mod h1:oOG/TNSBse4brosfLCH/G2Q/42ye+DZQq8VslA5SxOs=
 github.com/openshift/cluster-api-provider-gcp v0.0.1-0.20200701112720-3a7d727c9a10/go.mod h1:wgkZrOlcIMWTzo8khB4Js2PoDJDlIUUdzCBm7BuDdqw=
 github.com/openshift/cluster-api-provider-gcp v0.0.1-0.20200713133651-5c8a640669ac/go.mod h1:XVYX9JE339nKbDDa/W481XD+1GTeqeaBm8bDPr7WE7I=
 github.com/openshift/cluster-api-provider-gcp v0.0.1-0.20200901173901-9056dbc8c9b9/go.mod h1:rcwAydGZX+z4l91wtOdbq+fqDwuo6iu0YuFik3UUc+8=
@@ -420,6 +420,7 @@ github.com/openshift/machine-api-operator v0.2.1-0.20200611014855-9a69f85c32dd/g
 github.com/openshift/machine-api-operator v0.2.1-0.20200701225707-950912b03628/go.mod h1:cxjy/RUzv5C2T5FNl1KKXUgtakWsezWQ642B/CD9VQA=
 github.com/openshift/machine-api-operator v0.2.1-0.20200722104429-f4f9b84df9b7/go.mod h1:XDsNRAVEJtkI00e51SAZ/PnqNJl1zv0rHXSdl9L1oOY=
 github.com/openshift/machine-api-operator v0.2.1-0.20200926044412-b7d860f8074c/go.mod h1:cp/wPVzxHZeLUjOLkNPNqrk4wyyW6HuHd3Kz9+hl5xw=
+github.com/openshift/machine-api-operator v0.2.1-0.20201002104344-6abfb5440597/go.mod h1:+oAfoCl+TUd2TM79/6NdqLpFUHIJpmqkKdmiHe2O7mw=
 github.com/operator-framework/operator-sdk v0.5.1-0.20190301204940-c2efe6f74e7b h1:Q1q8w51pAZdx6LEkaYdSbUaaEOHXTyTXLhtGgIiKaiA=
 github.com/operator-framework/operator-sdk v0.5.1-0.20190301204940-c2efe6f74e7b/go.mod h1:iVyukRkam5JZa8AnjYf+/G3rk7JI1+M6GsU0sq0B9NA=
 github.com/pborman/uuid v1.2.0/go.mod h1:X/NO0urCmaxf9VXbdlT7C2Yzkj2IKimNn4k+gtPdI/k=
