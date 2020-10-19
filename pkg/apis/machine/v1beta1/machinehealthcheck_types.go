@@ -30,6 +30,14 @@ type MachineHealthCheck struct {
 	Status MachineHealthCheckStatus `json:"status,omitempty"`
 }
 
+func (m *MachineHealthCheck) GetConditions() Conditions {
+	return m.Status.Conditions
+}
+
+func (m *MachineHealthCheck) SetConditions(conditions Conditions) {
+	m.Status.Conditions = conditions
+}
+
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
 // MachineHealthCheckList contains a list of MachineHealthCheck
