@@ -293,7 +293,7 @@ func TestMachineSetUpdate(t *testing.T) {
 		OSDisk: azure.OSDisk{
 			DiskSizeGB: 128,
 			OSType:     defaultAzureOSDiskOSType,
-			ManagedDisk: azure.ManagedDisk{
+			ManagedDisk: azure.ManagedDiskParameters{
 				StorageAccountType: defaultAzureOSDiskStorageType,
 			},
 		},
