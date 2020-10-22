@@ -91,3 +91,23 @@ about these metric names and their labels through the following links:
 * [Prometheus documentation, Standard and runtime collectors](https://prometheus.io/docs/instrumenting/writing_clientlibs/#standard-and-runtime-collectors)
 * [Prometheus client Go language collectors](https://github.com/prometheus/client_golang/blob/master/prometheus/go_collector.go)
 * [Prometheus client HTTP collectors](https://github.com/prometheus/client_golang/blob/master/prometheus/promhttp/http.go)
+
+## Machine API error rate for provider
+
+These values show errors returned by cloud provider APIs.
+
+For example:
+- Invalid provider configurations not identified by Machine API static validation
+- Timeouts and internal errors on the server side
+
+**Sample metrics**
+```
+# Typical format:
+# mapi_instance_<operation>_failed{name=<machine-name>,namespace=openshift-machine-api,reason=<failure cause>} <number of occurences>
+# Examples:
+mapi_instance_create_failed{name=machine-1,namespace=openshift-machine-api,reason="Unknown region 'us-central4'"} 1
+mapi_instance_update_failed{name=machine-2,namespace=openshift-machine-api,reason="Unexpected response return code: 500"} 2
+mapi_instance_delete_failed{name=machine-3,namespace=openshift-machine-api,reason="Timeout waiting for response"} 5
+```
+
+[Demo](https://user-images.githubusercontent.com/32226600/87791648-e72b6900-c842-11ea-90b7-4967b0d06fb5.gif)
