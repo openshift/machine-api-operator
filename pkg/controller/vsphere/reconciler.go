@@ -59,7 +59,7 @@ func newReconciler(scope *machineScope) *Reconciler {
 // create creates machine if it does not exists.
 func (r *Reconciler) create() error {
 	if err := validateMachine(*r.machine); err != nil {
-		return fmt.Errorf("%v: failed validating machine provider spec: %v", r.machine.GetName(), err)
+		return fmt.Errorf("%v: failed validating machine provider spec: %w", r.machine.GetName(), err)
 	}
 
 	// We only clone the VM template if we have no taskRef.
@@ -115,7 +115,7 @@ func (r *Reconciler) create() error {
 // update finds a vm and reconciles the machine resource status against it.
 func (r *Reconciler) update() error {
 	if err := validateMachine(*r.machine); err != nil {
-		return fmt.Errorf("%v: failed validating machine provider spec: %v", r.machine.GetName(), err)
+		return fmt.Errorf("%v: failed validating machine provider spec: %w", r.machine.GetName(), err)
 	}
 
 	if r.providerStatus.TaskRef != "" {
@@ -166,7 +166,7 @@ func (r *Reconciler) update() error {
 // exists returns true if machine exists.
 func (r *Reconciler) exists() (bool, error) {
 	if err := validateMachine(*r.machine); err != nil {
-		return false, fmt.Errorf("%v: failed validating machine provider spec: %v", r.machine.GetName(), err)
+		return false, fmt.Errorf("%v: failed validating machine provider spec: %w", r.machine.GetName(), err)
 	}
 
 	if _, err := findVM(r.machineScope); err != nil {
@@ -241,7 +241,7 @@ func (r *Reconciler) delete() error {
 			Namespace: r.machine.Namespace,
 			Reason:    err.Error(),
 		})
-		return fmt.Errorf("%v: failed to destroy vm: %v", r.machine.GetName(), err)
+		return fmt.Errorf("%v: failed to destroy vm: %w", r.machine.GetName(), err)
 	}
 
 	if err := setProviderStatus(task.Reference().Value, conditionSuccess(), r.machineScope, vm); err != nil {

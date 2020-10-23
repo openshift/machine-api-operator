@@ -70,7 +70,7 @@ func newMachineScope(params machineScopeParams) (*machineScope, error) {
 
 	user, password, err := getCredentialsSecret(params.client, params.machine.GetNamespace(), *providerSpec)
 	if err != nil {
-		return nil, fmt.Errorf("%v: error getting credentials: %v", params.machine.GetName(), err)
+		return nil, fmt.Errorf("%v: error getting credentials: %w", params.machine.GetName(), err)
 	}
 	if providerSpec.Workspace == nil {
 		return nil, fmt.Errorf("%v: no workspace provided", params.machine.GetName())
@@ -182,7 +182,7 @@ func getCredentialsSecret(client runtimeclient.Client, namespace string, spec ap
 		&credentialsSecret); err != nil {
 
 		if apimachineryerrors.IsNotFound(err) {
-			machineapierros.InvalidMachineConfiguration("credentials secret %v/%v not found: %v", namespace, spec.CredentialsSecret.Name, err.Error())
+			return "", "", machineapierros.InvalidMachineConfiguration("credentials secret %v/%v not found: %v", namespace, spec.CredentialsSecret.Name, err.Error())
 		}
 		return "", "", fmt.Errorf("error getting credentials secret %v/%v: %v", namespace, spec.CredentialsSecret.Name, err)
 	}
