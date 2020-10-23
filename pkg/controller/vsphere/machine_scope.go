@@ -182,7 +182,7 @@ func getCredentialsSecret(client runtimeclient.Client, namespace string, spec ap
 		&credentialsSecret); err != nil {
 
 		if apimachineryerrors.IsNotFound(err) {
-			machineapierros.InvalidMachineConfiguration("credentials secret %v/%v not found: %v", namespace, spec.CredentialsSecret.Name, err.Error())
+			return "", "", machineapierros.InvalidMachineConfiguration("credentials secret %v/%v not found: %v", namespace, spec.CredentialsSecret.Name, err.Error())
 		}
 		return "", "", fmt.Errorf("error getting credentials secret %v/%v: %v", namespace, spec.CredentialsSecret.Name, err)
 	}
