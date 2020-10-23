@@ -980,13 +980,13 @@ func validateVSphere(m *Machine, clusterID string) (bool, []string, utilerrors.A
 
 	errs = append(errs, validateVSphereNetwork(providerSpec.Network, field.NewPath("providerSpec", "network"))...)
 
-	if providerSpec.NumCPUs < minVSphereCPU || providerSpec.NumCPUs == 0 {
+	if providerSpec.NumCPUs < minVSphereCPU {
 		warnings = append(warnings, fmt.Sprintf("providerSpec.numCPUs: %d is missing or less than the minimum value (%d): nodes may not boot correctly", providerSpec.NumCPUs, minVSphereCPU))
 	}
-	if providerSpec.MemoryMiB < minVSphereMemoryMiB || providerSpec.MemoryMiB == 0 {
+	if providerSpec.MemoryMiB < minVSphereMemoryMiB {
 		warnings = append(warnings, fmt.Sprintf("providerSpec.memoryMiB: %d is missing or less than the recommended minimum value (%d): nodes may not boot correctly", providerSpec.MemoryMiB, minVSphereMemoryMiB))
 	}
-	if providerSpec.DiskGiB < minVSphereDiskGiB || providerSpec.DiskGiB == 0 {
+	if providerSpec.DiskGiB < minVSphereDiskGiB {
 		warnings = append(warnings, fmt.Sprintf("providerSpec.diskGiB: %d is missing or less than the recommended minimum (%d): nodes may fail to start if disk size is too low", providerSpec.DiskGiB, minVSphereDiskGiB))
 	}
 

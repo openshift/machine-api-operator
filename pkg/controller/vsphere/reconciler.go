@@ -27,8 +27,6 @@ import (
 )
 
 const (
-	minMemMB              = 2048
-	minCPU                = 2
 	fullCloneDiskMoveType = string(types.VirtualMachineRelocateDiskMoveOptionsMoveAllDiskBackingsAndConsolidate)
 	linkCloneDiskMoveType = string(types.VirtualMachineRelocateDiskMoveOptionsCreateNewChildDiskBacking)
 	ethCardType           = "vmxnet3"
@@ -532,16 +530,10 @@ func clone(s *machineScope) (string, error) {
 	}
 
 	numCPUs := s.providerSpec.NumCPUs
-	if numCPUs < minCPU {
-		numCPUs = minCPU
-	}
+
 	numCoresPerSocket := s.providerSpec.NumCoresPerSocket
 	if numCoresPerSocket == 0 {
 		numCoresPerSocket = numCPUs
-	}
-	memMiB := s.providerSpec.MemoryMiB
-	if memMiB == 0 {
-		memMiB = minMemMB
 	}
 
 	devices, err := vmTemplate.Device(s.Context)
@@ -589,7 +581,7 @@ func clone(s *machineScope) (string, error) {
 			DeviceChange:      deviceSpecs,
 			NumCPUs:           numCPUs,
 			NumCoresPerSocket: numCoresPerSocket,
-			MemoryMB:          memMiB,
+			MemoryMB:          s.providerSpec.MemoryMiB,
 		},
 		Location: types.VirtualMachineRelocateSpec{
 			Datastore:    types.NewReference(datastore.Reference()),
