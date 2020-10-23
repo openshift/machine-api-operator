@@ -1813,7 +1813,7 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 			},
 			expectedOk:       true,
 			expectedError:    "",
-			expectedWarnings: []string{"providerSpec.numCPUs: 1 is less than the minimum value (2): the minimum value will be used instead"},
+			expectedWarnings: []string{"providerSpec.numCPUs: 1 is missing or less than the minimum value (2): nodes may not boot correctly"},
 		},
 		{
 			testCase: "with too little memory provided",
@@ -1822,7 +1822,7 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 			},
 			expectedOk:       true,
 			expectedError:    "",
-			expectedWarnings: []string{"providerSpec.memoryMiB: 1024 is less than the recommended minimum value (2048): nodes may not boot correctly"},
+			expectedWarnings: []string{"providerSpec.memoryMiB: 1024 is missing or less than the recommended minimum value (2048): nodes may not boot correctly"},
 		},
 		{
 			testCase: "with too little disk size provided",
@@ -1831,7 +1831,7 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 			},
 			expectedOk:       true,
 			expectedError:    "",
-			expectedWarnings: []string{"providerSpec.diskGiB: 1 is less than the recommended minimum (120): nodes may fail to start if disk size is too low"},
+			expectedWarnings: []string{"providerSpec.diskGiB: 1 is missing or less than the recommended minimum (120): nodes may fail to start if disk size is too low"},
 		},
 		{
 			testCase: "with no user data secret provided",
@@ -1869,6 +1869,30 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 			testCase:      "with all required fields it succeeds",
 			expectedOk:    true,
 			expectedError: "",
+		},
+		{
+			testCase: "with numCPUs equal to 0",
+			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+				p.NumCPUs = 0
+			},
+			expectedOk:       true,
+			expectedWarnings: []string{"providerSpec.numCPUs: 0 is missing or less than the minimum value (2): nodes may not boot correctly"},
+		},
+		{
+			testCase: "with memoryMiB equal to 0",
+			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+				p.MemoryMiB = 0
+			},
+			expectedOk:       true,
+			expectedWarnings: []string{"providerSpec.memoryMiB: 0 is missing or less than the recommended minimum value (2048): nodes may not boot correctly"},
+		},
+		{
+			testCase: "with diskGiB equal to 0",
+			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+				p.DiskGiB = 0
+			},
+			expectedOk:       true,
+			expectedWarnings: []string{"providerSpec.diskGiB: 0 is missing or less than the recommended minimum (120): nodes may fail to start if disk size is too low"},
 		},
 	}
 
