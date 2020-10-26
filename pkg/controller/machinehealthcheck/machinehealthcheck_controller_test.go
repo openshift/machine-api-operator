@@ -2035,7 +2035,12 @@ func TestReconcileStatus(t *testing.T) {
 			objects = append(objects, runtime.Object(tc.mhc))
 			r := newFakeReconciler(objects...)
 
-			if err := r.reconcileStatus(tc.mhc, tc.totalTargets, tc.currentHealthy); err != nil {
+			mergeBase := client.MergeFrom(tc.mhc.DeepCopy())
+
+			tc.mhc.Status.ExpectedMachines = &tc.totalTargets
+			tc.mhc.Status.CurrentHealthy = &tc.currentHealthy
+
+			if err := r.reconcileStatus(mergeBase, tc.mhc); err != nil {
 				t.Fatalf("Unexpected error: %v", err)
 			}
 			mhc := &mapiv1beta1.MachineHealthCheck{}

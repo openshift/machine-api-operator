@@ -161,6 +161,9 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 		return reconcile.Result{}, err
 	}
 
+	// Create a base from which the MHC status patch will be calculated
+	mergeBase := client.MergeFrom(mhc.DeepCopy())
+
 	// fetch all targets
 	klog.V(3).Infof("Reconciling %s: finding targets", request.String())
 	targets, err := r.getTargetsFromMHC(*mhc)
@@ -171,11 +174,8 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 
 	// health check all targets and reconcile mhc status
 	currentHealthy, needRemediationTargets, nextCheckTimes, errList := r.healthCheckTargets(targets, mhc.Spec.NodeStartupTimeout.Duration)
-	if err := r.reconcileStatus(mhc, totalTargets, currentHealthy); err != nil {
-		klog.Errorf("Reconciling %s: error patching status: %v", request.String(), err)
-		return reconcile.Result{}, err
-	}
-
+	mhc.Status.CurrentHealthy = &currentHealthy
+	mhc.Status.ExpectedMachines = &totalTargets
 	unhealthyCount := totalTargets - currentHealthy
 
 	// check MHC current health against MaxUnhealthy
@@ -203,6 +203,11 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 			Message:  message,
 		})
 
+		if err := r.reconcileStatus(mergeBase, mhc); err != nil {
+			klog.Errorf("Reconciling %s: error patching status: %v", request.String(), err)
+			return reconcile.Result{}, err
+		}
+
 		r.recorder.Eventf(
 			mhc,
 			corev1.EventTypeWarning,
@@ -221,6 +226,10 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 		unhealthyCount,
 	)
 	conditions.MarkTrue(mhc, mapiv1.RemediationAllowedCondition)
+	if err := r.reconcileStatus(mergeBase, mhc); err != nil {
+		klog.Errorf("Reconciling %s: error patching status: %v", request.String(), err)
+		return reconcile.Result{}, err
+	}
 
 	// remediate
 	for _, t := range needRemediationTargets {
@@ -288,11 +297,7 @@ func derefInt(i *int) int {
 	return 0
 }
 
-func (r *ReconcileMachineHealthCheck) reconcileStatus(mhc *mapiv1.MachineHealthCheck, targets, currentHealthy int) error {
-	baseToPatch := client.MergeFrom(mhc.DeepCopy())
-	mhc.Status.ExpectedMachines = &targets
-	mhc.Status.CurrentHealthy = &currentHealthy
-
+func (r *ReconcileMachineHealthCheck) reconcileStatus(baseToPatch client.Patch, mhc *mapiv1.MachineHealthCheck) error {
 	maxUnhealthy, err := getMaxUnhealthy(mhc)
 	if err != nil {
 		return fmt.Errorf("failed to get value for maxUnhealthy: %v", err)
