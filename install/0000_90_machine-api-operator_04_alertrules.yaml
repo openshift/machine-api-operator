@@ -8,6 +8,7 @@ metadata:
   namespace: openshift-machine-api
   annotations:
     exclude.release.openshift.io/internal-openshift-hosted: "true"
+    include.release.openshift.io/self-managed-high-availability: "true"
 spec:
   groups:
     - name: machine-without-valid-node-ref
