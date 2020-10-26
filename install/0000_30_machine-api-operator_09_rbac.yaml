@@ -23,6 +23,7 @@ metadata:
   namespace: openshift-machine-api
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
+autoMountServiceAccountToken: false
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -213,31 +214,6 @@ rules:
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
-  name: machine-api-termination-handler
-  namespace: openshift-machine-api
-  annotations:
-    include.release.openshift.io/self-managed-high-availability: "true"
-rules:
-  - apiGroups:
-      - machine.openshift.io
-    resources:
-      - machines
-    verbs:
-      - list
-      - delete
-  - apiGroups:
-      - security.openshift.io
-    resourceNames:
-      - hostnetwork
-    resources:
-      - securitycontextconstraints
-    verbs:
-      - use
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
   name: machine-api-operator
   namespace: openshift-machine-api
   annotations:
@@ -408,23 +384,6 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: machine-api-controllers
-    namespace: openshift-machine-api
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: machine-api-termination-handler
-  namespace: openshift-machine-api
-  annotations:
-    include.release.openshift.io/self-managed-high-availability: "true"
-roleRef:
-  apiGroup: rbac.authorization.k8s.io
-  kind: Role
-  name: machine-api-termination-handler
-subjects:
-  - kind: ServiceAccount
-    name: machine-api-termination-handler
     namespace: openshift-machine-api
 
 ---
