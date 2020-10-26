@@ -1,0 +1,18 @@
+---
+apiVersion: machine.openshift.io/v1beta1
+kind: MachineHealthCheck
+metadata:
+  name: machine-api-termination-handler
+  namespace: openshift-machine-api
+  labels:
+    api: clsuterapi
+    k8s-app: termination-handler
+spec:
+  selector:
+    matchLabels:
+      machine.openshift.io/interruptible-instance: ""
+  maxUnhealthy: 100%
+  unhealthyConditions:
+  - type: Terminating
+    status: "True"
+    timeout: 0s
