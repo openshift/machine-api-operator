@@ -4,7 +4,8 @@ set -eu
 
 function annotate_crd() {
   script1='/^  annotations:/a\
-\ \ \ \ exclude.release.openshift.io/internal-openshift-hosted: "true"'
+\ \ \ \ exclude.release.openshift.io/internal-openshift-hosted: "true"\
+\ \ \ \ include.release.openshift.io/self-managed-high-availability: "true"'
   script2='/^    controller-gen.kubebuilder.io\/version: (devel)/d'
   input="${1}"
   output="${2}"
