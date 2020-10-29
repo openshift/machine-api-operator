@@ -6,7 +6,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/golang/glog"
 	osconfigv1 "github.com/openshift/api/config/v1"
 	osoperatorv1 "github.com/openshift/api/operator/v1"
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
@@ -25,6 +24,7 @@ import (
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
+	"k8s.io/klog/v2"
 )
 
 const (
@@ -147,8 +147,8 @@ func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 	defer utilruntime.HandleCrash()
 	defer optr.queue.ShutDown()
 
-	glog.Info("Starting Machine API Operator")
-	defer glog.Info("Shutting down Machine API Operator")
+	klog.Info("Starting Machine API Operator")
+	defer klog.Info("Shutting down Machine API Operator")
 
 	if !cache.WaitForCacheSync(stopCh,
 		optr.mutatingWebhookListerSynced,
@@ -156,10 +156,10 @@ func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 		optr.deployListerSynced,
 		optr.daemonsetListerSynced,
 		optr.featureGateCacheSynced) {
-		glog.Error("Failed to sync caches")
+		klog.Error("Failed to sync caches")
 		return
 	}
-	glog.Info("Synced up caches")
+	klog.Info("Synced up caches")
 	for i := 0; i < workers; i++ {
 		go wait.Until(optr.worker, time.Second, stopCh)
 	}
@@ -170,27 +170,27 @@ func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 func logResource(obj interface{}) {
 	metaObj, okObject := obj.(metav1.Object)
 	if !okObject {
-		glog.Errorf("Error assigning type to interface when logging")
+		klog.Errorf("Error assigning type to interface when logging")
 	}
-	glog.V(4).Infof("Resource type: %T", obj)
-	glog.V(4).Infof("Resource: %v", metaObj.GetSelfLink())
+	klog.V(4).Infof("Resource type: %T", obj)
+	klog.V(4).Infof("Resource: %v", metaObj.GetSelfLink())
 }
 
 func (optr *Operator) eventHandler() cache.ResourceEventHandler {
 	workQueueKey := fmt.Sprintf("%s/%s", optr.namespace, optr.name)
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			glog.V(4).Infof("Event: Add")
+			klog.V(4).Infof("Event: Add")
 			logResource(obj)
 			optr.queue.Add(workQueueKey)
 		},
 		UpdateFunc: func(old, new interface{}) {
-			glog.V(4).Infof("Event: Update")
+			klog.V(4).Infof("Event: Update")
 			logResource(old)
 			optr.queue.Add(workQueueKey)
 		},
 		DeleteFunc: func(obj interface{}) {
-			glog.V(4).Infof("Event: Delete")
+			klog.V(4).Infof("Event: Delete")
 			logResource(obj)
 			optr.queue.Add(workQueueKey)
 		},
@@ -202,12 +202,12 @@ func (optr *Operator) eventHandlerDeployments() cache.ResourceEventHandler {
 	workQueueKey := fmt.Sprintf("%s/%s", optr.namespace, optr.name)
 	return cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			glog.V(4).Infof("Event: Add")
+			klog.V(4).Infof("Event: Add")
 			logResource(obj)
 			optr.queue.Add(workQueueKey)
 		},
 		UpdateFunc: func(old, new interface{}) {
-			glog.V(4).Infof("Event: Update")
+			klog.V(4).Infof("Event: Update")
 			logResource(old)
 			if owned, err := isOwned(old); !owned || err != nil {
 				return
@@ -215,7 +215,7 @@ func (optr *Operator) eventHandlerDeployments() cache.ResourceEventHandler {
 			optr.queue.Add(workQueueKey)
 		},
 		DeleteFunc: func(obj interface{}) {
-			glog.V(4).Infof("Event: Delete")
+			klog.V(4).Infof("Event: Delete")
 			logResource(obj)
 			if owned, err := isOwned(obj); !owned || err != nil {
 				return
@@ -228,7 +228,7 @@ func (optr *Operator) eventHandlerDeployments() cache.ResourceEventHandler {
 func isOwned(obj interface{}) (bool, error) {
 	metaObj, okObject := obj.(metav1.Object)
 	if !okObject {
-		glog.Errorf("Error assigning metav1.Object type to object: %T", obj)
+		klog.Errorf("Error assigning metav1.Object type to object: %T", obj)
 		return false, fmt.Errorf("error assigning metav1.Object type to object: %T", obj)
 	}
 	_, ok := metaObj.GetAnnotations()[maoOwnedAnnotation]
@@ -280,7 +280,7 @@ func (optr *Operator) processNextWorkItem() bool {
 	}
 	defer optr.queue.Done(key)
 
-	glog.V(4).Infof("Processing key %s", key)
+	klog.V(4).Infof("Processing key %s", key)
 	err := optr.syncHandler(key.(string))
 	optr.handleErr(err, key)
 
@@ -294,26 +294,26 @@ func (optr *Operator) handleErr(err error, key interface{}) {
 	}
 
 	if optr.queue.NumRequeues(key) < maxRetries {
-		glog.V(1).Infof("Error syncing operator %v: %v", key, err)
+		klog.V(1).Infof("Error syncing operator %v: %v", key, err)
 		optr.queue.AddRateLimited(key)
 		return
 	}
 
 	utilruntime.HandleError(err)
-	glog.V(1).Infof("Dropping operator %q out of the queue: %v", key, err)
+	klog.V(1).Infof("Dropping operator %q out of the queue: %v", key, err)
 	optr.queue.Forget(key)
 }
 
 func (optr *Operator) sync(key string) error {
 	startTime := time.Now()
-	glog.V(4).Infof("Started syncing operator %q (%v)", key, startTime)
+	klog.V(4).Infof("Started syncing operator %q (%v)", key, startTime)
 	defer func() {
-		glog.V(4).Infof("Finished syncing operator %q (%v)", key, time.Since(startTime))
+		klog.V(4).Infof("Finished syncing operator %q (%v)", key, time.Since(startTime))
 	}()
 
 	operatorConfig, err := optr.maoConfigFromInfrastructure()
 	if err != nil {
-		glog.Errorf("Failed getting operator config: %v", err)
+		klog.Errorf("Failed getting operator config: %v", err)
 		return err
 	}
 	return optr.syncAll(operatorConfig)

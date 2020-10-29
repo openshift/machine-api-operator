@@ -8,7 +8,6 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 
-	"github.com/golang/glog"
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -16,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	appsclientv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	coreclientv1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 )
 
@@ -150,7 +150,7 @@ func generateRandomPassword() (string, error) {
 }
 
 func createMariadbPasswordSecret(client coreclientv1.SecretsGetter, config *OperatorConfig) error {
-	glog.V(3).Info("Checking if the MariaDB password secret already exists")
+	klog.V(3).Info("Checking if the MariaDB password secret already exists")
 	_, err := client.Secrets(config.TargetNamespace).Get(context.Background(), baremetalSecretName, metav1.GetOptions{})
 	if !apierrors.IsNotFound(err) {
 		return err
@@ -178,7 +178,7 @@ func createMariadbPasswordSecret(client coreclientv1.SecretsGetter, config *Oper
 }
 
 func createIronicPasswordSecret(client coreclientv1.SecretsGetter, config *OperatorConfig, name string, username string, configSection string) error {
-	glog.V(3).Info(fmt.Sprintf("Checking if the %s password secret already exists", name))
+	klog.V(3).Info(fmt.Sprintf("Checking if the %s password secret already exists", name))
 	_, err := client.Secrets(config.TargetNamespace).Get(context.Background(), name, metav1.GetOptions{})
 	if !apierrors.IsNotFound(err) {
 		return err
@@ -223,15 +223,15 @@ password = %s
 
 func createMetal3PasswordSecrets(client coreclientv1.SecretsGetter, config *OperatorConfig) error {
 	if err := createMariadbPasswordSecret(client, config); err != nil {
-		glog.Error("Failed to create Mariadb password.")
+		klog.Error("Failed to create Mariadb password.")
 		return err
 	}
 	if err := createIronicPasswordSecret(client, config, ironicSecretName, ironicUsername, "ironic"); err != nil {
-		glog.Error("Failed to create Ironic password.")
+		klog.Error("Failed to create Ironic password.")
 		return err
 	}
 	if err := createIronicPasswordSecret(client, config, inspectorSecretName, inspectorUsername, "inspector"); err != nil {
-		glog.Error("Failed to create Ironic Inspector password.")
+		klog.Error("Failed to create Ironic Inspector password.")
 		return err
 	}
 	return nil

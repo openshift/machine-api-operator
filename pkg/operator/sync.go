@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/golang/glog"
 	"github.com/imdario/mergo"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
@@ -23,6 +22,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 )
 
@@ -46,14 +46,14 @@ const (
 
 func (optr *Operator) syncAll(config *OperatorConfig) error {
 	if err := optr.statusProgressing(); err != nil {
-		glog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
+		klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
 		return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
 	}
 
 	if config.Controllers.Provider == clusterAPIControllerNoOp {
-		glog.V(3).Info("Provider is NoOp, skipping synchronisation")
+		klog.V(3).Info("Provider is NoOp, skipping synchronisation")
 		if err := optr.statusAvailable(); err != nil {
-			glog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
+			klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
 			return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
 		}
 		return nil
@@ -64,23 +64,23 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 		if err := optr.statusDegraded(err.Error()); err != nil {
 			// Just log the error here.  We still want to
 			// return the outer error.
-			glog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
+			klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
 		}
-		glog.Errorf("Error syncing machine API webhook configurations: %v", err)
+		klog.Errorf("Error syncing machine API webhook configurations: %v", err)
 		return err
 	}
-	glog.V(3).Info("Synced up all machine API webhook configurations")
+	klog.V(3).Info("Synced up all machine API webhook configurations")
 
 	if err := optr.syncClusterAPIController(config); err != nil {
 		if err := optr.statusDegraded(err.Error()); err != nil {
 			// Just log the error here.  We still want to
 			// return the outer error.
-			glog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
+			klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
 		}
-		glog.Errorf("Error syncing machine-api-controller: %v", err)
+		klog.Errorf("Error syncing machine-api-controller: %v", err)
 		return err
 	}
-	glog.V(3).Info("Synced up all machine-api-controller components")
+	klog.V(3).Info("Synced up all machine-api-controller components")
 
 	// In addition, if the Provider is BareMetal, then bring up
 	// the baremetal-operator pod
@@ -88,22 +88,22 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 		err := optr.syncBaremetalControllers(config, baremetalProvisioningCR)
 		switch true {
 		case apierrors.IsNotFound(err):
-			glog.V(3).Info("Provisioning configuration not found. Skipping metal3 deployment.")
+			klog.V(3).Info("Provisioning configuration not found. Skipping metal3 deployment.")
 		case err == nil:
-			glog.V(3).Info("Synced up all metal3 components")
+			klog.V(3).Info("Synced up all metal3 components")
 		case err != nil:
 			if err := optr.statusDegraded(err.Error()); err != nil {
 				// Just log the error here.  We still want to
 				// return the outer error.
-				glog.Errorf("Error syncing BaremetalOperatorStatus: %v", err)
+				klog.Errorf("Error syncing BaremetalOperatorStatus: %v", err)
 			}
-			glog.Errorf("Error syncing metal3-controller: %v", err)
+			klog.Errorf("Error syncing metal3-controller: %v", err)
 			return err
 		}
 	}
 
 	if err := optr.statusAvailable(); err != nil {
-		glog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
+		klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
 		return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
 	}
 	return nil
@@ -297,7 +297,7 @@ func (optr *Operator) syncBaremetalControllers(config *OperatorConfig, configNam
 			return err
 		}
 		if cboExists {
-			glog.Infof("cluster-baremetal-operator is running and managing the Metal3 deployment, standing down.")
+			klog.Infof("cluster-baremetal-operator is running and managing the Metal3 deployment, standing down.")
 			return nil
 		}
 	}
@@ -312,7 +312,7 @@ func (optr *Operator) syncBaremetalControllers(config *OperatorConfig, configNam
 	}
 	// Create Secrets needed for the Metal3 deployment
 	if err := createMetal3PasswordSecrets(optr.kubeClient.CoreV1(), config); err != nil {
-		glog.Error("Not proceeding with Metal3 deployment.")
+		klog.Error("Not proceeding with Metal3 deployment.")
 		return err
 	}
 
@@ -337,14 +337,14 @@ func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment, poll
 		d, err := optr.deployLister.Deployments(resource.Namespace).Get(resource.Name)
 		if apierrors.IsNotFound(err) {
 			lastError = fmt.Errorf("deployment %s is not found", resource.Name)
-			glog.Error(lastError)
+			klog.Error(lastError)
 			return false, nil
 		}
 		if err != nil {
 			// Do not return error here, as we could be updating the API Server itself, in which case we
 			// want to continue waiting.
 			lastError = fmt.Errorf("getting Deployment %s during rollout: %v", resource.Name, err)
-			glog.Error(lastError)
+			klog.Error(lastError)
 			return false, nil
 		}
 
@@ -357,17 +357,17 @@ func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment, poll
 			c := conditions.GetDeploymentCondition(d, appsv1.DeploymentAvailable)
 			if c == nil {
 				lastError = fmt.Errorf("deployment %s is not reporting available yet", resource.Name)
-				glog.V(4).Info(lastError)
+				klog.V(4).Info(lastError)
 				return false, nil
 			}
 			if c.Status == corev1.ConditionFalse {
 				lastError = fmt.Errorf("deployment %s is reporting available=false", resource.Name)
-				glog.V(4).Info(lastError)
+				klog.V(4).Info(lastError)
 				return false, nil
 			}
 			if c.LastTransitionTime.Time.Add(deploymentMinimumAvailabilityTime).After(time.Now()) {
 				lastError = fmt.Errorf("deployment %s has been available for less than 3 min", resource.Name)
-				glog.V(4).Info(lastError)
+				klog.V(4).Info(lastError)
 				return false, nil
 			}
 
@@ -376,7 +376,7 @@ func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment, poll
 		}
 
 		lastError = fmt.Errorf("deployment %s is not ready. status: (replicas: %d, updated: %d, ready: %d, unavailable: %d)", d.Name, d.Status.Replicas, d.Status.UpdatedReplicas, d.Status.ReadyReplicas, d.Status.UnavailableReplicas)
-		glog.V(4).Info(lastError)
+		klog.V(4).Info(lastError)
 		return false, nil
 	})
 	if lastError != nil {
@@ -396,7 +396,7 @@ func (optr *Operator) waitForDaemonSetRollout(resource *appsv1.DaemonSet) error 
 			// Do not return error here, as we could be updating the API Server itself, in which case we
 			// want to continue waiting.
 			lastError = fmt.Errorf("getting DaemonSet %s during rollout: %v", resource.Name, err)
-			glog.Error(lastError)
+			klog.Error(lastError)
 			return false, nil
 		}
 
@@ -410,7 +410,7 @@ func (optr *Operator) waitForDaemonSetRollout(resource *appsv1.DaemonSet) error 
 			return true, nil
 		}
 		lastError = fmt.Errorf("daemonset %s is not ready. status: (desired: %d, updated: %d, available: %d, unavailable: %d)", d.Name, d.Status.DesiredNumberScheduled, d.Status.UpdatedNumberScheduled, d.Status.NumberAvailable, d.Status.NumberUnavailable)
-		glog.V(4).Info(lastError)
+		klog.V(4).Info(lastError)
 		return false, nil
 	})
 	if lastError != nil {
