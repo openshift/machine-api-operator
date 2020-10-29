@@ -789,6 +789,28 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			expectedOk:    true,
 			expectedError: "",
 		},
+		{
+			testCase: "with valid tenancy field",
+			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+				p.Tenancy = aws.DedicatedTenancy
+			},
+			expectedOk: true,
+		},
+		{
+			testCase: "with empty tenancy field",
+			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+				p.Tenancy = ""
+			},
+			expectedOk: true,
+		},
+		{
+			testCase: "fail with invalid tenancy field",
+			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+				p.Tenancy = "invalid"
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.tenancy: Invalid value: \"invalid\": Invalid providerSpec.tenancy, the only allowed options are: default, dedicated, host",
+		},
 	}
 
 	h := createMachineValidator(osconfigv1.AWSPlatformType, "clusterID")

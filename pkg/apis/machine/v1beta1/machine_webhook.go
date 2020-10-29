@@ -583,6 +583,20 @@ func validateAWS(m *Machine, clusterID string) (bool, []string, utilerrors.Aggre
 	// TODO(alberto): Validate providerSpec.BlockDevices.
 	// https://github.com/openshift/cluster-api-provider-aws/pull/299#discussion_r433920532
 
+	switch providerSpec.Tenancy {
+	case "", aws.DefaultTenancy, aws.DedicatedTenancy, aws.HostTenancy:
+		// Do nothing, valid values
+	default:
+		errs = append(
+			errs,
+			field.Invalid(
+				field.NewPath("providerSpec", "tenancy"),
+				providerSpec.Tenancy,
+				fmt.Sprintf("Invalid providerSpec.tenancy, the only allowed options are: %s, %s, %s", aws.DefaultTenancy, aws.DedicatedTenancy, aws.HostTenancy),
+			),
+		)
+	}
+
 	if len(errs) > 0 {
 		return false, warnings, utilerrors.NewAggregate(errs)
 	}
