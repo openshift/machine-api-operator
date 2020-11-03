@@ -36,6 +36,7 @@ const (
 	machineExposeMetricsPort            = 8441
 	machineSetExposeMetricsPort         = 8442
 	machineHealthCheckExposeMetricsPort = 8444
+	metal3ExposeMetricsPort             = 8445
 	defaultMachineHealthPort            = 9440
 	defaultMachineSetHealthPort         = 9441
 	defaultMachineHealthCheckHealthPort = 9442
@@ -317,6 +318,27 @@ func (optr *Operator) syncBaremetalControllers(config *OperatorConfig, configNam
 	}
 
 	metal3Deployment := newMetal3Deployment(config, *baremetalProvisioningConfig)
+
+	metal3Service := newMetal3Service(config, *baremetalProvisioningConfig)
+	s, updated, err := resourceapply.ApplyService(optr.kubeClient.CoreV1(),
+		events.NewLoggingEventRecorder(optr.name), metal3Service)
+	if err != nil {
+		return err
+	}
+	if updated {
+		klog.V(3).Infof("updated service %s/%s", s.Namespace, s.Name)
+	}
+
+	metal3ServiceMonitor := []byte(metal3ServiceMonitorDefinition)
+	updated, err = resourceapply.ApplyServiceMonitor(optr.dynamicClient,
+		events.NewLoggingEventRecorder(optr.name), metal3ServiceMonitor)
+	if err != nil {
+		return err
+	}
+	if updated {
+		klog.V(3).Infof("updated service monitor openshift-machine-api/metal3")
+	}
+
 	expectedGeneration := resourcemerge.ExpectedDeploymentGeneration(metal3Deployment, optr.generations)
 	d, updated, err := resourceapply.ApplyDeployment(optr.kubeClient.AppsV1(),
 		events.NewLoggingEventRecorder(optr.name), metal3Deployment, expectedGeneration)
@@ -448,6 +470,45 @@ func newDeployment(config *OperatorConfig, features map[string]bool) *appsv1.Dep
 	}
 }
 
+// List of the volumes needed by newKubeProxyContainer
+func newRBACConfigVolumes() []corev1.Volume {
+	var readOnly int32 = 420
+	return []corev1.Volume{
+		{
+			Name: kubeRBACConfigName,
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: "kube-rbac-proxy",
+					},
+					DefaultMode: pointer.Int32Ptr(readOnly),
+				},
+			},
+		},
+		{
+			Name: certStoreName,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					SecretName:  certStoreName,
+					DefaultMode: pointer.Int32Ptr(readOnly),
+				},
+			},
+		},
+		{
+			Name: "trusted-ca",
+			VolumeSource: corev1.VolumeSource{
+				ConfigMap: &corev1.ConfigMapVolumeSource{
+					Items: []corev1.KeyToPath{{Key: "ca-bundle.crt", Path: "tls-ca-bundle.pem"}},
+					LocalObjectReference: corev1.LocalObjectReference{
+						Name: externalTrustBundleConfigMapName,
+					},
+					Optional: pointer.BoolPtr(true),
+				},
+			},
+		},
+	}
+}
+
 func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev1.PodTemplateSpec {
 	containers := newContainers(config, features)
 	proxyContainers := newKubeProxyContainers(config.Controllers.KubeRBACProxy)
@@ -477,26 +538,6 @@ func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev
 	var readOnly int32 = 420
 	volumes := []corev1.Volume{
 		{
-			Name: kubeRBACConfigName,
-			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: "kube-rbac-proxy",
-					},
-					DefaultMode: pointer.Int32Ptr(readOnly),
-				},
-			},
-		},
-		{
-			Name: certStoreName,
-			VolumeSource: corev1.VolumeSource{
-				Secret: &corev1.SecretVolumeSource{
-					SecretName:  "machine-api-controllers-tls",
-					DefaultMode: pointer.Int32Ptr(readOnly),
-				},
-			},
-		},
-		{
 			Name: "cert",
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
@@ -515,19 +556,8 @@ func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev
 				},
 			},
 		},
-		{
-			Name: "trusted-ca",
-			VolumeSource: corev1.VolumeSource{
-				ConfigMap: &corev1.ConfigMapVolumeSource{
-					Items: []corev1.KeyToPath{{Key: "ca-bundle.crt", Path: "tls-ca-bundle.pem"}},
-					LocalObjectReference: corev1.LocalObjectReference{
-						Name: externalTrustBundleConfigMapName,
-					},
-					Optional: pointer.BoolPtr(true),
-				},
-			},
-		},
 	}
+	volumes = append(volumes, newRBACConfigVolumes()...)
 
 	return &corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{

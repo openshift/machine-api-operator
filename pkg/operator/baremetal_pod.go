@@ -9,10 +9,12 @@ import (
 	"golang.org/x/crypto/bcrypt"
 
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
+	"github.com/openshift/machine-api-operator/pkg/metrics"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	appsclientv1 "k8s.io/client-go/kubernetes/typed/apps/v1"
 	coreclientv1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	"k8s.io/klog/v2"
@@ -38,7 +40,7 @@ const (
 	htpasswdEnvVar             = "HTTP_BASIC_HTPASSWD"
 )
 
-var volumes = []corev1.Volume{
+var defaultBaremetalVolumes = []corev1.Volume{
 	{
 		Name: baremetalSharedVolume,
 		VolumeSource: corev1.VolumeSource{
@@ -73,6 +75,35 @@ var volumes = []corev1.Volume{
 	},
 }
 
+// we define this service monitor in code instead of a yaml manifest
+// because we only want it to exist when metal3 is deployed
+const metal3ServiceMonitorDefinition = `
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  namespace: openshift-machine-api
+  name: metal3-metrics
+  labels:
+    k8s-app: controller
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
+spec:
+  namespaceSelector:
+    matchNames:
+      - openshift-machine-api
+  selector:
+    matchLabels:
+      k8s-app: controller
+  endpoints:
+  - port: metal3-mtrc
+    bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    interval: 30s
+    scheme: https
+    tlsConfig:
+      caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
+      serverName: machine-api-controllers.openshift-machine-api.svc
+`
+
 var sharedVolumeMount = corev1.VolumeMount{
 	Name:      baremetalSharedVolume,
 	MountPath: "/shared",
@@ -97,10 +128,9 @@ func buildEnvVar(name string, baremetalProvisioningConfig BaremetalProvisioningC
 			Name:  name,
 			Value: *value,
 		}
-	} else {
-		return corev1.EnvVar{
-			Name: name,
-		}
+	}
+	return corev1.EnvVar{
+		Name: name,
 	}
 }
 
@@ -264,6 +294,44 @@ func checkForBaremetalClusterOperator(osClient osclientset.Interface) (bool, err
 	return true, nil
 }
 
+// we define this service in code instead of a yaml manifest because
+// we only want it to exist when metal3 is deployed
+func newMetal3Service(config *OperatorConfig, baremetalProvisioningConfig BaremetalProvisioningConfig) *corev1.Service {
+	return &corev1.Service{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "metal3-metrics",
+			Namespace: config.TargetNamespace,
+			Annotations: map[string]string{
+				maoOwnedAnnotation: "",
+				// copied from settings for machine-api-controllers
+				// service in
+				// 0000_30_machine-api-operator_10_service.yaml
+				"service.alpha.openshift.io/serving-cert-secret-name":    certStoreName,
+				"exclude.release.openshift.io/internal-openshift-hosted": "true",
+			},
+			Labels: map[string]string{
+				"k8s-app": "controller",
+			},
+		},
+		Spec: corev1.ServiceSpec{
+			Type: corev1.ServiceTypeNodePort,
+			Ports: []corev1.ServicePort{
+				{
+					Name: "metal3-mtrc",
+					Port: metal3ExposeMetricsPort,
+					TargetPort: intstr.IntOrString{
+						Type:   intstr.String,
+						StrVal: "metal3-mtrc",
+					},
+				},
+			},
+			Selector: map[string]string{
+				"k8s-app": "controller",
+			},
+		},
+	}
+}
+
 func newMetal3Deployment(config *OperatorConfig, baremetalProvisioningConfig BaremetalProvisioningConfig) *appsv1.Deployment {
 	replicas := int32(1)
 	template := newMetal3PodTemplateSpec(config, baremetalProvisioningConfig)
@@ -318,6 +386,13 @@ func newMetal3PodTemplateSpec(config *OperatorConfig, baremetalProvisioningConfi
 			TolerationSeconds: pointer.Int64Ptr(120),
 		},
 	}
+
+	volumes := []corev1.Volume{}
+	volumes = append(volumes, defaultBaremetalVolumes...)
+	// Include the volumes needed by newKubeProxyContainer from
+	// sync.go, used to set up the proxy container for metric
+	// collection.
+	volumes = append(volumes, newRBACConfigVolumes()...)
 
 	return &corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
@@ -395,65 +470,66 @@ func createInitContainerStaticIpSet(config *OperatorConfig, baremetalProvisionin
 	return initContainer
 }
 
-func newMetal3Containers(config *OperatorConfig, baremetalProvisioningConfig BaremetalProvisioningConfig) []corev1.Container {
-	//Starting off with the metal3-baremetal-operator container
-	containers := []corev1.Container{
-		{
-			Name:  "metal3-baremetal-operator",
-			Image: config.BaremetalControllers.BaremetalOperator,
-			Ports: []corev1.ContainerPort{
-				{
-					Name:          "metrics",
-					ContainerPort: 60000,
-				},
-			},
-			Command:         []string{"/baremetal-operator"},
-			ImagePullPolicy: "IfNotPresent",
-			VolumeMounts: []corev1.VolumeMount{
-				ironicCredentialsMount,
-				inspectorCredentialsMount,
-			},
-			Env: []corev1.EnvVar{
-				{
-					Name: "WATCH_NAMESPACE",
-					ValueFrom: &corev1.EnvVarSource{
-						FieldRef: &corev1.ObjectFieldSelector{
-							FieldPath: "metadata.namespace",
-						},
+func createContainerMetal3BareMetalOperator(config *OperatorConfig, baremetalProvisioningConfig BaremetalProvisioningConfig) corev1.Container {
+	return corev1.Container{
+		Name:  "metal3-baremetal-operator",
+		Image: config.BaremetalControllers.BaremetalOperator,
+		Command: []string{"/baremetal-operator",
+			"-metrics-addr", metrics.DefaultMetal3MetricsAddress},
+		ImagePullPolicy: "IfNotPresent",
+		VolumeMounts: []corev1.VolumeMount{
+			ironicCredentialsMount,
+			inspectorCredentialsMount,
+		},
+		Env: []corev1.EnvVar{
+			{
+				Name: "WATCH_NAMESPACE",
+				ValueFrom: &corev1.EnvVarSource{
+					FieldRef: &corev1.ObjectFieldSelector{
+						FieldPath: "metadata.namespace",
 					},
 				},
-				{
-					Name: "POD_NAME",
-					ValueFrom: &corev1.EnvVarSource{
-						FieldRef: &corev1.ObjectFieldSelector{
-							FieldPath: "metadata.name",
-						},
+			},
+			{
+				Name: "POD_NAME",
+				ValueFrom: &corev1.EnvVarSource{
+					FieldRef: &corev1.ObjectFieldSelector{
+						FieldPath: "metadata.name",
 					},
 				},
-				{
-					Name:  "OPERATOR_NAME",
-					Value: "baremetal-operator",
-				},
-				buildEnvVar("DEPLOY_KERNEL_URL", baremetalProvisioningConfig),
-				buildEnvVar("DEPLOY_RAMDISK_URL", baremetalProvisioningConfig),
-				buildEnvVar("IRONIC_ENDPOINT", baremetalProvisioningConfig),
-				buildEnvVar("IRONIC_INSPECTOR_ENDPOINT", baremetalProvisioningConfig),
-				{
-					Name:  "METAL3_AUTH_ROOT_DIR",
-					Value: metal3AuthRootDir,
-				},
+			},
+			{
+				Name:  "OPERATOR_NAME",
+				Value: "baremetal-operator",
+			},
+			buildEnvVar("DEPLOY_KERNEL_URL", baremetalProvisioningConfig),
+			buildEnvVar("DEPLOY_RAMDISK_URL", baremetalProvisioningConfig),
+			buildEnvVar("IRONIC_ENDPOINT", baremetalProvisioningConfig),
+			buildEnvVar("IRONIC_INSPECTOR_ENDPOINT", baremetalProvisioningConfig),
+			{
+				Name:  "METAL3_AUTH_ROOT_DIR",
+				Value: metal3AuthRootDir,
 			},
 		},
+	}
+}
+
+func newMetal3Containers(config *OperatorConfig, baremetalProvisioningConfig BaremetalProvisioningConfig) []corev1.Container {
+	containers := []corev1.Container{
+		newKubeProxyContainer(config.Controllers.KubeRBACProxy, "metal3-mtrc",
+			metrics.DefaultMetal3MetricsAddress, metal3ExposeMetricsPort),
+		createContainerMetal3BareMetalOperator(config, baremetalProvisioningConfig),
+		createContainerMetal3Mariadb(config),
+		createContainerMetal3Httpd(config, baremetalProvisioningConfig),
+		createContainerMetal3IronicConductor(config, baremetalProvisioningConfig),
+		createContainerMetal3IronicApi(config, baremetalProvisioningConfig),
+		createContainerMetal3IronicInspector(config, baremetalProvisioningConfig),
+		createContainerMetal3StaticIpManager(config, baremetalProvisioningConfig),
 	}
 	if baremetalProvisioningConfig.ProvisioningNetwork != provisioningNetworkDisabled {
 		containers = append(containers, createContainerMetal3Dnsmasq(config, baremetalProvisioningConfig))
 	}
-	containers = append(containers, createContainerMetal3Mariadb(config))
-	containers = append(containers, createContainerMetal3Httpd(config, baremetalProvisioningConfig))
-	containers = append(containers, createContainerMetal3IronicConductor(config, baremetalProvisioningConfig))
-	containers = append(containers, createContainerMetal3IronicApi(config, baremetalProvisioningConfig))
-	containers = append(containers, createContainerMetal3IronicInspector(config, baremetalProvisioningConfig))
-	containers = append(containers, createContainerMetal3StaticIpManager(config, baremetalProvisioningConfig))
+
 	return containers
 }
 
