@@ -65,7 +65,12 @@ machineset:
 	$(DOCKER_CMD) ./hack/go-build.sh machineset
 
 .PHONY: generate
-generate: gen-crd update-codegen
+generate: gen-crd gogen update-codegen goimports
+	./hack/verify-diff.sh
+
+.PHONY: gogen
+gogen:
+	./hack/go-gen.sh
 
 .PHONY: gen-crd
 gen-crd:
