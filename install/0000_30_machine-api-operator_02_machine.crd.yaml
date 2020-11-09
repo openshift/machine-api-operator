@@ -56,7 +56,7 @@ spec:
     name: v1beta1
     schema:
       openAPIV3Schema:
-        description: / [Machine] Machine is the Schema for the machines API
+        description: Machine is the Schema for the machines API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation of an object. Servers should convert recognized schemas to the latest internal value, and may reject unrecognized values. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources'
@@ -67,7 +67,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: / [MachineSpec] MachineSpec defines the desired state of Machine
+            description: MachineSpec defines the desired state of Machine
             properties:
               metadata:
                 description: ObjectMeta will autopopulate the Node created. Use this to indicate what labels, annotations, name prefix, etc., should be used when creating the Node.
@@ -158,7 +158,7 @@ spec:
                 type: array
             type: object
           status:
-            description: / [MachineStatus] MachineStatus defines the observed state of Machine
+            description: MachineStatus defines the observed state of Machine
             properties:
               addresses:
                 description: Addresses is a list of addresses assigned to the machine. Queried from cloud provider, if available.
