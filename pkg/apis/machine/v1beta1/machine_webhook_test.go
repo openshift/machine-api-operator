@@ -26,6 +26,15 @@ import (
 	yaml "sigs.k8s.io/yaml"
 )
 
+var (
+	plainDNS   = &osconfigv1.DNS{Spec: osconfigv1.DNSSpec{}}
+	plainInfra = &osconfigv1.Infrastructure{
+		Status: osconfigv1.InfrastructureStatus{
+			PlatformStatus: &osconfigv1.PlatformStatus{},
+		},
+	}
+)
+
 func TestMachineCreation(t *testing.T) {
 	g := NewWithT(t)
 
@@ -53,6 +62,7 @@ func TestMachineCreation(t *testing.T) {
 		clusterID         string
 		presetClusterID   bool
 		expectedError     string
+		disconnected      bool
 		providerSpecValue *runtime.RawExtension
 	}{
 		{
@@ -112,6 +122,34 @@ func TestMachineCreation(t *testing.T) {
 				},
 			},
 			expectedError: "",
+		},
+		{
+			name:         "with Azure disconnected installation request public IP",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &runtime.RawExtension{
+				Object: &azure.AzureMachineProviderSpec{
+					OSDisk: azure.OSDisk{
+						DiskSizeGB: 128,
+					},
+					PublicIP: true,
+				},
+			},
+			disconnected:  true,
+			expectedError: "providerSpec.publicIP: Forbidden: publicIP is not allowed in Azure disconnected installation",
+		},
+		{
+			name:         "with Azure disconnected installation success",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &runtime.RawExtension{
+				Object: &azure.AzureMachineProviderSpec{
+					OSDisk: azure.OSDisk{
+						DiskSizeGB: 128,
+					},
+				},
+			},
+			disconnected: true,
 		},
 		{
 			name:              "with GCP and a nil provider spec value",
@@ -202,9 +240,16 @@ func TestMachineCreation(t *testing.T) {
 					Region: "region",
 				},
 			}
+			infra := plainInfra.DeepCopy()
+			infra.Status.InfrastructureName = tc.clusterID
+			infra.Status.PlatformStatus = platformStatus
 
+			dns := plainDNS.DeepCopy()
+			if !tc.disconnected {
+				dns.Spec.PublicZone = &osconfigv1.DNSZone{}
+			}
 			machineDefaulter := createMachineDefaulter(platformStatus, tc.clusterID)
-			machineValidator := createMachineValidator(platformStatus.Type, tc.clusterID)
+			machineValidator := createMachineValidator(infra, dns)
 			mgr.GetWebhookServer().Register(DefaultMachineMutatingHookPath, &webhook.Admission{Handler: machineDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineValidatingHookPath, &webhook.Admission{Handler: machineValidator})
 
@@ -674,8 +719,14 @@ func TestMachineUpdate(t *testing.T) {
 				},
 			}
 
+			infra := &osconfigv1.Infrastructure{
+				Status: osconfigv1.InfrastructureStatus{
+					InfrastructureName: tc.clusterID,
+					PlatformStatus:     platformStatus,
+				},
+			}
 			machineDefaulter := createMachineDefaulter(platformStatus, tc.clusterID)
-			machineValidator := createMachineValidator(platformStatus.Type, tc.clusterID)
+			machineValidator := createMachineValidator(infra, plainDNS)
 			mgr.GetWebhookServer().Register(DefaultMachineMutatingHookPath, &webhook.Admission{Handler: machineDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineValidatingHookPath, &webhook.Admission{Handler: machineValidator})
 
@@ -813,7 +864,10 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 		},
 	}
 
-	h := createMachineValidator(osconfigv1.AWSPlatformType, "clusterID")
+	infra := plainInfra.DeepCopy()
+	infra.Status.InfrastructureName = "clusterID"
+	infra.Status.PlatformStatus.Type = osconfigv1.AWSPlatformType
+	h := createMachineValidator(infra, plainDNS)
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
@@ -854,7 +908,7 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
 
-			ok, warnings, err := h.webhookOperations(m, h.clusterID)
+			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -928,7 +982,7 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
 
-			ok, warnings, err := h.webhookOperations(m, h.clusterID)
+			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -1138,7 +1192,10 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 		},
 	}
 
-	h := createMachineValidator(osconfigv1.AzurePlatformType, "clusterID")
+	infra := plainInfra.DeepCopy()
+	infra.Status.InfrastructureName = "clusterID"
+	infra.Status.PlatformStatus.Type = osconfigv1.AzurePlatformType
+	h := createMachineValidator(infra, plainDNS)
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
@@ -1170,7 +1227,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
 
-			ok, warnings, err := h.webhookOperations(m, h.clusterID)
+			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -1319,7 +1376,7 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
 
-			ok, warnings, err := h.webhookOperations(m, h.clusterID)
+			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -1558,7 +1615,10 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 		},
 	}
 
-	h := createMachineValidator(osconfigv1.GCPPlatformType, "clusterID")
+	infra := plainInfra.DeepCopy()
+	infra.Status.InfrastructureName = "clusterID"
+	infra.Status.PlatformStatus.Type = osconfigv1.GCPPlatformType
+	h := createMachineValidator(infra, plainDNS)
 
 	for _, tc := range testCases {
 		providerSpec := &gcp.GCPMachineProviderSpec{
@@ -1602,7 +1662,7 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
 
-			ok, warnings, err := h.webhookOperations(m, h.clusterID)
+			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -1715,7 +1775,7 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
 
-			ok, warnings, err := h.webhookOperations(m, h.clusterID)
+			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -1894,7 +1954,10 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 		},
 	}
 
-	h := createMachineValidator(osconfigv1.VSpherePlatformType, "clusterID")
+	infra := plainInfra.DeepCopy()
+	infra.Status.InfrastructureName = "clusterID"
+	infra.Status.PlatformStatus.Type = osconfigv1.VSpherePlatformType
+	h := createMachineValidator(infra, plainDNS)
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
@@ -1932,7 +1995,7 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
 
-			ok, warnings, err := h.webhookOperations(m, h.clusterID)
+			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -1997,7 +2060,7 @@ func TestDefaultVSphereProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
 
-			ok, warnings, err := h.webhookOperations(m, h.clusterID)
+			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
