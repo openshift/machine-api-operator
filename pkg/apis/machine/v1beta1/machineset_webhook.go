@@ -66,7 +66,7 @@ func NewMachineSetDefaulter() (*machineSetDefaulterHandler, error) {
 func createMachineSetDefaulter(platformStatus *osconfigv1.PlatformStatus, clusterID string) *machineSetDefaulterHandler {
 	return &machineSetDefaulterHandler{
 		admissionHandler: &admissionHandler{
-			clusterID:         clusterID,
+			admissionConfig:   &admissionConfig{clusterID: clusterID},
 			webhookOperations: getMachineDefaulterOperation(platformStatus),
 		},
 	}
@@ -117,7 +117,7 @@ func (h *machineSetValidatorHandler) validateMachineSet(ms *MachineSet) (bool, [
 
 	// Create a Machine from the MachineSet and validate the Machine template
 	m := &Machine{Spec: ms.Spec.Template.Spec}
-	ok, warnings, err := h.webhookOperations(m, h.clusterID)
+	ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
 	if !ok {
 		errs = append(errs, err.Errors()...)
 	}
@@ -131,7 +131,7 @@ func (h *machineSetValidatorHandler) validateMachineSet(ms *MachineSet) (bool, [
 func (h *machineSetDefaulterHandler) defaultMachineSet(ms *MachineSet) (bool, []string, utilerrors.Aggregate) {
 	// Create a Machine from the MachineSet and default the Machine template
 	m := &Machine{Spec: ms.Spec.Template.Spec}
-	ok, warnings, err := h.webhookOperations(m, h.clusterID)
+	ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
 	if !ok {
 		return false, warnings, utilerrors.NewAggregate(err.Errors())
 	}
