@@ -194,6 +194,7 @@ rules:
     - config.openshift.io
     resources:
     - infrastructures
+    - dnses
     verbs:
     - get
     - list
