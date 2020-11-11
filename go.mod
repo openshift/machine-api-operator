@@ -13,7 +13,6 @@ require (
 	github.com/imdario/mergo v0.3.8 // indirect
 	github.com/openshift/api v0.0.0-20200210091934-a0e53e94816b
 	github.com/openshift/client-go v0.0.0-20200116152001-92a2713fa240
-	github.com/openshift/cluster-version-operator v3.11.1-0.20190629164025-08cac1c02538+incompatible
 	github.com/openshift/library-go v0.0.0-00010101000000-000000000000
 	github.com/operator-framework/operator-sdk v0.5.1-0.20190301204940-c2efe6f74e7b
 	github.com/pkg/errors v0.8.1
@@ -24,10 +23,8 @@ require (
 	github.com/stretchr/testify v1.4.0
 	github.com/vmware/govmomi v0.21.0
 	go.uber.org/atomic v1.4.0 // indirect
-	go.uber.org/zap v1.10.0 // indirect
 	golang.org/x/net v0.0.0-20200202094626-16171245cfb2
 	golang.org/x/sys v0.0.0-20190911201528-7ad0cfa0b7b5 // indirect
-	golang.org/x/time v0.0.0-20190308202827-9d24e82272b4 // indirect
 	gonum.org/v1/gonum v0.0.0-20190915125329-975d99cd20a9 // indirect
 	google.golang.org/appengine v1.6.1 // indirect
 	gopkg.in/check.v1 v1.0.0-20190902080502-41f04d3bba15 // indirect
