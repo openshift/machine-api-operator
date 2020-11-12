@@ -43,6 +43,8 @@ const (
 	kubeRBACConfigName                  = "config"
 	certStoreName                       = "machine-api-controllers-tls"
 	externalTrustBundleConfigMapName    = "mao-trusted-ca"
+	hostKubeConfigPath                  = "/var/lib/kubelet/kubeconfig"
+	hostKubePKIPath                     = "/var/lib/kubelet/pki"
 )
 
 func (optr *Operator) syncAll(config *OperatorConfig) error {
@@ -809,6 +811,24 @@ func newTerminationPodTemplateSpec(config *OperatorConfig) *corev1.PodTemplateSp
 			NodeSelector:       map[string]string{machinecontroller.MachineInterruptibleInstanceLabelName: ""},
 			ServiceAccountName: machineAPITerminationHandler,
 			HostNetwork:        true,
+			Volumes: []corev1.Volume{
+				{
+					Name: "kubeconfig",
+					VolumeSource: corev1.VolumeSource{
+						HostPath: &corev1.HostPathVolumeSource{
+							Path: hostKubeConfigPath,
+						},
+					},
+				},
+				{
+					Name: "pki",
+					VolumeSource: corev1.VolumeSource{
+						HostPath: &corev1.HostPathVolumeSource{
+							Path: hostKubePKIPath,
+						},
+					},
+				},
+			},
 		},
 	}
 }
@@ -836,12 +856,28 @@ func newTerminationContainers(config *OperatorConfig) []corev1.Container {
 			Resources: resources,
 			Env: []corev1.EnvVar{
 				{
+					Name:  "KUBECONFIG",
+					Value: hostKubeConfigPath,
+				},
+				{
 					Name: "NODE_NAME",
 					ValueFrom: &corev1.EnvVarSource{
 						FieldRef: &corev1.ObjectFieldSelector{
 							FieldPath: "spec.nodeName",
 						},
 					},
+				},
+			},
+			VolumeMounts: []corev1.VolumeMount{
+				{
+					Name:      "kubeconfig",
+					MountPath: hostKubeConfigPath,
+					ReadOnly:  true,
+				},
+				{
+					Name:      "pki",
+					MountPath: hostKubePKIPath,
+					ReadOnly:  true,
 				},
 			},
 		},

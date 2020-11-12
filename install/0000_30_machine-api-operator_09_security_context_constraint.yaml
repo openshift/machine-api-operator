@@ -1,0 +1,36 @@
+---
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  annotations:
+    kubernetes.io/description: 'machine-api-termination-handler allows the
+      machine-api-termination-handler service account to run as root, access host
+      paths and access the host network. This SCC is limited and should not be used
+      for any other service.'
+  name: machine-api-termination-handler
+allowHostDirVolumePlugin: true
+allowHostNetwork: true
+allowHostIPC: false
+allowHostPorts: false
+allowHostPID: false
+allowPrivilegedContainer: false
+readOnlyRootFilesystem: false
+requiredDropCapabilities:
+- KILL
+- MKNOD
+- SETUID
+- SETGID
+fsGroup:
+  type: MustRunAs
+runAsUser:
+  type: RunAsAny
+seLinuxContext:
+  type: MustRunAs
+supplementalGroups:
+  type: MustRunAs
+users:
+- system:serviceaccount:openshift-machine-api:machine-api-termination-handler
+groups: []
+volumes:
+- downwardAPI
+- hostPath
