@@ -11,10 +11,9 @@ import (
 )
 
 const (
-	DefaultHealthCheckMetricsAddress = ":8083"
-	DefaultMachineSetMetricsAddress  = ":8082"
-	DefaultMachineMetricsAddress     = ":8081"
-	DefaultMetal3MetricsAddress      = ":60000"
+	DefaultMachineSetMetricsAddress = ":8082"
+	DefaultMachineMetricsAddress    = ":8081"
+	DefaultMetal3MetricsAddress     = ":60000"
 )
 
 var (

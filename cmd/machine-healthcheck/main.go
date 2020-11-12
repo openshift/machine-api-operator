@@ -124,6 +124,9 @@ func main() {
 		klog.Fatal(err)
 	}
 
+	// Register the MHC specific metrics
+	metrics.InitializeMachineHealthCheckMetrics()
+
 	klog.Info("Starting the Cmd.")
 
 	// Start the Cmd
