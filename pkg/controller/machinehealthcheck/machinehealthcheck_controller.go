@@ -541,6 +541,8 @@ func (t *target) remediate(r *ReconcileMachineHealthCheck) error {
 		"Machine %v has been remediated by requesting to delete Machine object",
 		t.string(),
 	)
+	metrics.ObserveMachineHealthCheckRemediationSuccess(t.MHC.Name, t.MHC.Namespace)
+
 	return nil
 }
 

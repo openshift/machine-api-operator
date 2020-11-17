@@ -32,10 +32,21 @@ var (
 			Help: "Number of nodes covered by MachineHealthChecks",
 		}, []string{"name", "namespace"},
 	)
+
+	// MachineHealthCheckRemediationSuccessTotal is a Prometheus metric, which reports the number of successful remediations by MachineHealthChecks
+	MachineHealthCheckRemediationSuccessTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "mapi_machinehealthcheck_remediation_success_total",
+			Help: "Number of successful remediations performed by MachineHealthChecks",
+		}, []string{"name", "namespace"},
+	)
 )
 
 func InitializeMachineHealthCheckMetrics() {
-	metrics.Registry.MustRegister(MachineHealthCheckNodesCovered)
+	metrics.Registry.MustRegister(
+		MachineHealthCheckNodesCovered,
+		MachineHealthCheckRemediationSuccessTotal,
+	)
 }
 
 func DeleteMachineHealthCheckNodesCovered(name string, namespace string) {
@@ -50,4 +61,11 @@ func ObserveMachineHealthCheckNodesCovered(name string, namespace string, count 
 		"name":      name,
 		"namespace": namespace,
 	}).Set(float64(count))
+}
+
+func ObserveMachineHealthCheckRemediationSuccess(name string, namespace string) {
+	MachineHealthCheckRemediationSuccessTotal.With(prometheus.Labels{
+		"name":      name,
+		"namespace": namespace,
+	}).Inc()
 }
