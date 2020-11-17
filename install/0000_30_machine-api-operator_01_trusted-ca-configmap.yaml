@@ -2,6 +2,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   annotations:
+    include.release.openshift.io/ibm-cloud-managed: "true"
     include.release.openshift.io/self-managed-high-availability: "true"
     release.openshift.io/create-only: "true"
   labels:
