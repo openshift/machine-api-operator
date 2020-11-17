@@ -663,6 +663,11 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 					Name:      "cert",
 					ReadOnly:  true,
 				},
+				{
+					MountPath: "/etc/pki/ca-trust/extracted/pem",
+					Name:      "trusted-ca",
+					ReadOnly:  true,
+				},
 			},
 		},
 		{
@@ -714,6 +719,13 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 			Args:      args,
 			Env:       proxyEnvArgs,
 			Resources: resources,
+			VolumeMounts: []corev1.VolumeMount{
+				{
+					MountPath: "/etc/pki/ca-trust/extracted/pem",
+					Name:      "trusted-ca",
+					ReadOnly:  true,
+				},
+			},
 		},
 		{
 			Name:      "machine-healthcheck-controller",
@@ -742,6 +754,13 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 						Path: "/readyz",
 						Port: intstr.Parse("healthz"),
 					},
+				},
+			},
+			VolumeMounts: []corev1.VolumeMount{
+				{
+					MountPath: "/etc/pki/ca-trust/extracted/pem",
+					Name:      "trusted-ca",
+					ReadOnly:  true,
 				},
 			},
 		},
@@ -858,6 +877,18 @@ func newTerminationPodTemplateSpec(config *OperatorConfig) *corev1.PodTemplateSp
 						},
 					},
 				},
+				{
+					Name: "trusted-ca",
+					VolumeSource: corev1.VolumeSource{
+						ConfigMap: &corev1.ConfigMapVolumeSource{
+							Items: []corev1.KeyToPath{{Key: "ca-bundle.crt", Path: "tls-ca-bundle.pem"}},
+							LocalObjectReference: corev1.LocalObjectReference{
+								Name: externalTrustBundleConfigMapName,
+							},
+							Optional: pointer.BoolPtr(true),
+						},
+					},
+				},
 			},
 		},
 	}
@@ -907,6 +938,11 @@ func newTerminationContainers(config *OperatorConfig) []corev1.Container {
 				{
 					Name:      "pki",
 					MountPath: hostKubePKIPath,
+					ReadOnly:  true,
+				},
+				{
+					MountPath: "/etc/pki/ca-trust/extracted/pem",
+					Name:      "trusted-ca",
 					ReadOnly:  true,
 				},
 			},
