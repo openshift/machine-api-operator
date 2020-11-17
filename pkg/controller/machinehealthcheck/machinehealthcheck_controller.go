@@ -222,6 +222,7 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 			unhealthyCount,
 			mhc.Spec.MaxUnhealthy,
 		)
+		metrics.ObserveMachineHealthCheckShortCircuitEnabled(mhc.Name, mhc.Namespace)
 		return reconcile.Result{Requeue: true}, nil
 	}
 	klog.V(3).Infof("Remediations are allowed for %s: total targets: %v,  max unhealthy: %v, unhealthy targets: %v",
@@ -230,6 +231,8 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 		mhc.Spec.MaxUnhealthy,
 		unhealthyCount,
 	)
+	metrics.ObserveMachineHealthCheckShortCircuitDisabled(mhc.Name, mhc.Namespace)
+
 	conditions.MarkTrue(mhc, mapiv1.RemediationAllowedCondition)
 	if err := r.reconcileStatus(mergeBase, mhc); err != nil {
 		klog.Errorf("Reconciling %s: error patching status: %v", request.String(), err)
