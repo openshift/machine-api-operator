@@ -119,4 +119,46 @@ type MachineHealthCheckStatus struct {
 
 	// Conditions defines the current state of the MachineHealthCheck
 	Conditions Conditions `json:"conditions,omitempty"`
+
+	// History of remediations triggered by this machine health check
+	RemediationHistory []Remediation `json:"remediationHistory,omitempty"`
+}
+
+// Remediation tracks a remediation triggered by this machine health check
+type Remediation struct {
+	// the kind of the remediation target, usually node or machine
+	// +kubebuilder:validation:Type=string
+	TargetKind string `json:"targetKind"`
+
+	// the name of the machine or node which is remediated
+	// +kubebuilder:validation:Type=string
+	TargetName string `json:"targetName"`
+
+	// the condition type which triggered this remediation
+	// +kubebuilder:validation:Type=string
+	ConditionType *corev1.NodeConditionType `json:"conditionType,omitempty"`
+
+	// the condition status which triggered this remediation
+	// +kubebuilder:validation:Type=string
+	ConditionStatus *corev1.ConditionStatus `json:"conditionStatus,omitempty"`
+
+	// the reason for the remediation if not a condition
+	// +kubebuilder:validation:Type=string
+	Reason string `json:"reason,omitempty"`
+
+	// the time when the unhealthy condition was detected
+	Detected *metav1.Time `json:"detected"`
+
+	// the time when remediation started
+	Started *metav1.Time `json:"started,omitempty"`
+
+	// the time when the node is fenced
+	Fenced *metav1.Time `json:"fenced,omitempty"`
+
+	// the time when the machine or node is healthy again
+	Finished *metav1.Time `json:"finished,omitempty"`
+
+	// the type of remediation, e.g. reboot or reprovision
+	// +kubebuilder:validation:Type=string
+	Type string `json:"remediationType,omitempty"`
 }

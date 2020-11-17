@@ -143,17 +143,17 @@ type ReconcileMachineHealthCheck struct {
 }
 
 type target struct {
-	Machine mapiv1.Machine
+	Machine *mapiv1.Machine
 	Node    *corev1.Node
-	MHC     mapiv1.MachineHealthCheck
+	MHC     *mapiv1.MachineHealthCheck
 }
 
 // Reconcile fetch all targets for a MachineHealthCheck request and does health checking for each of them
 func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	klog.Infof("Reconciling %s", request.String())
 
-	mhc := &mapiv1.MachineHealthCheck{}
-	if err := r.client.Get(context.TODO(), request.NamespacedName, mhc); err != nil {
+	mhcOrig := &mapiv1.MachineHealthCheck{}
+	if err := r.client.Get(context.TODO(), request.NamespacedName, mhcOrig); err != nil {
 		if apimachineryerrors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
 			// In the event that this was a deletion, we need to remove the associated metric label
@@ -164,12 +164,11 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 		return reconcile.Result{}, err
 	}
 
-	// Create a base from which the MHC status patch will be calculated
-	mergeBase := client.MergeFrom(mhc.DeepCopy())
+	mhc := mhcOrig.DeepCopy()
 
 	// fetch all targets
 	klog.V(3).Infof("Reconciling %s: finding targets", request.String())
-	targets, err := r.getTargetsFromMHC(*mhc)
+	targets, err := r.getTargetsFromMHC(mhc)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
@@ -208,7 +207,7 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 			Message:  message,
 		})
 
-		if err := r.reconcileStatus(mergeBase, mhc); err != nil {
+		if err := r.reconcileStatus(mhcOrig, mhc); err != nil {
 			klog.Errorf("Reconciling %s: error patching status: %v", request.String(), err)
 			return reconcile.Result{}, err
 		}
@@ -231,10 +230,6 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 		unhealthyCount,
 	)
 	conditions.MarkTrue(mhc, mapiv1.RemediationAllowedCondition)
-	if err := r.reconcileStatus(mergeBase, mhc); err != nil {
-		klog.Errorf("Reconciling %s: error patching status: %v", request.String(), err)
-		return reconcile.Result{}, err
-	}
 
 	// remediate
 	for _, t := range needRemediationTargets {
@@ -243,6 +238,12 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 			klog.Errorf("Reconciling %s: error remediating: %v", t.string(), err)
 			errList = append(errList, err)
 		}
+	}
+
+	// update status
+	if err := r.reconcileStatus(mhcOrig, mhc); err != nil {
+		klog.Errorf("Reconciling %s: error patching status: %v", request.String(), err)
+		errList = append(errList, err)
 	}
 
 	// return values
@@ -302,7 +303,7 @@ func derefInt(i *int) int {
 	return 0
 }
 
-func (r *ReconcileMachineHealthCheck) reconcileStatus(baseToPatch client.Patch, mhc *mapiv1.MachineHealthCheck) error {
+func (r *ReconcileMachineHealthCheck) reconcileStatus(orig, mhc *mapiv1.MachineHealthCheck) error {
 	maxUnhealthy, err := getMaxUnhealthy(mhc)
 	if err != nil {
 		return fmt.Errorf("failed to get value for maxUnhealthy: %v", err)
@@ -312,6 +313,7 @@ func (r *ReconcileMachineHealthCheck) reconcileStatus(baseToPatch client.Patch, 
 		mhc.Status.RemediationsAllowed = 0
 	}
 
+	baseToPatch := client.MergeFrom(orig)
 	if err := r.client.Status().Patch(context.Background(), mhc, baseToPatch); err != nil {
 		return err
 	}
@@ -342,7 +344,7 @@ func (r *ReconcileMachineHealthCheck) healthCheckTargets(targets []target, timeo
 		if nextCheck > 0 {
 			klog.V(3).Infof("Reconciling %s: is likely to go unhealthy in %v", t.string(), nextCheck)
 			r.recorder.Eventf(
-				&t.Machine,
+				t.Machine,
 				corev1.EventTypeNormal,
 				EventDetectedUnhealthy,
 				"Machine %v has unhealthy node %v",
@@ -360,8 +362,8 @@ func (r *ReconcileMachineHealthCheck) healthCheckTargets(targets []target, timeo
 	return currentHealthy, needRemediationTargets, nextCheckTimes, errList
 }
 
-func (r *ReconcileMachineHealthCheck) getTargetsFromMHC(mhc mapiv1.MachineHealthCheck) ([]target, error) {
-	machines, err := r.getMachinesFromMHC(mhc)
+func (r *ReconcileMachineHealthCheck) getTargetsFromMHC(mhc *mapiv1.MachineHealthCheck) ([]target, error) {
+	machines, err := r.getMachinesFromMHC(*mhc)
 	if err != nil {
 		return nil, fmt.Errorf("error getting machines from MHC: %v", err)
 	}
@@ -373,7 +375,7 @@ func (r *ReconcileMachineHealthCheck) getTargetsFromMHC(mhc mapiv1.MachineHealth
 	for k := range machines {
 		target := target{
 			MHC:     mhc,
-			Machine: machines[k],
+			Machine: &machines[k],
 		}
 		node, err := r.getNodeFromMachine(machines[k])
 		if err != nil {
@@ -497,7 +499,7 @@ func (t *target) remediate(r *ReconcileMachineHealthCheck) error {
 
 	if !t.hasControllerOwner() {
 		r.recorder.Eventf(
-			&t.Machine,
+			t.Machine,
 			corev1.EventTypeNormal,
 			EventSkippedNoController,
 			"Machine %v has no controller owner, skipping remediation",
@@ -523,9 +525,9 @@ func (t *target) remediate(r *ReconcileMachineHealthCheck) error {
 	}
 
 	klog.Infof("%s: deleting", t.string())
-	if err := r.client.Delete(context.TODO(), &t.Machine); err != nil {
+	if err := r.client.Delete(context.TODO(), t.Machine); err != nil {
 		r.recorder.Eventf(
-			&t.Machine,
+			t.Machine,
 			corev1.EventTypeWarning,
 			EventMachineDeletionFailed,
 			"Machine %v remediation failed: unable to delete Machine object: %v",
@@ -535,13 +537,14 @@ func (t *target) remediate(r *ReconcileMachineHealthCheck) error {
 		return fmt.Errorf("%s: failed to delete machine: %v", t.string(), err)
 	}
 	r.recorder.Eventf(
-		&t.Machine,
+		t.Machine,
 		corev1.EventTypeNormal,
 		EventMachineDeleted,
 		"Machine %v has been remediated by requesting to delete Machine object",
 		t.string(),
 	)
 	metrics.ObserveMachineHealthCheckRemediationSuccess(t.MHC.Name, t.MHC.Namespace)
+	t.remediationStarted("machineDeleted")
 
 	return nil
 }
@@ -558,9 +561,9 @@ func (t *target) remediationStrategyExternal(r *ReconcileMachineHealthCheck) err
 
 	klog.Infof("Machine %s has been unhealthy for too long, adding external annotation", t.Machine.Name)
 	t.Machine.Annotations[machineExternalAnnotationKey] = ""
-	if err := r.client.Update(context.TODO(), &t.Machine); err != nil {
+	if err := r.client.Update(context.TODO(), t.Machine); err != nil {
 		r.recorder.Eventf(
-			&t.Machine,
+			t.Machine,
 			corev1.EventTypeWarning,
 			EventExternalAnnotationFailed,
 			"Requesting external remediation of node associated with machine %v failed: %v",
@@ -570,12 +573,13 @@ func (t *target) remediationStrategyExternal(r *ReconcileMachineHealthCheck) err
 		return err
 	}
 	r.recorder.Eventf(
-		&t.Machine,
+		t.Machine,
 		corev1.EventTypeNormal,
 		EventExternalAnnotationAdded,
 		"Requesting external remediation of node associated with machine %v",
 		t.string(),
 	)
+	t.remediationStarted("external")
 	return nil
 }
 
@@ -616,6 +620,7 @@ func (t *target) needsRemediation(timeoutForMachineToHaveNode time.Duration) (bo
 	// machine has failed
 	if derefStringPointer(t.Machine.Status.Phase) == machinePhaseFailed {
 		klog.V(3).Infof("%s: unhealthy: machine phase is %q", t.string(), machinePhaseFailed)
+		t.unhealthyMachineDetected("machine is failed")
 		return true, time.Duration(0), nil
 	}
 
@@ -627,6 +632,7 @@ func (t *target) needsRemediation(timeoutForMachineToHaveNode time.Duration) (bo
 		}
 		if t.Machine.Status.LastUpdated.Add(timeoutForMachineToHaveNode).Before(now) {
 			klog.V(3).Infof("%s: unhealthy: machine has no node after %v", t.string(), timeoutForMachineToHaveNode)
+			t.unhealthyMachineDetected("machine has no node")
 			return true, time.Duration(0), nil
 		}
 		durationUnhealthy := now.Sub(t.Machine.Status.LastUpdated.Time)
@@ -636,10 +642,15 @@ func (t *target) needsRemediation(timeoutForMachineToHaveNode time.Duration) (bo
 
 	// the node does not exist
 	if t.Node != nil && t.Node.UID == "" {
+		t.missingNodeDetected()
 		return true, time.Duration(0), nil
 	}
 
+	// machine is ok, remove from history
+	t.healthyMachineDetected()
+
 	// check conditions
+	needsRemediation := false
 	for _, c := range t.MHC.Spec.UnhealthyConditions {
 		now := time.Now()
 		nodeCondition := conditions.GetNodeCondition(t.Node, c.Type)
@@ -647,14 +658,20 @@ func (t *target) needsRemediation(timeoutForMachineToHaveNode time.Duration) (bo
 		// Skip when current node condition is different from the one reported
 		// in the MachineHealthCheck.
 		if nodeCondition == nil || nodeCondition.Status != c.Status {
+			t.healthyConditionDetected(&c.Type, &c.Status)
 			continue
 		}
+
+		// Track unhealthy condition immediately
+		t.unhealthyConditionDetected(&c.Type, &c.Status)
 
 		// If the condition has been in the unhealthy state for longer than the
 		// timeout, return true with no requeue time.
 		if nodeCondition.LastTransitionTime.Add(c.Timeout.Duration).Before(now) {
 			klog.V(3).Infof("%s: unhealthy: condition %v in state %v longer than %v", t.string(), c.Type, c.Status, c.Timeout)
-			return true, time.Duration(0), nil
+			needsRemediation = true
+			nextCheckTimes = append(nextCheckTimes, time.Duration(0))
+			continue
 		}
 
 		durationUnhealthy := now.Sub(nodeCondition.LastTransitionTime.Time)
@@ -663,11 +680,11 @@ func (t *target) needsRemediation(timeoutForMachineToHaveNode time.Duration) (bo
 			nextCheckTimes = append(nextCheckTimes, nextCheck)
 		}
 	}
-	return false, minDuration(nextCheckTimes), nil
+	return needsRemediation, minDuration(nextCheckTimes), nil
 }
 
 func (t *target) hasControllerOwner() bool {
-	return metav1.GetControllerOf(&t.Machine) != nil
+	return metav1.GetControllerOf(t.Machine) != nil
 }
 
 func derefStringPointer(stringPointer *string) string {

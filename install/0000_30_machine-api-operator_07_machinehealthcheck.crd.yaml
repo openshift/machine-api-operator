@@ -159,6 +159,51 @@ spec:
                 description: total number of machines counted by this machine health check
                 minimum: 0
                 type: integer
+              remediationHistory:
+                description: History of remediations triggered by this machine health check
+                items:
+                  description: Remediation tracks a remediation triggered by this machine health check
+                  properties:
+                    conditionStatus:
+                      description: the condition status which triggered this remediation
+                      type: string
+                    conditionType:
+                      description: the condition type which triggered this remediation
+                      type: string
+                    detected:
+                      description: the time when the unhealthy condition was detected
+                      format: date-time
+                      type: string
+                    fenced:
+                      description: the time when the node is fenced
+                      format: date-time
+                      type: string
+                    finished:
+                      description: the time when the machine or node is healthy again
+                      format: date-time
+                      type: string
+                    reason:
+                      description: the reason for the remediation if not a condition
+                      type: string
+                    remediationType:
+                      description: the type of remediation, e.g. reboot or reprovision
+                      type: string
+                    started:
+                      description: the time when remediation started
+                      format: date-time
+                      type: string
+                    targetKind:
+                      description: the kind of the remediation target, usually node or machine
+                      type: string
+                    targetName:
+                      description: the name of the machine or node which is remediated
+                      type: string
+                  required:
+                  - detected
+                  - targetKind
+                  - targetName
+                  type: object
+                type: array
               remediationsAllowed:
                 description: RemediationsAllowed is the number of further remediations allowed by this machine health check before maxUnhealthy short circuiting will be applied
                 format: int32
