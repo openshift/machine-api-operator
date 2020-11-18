@@ -70,6 +70,11 @@ func (r *Reconciler) create() error {
 		klog.Infof("%v: cloning", r.machine.GetName())
 		task, err := clone(r.machineScope)
 		if err != nil {
+			metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
+				Name:      r.machine.Name,
+				Namespace: r.machine.Namespace,
+				Reason:    "Clone task finished with error",
+			})
 			conditionFailed := conditionFailed()
 			conditionFailed.Message = err.Error()
 			statusError := setProviderStatus(task, conditionFailed, r.machineScope, nil)
@@ -83,6 +88,11 @@ func (r *Reconciler) create() error {
 
 	moTask, err := r.session.GetTask(r.Context, r.providerStatus.TaskRef)
 	if err != nil {
+		metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
+			Name:      r.machine.Name,
+			Namespace: r.machine.Namespace,
+			Reason:    "GetTask finished with error",
+		})
 		return err
 	}
 
@@ -92,21 +102,15 @@ func (r *Reconciler) create() error {
 		return fmt.Errorf("Unexpected moTask nil")
 	}
 
-	// TODO: this should be handled on the machine-controller side, we should
-	// pass an specific error type for this case.
-	// TODO: this should probably be terminal and we should set failed.
-	if moTask.Info.State == types.TaskInfoStateError {
+	if taskIsFinished, err := taskIsFinished(moTask); err != nil {
 		metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
 			Name:      r.machine.Name,
 			Namespace: r.machine.Namespace,
-			Reason:    fmt.Sprintf("Create machine task finished with error: %+v", moTask.Info.Error),
+			Reason:    "Task finished with error",
 		})
-	}
-	if taskIsFinished, err := taskIsFinished(moTask); err != nil || !taskIsFinished {
-		if !taskIsFinished {
-			return fmt.Errorf("task %v has not finished", moTask.Reference().Value)
-		}
 		return err
+	} else if !taskIsFinished {
+		return fmt.Errorf("task %v has not finished", moTask.Reference().Value)
 	}
 	// If taskIsFinished then next reconcile should result in update.
 	return nil
@@ -122,28 +126,35 @@ func (r *Reconciler) update() error {
 		moTask, err := r.session.GetTask(r.Context, r.providerStatus.TaskRef)
 		if err != nil {
 			if !isRetrieveMONotFound(r.providerStatus.TaskRef, err) {
+				metrics.RegisterFailedInstanceUpdate(&metrics.MachineLabels{
+					Name:      r.machine.Name,
+					Namespace: r.machine.Namespace,
+					Reason:    "GetTask finished with error",
+				})
 				return err
 			}
 		}
 		if moTask != nil {
-			if moTask.Info.State == types.TaskInfoStateError {
-				metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
+			if taskIsFinished, err := taskIsFinished(moTask); err != nil {
+				metrics.RegisterFailedInstanceUpdate(&metrics.MachineLabels{
 					Name:      r.machine.Name,
 					Namespace: r.machine.Namespace,
-					Reason:    fmt.Sprintf("Update machine task finished with error: %+v", moTask.Info.Error),
+					Reason:    "Task finished with error",
 				})
-			}
-			if taskIsFinished, err := taskIsFinished(moTask); err != nil || !taskIsFinished {
-				if !taskIsFinished {
-					return fmt.Errorf("task %v has not finished", moTask.Reference().Value)
-				}
 				return err
+			} else if !taskIsFinished {
+				return fmt.Errorf("task %v has not finished", moTask.Reference().Value)
 			}
 		}
 	}
 
 	vmRef, err := findVM(r.machineScope)
 	if err != nil {
+		metrics.RegisterFailedInstanceUpdate(&metrics.MachineLabels{
+			Name:      r.machine.Name,
+			Namespace: r.machine.Namespace,
+			Reason:    "FindVM finished with error",
+		})
 		if !isNotFound(err) {
 			return err
 		}
@@ -157,10 +168,24 @@ func (r *Reconciler) update() error {
 	}
 
 	if err := vm.reconcileTags(r.Context, r.session, r.machine); err != nil {
+		metrics.RegisterFailedInstanceUpdate(&metrics.MachineLabels{
+			Name:      r.machine.Name,
+			Namespace: r.machine.Namespace,
+			Reason:    "ReconcileTags finished with error",
+		})
 		return fmt.Errorf("failed to reconcile tags: %w", err)
 	}
 
-	return r.reconcileMachineWithCloudState(vm, r.providerStatus.TaskRef)
+	if err := r.reconcileMachineWithCloudState(vm, r.providerStatus.TaskRef); err != nil {
+		metrics.RegisterFailedInstanceUpdate(&metrics.MachineLabels{
+			Name:      r.machine.Name,
+			Namespace: r.machine.Namespace,
+			Reason:    "ReconcileWithCloudState finished with error",
+		})
+		return err
+	}
+
+	return nil
 }
 
 // exists returns true if machine exists.
@@ -191,19 +216,15 @@ func (r *Reconciler) delete() error {
 			}
 		}
 		if moTask != nil {
-			if moTask.Info.State == types.TaskInfoStateError {
-				// TODO: this should be DeleteInstance event.
-				metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
+			if taskIsFinished, err := taskIsFinished(moTask); err != nil {
+				metrics.RegisterFailedInstanceDelete(&metrics.MachineLabels{
 					Name:      r.machine.Name,
 					Namespace: r.machine.Namespace,
-					Reason:    fmt.Sprintf("Delete machine task finished with error: %+v", moTask.Info.Error),
+					Reason:    "Task finished with error",
 				})
-			}
-			if taskIsFinished, err := taskIsFinished(moTask); err != nil || !taskIsFinished {
-				if !taskIsFinished {
-					return fmt.Errorf("task %v has not finished", moTask.Reference().Value)
-				}
 				return err
+			} else if !taskIsFinished {
+				return fmt.Errorf("task %v has not finished", moTask.Reference().Value)
 			}
 		}
 	}
@@ -214,7 +235,7 @@ func (r *Reconciler) delete() error {
 			metrics.RegisterFailedInstanceDelete(&metrics.MachineLabels{
 				Name:      r.machine.Name,
 				Namespace: r.machine.Namespace,
-				Reason:    err.Error(),
+				Reason:    "FindVM finished with error",
 			})
 			return err
 		}
@@ -239,7 +260,7 @@ func (r *Reconciler) delete() error {
 		metrics.RegisterFailedInstanceDelete(&metrics.MachineLabels{
 			Name:      r.machine.Name,
 			Namespace: r.machine.Namespace,
-			Reason:    err.Error(),
+			Reason:    "Destroy finished with error",
 		})
 		return fmt.Errorf("%v: failed to destroy vm: %w", r.machine.GetName(), err)
 	}
@@ -304,11 +325,6 @@ func (r *Reconciler) reconcileRegionAndZoneLabels(vm *virtualMachine) error {
 	})
 
 	if err != nil {
-		metrics.RegisterFailedInstanceUpdate(&metrics.MachineLabels{
-			Name:      r.machine.Name,
-			Namespace: r.machine.Namespace,
-			Reason:    err.Error(),
-		})
 		return err
 	}
 
@@ -603,13 +619,7 @@ func clone(s *machineScope) (string, error) {
 
 	task, err := vmTemplate.Clone(s, folder, s.machine.GetName(), spec)
 	if err != nil {
-		err = fmt.Errorf("error triggering clone op for machine %v: %w", s, err)
-		metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
-			Name:      s.machine.Name,
-			Namespace: s.machine.Namespace,
-			Reason:    err.Error(),
-		})
-		return "", err
+		return "", fmt.Errorf("error triggering clone op for machine %v: %w", s, err)
 	}
 	taskVal := task.Reference().Value
 	klog.V(3).Infof("%v: running task: %+v", s.machine.GetName(), taskVal)
@@ -881,11 +891,6 @@ func (vm *virtualMachine) reconcileTags(ctx context.Context, session *session.Se
 			klog.Infof("%v: Attaching %s tag to vm", machine.GetName(), clusterID)
 			// the tag should already be created by installer
 			if err := m.AttachTag(ctx, clusterID, vm.Ref); err != nil {
-				metrics.RegisterFailedInstanceUpdate(&metrics.MachineLabels{
-					Name:      machine.Name,
-					Namespace: machine.Namespace,
-					Reason:    err.Error(),
-				})
 				return err
 			}
 		}

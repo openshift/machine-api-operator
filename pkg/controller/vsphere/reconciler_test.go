@@ -100,7 +100,7 @@ func TestClone(t *testing.T) {
 	machine := object.NewVirtualMachine(session.Client.Client, vm.Reference())
 	devices, err := machine.Device(context.TODO())
 	if err != nil {
-		t.Fatalf("Failed to obtain vm devices: %w", err)
+		t.Fatalf("Failed to obtain vm devices: %+v", err)
 	}
 	disks := devices.SelectByType((*types.VirtualDisk)(nil))
 	if len(disks) < 1 {
