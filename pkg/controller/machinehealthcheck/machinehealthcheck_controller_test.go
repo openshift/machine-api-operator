@@ -2,18 +2,20 @@ package machinehealthcheck
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
+	. "github.com/onsi/gomega"
 	mapiv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
 	maotesting "github.com/openshift/machine-api-operator/pkg/util/testing"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
-	"k8s.io/apimachinery/pkg/api/errors"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -189,6 +191,8 @@ type expectedReconcile struct {
 }
 
 func TestReconcile(t *testing.T) {
+	ctx := context.Background()
+
 	// healthy node
 	nodeHealthy := maotesting.NewNode("healthy", true)
 	nodeHealthy.Annotations = map[string]string{
@@ -250,6 +254,11 @@ func TestReconcile(t *testing.T) {
 	machineAlreadyDeleted := maotesting.NewMachine("machineAlreadyDeleted", nodeAlreadyDeleted.Name)
 	machineAlreadyDeleted.SetDeletionTimestamp(&metav1.Time{Time: time.Now()})
 
+	remediationAllowedCondition := mapiv1beta1.Condition{
+		Type:   mapiv1beta1.RemediationAllowedCondition,
+		Status: corev1.ConditionTrue,
+	}
+
 	testCases := []struct {
 		testCase       string
 		machine        *mapiv1beta1.Machine
@@ -257,6 +266,7 @@ func TestReconcile(t *testing.T) {
 		mhc            *mapiv1beta1.MachineHealthCheck
 		expected       expectedReconcile
 		expectedEvents []string
+		expectedStatus *mapiv1beta1.MachineHealthCheckStatus
 	}{
 		{
 			testCase: "machine unhealthy",
@@ -268,9 +278,17 @@ func TestReconcile(t *testing.T) {
 				error:  false,
 			},
 			expectedEvents: []string{EventMachineDeleted},
+			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+				ExpectedMachines:    IntPtr(1),
+				CurrentHealthy:      IntPtr(0),
+				RemediationsAllowed: 0,
+				Conditions: mapiv1beta1.Conditions{
+					remediationAllowedCondition,
+				},
+			},
 		},
 		{
-			testCase: "machine with node unhealthy",
+			testCase: "machine with node healthy",
 			machine:  machineWithNodeHealthy,
 			node:     nodeHealthy,
 			mhc:      machineHealthCheck,
@@ -279,6 +297,14 @@ func TestReconcile(t *testing.T) {
 				error:  false,
 			},
 			expectedEvents: []string{},
+			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+				ExpectedMachines:    IntPtr(1),
+				CurrentHealthy:      IntPtr(1),
+				RemediationsAllowed: 1,
+				Conditions: mapiv1beta1.Conditions{
+					remediationAllowedCondition,
+				},
+			},
 		},
 		{
 			testCase: "machine with node likely to go unhealthy",
@@ -293,6 +319,14 @@ func TestReconcile(t *testing.T) {
 				error: false,
 			},
 			expectedEvents: []string{EventDetectedUnhealthy},
+			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+				ExpectedMachines:    IntPtr(1),
+				CurrentHealthy:      IntPtr(0),
+				RemediationsAllowed: 0,
+				Conditions: mapiv1beta1.Conditions{
+					remediationAllowedCondition,
+				},
+			},
 		},
 		{
 			testCase: "no target: no machine and bad node annotation",
@@ -304,6 +338,14 @@ func TestReconcile(t *testing.T) {
 				error:  false,
 			},
 			expectedEvents: []string{},
+			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+				ExpectedMachines:    IntPtr(0),
+				CurrentHealthy:      IntPtr(0),
+				RemediationsAllowed: 0,
+				Conditions: mapiv1beta1.Conditions{
+					remediationAllowedCondition,
+				},
+			},
 		},
 		{
 			testCase: "no target: no machine",
@@ -315,6 +357,14 @@ func TestReconcile(t *testing.T) {
 				error:  false,
 			},
 			expectedEvents: []string{},
+			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+				ExpectedMachines:    IntPtr(0),
+				CurrentHealthy:      IntPtr(0),
+				RemediationsAllowed: 0,
+				Conditions: mapiv1beta1.Conditions{
+					remediationAllowedCondition,
+				},
+			},
 		},
 		{
 			testCase: "machine no controller owner",
@@ -326,6 +376,14 @@ func TestReconcile(t *testing.T) {
 				error:  false,
 			},
 			expectedEvents: []string{EventSkippedNoController},
+			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+				ExpectedMachines:    IntPtr(1),
+				CurrentHealthy:      IntPtr(0),
+				RemediationsAllowed: 0,
+				Conditions: mapiv1beta1.Conditions{
+					remediationAllowedCondition,
+				},
+			},
 		},
 		{
 			testCase: "machine no noderef",
@@ -339,6 +397,14 @@ func TestReconcile(t *testing.T) {
 				error: false,
 			},
 			expectedEvents: []string{EventDetectedUnhealthy},
+			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+				ExpectedMachines:    IntPtr(1),
+				CurrentHealthy:      IntPtr(0),
+				RemediationsAllowed: 0,
+				Conditions: mapiv1beta1.Conditions{
+					remediationAllowedCondition,
+				},
+			},
 		},
 		{
 			testCase: "machine already deleted",
@@ -350,6 +416,14 @@ func TestReconcile(t *testing.T) {
 				error:  false,
 			},
 			expectedEvents: []string{},
+			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+				ExpectedMachines:    IntPtr(1),
+				CurrentHealthy:      IntPtr(0),
+				RemediationsAllowed: 0,
+				Conditions: mapiv1beta1.Conditions{
+					remediationAllowedCondition,
+				},
+			},
 		},
 		{
 			testCase: "machine healthy with MHC negative maxUnhealthy",
@@ -361,6 +435,41 @@ func TestReconcile(t *testing.T) {
 				error:  false,
 			},
 			expectedEvents: []string{},
+			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+				ExpectedMachines:    IntPtr(1),
+				CurrentHealthy:      IntPtr(1),
+				RemediationsAllowed: 0,
+				Conditions: mapiv1beta1.Conditions{
+					remediationAllowedCondition,
+				},
+			},
+		},
+		{
+			testCase: "machine unhealthy with MHC negative maxUnhealthy",
+			machine:  machineUnhealthyForTooLong,
+			node:     nodeUnhealthyForTooLong,
+			mhc:      machineHealthCheckNegativeMaxUnhealthy,
+			expected: expectedReconcile{
+				result: reconcile.Result{
+					Requeue: true,
+				},
+				error: false,
+			},
+			expectedEvents: []string{EventRemediationRestricted},
+			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+				ExpectedMachines:    IntPtr(1),
+				CurrentHealthy:      IntPtr(0),
+				RemediationsAllowed: 0,
+				Conditions: mapiv1beta1.Conditions{
+					{
+						Type:     mapiv1beta1.RemediationAllowedCondition,
+						Status:   corev1.ConditionFalse,
+						Severity: mapiv1beta1.ConditionSeverityWarning,
+						Reason:   mapiv1beta1.TooManyUnhealthyReason,
+						Message:  "Remediation is not allowed, the number of not started or unhealthy machines exceeds maxUnhealthy (total: 1, unhealthy: 1, maxUnhealthy: -1)",
+					},
+				},
+			},
 		},
 	}
 
@@ -401,6 +510,13 @@ func TestReconcile(t *testing.T) {
 				} else {
 					t.Errorf("Test case: %s. Expected: %v, got: %v", tc.node.Name, tc.expected.result, result)
 				}
+			}
+
+			if tc.expectedStatus != nil {
+				g := NewWithT(t)
+				mhc := &mapiv1beta1.MachineHealthCheck{}
+				g.Expect(r.client.Get(ctx, request.NamespacedName, mhc)).To(Succeed())
+				g.Expect(&mhc.Status).To(MatchMachineHealthCheckStatus(tc.expectedStatus))
 			}
 		})
 	}
@@ -1943,7 +2059,7 @@ func TestRemediate(t *testing.T) {
 			err := r.client.Get(context.TODO(), namespacedName(&tc.target.Machine), machine)
 			if tc.deletion {
 				if err != nil {
-					if !errors.IsNotFound(err) {
+					if !apierrors.IsNotFound(err) {
 						t.Errorf("Expected not found error, got: %v", err)
 					}
 				} else {
@@ -1961,10 +2077,11 @@ func TestRemediate(t *testing.T) {
 
 func TestReconcileStatus(t *testing.T) {
 	testCases := []struct {
-		testCase       string
-		mhc            *mapiv1beta1.MachineHealthCheck
-		totalTargets   int
-		currentHealthy int
+		testCase            string
+		mhc                 *mapiv1beta1.MachineHealthCheck
+		totalTargets        int
+		currentHealthy      int
+		remediationsAllowed int32
 	}{
 		{
 			testCase: "status gets new values",
@@ -1981,8 +2098,49 @@ func TestReconcileStatus(t *testing.T) {
 				},
 				Status: mapiv1beta1.MachineHealthCheckStatus{},
 			},
-			totalTargets:   10,
-			currentHealthy: 5,
+			totalTargets:        10,
+			currentHealthy:      5,
+			remediationsAllowed: 5,
+		},
+		{
+			testCase: "when the unhealthy machines exceed maxUnhealthy",
+			mhc: &mapiv1beta1.MachineHealthCheck{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: namespace,
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind: "MachineHealthCheck",
+				},
+				Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Selector:     metav1.LabelSelector{},
+					MaxUnhealthy: &intstr.IntOrString{Type: intstr.String, StrVal: "40%"},
+				},
+				Status: mapiv1beta1.MachineHealthCheckStatus{},
+			},
+			totalTargets:        10,
+			currentHealthy:      5,
+			remediationsAllowed: 0,
+		},
+		{
+			testCase: "when the unhealthy machines does not exceed maxUnhealthy",
+			mhc: &mapiv1beta1.MachineHealthCheck{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: namespace,
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind: "MachineHealthCheck",
+				},
+				Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Selector:     metav1.LabelSelector{},
+					MaxUnhealthy: &intstr.IntOrString{Type: intstr.String, StrVal: "40%"},
+				},
+				Status: mapiv1beta1.MachineHealthCheckStatus{},
+			},
+			totalTargets:        10,
+			currentHealthy:      7,
+			remediationsAllowed: 1,
 		},
 	}
 	for _, tc := range testCases {
@@ -1991,7 +2149,12 @@ func TestReconcileStatus(t *testing.T) {
 			objects = append(objects, runtime.Object(tc.mhc))
 			r := newFakeReconciler(objects...)
 
-			if err := r.reconcileStatus(tc.mhc, tc.totalTargets, tc.currentHealthy); err != nil {
+			mergeBase := client.MergeFrom(tc.mhc.DeepCopy())
+
+			tc.mhc.Status.ExpectedMachines = &tc.totalTargets
+			tc.mhc.Status.CurrentHealthy = &tc.currentHealthy
+
+			if err := r.reconcileStatus(mergeBase, tc.mhc); err != nil {
 				t.Fatalf("Unexpected error: %v", err)
 			}
 			mhc := &mapiv1beta1.MachineHealthCheck{}
@@ -2003,6 +2166,9 @@ func TestReconcileStatus(t *testing.T) {
 			}
 			if *mhc.Status.CurrentHealthy != tc.currentHealthy {
 				t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, mhc.Status.CurrentHealthy, tc.currentHealthy)
+			}
+			if mhc.Status.RemediationsAllowed != tc.remediationsAllowed {
+				t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, mhc.Status.RemediationsAllowed, tc.remediationsAllowed)
 			}
 		})
 	}
@@ -2580,6 +2746,75 @@ func TestIsAllowedRemediation(t *testing.T) {
 			if got := isAllowedRemediation(tc.mhc); got != tc.expected {
 				t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, got, tc.expected)
 			}
+		})
+	}
+}
+
+func TestGetMaxUnhealthy(t *testing.T) {
+	testCases := []struct {
+		name                 string
+		maxUnhealthy         *intstr.IntOrString
+		expectedMaxUnhealthy int
+		expectedMachines     int
+		expectedErr          error
+	}{
+		{
+			name:                 "when maxUnhealthy is nil",
+			maxUnhealthy:         nil,
+			expectedMaxUnhealthy: 7,
+			expectedMachines:     7,
+			expectedErr:          nil,
+		},
+		{
+			name:                 "when maxUnhealthy is not an int or percentage",
+			maxUnhealthy:         &intstr.IntOrString{Type: intstr.String, StrVal: "abcdef"},
+			expectedMaxUnhealthy: 0,
+			expectedMachines:     3,
+			expectedErr:          errors.New("invalid value for IntOrString: invalid value \"abcdef\": strconv.Atoi: parsing \"abcdef\": invalid syntax"),
+		},
+		{
+			name:                 "when maxUnhealthy is an int",
+			maxUnhealthy:         &intstr.IntOrString{Type: intstr.Int, IntVal: 3},
+			expectedMachines:     2,
+			expectedMaxUnhealthy: 3,
+			expectedErr:          nil,
+		},
+		{
+			name:                 "when maxUnhealthy is a 40% (of 5)",
+			maxUnhealthy:         &intstr.IntOrString{Type: intstr.String, StrVal: "40%"},
+			expectedMachines:     5,
+			expectedMaxUnhealthy: 2,
+			expectedErr:          nil,
+		},
+		{
+			name:                 "when maxUnhealthy is a 60% (of 7)",
+			maxUnhealthy:         &intstr.IntOrString{Type: intstr.String, StrVal: "60%"},
+			expectedMachines:     7,
+			expectedMaxUnhealthy: 4,
+			expectedErr:          nil,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			mhc := &mapiv1beta1.MachineHealthCheck{
+				Spec: mapiv1beta1.MachineHealthCheckSpec{
+					MaxUnhealthy: tc.maxUnhealthy,
+				},
+				Status: mapiv1beta1.MachineHealthCheckStatus{
+					ExpectedMachines: &tc.expectedMachines,
+				},
+			}
+
+			maxUnhealthy, err := getMaxUnhealthy(mhc)
+			if tc.expectedErr != nil {
+				g.Expect(err).To(Equal(tc.expectedErr))
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
+			}
+			g.Expect(maxUnhealthy).To(Equal(tc.expectedMaxUnhealthy))
 		})
 	}
 }
