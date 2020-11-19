@@ -23,6 +23,7 @@ type OperatorConfig struct {
 	TargetNamespace      string `json:"targetNamespace"`
 	Controllers          Controllers
 	BaremetalControllers BaremetalControllers
+	Proxy                *configv1.Proxy
 }
 
 type Controllers struct {

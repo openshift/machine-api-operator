@@ -125,6 +125,7 @@ func startControllers(ctx *ControllerContext) {
 		ctx.ConfigInformerFactory.Config().V1().FeatureGates(),
 		ctx.KubeNamespacedInformerFactory.Admissionregistration().V1().ValidatingWebhookConfigurations(),
 		ctx.KubeNamespacedInformerFactory.Admissionregistration().V1().MutatingWebhookConfigurations(),
+		ctx.ConfigInformerFactory.Config().V1().Proxies(),
 		ctx.ClientBuilder.KubeClientOrDie(componentName),
 		ctx.ClientBuilder.OpenshiftClientOrDie(componentName),
 		ctx.ClientBuilder.DynamicClientOrDie(componentName),

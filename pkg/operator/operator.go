@@ -61,6 +61,9 @@ type Operator struct {
 	daemonsetLister       appslisterv1.DaemonSetLister
 	daemonsetListerSynced cache.InformerSynced
 
+	proxyLister       configlistersv1.ProxyLister
+	proxyListerSynced cache.InformerSynced
+
 	validatingWebhookLister       admissionlisterv1.ValidatingWebhookConfigurationLister
 	validatingWebhookListerSynced cache.InformerSynced
 
@@ -89,7 +92,7 @@ func New(
 	featureGateInformer configinformersv1.FeatureGateInformer,
 	validatingWebhookInformer admissioninformersv1.ValidatingWebhookConfigurationInformer,
 	mutatingWebhookInformer admissioninformersv1.MutatingWebhookConfigurationInformer,
-
+	proxyInformer configinformersv1.ProxyInformer,
 	kubeClient kubernetes.Interface,
 	osClient osclientset.Interface,
 	dynamicClient dynamic.Interface,
@@ -130,6 +133,9 @@ func New(
 	optr.daemonsetLister = daemonsetInformer.Lister()
 	optr.daemonsetListerSynced = daemonsetInformer.Informer().HasSynced
 
+	optr.proxyLister = proxyInformer.Lister()
+	optr.proxyListerSynced = proxyInformer.Informer().HasSynced
+
 	optr.validatingWebhookLister = validatingWebhookInformer.Lister()
 	optr.validatingWebhookListerSynced = validatingWebhookInformer.Informer().HasSynced
 
@@ -155,6 +161,7 @@ func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 		optr.validatingWebhookListerSynced,
 		optr.deployListerSynced,
 		optr.daemonsetListerSynced,
+		optr.proxyListerSynced,
 		optr.featureGateCacheSynced) {
 		glog.Error("Failed to sync caches")
 		return
@@ -358,8 +365,14 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 		return nil, err
 	}
 
+	clusterWideProxy, err := optr.osClient.ConfigV1().Proxies().Get(context.Background(), "cluster", metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+
 	return &OperatorConfig{
 		TargetNamespace: optr.namespace,
+		Proxy:           clusterWideProxy,
 		Controllers: Controllers{
 			Provider:           providerControllerImage,
 			MachineSet:         machineAPIOperatorImage,
