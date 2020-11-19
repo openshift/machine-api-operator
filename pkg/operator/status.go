@@ -5,12 +5,11 @@ import (
 	"reflect"
 	"strings"
 
-	"k8s.io/apimachinery/pkg/api/equality"
-
 	"github.com/golang/glog"
 	osconfigv1 "github.com/openshift/api/config/v1"
-	cvoresourcemerge "github.com/openshift/cluster-version-operator/lib/resourcemerge"
+	"github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers"
 	v1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/equality"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -152,7 +151,7 @@ func newClusterOperatorStatusCondition(conditionType osconfigv1.ClusterStatusCon
 //syncStatus applies the new condition to the mao ClusterOperator object.
 func (optr *Operator) syncStatus(co *osconfigv1.ClusterOperator, conds []osconfigv1.ClusterOperatorStatusCondition) error {
 	for _, c := range conds {
-		cvoresourcemerge.SetOperatorStatusCondition(&co.Status.Conditions, c)
+		v1helpers.SetStatusCondition(&co.Status.Conditions, c)
 	}
 
 	_, err := optr.osClient.ConfigV1().ClusterOperators().UpdateStatus(co)
