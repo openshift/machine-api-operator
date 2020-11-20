@@ -13,6 +13,7 @@ import (
 	"k8s.io/klog/v2"
 
 	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	"github.com/openshift/machine-api-operator/pkg/metrics"
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
 	corev1 "k8s.io/api/core/v1"
 	apimachineryerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -155,6 +156,8 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 	if err := r.client.Get(context.TODO(), request.NamespacedName, mhc); err != nil {
 		if apimachineryerrors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
+			// In the event that this was a deletion, we need to remove the associated metric label
+			metrics.DeleteMachineHealthCheckNodesCovered(request.NamespacedName.Name, request.NamespacedName.Namespace)
 			return reconcile.Result{}, nil
 		}
 		klog.Errorf("Reconciling %s: failed to get MHC: %v", request.String(), err)
@@ -171,6 +174,8 @@ func (r *ReconcileMachineHealthCheck) Reconcile(request reconcile.Request) (reco
 		return reconcile.Result{}, err
 	}
 	totalTargets := len(targets)
+
+	metrics.ObserveMachineHealthCheckNodesCovered(mhc.Name, mhc.Namespace, totalTargets)
 
 	// health check all targets and reconcile mhc status
 	currentHealthy, needRemediationTargets, nextCheckTimes, errList := r.healthCheckTargets(targets, mhc.Spec.NodeStartupTimeout.Duration)

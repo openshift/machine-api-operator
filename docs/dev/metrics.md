@@ -111,3 +111,21 @@ mapi_instance_delete_failed{name=machine-3,namespace=openshift-machine-api,reaso
 ```
 
 [Demo](https://user-images.githubusercontent.com/32226600/87791648-e72b6900-c842-11ea-90b7-4967b0d06fb5.gif)
+
+## Metrics about MachineHealthCheck resources
+
+When using MachineHealthChecks, metrics are available from the `machine-api-controllers` Pod on the
+default metrics port(`8083`) for the `machine-healthcheck-controller` container.
+
+The `mapi_machinehealthcheck_nodes_covered` metric describes the number of Nodes that are currently
+being monitored by `machine-healthcheck-controller`. The `name` label in this metric refers to the
+name of the MachineHealthCheck that is being reported. The `namespace` label refers to the owning
+namespace of the MachineHealthCheck.
+
+**Sample metrics**
+```
+# HELP mapi_machinehealthcheck_nodes_covered Number of nodes covered by MachineHealthChecks
+# TYPE mapi_machinehealthcheck_nodes_covered gauge
+mapi_machinehealthcheck_nodes_covered{name="machine-api-termination-handler",namespace="openshift-machine-api"} 0
+mapi_machinehealthcheck_nodes_covered{name="mhc-1",namespace="openshift-machine-api"} 1
+```
