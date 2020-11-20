@@ -9,10 +9,10 @@ require (
 	github.com/imdario/mergo v0.3.9
 	github.com/onsi/ginkgo v1.12.1
 	github.com/onsi/gomega v1.10.1
-	github.com/openshift/api v0.0.0-20200901182017-7ac89ba6b971
-	github.com/openshift/client-go v0.0.0-20200827190008-3062137373b5
+	github.com/openshift/api v0.0.0-20201019163320-c6a5ec25f267
+	github.com/openshift/client-go v0.0.0-20201020074620-f8fd44879f7c
 	github.com/openshift/cluster-api-provider-gcp v0.0.1-0.20201027164920-70f2f92e64ab
-	github.com/openshift/library-go v0.0.0-20200909173121-1d055d971916
+	github.com/openshift/library-go v0.0.0-20201109112824-093ad3cf6600
 	github.com/operator-framework/operator-sdk v0.5.1-0.20190301204940-c2efe6f74e7b
 	github.com/prometheus/client_golang v1.7.1
 	github.com/spf13/cobra v1.0.0
@@ -22,10 +22,10 @@ require (
 	golang.org/x/crypto v0.0.0-20200622213623-75b288015ac9
 	golang.org/x/net v0.0.0-20200822124328-c89045814202
 	gopkg.in/gcfg.v1 v1.2.3
-	k8s.io/api v0.19.0
-	k8s.io/apimachinery v0.19.0
-	k8s.io/client-go v0.19.0
-	k8s.io/code-generator v0.19.0
+	k8s.io/api v0.19.2
+	k8s.io/apimachinery v0.19.2
+	k8s.io/client-go v0.19.2
+	k8s.io/code-generator v0.19.2
 	k8s.io/klog/v2 v2.3.0
 	k8s.io/kubectl v0.19.0
 	k8s.io/utils v0.0.0-20200729134348-d5654de09c73
