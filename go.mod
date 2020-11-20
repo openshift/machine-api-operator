@@ -1,12 +1,11 @@
 module github.com/openshift/machine-api-operator
 
-go 1.13
+go 1.15
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/google/gofuzz v1.1.0
 	github.com/google/uuid v1.1.1
-	github.com/imdario/mergo v0.3.9
 	github.com/onsi/ginkgo v1.12.1
 	github.com/onsi/gomega v1.10.1
 	github.com/openshift/api v0.0.0-20201019163320-c6a5ec25f267

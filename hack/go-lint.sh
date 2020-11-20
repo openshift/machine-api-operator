@@ -10,6 +10,6 @@ else
     --workdir /go/src/github.com/openshift/machine-api-operator \
     --env GO111MODULE="$GO111MODULE" \
     --env GOFLAGS="$GOFLAGS" \
-    openshift/origin-release:golang-1.13 \
+    openshift/origin-release:golang-1.15 \
     ./hack/go-lint.sh "${@}"
 fi
