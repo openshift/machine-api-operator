@@ -118,9 +118,13 @@ When using MachineHealthChecks, metrics are available from the `machine-api-cont
 default metrics port(`8083`) for the `machine-healthcheck-controller` container.
 
 The `mapi_machinehealthcheck_nodes_covered` metric describes the number of Nodes that are currently
-being monitored by `machine-healthcheck-controller`. The `name` label in this metric refers to the
-name of the MachineHealthCheck that is being reported. The `namespace` label refers to the owning
-namespace of the MachineHealthCheck.
+being monitored by `machine-healthcheck-controller`.
+
+The `mapi_machinehealthcheck_remediation_success_total` metric gives a total count of the successful
+remediation performed by a MachineHealthCheck.
+
+The `name` label in these metric refers to the name of the MachineHealthCheck that is being reported.
+The `namespace` label refers to the owning namespace of the MachineHealthCheck.
 
 **Sample metrics**
 ```
@@ -128,4 +132,7 @@ namespace of the MachineHealthCheck.
 # TYPE mapi_machinehealthcheck_nodes_covered gauge
 mapi_machinehealthcheck_nodes_covered{name="machine-api-termination-handler",namespace="openshift-machine-api"} 0
 mapi_machinehealthcheck_nodes_covered{name="mhc-1",namespace="openshift-machine-api"} 1
+# HELP mapi_machinehealthcheck_remediation_success_total Number of successful remediations performed by MachineHealthChecks
+# TYPE mapi_machinehealthcheck_remediation_success_total counter
+mapi_machinehealthcheck_remediation_success_total{name="mhc-1",namespace="openshift-machine-api"} 1
 ```
