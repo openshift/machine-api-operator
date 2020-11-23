@@ -284,8 +284,8 @@ func (r *ReconcileMachine) Reconcile(request reconcile.Request) (reconcile.Resul
 	if instanceExists {
 		klog.Infof("%v: reconciling machine triggers idempotent update", machineName)
 		if err := r.actuator.Update(ctx, m); err != nil {
-			klog.Errorf("%v: error updating machine: %v", machineName, err)
-			return delayIfRequeueAfterError(err)
+			klog.Errorf("%v: error updating machine: %v, retrying in %v seconds", machineName, err, requeueAfter)
+			return reconcile.Result{RequeueAfter: requeueAfter}, nil
 		}
 
 		if !machineIsProvisioned(m) {
