@@ -1015,11 +1015,12 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 func TestValidateAzureProviderSpec(t *testing.T) {
 
 	testCases := []struct {
-		testCase         string
-		modifySpec       func(providerSpec *azure.AzureMachineProviderSpec)
-		expectedError    string
-		expectedOk       bool
-		expectedWarnings []string
+		testCase            string
+		modifySpec          func(providerSpec *azure.AzureMachineProviderSpec)
+		azurePlatformStatus *osconfigv1.AzurePlatformStatus
+		expectedError       string
+		expectedOk          bool
+		expectedWarnings    []string
 	}{
 		{
 			testCase: "with no vmsize it fails",
@@ -1190,15 +1191,38 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 			expectedOk:    true,
 			expectedError: "",
 		},
+		{
+			testCase: "with government cloud and spot VMs enabled",
+			modifySpec: func(p *azure.AzureMachineProviderSpec) {
+				p.SpotVMOptions = &azure.SpotVMOptions{}
+			},
+			azurePlatformStatus: &osconfigv1.AzurePlatformStatus{
+				CloudName: osconfigv1.AzureUSGovernmentCloud,
+			},
+			expectedOk:       true,
+			expectedWarnings: []string{"spot VMs may not be supported when using GovCloud region"},
+		},
+		{
+			testCase: "with public cloud and spot VMs enabled",
+			modifySpec: func(p *azure.AzureMachineProviderSpec) {
+				p.SpotVMOptions = &azure.SpotVMOptions{}
+			},
+			azurePlatformStatus: &osconfigv1.AzurePlatformStatus{
+				CloudName: osconfigv1.AzurePublicCloud,
+			},
+			expectedOk: true,
+		},
 	}
-
-	infra := plainInfra.DeepCopy()
-	infra.Status.InfrastructureName = "clusterID"
-	infra.Status.PlatformStatus.Type = osconfigv1.AzurePlatformType
-	h := createMachineValidator(infra, plainDNS)
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
+			infra := plainInfra.DeepCopy()
+			infra.Status.InfrastructureName = "clusterID"
+			infra.Status.PlatformStatus.Type = osconfigv1.AzurePlatformType
+			infra.Status.PlatformStatus.Azure = tc.azurePlatformStatus
+
+			h := createMachineValidator(infra, plainDNS)
+
 			// create a valid spec that will then be 'broken' by modifySpec
 			providerSpec := &azure.AzureMachineProviderSpec{
 				VMSize: "vmSize",
