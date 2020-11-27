@@ -305,7 +305,7 @@ func TestMachineUpdate(t *testing.T) {
 		OSDisk: azure.OSDisk{
 			DiskSizeGB: 128,
 			OSType:     defaultAzureOSDiskOSType,
-			ManagedDisk: azure.ManagedDisk{
+			ManagedDisk: azure.ManagedDiskParameters{
 				StorageAccountType: defaultAzureOSDiskStorageType,
 			},
 		},
@@ -1101,7 +1101,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 			modifySpec: func(p *azure.AzureMachineProviderSpec) {
 				p.OSDisk = azure.OSDisk{
 					OSType: "osType",
-					ManagedDisk: azure.ManagedDisk{
+					ManagedDisk: azure.ManagedDiskParameters{
 						StorageAccountType: "storageAccountType",
 					},
 				}
