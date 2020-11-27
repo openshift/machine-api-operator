@@ -115,7 +115,8 @@ type MachineHealthCheckStatus struct {
 	// RemediationsAllowed is the number of further remediations allowed by this machine health check before
 	// maxUnhealthy short circuiting will be applied
 	// +kubebuilder:validation:Minimum=0
-	RemediationsAllowed int32 `json:"remediationsAllowed,omitempty"`
+	// +optional
+	RemediationsAllowed int32 `json:"remediationsAllowed"`
 
 	// Conditions defines the current state of the MachineHealthCheck
 	Conditions Conditions `json:"conditions,omitempty"`
