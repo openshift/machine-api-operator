@@ -130,29 +130,29 @@ func secretExists(c client.Client, name, namespace string) (bool, error) {
 	return true, nil
 }
 
-func credentialsSecretExists(c client.Client, name, namespace string) []error {
+func credentialsSecretExists(c client.Client, name, namespace string) []string {
 	secretExists, err := secretExists(c, name, namespace)
 	if err != nil {
-		return []error{
+		return []string{
 			field.Invalid(
 				field.NewPath("providerSpec", "credentialsSecret"),
 				name,
 				fmt.Sprintf("failed to get credentialsSecret: %v", err),
-			),
+			).Error(),
 		}
 	}
 
 	if !secretExists {
-		return []error{
+		return []string{
 			field.Invalid(
 				field.NewPath("providerSpec", "credentialsSecret"),
 				name,
 				"not found. Expected CredentialsSecret to exist",
-			),
+			).Error(),
 		}
 	}
 
-	return []error{}
+	return []string{}
 }
 
 func getInfra() (*osconfigv1.Infrastructure, error) {
@@ -660,7 +660,7 @@ func validateAWS(m *Machine, config *admissionConfig) (bool, []string, utilerror
 			),
 		)
 	} else {
-		errs = append(errs, credentialsSecretExists(config.client, providerSpec.CredentialsSecret.Name, m.GetNamespace())...)
+		warnings = append(warnings, credentialsSecretExists(config.client, providerSpec.CredentialsSecret.Name, m.GetNamespace())...)
 	}
 
 	if providerSpec.Subnet.ARN == nil && providerSpec.Subnet.ID == nil && providerSpec.Subnet.Filters == nil {
@@ -794,7 +794,7 @@ func validateAzure(m *Machine, config *admissionConfig) (bool, []string, utilerr
 			errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret", "name"), "name must be provided"))
 		}
 		if providerSpec.CredentialsSecret.Name != "" && providerSpec.CredentialsSecret.Namespace != "" {
-			errs = append(errs, credentialsSecretExists(config.client, providerSpec.CredentialsSecret.Name, providerSpec.CredentialsSecret.Namespace)...)
+			warnings = append(warnings, credentialsSecretExists(config.client, providerSpec.CredentialsSecret.Name, providerSpec.CredentialsSecret.Namespace)...)
 		}
 	}
 
@@ -963,7 +963,7 @@ func validateGCP(m *Machine, config *admissionConfig) (bool, []string, utilerror
 		if providerSpec.CredentialsSecret.Name == "" {
 			errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret", "name"), "name must be provided"))
 		} else {
-			errs = append(errs, credentialsSecretExists(config.client, providerSpec.CredentialsSecret.Name, m.GetNamespace())...)
+			warnings = append(warnings, credentialsSecretExists(config.client, providerSpec.CredentialsSecret.Name, m.GetNamespace())...)
 		}
 	}
 
@@ -1119,7 +1119,7 @@ func validateVSphere(m *Machine, config *admissionConfig) (bool, []string, utile
 		if providerSpec.CredentialsSecret.Name == "" {
 			errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret", "name"), "name must be provided"))
 		} else {
-			errs = append(errs, credentialsSecretExists(config.client, providerSpec.CredentialsSecret.Name, m.GetNamespace())...)
+			warnings = append(warnings, credentialsSecretExists(config.client, providerSpec.CredentialsSecret.Name, m.GetNamespace())...)
 		}
 	}
 

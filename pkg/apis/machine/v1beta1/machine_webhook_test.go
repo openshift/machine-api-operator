@@ -905,6 +905,14 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			expectedError: "providerSpec.credentialsSecret: Required value: expected providerSpec.credentialsSecret to be populated",
 		},
 		{
+			testCase: "when the credentials secret does not exist",
+			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+				p.CredentialsSecret.Name = "does-not-exist"
+			},
+			expectedOk:       true,
+			expectedWarnings: []string{"providerSpec.credentialsSecret: Invalid value: \"does-not-exist\": not found. Expected CredentialsSecret to exist"},
+		},
+		{
 			testCase: "with no subnet values it fails",
 			modifySpec: func(p *aws.AWSMachineProviderConfig) {
 				p.Subnet = aws.AWSResourceReference{}
@@ -1256,6 +1264,14 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 			},
 			expectedOk:    false,
 			expectedError: "providerSpec.credentialsSecret.namespace: Required value: namespace must be provided",
+		},
+		{
+			testCase: "when the credentials secret does not exist",
+			modifySpec: func(p *azure.AzureMachineProviderSpec) {
+				p.CredentialsSecret.Name = "does-not-exist"
+			},
+			expectedOk:       true,
+			expectedWarnings: []string{"providerSpec.credentialsSecret: Invalid value: \"does-not-exist\": not found. Expected CredentialsSecret to exist"},
 		},
 		{
 			testCase: "with no credentials secret name it fails",
@@ -1735,6 +1751,14 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 			expectedError: "providerSpec.credentialsSecret: Required value: credentialsSecret must be provided",
 		},
 		{
+			testCase: "when the credentials secret does not exist",
+			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+				p.CredentialsSecret.Name = "does-not-exist"
+			},
+			expectedOk:       true,
+			expectedWarnings: []string{"providerSpec.credentialsSecret: Invalid value: \"does-not-exist\": not found. Expected CredentialsSecret to exist"},
+		},
+		{
 			testCase: "with no user data secret name",
 			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
 				p.CredentialsSecret = &corev1.LocalObjectReference{}
@@ -2088,6 +2112,14 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 			},
 			expectedOk:    false,
 			expectedError: "providerSpec.credentialsSecret: Required value: credentialsSecret must be provided",
+		},
+		{
+			testCase: "when the credentials secret does not exist",
+			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+				p.CredentialsSecret.Name = "does-not-exist"
+			},
+			expectedOk:       true,
+			expectedWarnings: []string{"providerSpec.credentialsSecret: Invalid value: \"does-not-exist\": not found. Expected CredentialsSecret to exist"},
 		},
 		{
 			testCase: "with no credentials secret name provided",
