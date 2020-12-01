@@ -36,7 +36,6 @@ const (
 	machineExposeMetricsPort            = 8441
 	machineSetExposeMetricsPort         = 8442
 	machineHealthCheckExposeMetricsPort = 8444
-	metal3ExposeMetricsPort             = 8445
 	defaultMachineHealthPort            = 9440
 	defaultMachineSetHealthPort         = 9441
 	defaultMachineHealthCheckHealthPort = 9442
@@ -84,26 +83,6 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 		return err
 	}
 	klog.V(3).Info("Synced up all machine-api-controller components")
-
-	// In addition, if the Provider is BareMetal, then bring up
-	// the baremetal-operator pod
-	if config.BaremetalControllers.BaremetalOperator != "" {
-		err := optr.syncBaremetalControllers(config, baremetalProvisioningCR)
-		switch true {
-		case apierrors.IsNotFound(err):
-			klog.V(3).Info("Provisioning configuration not found. Skipping metal3 deployment.")
-		case err == nil:
-			klog.V(3).Info("Synced up all metal3 components")
-		case err != nil:
-			if err := optr.statusDegraded(err.Error()); err != nil {
-				// Just log the error here.  We still want to
-				// return the outer error.
-				klog.Errorf("Error syncing BaremetalOperatorStatus: %v", err)
-			}
-			klog.Errorf("Error syncing metal3-controller: %v", err)
-			return err
-		}
-	}
 
 	if err := optr.statusAvailable(); err != nil {
 		klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
@@ -285,74 +264,6 @@ func mergeMutatingWebhooks(expected, current []admissionregistrationv1.MutatingW
 	}
 
 	return out, nil
-}
-
-func (optr *Operator) syncBaremetalControllers(config *OperatorConfig, configName string) error {
-	// Stand down if cluster-bare-metal operator has claimed the metal3 deployment
-	// and if the baremetal clusteroperator exists
-	maoOwned, err := checkMetal3DeploymentMAOOwned(optr.kubeClient.AppsV1(), config)
-	if err != nil {
-		return err
-	}
-	if !maoOwned {
-		cboExists, err := checkForBaremetalClusterOperator(optr.osClient)
-		if err != nil {
-			return err
-		}
-		if cboExists {
-			klog.Infof("cluster-baremetal-operator is running and managing the Metal3 deployment, standing down.")
-			return nil
-		}
-	}
-
-	// Try to get baremetal provisioning config from a CR
-	baremetalProvisioningConfig, err := getBaremetalProvisioningConfig(optr.dynamicClient, configName)
-	if err == nil && baremetalProvisioningConfig == nil {
-		return apierrors.NewNotFound(provisioningGR, configName)
-	}
-	if err != nil {
-		return err
-	}
-	// Create Secrets needed for the Metal3 deployment
-	if err := createMetal3PasswordSecrets(optr.kubeClient.CoreV1(), config); err != nil {
-		klog.Error("Not proceeding with Metal3 deployment.")
-		return err
-	}
-
-	metal3Deployment := newMetal3Deployment(config, *baremetalProvisioningConfig)
-
-	metal3Service := newMetal3Service(config, *baremetalProvisioningConfig)
-	s, updated, err := resourceapply.ApplyService(optr.kubeClient.CoreV1(),
-		events.NewLoggingEventRecorder(optr.name), metal3Service)
-	if err != nil {
-		return err
-	}
-	if updated {
-		klog.V(3).Infof("updated service %s/%s", s.Namespace, s.Name)
-	}
-
-	metal3ServiceMonitor := []byte(metal3ServiceMonitorDefinition)
-	updated, err = resourceapply.ApplyServiceMonitor(optr.dynamicClient,
-		events.NewLoggingEventRecorder(optr.name), metal3ServiceMonitor)
-	if err != nil {
-		return err
-	}
-	if updated {
-		klog.V(3).Infof("updated service monitor openshift-machine-api/metal3")
-	}
-
-	expectedGeneration := resourcemerge.ExpectedDeploymentGeneration(metal3Deployment, optr.generations)
-	d, updated, err := resourceapply.ApplyDeployment(optr.kubeClient.AppsV1(),
-		events.NewLoggingEventRecorder(optr.name), metal3Deployment, expectedGeneration)
-	if err != nil {
-		return err
-	}
-	if updated {
-		resourcemerge.SetDeploymentGeneration(&optr.generations, d)
-		return optr.waitForDeploymentRollout(metal3Deployment, deploymentRolloutPollInterval, deploymentRolloutTimeout)
-	}
-
-	return nil
 }
 
 func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment, pollInterval, rolloutTimeout time.Duration) error {

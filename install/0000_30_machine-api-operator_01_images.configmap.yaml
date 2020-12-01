@@ -19,11 +19,5 @@ data:
       "clusterAPIControllerGCP": "registry.svc.ci.openshift.org/openshift:gcp-machine-controllers",
       "clusterAPIControllerOvirt": "registry.svc.ci.openshift.org/openshift:ovirt-machine-controllers",
       "clusterAPIControllerKubevirt": "registry.svc.ci.openshift.org/openshift:kubevirt-machine-controllers",
-      "clusterAPIControllerVSphere": "registry.svc.ci.openshift.org/openshift:machine-api-operator",
-      "baremetalOperator": "registry.svc.ci.openshift.org/openshift:baremetal-operator",
-      "baremetalIronic": "registry.svc.ci.openshift.org/openshift:ironic",
-      "baremetalIronicInspector": "registry.svc.ci.openshift.org/openshift:ironic-inspector",
-      "baremetalIpaDownloader": "registry.svc.ci.openshift.org/openshift:ironic-ipa-downloader",
-      "baremetalMachineOsDownloader": "registry.svc.ci.openshift.org/openshift:ironic-machine-os-downloader",
-      "baremetalStaticIpManager": "registry.svc.ci.openshift.org/openshift:ironic-static-ip-manager"
+      "clusterAPIControllerVSphere": "registry.svc.ci.openshift.org/openshift:machine-api-operator"
     }

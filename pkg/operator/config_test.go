@@ -7,24 +7,18 @@ import (
 )
 
 var (
-	imagesJSONFile                    = "fixtures/images.json"
-	expectedAWSImage                  = "docker.io/openshift/origin-aws-machine-controllers:v4.0.0"
-	expectedLibvirtImage              = "docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0"
-	expectedOpenstackImage            = "docker.io/openshift/origin-openstack-machine-controllers:v4.0.0"
-	expectedMachineAPIOperatorImage   = "docker.io/openshift/origin-machine-api-operator:v4.0.0"
-	expectedKubeRBACProxyImage        = "docker.io/openshift/origin-kube-rbac-proxy:v4.0.0"
-	expectedBareMetalImage            = "quay.io/openshift/origin-baremetal-machine-controllers:v4.0.0"
-	expectedAzureImage                = "quay.io/openshift/origin-azure-machine-controllers:v4.0.0"
-	expectedGCPImage                  = "quay.io/openshift/origin-gcp-machine-controllers:v4.0.0"
-	expectedBaremetalOperator         = "quay.io/openshift/origin-baremetal-operator:v4.2.0"
-	expectedIronic                    = "quay.io/openshift/origin-ironic:v4.2.0"
-	expectedIronicInspector           = "quay.io/openshift/origin-ironic-inspector:v4.2.0"
-	expectedIronicIpaDownloader       = "quay.io/openshift/origin-ironic-ipa-downloader:v4.2.0"
-	expectedIronicMachineOsDownloader = "quay.io/openshift/origin-ironic-machine-os-downloader:v4.3.0"
-	expectedIronicStaticIpManager     = "quay.io/openshift/origin-ironic-static-ip-manager:v4.2.0"
-	expectedOvirtImage                = "quay.io/openshift/origin-ovirt-machine-controllers"
-	expectedVSphereImage              = "docker.io/openshift/origin-machine-api-operator:v4.0.0"
-	expectedKubevirtImage             = "quay.io/openshift/origin-kubevirt-machine-controllers"
+	imagesJSONFile                  = "fixtures/images.json"
+	expectedAWSImage                = "docker.io/openshift/origin-aws-machine-controllers:v4.0.0"
+	expectedLibvirtImage            = "docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0"
+	expectedOpenstackImage          = "docker.io/openshift/origin-openstack-machine-controllers:v4.0.0"
+	expectedMachineAPIOperatorImage = "docker.io/openshift/origin-machine-api-operator:v4.0.0"
+	expectedKubeRBACProxyImage      = "docker.io/openshift/origin-kube-rbac-proxy:v4.0.0"
+	expectedBareMetalImage          = "quay.io/openshift/origin-baremetal-machine-controllers:v4.0.0"
+	expectedAzureImage              = "quay.io/openshift/origin-azure-machine-controllers:v4.0.0"
+	expectedGCPImage                = "quay.io/openshift/origin-gcp-machine-controllers:v4.0.0"
+	expectedOvirtImage              = "quay.io/openshift/origin-ovirt-machine-controllers"
+	expectedVSphereImage            = "docker.io/openshift/origin-machine-api-operator:v4.0.0"
+	expectedKubevirtImage           = "quay.io/openshift/origin-kubevirt-machine-controllers"
 )
 
 func TestGetProviderFromInfrastructure(t *testing.T) {
@@ -303,23 +297,5 @@ func TestGetKubeRBACProxyFromImages(t *testing.T) {
 	}
 	if res != expectedKubeRBACProxyImage {
 		t.Errorf("failed getKubeRBACProxyFromImages. Expected: %s, got: %s", expectedKubeRBACProxyImage, res)
-	}
-}
-
-func TestGetBaremetalControllers(t *testing.T) {
-	img, err := getImagesFromJSONFile(imagesJSONFile)
-	if err != nil {
-		t.Errorf("failed getImagesFromJSONFile, %v", err)
-	}
-
-	baremetalControllers := newBaremetalControllers(*img, true)
-
-	if baremetalControllers.BaremetalOperator != expectedBaremetalOperator ||
-		baremetalControllers.Ironic != expectedIronic ||
-		baremetalControllers.IronicInspector != expectedIronicInspector ||
-		baremetalControllers.IronicIpaDownloader != expectedIronicIpaDownloader ||
-		baremetalControllers.IronicMachineOsDownloader != expectedIronicMachineOsDownloader ||
-		baremetalControllers.IronicStaticIpManager != expectedIronicStaticIpManager {
-		t.Errorf("failed getAdditionalProviderImages. One or more BaremetalController images do not match the expected images.")
 	}
 }

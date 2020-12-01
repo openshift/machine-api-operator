@@ -20,10 +20,9 @@ type Provider string
 
 // OperatorConfig contains configuration for MAO
 type OperatorConfig struct {
-	TargetNamespace      string `json:"targetNamespace"`
-	Controllers          Controllers
-	BaremetalControllers BaremetalControllers
-	Proxy                *configv1.Proxy
+	TargetNamespace string `json:"targetNamespace"`
+	Controllers     Controllers
+	Proxy           *configv1.Proxy
 }
 
 type Controllers struct {
@@ -33,15 +32,6 @@ type Controllers struct {
 	MachineHealthCheck string
 	KubeRBACProxy      string
 	TerminationHandler string
-}
-
-type BaremetalControllers struct {
-	BaremetalOperator         string
-	Ironic                    string
-	IronicInspector           string
-	IronicIpaDownloader       string
-	IronicMachineOsDownloader string
-	IronicStaticIpManager     string
 }
 
 // Images allows build systems to inject images for MAO components
@@ -57,13 +47,6 @@ type Images struct {
 	ClusterAPIControllerVSphere   string `json:"clusterAPIControllerVSphere"`
 	ClusterAPIControllerKubevirt  string `json:"clusterAPIControllerKubevirt"`
 	KubeRBACProxy                 string `json:"kubeRBACProxy"`
-	// Images required for the metal3 pod
-	BaremetalOperator            string `json:"baremetalOperator"`
-	BaremetalIronic              string `json:"baremetalIronic"`
-	BaremetalIronicInspector     string `json:"baremetalIronicInspector"`
-	BaremetalIpaDownloader       string `json:"baremetalIpaDownloader"`
-	BaremetalMachineOsDownloader string `json:"baremetalMachineOsDownloader"`
-	BaremetalStaticIpManager     string `json:"baremetalStaticIpManager"`
 }
 
 func getProviderFromInfrastructure(infra *configv1.Infrastructure) (configv1.PlatformType, error) {
@@ -126,21 +109,6 @@ func getTerminationHandlerFromImages(platform configv1.PlatformType, images Imag
 		return images.ClusterAPIControllerAzure, nil
 	default:
 		return clusterAPIControllerNoOp, nil
-	}
-}
-
-// This function returns images required to bring up the Baremetal Pod.
-func newBaremetalControllers(images Images, usingBareMetal bool) BaremetalControllers {
-	if !usingBareMetal {
-		return BaremetalControllers{}
-	}
-	return BaremetalControllers{
-		BaremetalOperator:         images.BaremetalOperator,
-		Ironic:                    images.BaremetalIronic,
-		IronicInspector:           images.BaremetalIronicInspector,
-		IronicIpaDownloader:       images.BaremetalIpaDownloader,
-		IronicMachineOsDownloader: images.BaremetalMachineOsDownloader,
-		IronicStaticIpManager:     images.BaremetalStaticIpManager,
 	}
 }
 
