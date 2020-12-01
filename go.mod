@@ -12,14 +12,13 @@ require (
 	github.com/openshift/api v0.0.0-20201019163320-c6a5ec25f267
 	github.com/openshift/client-go v0.0.0-20201020074620-f8fd44879f7c
 	github.com/openshift/cluster-api-provider-gcp v0.0.1-0.20201201000827-1117a4fc438c
-	github.com/openshift/library-go v0.0.0-20201109112824-093ad3cf6600
+	github.com/openshift/library-go v0.0.0-20201207145935-4745c8aab783
 	github.com/operator-framework/operator-sdk v0.5.1-0.20190301204940-c2efe6f74e7b
 	github.com/prometheus/client_golang v1.7.1
 	github.com/spf13/cobra v1.0.0
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.5.1
 	github.com/vmware/govmomi v0.22.2
-	golang.org/x/crypto v0.0.0-20201002170205-7f63de1d35b0
 	golang.org/x/net v0.0.0-20200822124328-c89045814202
 	gopkg.in/gcfg.v1 v1.2.3
 	k8s.io/api v0.19.2
