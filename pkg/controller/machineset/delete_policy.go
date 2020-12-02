@@ -35,6 +35,7 @@ const (
 
 	mustDelete    deletePriority = 100.0
 	betterDelete  deletePriority = 50.0
+	preferDelete  deletePriority = 40.0
 	couldDelete   deletePriority = 20.0
 	mustNotDelete deletePriority = 0.0
 
@@ -86,6 +87,10 @@ func randomDeletePolicy(machine *v1beta1.Machine) deletePriority {
 	}
 	if machine.Status.ErrorReason != nil || machine.Status.ErrorMessage != nil {
 		return betterDelete
+	}
+	// The machine doesn't have a Node yet, and therefore isn't running any workloads
+	if machine.Status.NodeRef == nil {
+		return preferDelete
 	}
 	return couldDelete
 }

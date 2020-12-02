@@ -21,6 +21,7 @@ import (
 	"testing"
 
 	"github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -30,6 +31,8 @@ func TestMachineToDelete(t *testing.T) {
 	mustDeleteMachine := &v1beta1.Machine{ObjectMeta: metav1.ObjectMeta{DeletionTimestamp: &now}}
 	betterDeleteMachine := &v1beta1.Machine{Status: v1beta1.MachineStatus{ErrorMessage: &msg}}
 	deleteMeMachine := &v1beta1.Machine{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{DeleteNodeAnnotation: "yes"}}}
+	runningMachine := &v1beta1.Machine{Status: v1beta1.MachineStatus{NodeRef: &corev1.ObjectReference{}}}
+	notYetRunningMachine := &v1beta1.Machine{}
 
 	tests := []struct {
 		desc     string
@@ -41,7 +44,7 @@ func TestMachineToDelete(t *testing.T) {
 			desc: "func=randomDeletePolicy, diff=0",
 			diff: 0,
 			machines: []*v1beta1.Machine{
-				{},
+				runningMachine,
 			},
 			expect: []*v1beta1.Machine{},
 		},
@@ -49,30 +52,30 @@ func TestMachineToDelete(t *testing.T) {
 			desc: "func=randomDeletePolicy, diff>len(machines)",
 			diff: 2,
 			machines: []*v1beta1.Machine{
-				{},
+				runningMachine,
 			},
 			expect: []*v1beta1.Machine{
-				{},
+				runningMachine,
 			},
 		},
 		{
 			desc: "func=randomDeletePolicy, diff>betterDelete",
 			diff: 2,
 			machines: []*v1beta1.Machine{
-				{},
+				runningMachine,
 				betterDeleteMachine,
-				{},
+				runningMachine,
 			},
 			expect: []*v1beta1.Machine{
 				betterDeleteMachine,
-				{},
+				runningMachine,
 			},
 		},
 		{
 			desc: "func=randomDeletePolicy, diff<betterDelete",
 			diff: 2,
 			machines: []*v1beta1.Machine{
-				{},
+				runningMachine,
 				betterDeleteMachine,
 				betterDeleteMachine,
 				betterDeleteMachine,
@@ -86,7 +89,7 @@ func TestMachineToDelete(t *testing.T) {
 			desc: "func=randomDeletePolicy, diff<=mustDelete",
 			diff: 2,
 			machines: []*v1beta1.Machine{
-				{},
+				runningMachine,
 				mustDeleteMachine,
 				betterDeleteMachine,
 				mustDeleteMachine,
@@ -100,9 +103,9 @@ func TestMachineToDelete(t *testing.T) {
 			desc: "func=randomDeletePolicy, diff<=mustDelete+betterDelete",
 			diff: 2,
 			machines: []*v1beta1.Machine{
-				{},
+				runningMachine,
 				mustDeleteMachine,
-				{},
+				runningMachine,
 				betterDeleteMachine,
 			},
 			expect: []*v1beta1.Machine{
@@ -114,40 +117,56 @@ func TestMachineToDelete(t *testing.T) {
 			desc: "func=randomDeletePolicy, diff<=mustDelete+betterDelete+couldDelete",
 			diff: 2,
 			machines: []*v1beta1.Machine{
-				{},
+				runningMachine,
 				mustDeleteMachine,
-				{},
+				runningMachine,
 			},
 			expect: []*v1beta1.Machine{
 				mustDeleteMachine,
-				{},
+				runningMachine,
 			},
 		},
 		{
 			desc: "func=randomDeletePolicy, diff>betterDelete",
 			diff: 2,
 			machines: []*v1beta1.Machine{
-				{},
+				runningMachine,
 				betterDeleteMachine,
-				{},
+				runningMachine,
 			},
 			expect: []*v1beta1.Machine{
 				betterDeleteMachine,
-				{},
+				runningMachine,
 			},
 		},
 		{
 			desc: "func=randomDeletePolicy, annotated, diff=1",
 			diff: 1,
 			machines: []*v1beta1.Machine{
-				{},
+				runningMachine,
 				deleteMeMachine,
-				{},
+				runningMachine,
 			},
 			expect: []*v1beta1.Machine{
 				deleteMeMachine,
 			},
-		}}
+		},
+		{
+			desc: "func=randomDeletePolicy, delete non-running hosts first",
+			diff: 3,
+			machines: []*v1beta1.Machine{
+				runningMachine,
+				notYetRunningMachine,
+				deleteMeMachine,
+				betterDeleteMachine,
+			},
+			expect: []*v1beta1.Machine{
+				deleteMeMachine,
+				betterDeleteMachine,
+				notYetRunningMachine,
+			},
+		},
+	}
 
 	for _, test := range tests {
 		result := getMachinesToDeletePrioritized(test.machines, test.diff, randomDeletePolicy)
