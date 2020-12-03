@@ -5,6 +5,7 @@ metadata:
   namespace: openshift-machine-api
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
 
 ---
 apiVersion: v1
@@ -14,6 +15,7 @@ metadata:
   namespace: openshift-machine-api
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
 
 ---
 apiVersion: v1
@@ -23,6 +25,7 @@ metadata:
   namespace: openshift-machine-api
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
 automountServiceAccountToken: false
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -32,6 +35,7 @@ metadata:
   namespace: openshift-config
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
 rules:
   - apiGroups:
       - ""
@@ -50,6 +54,7 @@ metadata:
   namespace: openshift-machine-api
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
 rules:
 
   - apiGroups:
@@ -127,6 +132,7 @@ metadata:
   name: machine-api-controllers
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
 rules:
 
   - apiGroups:
@@ -220,6 +226,7 @@ metadata:
   namespace: openshift-machine-api
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
 rules:
 
   - apiGroups:
@@ -294,6 +301,7 @@ metadata:
   name: machine-api-operator
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
 rules:
   - apiGroups: ["authentication.k8s.io"]
     resources:
@@ -361,6 +369,7 @@ metadata:
   name: machine-api-controllers
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -378,6 +387,7 @@ metadata:
   namespace: openshift-machine-api
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -395,6 +405,7 @@ metadata:
   namespace: openshift-config
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -411,6 +422,7 @@ metadata:
   name: machine-api-operator
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: ClusterRole
@@ -428,6 +440,7 @@ metadata:
   namespace: openshift-machine-api
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -445,6 +458,7 @@ metadata:
   namespace: openshift-machine-api
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -463,6 +477,7 @@ metadata:
   namespace: openshift-machine-api
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
 rules:
   - apiGroups:
       - ""
@@ -490,6 +505,7 @@ metadata:
     rbac.authorization.k8s.io/aggregate-to-cluster-reader: "true"
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
 rules:
 - apiGroups:
   - machine.openshift.io
