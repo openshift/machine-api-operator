@@ -614,7 +614,7 @@ func validateAWS(m *Machine, config *admissionConfig) (bool, []string, utilerror
 	// TODO(alberto): Validate providerSpec.BlockDevices.
 	// https://github.com/openshift/cluster-api-provider-aws/pull/299#discussion_r433920532
 
-	switch providerSpec.Tenancy {
+	switch providerSpec.Placement.Tenancy {
 	case "", aws.DefaultTenancy, aws.DedicatedTenancy, aws.HostTenancy:
 		// Do nothing, valid values
 	default:
@@ -622,7 +622,7 @@ func validateAWS(m *Machine, config *admissionConfig) (bool, []string, utilerror
 			errs,
 			field.Invalid(
 				field.NewPath("providerSpec", "tenancy"),
-				providerSpec.Tenancy,
+				providerSpec.Placement.Tenancy,
 				fmt.Sprintf("Invalid providerSpec.tenancy, the only allowed options are: %s, %s, %s", aws.DefaultTenancy, aws.DedicatedTenancy, aws.HostTenancy),
 			),
 		)

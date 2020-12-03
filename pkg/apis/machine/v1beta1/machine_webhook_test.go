@@ -843,21 +843,21 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 		{
 			testCase: "with valid tenancy field",
 			modifySpec: func(p *aws.AWSMachineProviderConfig) {
-				p.Tenancy = aws.DedicatedTenancy
+				p.Placement.Tenancy = aws.DedicatedTenancy
 			},
 			expectedOk: true,
 		},
 		{
 			testCase: "with empty tenancy field",
 			modifySpec: func(p *aws.AWSMachineProviderConfig) {
-				p.Tenancy = ""
+				p.Placement.Tenancy = ""
 			},
 			expectedOk: true,
 		},
 		{
 			testCase: "fail with invalid tenancy field",
 			modifySpec: func(p *aws.AWSMachineProviderConfig) {
-				p.Tenancy = "invalid"
+				p.Placement.Tenancy = "invalid"
 			},
 			expectedOk:    false,
 			expectedError: "providerSpec.tenancy: Invalid value: \"invalid\": Invalid providerSpec.tenancy, the only allowed options are: default, dedicated, host",
