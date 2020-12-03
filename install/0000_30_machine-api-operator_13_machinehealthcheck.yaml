@@ -7,6 +7,8 @@ metadata:
   labels:
     api: clsuterapi
     k8s-app: termination-handler
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
 spec:
   selector:
     matchLabels:
