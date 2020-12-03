@@ -380,14 +380,6 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: clusterAPIControllerNoOp,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
-				BaremetalControllers: BaremetalControllers{
-					BaremetalOperator:         images.BaremetalOperator,
-					Ironic:                    images.BaremetalIronic,
-					IronicInspector:           images.BaremetalIronicInspector,
-					IronicIpaDownloader:       images.BaremetalIpaDownloader,
-					IronicMachineOsDownloader: images.BaremetalMachineOsDownloader,
-					IronicStaticIpManager:     images.BaremetalStaticIpManager,
-				},
 			},
 		},
 		{
