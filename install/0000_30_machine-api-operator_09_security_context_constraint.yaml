@@ -3,6 +3,7 @@ apiVersion: security.openshift.io/v1
 kind: SecurityContextConstraints
 metadata:
   annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
     kubernetes.io/description: 'machine-api-termination-handler allows the
       machine-api-termination-handler service account to run as root, access host
       paths and access the host network. This SCC is limited and should not be used
