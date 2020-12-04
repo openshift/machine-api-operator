@@ -123,8 +123,12 @@ being monitored by `machine-healthcheck-controller`.
 The `mapi_machinehealthcheck_remediation_success_total` metric gives a total count of the successful
 remediation performed by a MachineHealthCheck.
 
+The `mapi_machinehealthcheck_short_circuit` metric indicates when a MachineHealthCheck has been
+short-circuited, a `0` value indicates normal operation, a `1` value indicates a short-circuit.
+
 The `name` label in these metric refers to the name of the MachineHealthCheck that is being reported.
 The `namespace` label refers to the owning namespace of the MachineHealthCheck.
+
 
 **Sample metrics**
 ```
@@ -135,4 +139,8 @@ mapi_machinehealthcheck_nodes_covered{name="mhc-1",namespace="openshift-machine-
 # HELP mapi_machinehealthcheck_remediation_success_total Number of successful remediations performed by MachineHealthChecks
 # TYPE mapi_machinehealthcheck_remediation_success_total counter
 mapi_machinehealthcheck_remediation_success_total{name="mhc-1",namespace="openshift-machine-api"} 1
+# HELP mapi_machinehealthcheck_short_circuit Short circuit status for MachineHealthCheck (0=no, 1=yes)
+# TYPE mapi_machinehealthcheck_short_circuit gauge
+mapi_machinehealthcheck_short_circuit{name="machine-api-termination-handler",namespace="openshift-machine-api"} 0
+mapi_machinehealthcheck_short_circuit{name="mhc-1",namespace="openshift-machine-api"} 0
 ```
