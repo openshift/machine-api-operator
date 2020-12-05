@@ -63,6 +63,7 @@ func main() {
 	}
 
 	cfg := config.GetConfigOrDie()
+	syncPeriod := 10 * time.Minute
 
 	opts := manager.Options{
 		// Disable metrics serving
@@ -74,6 +75,7 @@ func main() {
 		// Slow the default retry and renew election rate to reduce etcd writes at idle: BZ 1858400
 		RetryPeriod:   &retryPeriod,
 		RenewDeadline: &renewDealine,
+		SyncPeriod:    &syncPeriod,
 	}
 
 	if *watchNamespace != "" {
