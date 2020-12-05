@@ -469,6 +469,21 @@ func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev
 				},
 			},
 		},
+		{
+			Name: "bound-sa-token",
+			VolumeSource: corev1.VolumeSource{
+				Projected: &corev1.ProjectedVolumeSource{
+					Sources: []corev1.VolumeProjection{
+						{
+							ServiceAccountToken: &corev1.ServiceAccountTokenProjection{
+								Audience: "openshift",
+								Path:     "token",
+							},
+						},
+					},
+				},
+			},
+		},
 	}
 	volumes = append(volumes, newRBACConfigVolumes()...)
 
@@ -614,6 +629,11 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 				{
 					MountPath: "/etc/pki/ca-trust/extracted/pem",
 					Name:      "trusted-ca",
+					ReadOnly:  true,
+				},
+				{
+					MountPath: "/var/run/secrets/openshift/serviceaccount",
+					Name:      "bound-sa-token",
 					ReadOnly:  true,
 				},
 			},
