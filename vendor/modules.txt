@@ -209,7 +209,7 @@ github.com/openshift/client-go/config/informers/externalversions/internalinterfa
 github.com/openshift/client-go/config/listers/config/v1
 # github.com/openshift/cluster-api-provider-gcp v0.0.1-0.20201201000827-1117a4fc438c
 github.com/openshift/cluster-api-provider-gcp/pkg/apis/gcpprovider/v1beta1
-# github.com/openshift/library-go v0.0.0-20201109112824-093ad3cf6600
+# github.com/openshift/library-go v0.0.0-20201207145935-4745c8aab783
 github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers
 github.com/openshift/library-go/pkg/operator/events
 github.com/openshift/library-go/pkg/operator/resource/resourceapply
@@ -277,8 +277,6 @@ github.com/vmware/govmomi/vim25/soap
 github.com/vmware/govmomi/vim25/types
 github.com/vmware/govmomi/vim25/xml
 # golang.org/x/crypto v0.0.0-20201002170205-7f63de1d35b0
-golang.org/x/crypto/bcrypt
-golang.org/x/crypto/blowfish
 golang.org/x/crypto/ssh/terminal
 # golang.org/x/mod v0.3.0
 golang.org/x/mod/module
