@@ -26,7 +26,7 @@ if [ -n "$TRACE" ]; then
   set -x
 fi
 
-k8s_version=1.18.8
+k8s_version=1.19.2
 etcd_version=3.4.10
 goarch=amd64
 goos="unknown"
@@ -93,26 +93,15 @@ function fetch_tools {
   fi
 
   header_text "fetching tools"
+  kb_tools_archive_name="kubebuilder-tools-$k8s_version-$goos-$goarch.tar.gz"
+  kb_tools_download_url="https://storage.googleapis.com/kubebuilder-tools/$kb_tools_archive_name"
 
-  mkdir -p "${kb_root_dir}/bin"
+  kb_tools_archive_path="$tmp_root/$kb_tools_archive_name"
+  if [ ! -f $kb_tools_archive_path ]; then
+    curl -fsL ${kb_tools_download_url} -o "$kb_tools_archive_path"
+  fi
 
-  k8s_download_root="https://dl.k8s.io/v${k8s_version}/bin/${goos}/${goarch}"
-
-  curl -fsL "${k8s_download_root}/kubectl" -o "${kb_root_dir}/bin/kubectl"
-  chmod +x "${kb_root_dir}/bin/kubectl"
-
-  curl -fsL "${k8s_download_root}/kube-apiserver" -o "${kb_root_dir}/bin/kube-apiserver"
-  chmod +x "${kb_root_dir}/bin/kube-apiserver"
-
-  etcd_os_version="etcd-v${etcd_version}-${goos}-${goarch}"
-  etcd_archive="${etcd_os_version}.tar.gz"
-  etcd_download_url="https://github.com/etcd-io/etcd/releases/download/v${etcd_version}/${etcd_archive}"
-  curl -fsL "${etcd_download_url}" -o "${kb_root_dir}/${etcd_archive}"
-
-  tar -zvxf "${kb_root_dir}/${etcd_archive}" -o "${etcd_os_version}/etcd"
-  mv "${etcd_os_version}/etcd" "${kb_root_dir}/bin/etcd"
-  rm "${kb_root_dir}/${etcd_archive}"
-  rm -rf "${etcd_os_version}"
+  tar -zvxf "$kb_tools_archive_path" -C "$tmp_root/"
 }
 
 function setup_envs {
