@@ -21,12 +21,12 @@ require (
 	github.com/vmware/govmomi v0.22.2
 	golang.org/x/net v0.0.0-20200822124328-c89045814202
 	gopkg.in/gcfg.v1 v1.2.3
-	k8s.io/api v0.19.2
-	k8s.io/apimachinery v0.19.2
-	k8s.io/client-go v0.19.2
-	k8s.io/code-generator v0.19.2
+	k8s.io/api v0.19.4
+	k8s.io/apimachinery v0.19.4
+	k8s.io/client-go v0.19.4
+	k8s.io/code-generator v0.19.4
 	k8s.io/klog/v2 v2.3.0
-	k8s.io/kubectl v0.19.0
+	k8s.io/kubectl v0.19.4
 	k8s.io/utils v0.0.0-20200729134348-d5654de09c73
 	sigs.k8s.io/cluster-api-provider-aws v0.0.0-00010101000000-000000000000
 	sigs.k8s.io/cluster-api-provider-azure v0.0.0-00010101000000-000000000000
