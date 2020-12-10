@@ -15,12 +15,14 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/pointer"
 	aws "sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsprovider/v1beta1"
 	azure "sigs.k8s.io/cluster-api-provider-azure/pkg/apis/azureprovider/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	yaml "sigs.k8s.io/yaml"
@@ -54,6 +56,41 @@ func TestMachineCreation(t *testing.T) {
 	g.Expect(c.Create(ctx, namespace)).To(Succeed())
 	defer func() {
 		g.Expect(c.Delete(ctx, namespace)).To(Succeed())
+	}()
+
+	awsSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultAWSCredentialsSecret,
+			Namespace: namespace.Name,
+		},
+	}
+	vSphereSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultVSphereCredentialsSecret,
+			Namespace: namespace.Name,
+		},
+	}
+	GCPSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultGCPCredentialsSecret,
+			Namespace: namespace.Name,
+		},
+	}
+	azureSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultAzureCredentialsSecret,
+			Namespace: defaultSecretNamespace,
+		},
+	}
+	g.Expect(c.Create(ctx, awsSecret)).To(Succeed())
+	g.Expect(c.Create(ctx, vSphereSecret)).To(Succeed())
+	g.Expect(c.Create(ctx, GCPSecret)).To(Succeed())
+	g.Expect(c.Create(ctx, azureSecret)).To(Succeed())
+	defer func() {
+		g.Expect(c.Delete(ctx, awsSecret)).To(Succeed())
+		g.Expect(c.Delete(ctx, vSphereSecret)).To(Succeed())
+		g.Expect(c.Delete(ctx, GCPSecret)).To(Succeed())
+		g.Expect(c.Delete(ctx, azureSecret)).To(Succeed())
 	}()
 
 	testCases := []struct {
@@ -249,7 +286,7 @@ func TestMachineCreation(t *testing.T) {
 				dns.Spec.PublicZone = &osconfigv1.DNSZone{}
 			}
 			machineDefaulter := createMachineDefaulter(platformStatus, tc.clusterID)
-			machineValidator := createMachineValidator(infra, dns)
+			machineValidator := createMachineValidator(infra, c, dns)
 			mgr.GetWebhookServer().Register(DefaultMachineMutatingHookPath, &webhook.Admission{Handler: machineDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineValidatingHookPath, &webhook.Admission{Handler: machineValidator})
 
@@ -425,6 +462,41 @@ func TestMachineUpdate(t *testing.T) {
 	g.Expect(c.Create(ctx, namespace)).To(Succeed())
 	defer func() {
 		g.Expect(c.Delete(ctx, namespace)).To(Succeed())
+	}()
+
+	awsSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultAWSCredentialsSecret,
+			Namespace: namespace.Name,
+		},
+	}
+	vSphereSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultVSphereCredentialsSecret,
+			Namespace: namespace.Name,
+		},
+	}
+	GCPSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultGCPCredentialsSecret,
+			Namespace: namespace.Name,
+		},
+	}
+	azureSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultAzureCredentialsSecret,
+			Namespace: defaultSecretNamespace,
+		},
+	}
+	g.Expect(c.Create(ctx, awsSecret)).To(Succeed())
+	g.Expect(c.Create(ctx, vSphereSecret)).To(Succeed())
+	g.Expect(c.Create(ctx, GCPSecret)).To(Succeed())
+	g.Expect(c.Create(ctx, azureSecret)).To(Succeed())
+	defer func() {
+		g.Expect(c.Delete(ctx, awsSecret)).To(Succeed())
+		g.Expect(c.Delete(ctx, vSphereSecret)).To(Succeed())
+		g.Expect(c.Delete(ctx, GCPSecret)).To(Succeed())
+		g.Expect(c.Delete(ctx, azureSecret)).To(Succeed())
 	}()
 
 	testCases := []struct {
@@ -726,7 +798,7 @@ func TestMachineUpdate(t *testing.T) {
 				},
 			}
 			machineDefaulter := createMachineDefaulter(platformStatus, tc.clusterID)
-			machineValidator := createMachineValidator(infra, plainDNS)
+			machineValidator := createMachineValidator(infra, c, plainDNS)
 			mgr.GetWebhookServer().Register(DefaultMachineMutatingHookPath, &webhook.Admission{Handler: machineDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineValidatingHookPath, &webhook.Admission{Handler: machineValidator})
 
@@ -779,6 +851,11 @@ func TestMachineUpdate(t *testing.T) {
 }
 
 func TestValidateAWSProviderSpec(t *testing.T) {
+	namespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "aws-validation-test",
+		},
+	}
 
 	testCases := []struct {
 		testCase         string
@@ -828,6 +905,14 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			expectedError: "providerSpec.credentialsSecret: Required value: expected providerSpec.credentialsSecret to be populated",
 		},
 		{
+			testCase: "when the credentials secret does not exist",
+			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+				p.CredentialsSecret.Name = "does-not-exist"
+			},
+			expectedOk:       true,
+			expectedWarnings: []string{"providerSpec.credentialsSecret: Invalid value: \"does-not-exist\": not found. Expected CredentialsSecret to exist"},
+		},
+		{
 			testCase: "with no subnet values it fails",
 			modifySpec: func(p *aws.AWSMachineProviderConfig) {
 				p.Subnet = aws.AWSResourceReference{}
@@ -864,10 +949,18 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 		},
 	}
 
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "secret",
+			Namespace: namespace.Name,
+		},
+	}
+	c := fake.NewFakeClientWithScheme(scheme.Scheme, secret)
+
 	infra := plainInfra.DeepCopy()
 	infra.Status.InfrastructureName = "clusterID"
 	infra.Status.PlatformStatus.Type = osconfigv1.AWSPlatformType
-	h := createMachineValidator(infra, plainDNS)
+	h := createMachineValidator(infra, c, plainDNS)
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
@@ -901,7 +994,11 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 				tc.modifySpec(providerSpec)
 			}
 
-			m := &Machine{}
+			m := &Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: namespace.Name,
+				},
+			}
 			rawBytes, err := json.Marshal(providerSpec)
 			if err != nil {
 				t.Fatal(err)
@@ -1013,6 +1110,11 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 }
 
 func TestValidateAzureProviderSpec(t *testing.T) {
+	namespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "azure-validation-test",
+		},
+	}
 
 	testCases := []struct {
 		testCase            string
@@ -1164,10 +1266,18 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 			expectedError: "providerSpec.credentialsSecret.namespace: Required value: namespace must be provided",
 		},
 		{
+			testCase: "when the credentials secret does not exist",
+			modifySpec: func(p *azure.AzureMachineProviderSpec) {
+				p.CredentialsSecret.Name = "does-not-exist"
+			},
+			expectedOk:       true,
+			expectedWarnings: []string{"providerSpec.credentialsSecret: Invalid value: \"does-not-exist\": not found. Expected CredentialsSecret to exist"},
+		},
+		{
 			testCase: "with no credentials secret name it fails",
 			modifySpec: func(p *azure.AzureMachineProviderSpec) {
 				p.CredentialsSecret = &corev1.SecretReference{
-					Namespace: "namespace",
+					Namespace: namespace.Name,
 				}
 			},
 			expectedOk:    false,
@@ -1216,12 +1326,19 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "name",
+					Namespace: namespace.Name,
+				},
+			}
+			c := fake.NewFakeClientWithScheme(scheme.Scheme, secret)
 			infra := plainInfra.DeepCopy()
 			infra.Status.InfrastructureName = "clusterID"
 			infra.Status.PlatformStatus.Type = osconfigv1.AzurePlatformType
 			infra.Status.PlatformStatus.Azure = tc.azurePlatformStatus
 
-			h := createMachineValidator(infra, plainDNS)
+			h := createMachineValidator(infra, c, plainDNS)
 
 			// create a valid spec that will then be 'broken' by modifySpec
 			providerSpec := &azure.AzureMachineProviderSpec{
@@ -1234,7 +1351,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 				},
 				CredentialsSecret: &corev1.SecretReference{
 					Name:      "name",
-					Namespace: "namespace",
+					Namespace: namespace.Name,
 				},
 				OSDisk: azure.OSDisk{
 					DiskSizeGB: 1,
@@ -1244,7 +1361,11 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 				tc.modifySpec(providerSpec)
 			}
 
-			m := &Machine{}
+			m := &Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: namespace.Name,
+				},
+			}
 			rawBytes, err := json.Marshal(providerSpec)
 			if err != nil {
 				t.Fatal(err)
@@ -1431,6 +1552,11 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 }
 
 func TestValidateGCPProviderSpec(t *testing.T) {
+	namespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "gcp-validation-test",
+		},
+	}
 
 	testCases := []struct {
 		testCase         string
@@ -1625,6 +1751,14 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 			expectedError: "providerSpec.credentialsSecret: Required value: credentialsSecret must be provided",
 		},
 		{
+			testCase: "when the credentials secret does not exist",
+			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+				p.CredentialsSecret.Name = "does-not-exist"
+			},
+			expectedOk:       true,
+			expectedWarnings: []string{"providerSpec.credentialsSecret: Invalid value: \"does-not-exist\": not found. Expected CredentialsSecret to exist"},
+		},
+		{
 			testCase: "with no user data secret name",
 			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
 				p.CredentialsSecret = &corev1.LocalObjectReference{}
@@ -1639,10 +1773,17 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 		},
 	}
 
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "name",
+			Namespace: namespace.Name,
+		},
+	}
+	c := fake.NewFakeClientWithScheme(scheme.Scheme, secret)
 	infra := plainInfra.DeepCopy()
 	infra.Status.InfrastructureName = "clusterID"
 	infra.Status.PlatformStatus.Type = osconfigv1.GCPPlatformType
-	h := createMachineValidator(infra, plainDNS)
+	h := createMachineValidator(infra, c, plainDNS)
 
 	for _, tc := range testCases {
 		providerSpec := &gcp.GCPMachineProviderSpec{
@@ -1679,7 +1820,11 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 		}
 
 		t.Run(tc.testCase, func(t *testing.T) {
-			m := &Machine{}
+			m := &Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: namespace.Name,
+				},
+			}
 			rawBytes, err := json.Marshal(providerSpec)
 			if err != nil {
 				t.Fatal(err)
@@ -1830,6 +1975,11 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 }
 
 func TestValidateVSphereProviderSpec(t *testing.T) {
+	namespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "vsphere-validation-test",
+		},
+	}
 
 	testCases := []struct {
 		testCase         string
@@ -1964,6 +2114,14 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 			expectedError: "providerSpec.credentialsSecret: Required value: credentialsSecret must be provided",
 		},
 		{
+			testCase: "when the credentials secret does not exist",
+			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+				p.CredentialsSecret.Name = "does-not-exist"
+			},
+			expectedOk:       true,
+			expectedWarnings: []string{"providerSpec.credentialsSecret: Invalid value: \"does-not-exist\": not found. Expected CredentialsSecret to exist"},
+		},
+		{
 			testCase: "with no credentials secret name provided",
 			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
 				p.CredentialsSecret = &corev1.LocalObjectReference{}
@@ -2002,10 +2160,17 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 		},
 	}
 
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "name",
+			Namespace: namespace.Name,
+		},
+	}
+	c := fake.NewFakeClientWithScheme(scheme.Scheme, secret)
 	infra := plainInfra.DeepCopy()
 	infra.Status.InfrastructureName = "clusterID"
 	infra.Status.PlatformStatus.Type = osconfigv1.VSpherePlatformType
-	h := createMachineValidator(infra, plainDNS)
+	h := createMachineValidator(infra, c, plainDNS)
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
@@ -2036,7 +2201,11 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 				tc.modifySpec(providerSpec)
 			}
 
-			m := &Machine{}
+			m := &Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: namespace.Name,
+				},
+			}
 			rawBytes, err := json.Marshal(providerSpec)
 			if err != nil {
 				t.Fatal(err)

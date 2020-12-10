@@ -14,6 +14,7 @@ import (
 	vsphere "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -24,6 +25,7 @@ import (
 	aws "sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsprovider/v1beta1"
 	azure "sigs.k8s.io/cluster-api-provider-azure/pkg/apis/azureprovider/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 	yaml "sigs.k8s.io/yaml"
 )
@@ -112,6 +114,47 @@ var (
 	webhookSideEffects   = admissionregistrationv1.SideEffectClassNone
 )
 
+func secretExists(c client.Client, name, namespace string) (bool, error) {
+	key := client.ObjectKey{
+		Name:      name,
+		Namespace: namespace,
+	}
+	obj := &corev1.Secret{}
+
+	if err := c.Get(context.Background(), key, obj); err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+func credentialsSecretExists(c client.Client, name, namespace string) []string {
+	secretExists, err := secretExists(c, name, namespace)
+	if err != nil {
+		return []string{
+			field.Invalid(
+				field.NewPath("providerSpec", "credentialsSecret"),
+				name,
+				fmt.Sprintf("failed to get credentialsSecret: %v", err),
+			).Error(),
+		}
+	}
+
+	if !secretExists {
+		return []string{
+			field.Invalid(
+				field.NewPath("providerSpec", "credentialsSecret"),
+				name,
+				"not found. Expected CredentialsSecret to exist",
+			).Error(),
+		}
+	}
+
+	return []string{}
+}
+
 func getInfra() (*osconfigv1.Infrastructure, error) {
 	cfg, err := ctrl.GetConfig()
 	if err != nil {
@@ -151,6 +194,7 @@ type admissionConfig struct {
 	clusterID       string
 	platformStatus  *osconfigv1.PlatformStatus
 	dnsDisconnected bool
+	client          client.Client
 }
 
 type admissionHandler struct {
@@ -186,19 +230,29 @@ func NewMachineValidator() (*machineValidatorHandler, error) {
 		return nil, err
 	}
 
+	cfg, err := ctrl.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+	c, err := client.New(cfg, client.Options{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to build kubernetes client: %v", err)
+	}
+
 	dns, err := getDNS()
 	if err != nil {
 		return nil, err
 	}
 
-	return createMachineValidator(infra, dns), nil
+	return createMachineValidator(infra, c, dns), nil
 }
 
-func createMachineValidator(infra *osconfigv1.Infrastructure, dns *osconfigv1.DNS) *machineValidatorHandler {
+func createMachineValidator(infra *osconfigv1.Infrastructure, client client.Client, dns *osconfigv1.DNS) *machineValidatorHandler {
 	admissionConfig := &admissionConfig{
 		dnsDisconnected: dns.Spec.PublicZone == nil,
 		clusterID:       infra.Status.InfrastructureName,
 		platformStatus:  infra.Status.PlatformStatus,
+		client:          client,
 	}
 	return &machineValidatorHandler{
 		admissionHandler: &admissionHandler{
@@ -605,6 +659,8 @@ func validateAWS(m *Machine, config *admissionConfig) (bool, []string, utilerror
 				"expected providerSpec.credentialsSecret to be populated",
 			),
 		)
+	} else {
+		warnings = append(warnings, credentialsSecretExists(config.client, providerSpec.CredentialsSecret.Name, m.GetNamespace())...)
 	}
 
 	if providerSpec.Subnet.ARN == nil && providerSpec.Subnet.ID == nil && providerSpec.Subnet.Filters == nil {
@@ -736,6 +792,9 @@ func validateAzure(m *Machine, config *admissionConfig) (bool, []string, utilerr
 		}
 		if providerSpec.CredentialsSecret.Name == "" {
 			errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret", "name"), "name must be provided"))
+		}
+		if providerSpec.CredentialsSecret.Name != "" && providerSpec.CredentialsSecret.Namespace != "" {
+			warnings = append(warnings, credentialsSecretExists(config.client, providerSpec.CredentialsSecret.Name, providerSpec.CredentialsSecret.Namespace)...)
 		}
 	}
 
@@ -903,6 +962,8 @@ func validateGCP(m *Machine, config *admissionConfig) (bool, []string, utilerror
 	} else {
 		if providerSpec.CredentialsSecret.Name == "" {
 			errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret", "name"), "name must be provided"))
+		} else {
+			warnings = append(warnings, credentialsSecretExists(config.client, providerSpec.CredentialsSecret.Name, m.GetNamespace())...)
 		}
 	}
 
@@ -1057,6 +1118,8 @@ func validateVSphere(m *Machine, config *admissionConfig) (bool, []string, utile
 	} else {
 		if providerSpec.CredentialsSecret.Name == "" {
 			errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret", "name"), "name must be provided"))
+		} else {
+			warnings = append(warnings, credentialsSecretExists(config.client, providerSpec.CredentialsSecret.Name, m.GetNamespace())...)
 		}
 	}
 

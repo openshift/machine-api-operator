@@ -3,11 +3,15 @@ package v1beta1
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/klog/v2"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 )
 
@@ -32,18 +36,28 @@ func NewMachineSetValidator() (*machineSetValidatorHandler, error) {
 		return nil, err
 	}
 
+	cfg, err := ctrl.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+	c, err := client.New(cfg, client.Options{})
+	if err != nil {
+		return nil, fmt.Errorf("failed to build kubernetes client: %v", err)
+	}
+
 	dns, err := getDNS()
 	if err != nil {
 		return nil, err
 	}
 
-	return createMachineSetValidator(infra, dns), nil
+	return createMachineSetValidator(infra, c, dns), nil
 }
 
-func createMachineSetValidator(infra *osconfigv1.Infrastructure, dns *osconfigv1.DNS) *machineSetValidatorHandler {
+func createMachineSetValidator(infra *osconfigv1.Infrastructure, client client.Client, dns *osconfigv1.DNS) *machineSetValidatorHandler {
 	admissionConfig := &admissionConfig{
 		dnsDisconnected: dns.Spec.PublicZone == nil,
 		clusterID:       infra.Status.InfrastructureName,
+		client:          client,
 	}
 	return &machineSetValidatorHandler{
 		admissionHandler: &admissionHandler{
@@ -116,7 +130,12 @@ func (h *machineSetValidatorHandler) validateMachineSet(ms *MachineSet) (bool, [
 	var errs []error
 
 	// Create a Machine from the MachineSet and validate the Machine template
-	m := &Machine{Spec: ms.Spec.Template.Spec}
+	m := &Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: ms.GetNamespace(),
+		},
+		Spec: ms.Spec.Template.Spec,
+	}
 	ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
 	if !ok {
 		errs = append(errs, err.Errors()...)
