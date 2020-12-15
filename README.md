@@ -35,7 +35,7 @@ Ensure presence of expected number of replicas and a given provider config for a
 
   - [cluster-api-provider-openstack](https://github.com/openshift/cluster-api-provider-openstack)
 
-  - [cluster-api-provider-baremetal](https://github.com/metal3-io/cluster-api-provider-baremetal)
+  - [cluster-api-provider-baremetal](https://github.com/openshift/cluster-api-provider-baremetal)
 
   - [cluster-api-provider-ovirt](https://github.com/openshift/cluster-api-provider-ovirt)
 
