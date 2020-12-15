@@ -615,7 +615,7 @@ func newKubeProxyContainer(image, portName, upstreamPort string, exposePort int3
 		fmt.Sprintf("--tls-cert-file=%s/tls.crt", tlsCertMountPath),
 		fmt.Sprintf("--tls-private-key-file=%s/tls.key", tlsCertMountPath),
 		"--logtostderr=true",
-		"--v=10",
+		"--v=3",
 	}
 	ports := []corev1.ContainerPort{{
 		Name:          portName,
