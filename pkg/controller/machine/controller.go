@@ -365,7 +365,7 @@ func (r *ReconcileMachine) drainNode(machine *machinev1.Machine) error {
 	}
 
 	if nodeIsUnreachable(node) {
-		klog.Infof("%q: Node %q is unreachable, draining will wait ignore gracePeriod. PDBs are still honored.",
+		klog.Infof("%q: Node %q is unreachable, draining will ignore gracePeriod. PDBs are still honored.",
 			machine.Name, node.Name)
 		// Since kubelet is unreachable, pods will never disappear and we still
 		// need SkipWaitForDeleteTimeoutSeconds so we don't wait for them.
