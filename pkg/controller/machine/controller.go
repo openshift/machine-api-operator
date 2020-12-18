@@ -344,7 +344,7 @@ func (r *ReconcileMachine) drainNode(machine *machinev1.Machine) error {
 		Client:              kubeClient,
 		Force:               true,
 		IgnoreAllDaemonSets: true,
-		DeleteLocalData:     true,
+		DeleteEmptyDirData:  true,
 		GracePeriodSeconds:  -1,
 		// If a pod is not evicted in 20 seconds, retry the eviction next time the
 		// machine gets reconciled again (to allow other machines to be reconciled).
