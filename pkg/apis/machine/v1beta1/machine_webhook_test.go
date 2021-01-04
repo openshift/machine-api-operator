@@ -1,6 +1,7 @@
 package v1beta1
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"reflect"
@@ -290,14 +291,14 @@ func TestMachineCreation(t *testing.T) {
 			mgr.GetWebhookServer().Register(DefaultMachineMutatingHookPath, &webhook.Admission{Handler: machineDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineValidatingHookPath, &webhook.Admission{Handler: machineValidator})
 
-			done := make(chan struct{})
+			mgrCtx, cancel := context.WithCancel(context.Background())
 			stopped := make(chan struct{})
 			go func() {
-				gs.Expect(mgr.Start(done)).To(Succeed())
+				gs.Expect(mgr.Start(mgrCtx)).To(Succeed())
 				close(stopped)
 			}()
 			defer func() {
-				close(done)
+				cancel()
 				<-stopped
 			}()
 
@@ -802,14 +803,14 @@ func TestMachineUpdate(t *testing.T) {
 			mgr.GetWebhookServer().Register(DefaultMachineMutatingHookPath, &webhook.Admission{Handler: machineDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineValidatingHookPath, &webhook.Admission{Handler: machineValidator})
 
-			done := make(chan struct{})
+			mgrCtx, cancel := context.WithCancel(context.Background())
 			stopped := make(chan struct{})
 			go func() {
-				gs.Expect(mgr.Start(done)).To(Succeed())
+				gs.Expect(mgr.Start(mgrCtx)).To(Succeed())
 				close(stopped)
 			}()
 			defer func() {
-				close(done)
+				cancel()
 				<-stopped
 			}()
 

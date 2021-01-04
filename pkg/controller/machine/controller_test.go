@@ -283,7 +283,7 @@ func TestReconcileRequest(t *testing.T) {
 			actuator: act,
 		}
 
-		result, err := r.Reconcile(tc.request)
+		result, err := r.Reconcile(ctx, tc.request)
 		gotError := (err != nil)
 		if tc.expected.error != gotError {
 			var errorExpectation string

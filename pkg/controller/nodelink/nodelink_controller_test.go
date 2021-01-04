@@ -12,12 +12,10 @@ import (
 	mapiv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
@@ -34,6 +32,7 @@ const (
 
 var (
 	knownDate = metav1.Time{Time: time.Date(1985, 06, 03, 0, 0, 0, 0, time.Local)}
+	ctx       = context.Background()
 )
 
 func node(name, providerID string, addresses []corev1.NodeAddress, taints []corev1.Taint) *corev1.Node {
@@ -476,12 +475,8 @@ func TestNodeRequestFromMachine(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		o := handler.MapObject{
-			Meta:   tc.machine.GetObjectMeta(),
-			Object: tc.machine,
-		}
 		r := newFakeReconciler(fake.NewFakeClientWithScheme(scheme.Scheme, tc.machine), tc.machine, tc.node)
-		got := r.nodeRequestFromMachine(o)
+		got := r.nodeRequestFromMachine(tc.machine)
 		if !reflect.DeepEqual(got, tc.expected) {
 			t.Errorf("expected: %v, got: %v", tc.expected, got)
 		}
@@ -535,7 +530,7 @@ func TestReconcile(t *testing.T) {
 			},
 		}
 
-		got, err := r.Reconcile(request)
+		got, err := r.Reconcile(ctx, request)
 		if got != tc.expected {
 			t.Errorf("expected %v, got: %v", tc.expected, got)
 		}
@@ -571,7 +566,7 @@ func TestReconcile(t *testing.T) {
 
 func TestIndexNodeByProviderID(t *testing.T) {
 	testCases := []struct {
-		object   runtime.Object
+		object   client.Object
 		expected []string
 	}{
 		{
@@ -598,7 +593,7 @@ func TestIndexNodeByProviderID(t *testing.T) {
 
 func TestIndexMachineByProvider(t *testing.T) {
 	testCases := []struct {
-		object   runtime.Object
+		object   client.Object
 		expected []string
 	}{
 		{
@@ -625,7 +620,7 @@ func TestIndexMachineByProvider(t *testing.T) {
 
 func TestIndexNodeByInternalIP(t *testing.T) {
 	testCases := []struct {
-		object   runtime.Object
+		object   client.Object
 		expected []string
 	}{
 		{
@@ -670,7 +665,7 @@ func TestIndexNodeByInternalIP(t *testing.T) {
 
 func TestIndexMachineByInternalIP(t *testing.T) {
 	testCases := []struct {
-		object   runtime.Object
+		object   client.Object
 		expected []string
 	}{
 		{

@@ -53,7 +53,6 @@ var (
 	k8sClient  client.Client
 	testEnv    *envtest.Environment
 	mgr        manager.Manager
-	doneMgr    = make(chan struct{})
 	ctx        = context.Background()
 	reconciler *ReconcileMachineSet
 )

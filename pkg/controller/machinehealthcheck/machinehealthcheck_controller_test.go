@@ -25,12 +25,15 @@ import (
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
-	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 const (
 	namespace = "openshift-machine-api"
+)
+
+var (
+	ctx = context.Background()
 )
 
 func init() {
@@ -490,7 +493,7 @@ func TestReconcile(t *testing.T) {
 					Name:      tc.mhc.GetName(),
 				},
 			}
-			result, err := r.Reconcile(request)
+			result, err := r.Reconcile(ctx, request)
 			assertEvents(t, tc.testCase, tc.expectedEvents, recorder.Events)
 			if tc.expected.error != (err != nil) {
 				var errorExpectation string
@@ -780,11 +783,7 @@ func TestMHCRequestsFromMachine(t *testing.T) {
 				objects = append(objects, runtime.Object(tc.mhcs[i]))
 			}
 
-			o := handler.MapObject{
-				Meta:   tc.machine.GetObjectMeta(),
-				Object: tc.machine,
-			}
-			requests := newFakeReconciler(objects...).mhcRequestsFromMachine(o)
+			requests := newFakeReconciler(objects...).mhcRequestsFromMachine(tc.machine)
 			if !reflect.DeepEqual(requests, tc.expectedRequests) {
 				t.Errorf("Expected: %v, got: %v", tc.expectedRequests, requests)
 			}
@@ -981,11 +980,7 @@ func TestMHCRequestsFromNode(t *testing.T) {
 				objects = append(objects, runtime.Object(tc.mhcs[i]))
 			}
 
-			o := handler.MapObject{
-				Meta:   tc.node.GetObjectMeta(),
-				Object: tc.node,
-			}
-			requests := newFakeReconciler(objects...).mhcRequestsFromNode(o)
+			requests := newFakeReconciler(objects...).mhcRequestsFromNode(tc.node)
 			if !reflect.DeepEqual(requests, tc.expectedRequests) {
 				t.Errorf("Expected: %v, got: %v", tc.expectedRequests, requests)
 			}

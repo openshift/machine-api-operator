@@ -489,11 +489,6 @@ func MachineSetMutatingWebhook() admissionregistrationv1.MutatingWebhook {
 	}
 }
 
-func responseWithWarnings(response admission.Response, warnings []string) admission.Response {
-	response.AdmissionResponse.Warnings = warnings
-	return response
-}
-
 // Handle handles HTTP requests for admission webhook servers.
 func (h *machineValidatorHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	m := &Machine{}
@@ -506,10 +501,10 @@ func (h *machineValidatorHandler) Handle(ctx context.Context, req admission.Requ
 
 	ok, warnings, errs := h.webhookOperations(m, h.admissionConfig)
 	if !ok {
-		return responseWithWarnings(admission.Denied(errs.Error()), warnings)
+		return admission.Denied(errs.Error()).WithWarnings(warnings...)
 	}
 
-	return responseWithWarnings(admission.Allowed("Machine valid"), warnings)
+	return admission.Allowed("Machine valid").WithWarnings(warnings...)
 }
 
 // Handle handles HTTP requests for admission webhook servers.
@@ -535,14 +530,14 @@ func (h *machineDefaulterHandler) Handle(ctx context.Context, req admission.Requ
 
 	ok, warnings, errs := h.webhookOperations(m, h.admissionConfig)
 	if !ok {
-		return responseWithWarnings(admission.Denied(errs.Error()), warnings)
+		return admission.Denied(errs.Error()).WithWarnings(warnings...)
 	}
 
 	marshaledMachine, err := json.Marshal(m)
 	if err != nil {
-		return responseWithWarnings(admission.Errored(http.StatusInternalServerError, err), warnings)
+		return admission.Errored(http.StatusInternalServerError, err).WithWarnings(warnings...)
 	}
-	return responseWithWarnings(admission.PatchResponseFromRaw(req.Object.Raw, marshaledMachine), warnings)
+	return admission.PatchResponseFromRaw(req.Object.Raw, marshaledMachine).WithWarnings(warnings...)
 }
 
 type awsDefaulter struct {

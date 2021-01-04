@@ -70,12 +70,12 @@ func TestMachineEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	doneMgr := make(chan struct{})
+	mgrCtx, cancel := context.WithCancel(context.Background())
 
 	go func() {
-		g.Expect(mgr.Start(doneMgr)).To(Succeed())
+		g.Expect(mgr.Start(mgrCtx)).To(Succeed())
 	}()
-	defer close(doneMgr)
+	defer cancel()
 
 	k8sClient := mgr.GetClient()
 	eventRecorder := mgr.GetEventRecorderFor("vspherecontroller")
