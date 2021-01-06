@@ -92,7 +92,7 @@ const (
 	// Hardcoded instance state set on machine failure
 	unknownInstanceState = "Unknown"
 
-	skipWaitForDeleteTimeoutSeconds = 60 * 5
+	skipWaitForDeleteTimeoutSeconds = 1
 )
 
 var DefaultActuator Actuator
@@ -362,9 +362,12 @@ func (r *ReconcileMachine) drainNode(machine *machinev1.Machine) error {
 	}
 
 	if nodeIsUnreachable(node) {
-		klog.Infof("%q: Node %q is unreachable, draining will wait %d seconds after pod is signalled for deletion and skip after it",
-			machine.Name, node.Name, skipWaitForDeleteTimeoutSeconds)
+		klog.Infof("%q: Node %q is unreachable, draining will ignore gracePeriod. PDBs are still honored.",
+			machine.Name, node.Name)
+		// Since kubelet is unreachable, pods will never disappear and we still
+		// need SkipWaitForDeleteTimeoutSeconds so we don't wait for them.
 		drainer.SkipWaitForDeleteTimeoutSeconds = skipWaitForDeleteTimeoutSeconds
+		drainer.GracePeriodSeconds = 1
 	}
 
 	if err := drain.RunCordonOrUncordon(drainer, node, true); err != nil {
