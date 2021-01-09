@@ -1,3 +1,7 @@
+---
+id: troubleshooting
+title: Troubleshooting
+---
 # Important
 When troubleshooting a **Master/Control Plane Machine**, it's **absolutely imperative** that you familiarize yourself with determining the health of the etcd members.  On some rare occasions, a Node may go unready on multiple master Machines, but one or more of those Machines may have healthy etcd members.  Before selecting a master Machine to delete, it's mandatory to determine that the Machine you are intended to delete will not compromise etcd quorum.
 

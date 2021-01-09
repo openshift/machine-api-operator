@@ -1,0 +1,12 @@
+{
+  "docs": {
+    "Introduction": ["intro"],
+    "User": [
+        "user/alerts",
+        "user/troubleshooting"
+    ],
+    "Developer": [
+        "dev/metrics"
+    ]
+  }
+}

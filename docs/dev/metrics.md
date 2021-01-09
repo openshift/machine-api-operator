@@ -1,3 +1,7 @@
+---
+id: metrics
+title: Metrics
+---
 # MAO Metrics
 
 The Machine API Operator(MAO) uses the
