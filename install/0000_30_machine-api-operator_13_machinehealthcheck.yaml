@@ -9,6 +9,7 @@ metadata:
     k8s-app: termination-handler
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
 spec:
   selector:
     matchLabels:
