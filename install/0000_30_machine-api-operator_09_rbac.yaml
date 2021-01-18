@@ -27,6 +27,7 @@ metadata:
     include.release.openshift.io/self-managed-high-availability: "true"
     include.release.openshift.io/single-node-developer: "true"
 automountServiceAccountToken: false
+
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -45,6 +46,24 @@ rules:
       - get
       - list
       - watch
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: machine-api-controllers
+  namespace: openshift-config-managed
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - get
+  - list
+  - watch
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -427,6 +446,23 @@ subjects:
   - kind: ServiceAccount
     name: machine-api-controllers
     namespace: openshift-machine-api
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: machine-api-controllers
+  namespace: openshift-config-managed
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: machine-api-controllers
+subjects:
+- kind: ServiceAccount
+  name: machine-api-controllers
+  namespace: openshift-machine-api
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
