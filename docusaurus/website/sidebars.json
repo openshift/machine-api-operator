@@ -2,10 +2,13 @@
   "docs": {
     "Introduction": ["intro"],
     "User": [
+        "user/overview",
+        "user/cluster-wide-proxy",
         "user/alerts",
         "user/troubleshooting"
     ],
     "Developer": [
+        "dev/hacking",
         "dev/metrics"
     ]
   }

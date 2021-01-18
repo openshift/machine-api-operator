@@ -1,3 +1,7 @@
+---
+id: overview
+title: Machine API Operator Overview
+---
 # Document Purpose
 
 This document describes how the *Machine API Operator* (herein MAO) gets deployed, and the MAO's responsibilities. It includes guidelines on how to troubleshoot typical issues with resources provisioned by MAO.
