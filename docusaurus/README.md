@@ -29,3 +29,13 @@ a local container image named `machine-api-operator-book:latest`.
 
 If you wish to customize the build, please see the `docusaurus/Dockerfile` file
 for more information.
+
+### Running the containerized site
+
+Once you have created a local container, you can run it with the following command:
+
+```
+podman run --rm -it -p 3000:3000 localhost/machine-api-operator-book
+```
+
+Then open http://localhost:3000/ in a web browser.
