@@ -24,7 +24,8 @@ ifeq ($(NO_DOCKER), 1)
   DOCKER_CMD =
   IMAGE_BUILD_CMD = imagebuilder
 else
-  DOCKER_CMD := docker run --env GO111MODULE=$(GO111MODULE) --env GOFLAGS=$(GOFLAGS) --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z -w /go/src/github.com/openshift/machine-api-operator golang:1.13
+  DOCKER_CMD := docker run --env GO111MODULE=$(GO111MODULE) --env GOFLAGS=$(GOFLAGS) --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z -w /go/src/github.com/openshift/machine-api-operator golang:1.15
+#  DOCKER_CMD := docker run --env GO111MODULE=$(GO111MODULE) --env GOFLAGS=$(GOFLAGS) --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z -w /go/src/github.com/openshift/machine-api-operator registry.ci.openshift.org/ocp/builder:rhel-8-golang-1.15-openshift-4.6
   IMAGE_BUILD_CMD = docker build
 endif
 
@@ -112,7 +113,7 @@ deploy-kubemark:
 .PHONY: test
 test: ## Run tests
 	@echo -e "\033[32mTesting...\033[0m"
-	$(DOCKER_CMD) KUBEBUILDER_CONTROLPLANE_START_TIMEOUT=10m hack/ci-test.sh
+	$(DOCKER_CMD) hack/ci-test.sh
 
 unit:
 	$(DOCKER_CMD) go test ./pkg/... ./cmd/...
