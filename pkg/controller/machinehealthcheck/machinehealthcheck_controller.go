@@ -183,19 +183,23 @@ func (r *ReconcileMachineHealthCheck) Reconcile(ctx context.Context, request rec
 	mhc.Status.ExpectedMachines = &totalTargets
 	unhealthyCount := totalTargets - currentHealthy
 
+	maxUnhealthy, err := getMaxUnhealthy(mhc)
+	if err != nil {
+		return reconcile.Result{}, err
+	}
 	// check MHC current health against MaxUnhealthy
-	if !isAllowedRemediation(mhc) {
+	if !isAllowedRemediation(mhc, maxUnhealthy) {
 		klog.Warningf("Reconciling %s: total targets: %v,  maxUnhealthy: %v, unhealthy: %v. Short-circuiting remediation",
 			request.String(),
 			totalTargets,
-			mhc.Spec.MaxUnhealthy,
-			totalTargets-currentHealthy,
+			maxUnhealthy,
+			unhealthyCount,
 		)
 
 		message := fmt.Sprintf("Remediation is not allowed, the number of not started or unhealthy machines exceeds maxUnhealthy (total: %v, unhealthy: %v, maxUnhealthy: %v)",
 			totalTargets,
 			unhealthyCount,
-			mhc.Spec.MaxUnhealthy,
+			maxUnhealthy,
 		)
 
 		// Remediation not allowed, the number of not started or unhealthy machines exceeds maxUnhealthy
@@ -220,7 +224,7 @@ func (r *ReconcileMachineHealthCheck) Reconcile(ctx context.Context, request rec
 			"Remediation restricted due to exceeded number of unhealthy machines (total: %v, unhealthy: %v, maxUnhealthy: %v)",
 			totalTargets,
 			unhealthyCount,
-			mhc.Spec.MaxUnhealthy,
+			maxUnhealthy,
 		)
 		metrics.ObserveMachineHealthCheckShortCircuitEnabled(mhc.Name, mhc.Namespace)
 		return reconcile.Result{Requeue: true}, nil
@@ -228,7 +232,7 @@ func (r *ReconcileMachineHealthCheck) Reconcile(ctx context.Context, request rec
 	klog.V(3).Infof("Remediations are allowed for %s: total targets: %v,  max unhealthy: %v, unhealthy targets: %v",
 		request.String(),
 		totalTargets,
-		mhc.Spec.MaxUnhealthy,
+		maxUnhealthy,
 		unhealthyCount,
 	)
 	metrics.ObserveMachineHealthCheckShortCircuitDisabled(mhc.Name, mhc.Namespace)
@@ -264,12 +268,7 @@ func (r *ReconcileMachineHealthCheck) Reconcile(ctx context.Context, request rec
 	return reconcile.Result{}, nil
 }
 
-func isAllowedRemediation(mhc *mapiv1.MachineHealthCheck) bool {
-	maxUnhealthy, err := getMaxUnhealthy(mhc)
-	if err != nil {
-		return false
-	}
-
+func isAllowedRemediation(mhc *mapiv1.MachineHealthCheck, maxUnhealthy int) bool {
 	// If unhealthy is above maxUnhealthy, short circuit any further remediation
 	return unhealthyMachineCount(mhc) <= maxUnhealthy
 }
@@ -353,7 +352,6 @@ func (r *ReconcileMachineHealthCheck) healthCheckTargets(targets []target, timeo
 				t.nodeName(),
 			)
 			nextCheckTimes = append(nextCheckTimes, nextCheck)
-			continue
 		}
 
 		if t.Machine.DeletionTimestamp == nil {
