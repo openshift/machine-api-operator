@@ -306,9 +306,6 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 	}
 
 	// Machine resource created and instance does not exist yet.
-	if err := r.setPhase(m, phaseProvisioning, ""); err != nil {
-		return reconcile.Result{}, err
-	}
 	klog.Infof("%v: reconciling machine triggers idempotent create", machineName)
 	if err := r.actuator.Create(ctx, m); err != nil {
 		klog.Warningf("%v: failed to create machine: %v", machineName, err)
@@ -321,7 +318,13 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 		return delayIfRequeueAfterError(err)
 	}
 
+	if err := r.setPhase(m, phaseProvisioning, ""); err != nil {
+		return reconcile.Result{}, err
+	}
+
 	klog.Infof("%v: created instance, requeuing", machineName)
+	// This requeueAfter will only take effect if phase is already
+	// provisioning as updates trigger immediate reconcile.
 	return reconcile.Result{RequeueAfter: requeueAfter}, nil
 }
 
