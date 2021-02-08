@@ -20,13 +20,28 @@ endif
 all: check build test
 
 NO_DOCKER ?= 0
+
+ifeq ($(shell command -v podman > /dev/null 2>&1 ; echo $$? ), 0)
+	ENGINE=podman
+else ifeq ($(shell command -v docker > /dev/null 2>&1 ; echo $$? ), 0)
+	ENGINE=docker
+else
+	NO_DOCKER=1
+endif
+
+USE_DOCKER ?= 0
+ifeq ($(USE_DOCKER), 1)
+	ENGINE=docker	
+endif
+
 ifeq ($(NO_DOCKER), 1)
   DOCKER_CMD =
   IMAGE_BUILD_CMD = imagebuilder
 else
-  DOCKER_CMD := docker run --env GO111MODULE=$(GO111MODULE) --env GOFLAGS=$(GOFLAGS) --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z -w /go/src/github.com/openshift/machine-api-operator golang:1.15
-#  DOCKER_CMD := docker run --env GO111MODULE=$(GO111MODULE) --env GOFLAGS=$(GOFLAGS) --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z -w /go/src/github.com/openshift/machine-api-operator registry.ci.openshift.org/ocp/builder:rhel-8-golang-1.15-openshift-4.6
-  IMAGE_BUILD_CMD = docker build
+  DOCKER_CMD := $(ENGINE) run --env GO111MODULE=$(GO111MODULE) --env GOFLAGS=$(GOFLAGS) --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z  -w /go/src/github.com/openshift/machine-api-operator openshift/origin-release:golang-1.15
+  # The command below is for building/testing with the actual image that Openshift uses. Uncomment/comment out to use instead of above command. CI registry pull secret is required to use this image.
+  # DOCKER_CMD := $(ENGINE) run --env GO111MODULE=$(GO111MODULE) --env GOFLAGS=$(GOFLAGS) --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z -w /go/src/github.com/openshift/machine-api-operator registry.ci.openshift.org/ocp/builder:rhel-8-golang-1.15-openshift-4.6
+  IMAGE_BUILD_CMD = $(ENGINE) build
 endif
 
 .PHONY: vendor
@@ -71,7 +86,7 @@ generate: gen-crd gogen update-codegen goimports
 
 .PHONY: gogen
 gogen:
-	./hack/go-gen.sh
+	$(DOCKER_CMD) ./hack/go-gen.sh
 
 .PHONY: gen-crd
 gen-crd:
@@ -101,8 +116,7 @@ test-e2e-tech-preview: ## Run openshift specific e2e tech preview tests
 
 .PHONY: test-sec
 test-sec:
-	@which gosec 2> /dev/null >&1 || { echo "gosec must be installed to lint code";  exit 1; }
-	gosec -severity medium --confidence medium -quiet ./...
+	$(DOCKER_CMD) hack/gosec.sh ./...
 
 .PHONY: deploy-kubemark
 deploy-kubemark:
@@ -120,30 +134,33 @@ unit:
 
 .PHONY: image
 image: ## Build docker image
+ifeq ($(NO_DOCKER), 1)
+	./hack/imagebuilder.sh
+endif
 	@echo -e "\033[32mBuilding image $(IMAGE):$(VERSION) and tagging also as $(IMAGE):$(MUTABLE_TAG)...\033[0m"
 	$(IMAGE_BUILD_CMD) -t "$(IMAGE):$(VERSION)" -t "$(IMAGE):$(MUTABLE_TAG)" ./
 
 .PHONY: push
 push: ## Push image to docker registry
 	@echo -e "\033[32mPushing images...\033[0m"
-	docker push "$(IMAGE):$(VERSION)"
-	docker push "$(IMAGE):$(MUTABLE_TAG)"
+	$(ENGINE) push "$(IMAGE):$(VERSION)"
+	$(ENGINE) push "$(IMAGE):$(MUTABLE_TAG)"
 
 .PHONY: lint
 lint: ## Go lint your code
-	hack/go-lint.sh -min_confidence 0.3 $(go list -f '{{ .ImportPath }}' ./...)
+	 $(DOCKER_CMD) hack/go-lint.sh -min_confidence 0.3 $(go list -f '{{ .ImportPath }}' ./...)
 
 .PHONY: fmt
-fmt: ## Go fmt your code
-	hack/go-fmt.sh .
+fmt: ## Update and show diff for import lines
+	$(DOCKER_CMD) hack/go-fmt.sh .
 
 .PHONY: goimports
 goimports: ## Go fmt your code
-	hack/goimports.sh .
+	$(DOCKER_CMD) hack/goimports.sh .
 
 .PHONY: vet
 vet: ## Apply go vet to all go files
-	hack/go-vet.sh ./...
+	$(DOCKER_CMD) hack/go-vet.sh ./...
 
 .PHONY: help
 help:
