@@ -475,9 +475,10 @@ func clone(s *machineScope) (string, error) {
 
 	vmTemplate, err := s.GetSession().FindVM(*s, "", s.providerSpec.Template)
 	if err != nil {
+		const multipleFoundMsg = "multiple templates found, specify one in config"
 		const notFoundMsg = "template not found, specify valid value"
 		defaultError := fmt.Errorf("unable to get template %q: %w", s.providerSpec.Template, err)
-		return "", handleVSphereError("", notFoundMsg, defaultError, err)
+		return "", handleVSphereError(multipleFoundMsg, notFoundMsg, defaultError, err)
 	}
 
 	var snapshotRef *types.ManagedObjectReference
