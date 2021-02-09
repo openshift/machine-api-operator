@@ -18,6 +18,7 @@ package machine
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
@@ -328,29 +329,29 @@ func TestSetPhase(t *testing.T) {
 	testCases := []struct {
 		name                   string
 		phase                  string
-		errorMessage           string
+		err                    error
 		annotations            map[string]string
 		existingProviderStatus string
 		expectedProviderStatus string
 	}{
 		{
-			name:         "when updating the phase to Running",
-			phase:        phaseRunning,
-			errorMessage: "",
-			annotations:  nil,
+			name:        "when updating the phase to Running",
+			phase:       phaseRunning,
+			err:         nil,
+			annotations: nil,
 		},
 		{
-			name:         "when updating the phase to Failed",
-			phase:        phaseFailed,
-			errorMessage: "test",
+			name:  "when updating the phase to Failed",
+			phase: phaseFailed,
+			err:   errors.New("test"),
 			annotations: map[string]string{
 				MachineInstanceStateAnnotationName: unknownInstanceState,
 			},
 		},
 		{
-			name:         "when updating the phase to Failed with instanceState Set",
-			phase:        phaseFailed,
-			errorMessage: "test",
+			name:  "when updating the phase to Failed with instanceState Set",
+			phase: phaseFailed,
+			err:   errors.New("test"),
 			annotations: map[string]string{
 				MachineInstanceStateAnnotationName: unknownInstanceState,
 			},
@@ -358,9 +359,9 @@ func TestSetPhase(t *testing.T) {
 			expectedProviderStatus: `{"instanceState":"Unknown"}`,
 		},
 		{
-			name:         "when updating the phase to Failed with vmState Set",
-			phase:        phaseFailed,
-			errorMessage: "test",
+			name:  "when updating the phase to Failed with vmState Set",
+			phase: phaseFailed,
+			err:   errors.New("test"),
 			annotations: map[string]string{
 				MachineInstanceStateAnnotationName: unknownInstanceState,
 			},
@@ -368,9 +369,9 @@ func TestSetPhase(t *testing.T) {
 			expectedProviderStatus: `{"vmState":"Unknown"}`,
 		},
 		{
-			name:         "when updating the phase to Failed with state Set",
-			phase:        phaseFailed,
-			errorMessage: "test",
+			name:  "when updating the phase to Failed with state Set",
+			phase: phaseFailed,
+			err:   errors.New("test"),
 			annotations: map[string]string{
 				MachineInstanceStateAnnotationName: unknownInstanceState,
 			},
@@ -425,7 +426,7 @@ func TestSetPhase(t *testing.T) {
 			}
 
 			// Set the phase to Running initially
-			g.Expect(reconciler.setPhase(machine, phaseRunning, "")).To(Succeed())
+			g.Expect(reconciler.setPhase(machine, phaseRunning, nil)).To(Succeed())
 			// validate persisted object
 			got := machinev1.Machine{}
 			g.Expect(reconciler.Client.Get(context.TODO(), namespacedName, &got)).To(Succeed())
@@ -440,7 +441,7 @@ func TestSetPhase(t *testing.T) {
 			g.Expect(objectLastUpdated).ToNot(BeNil())
 
 			// Modify the phase and verify the result
-			g.Expect(reconciler.setPhase(machine, tc.phase, tc.errorMessage)).To(Succeed())
+			g.Expect(reconciler.setPhase(machine, tc.phase, tc.err)).To(Succeed())
 			// validate the persisted object
 			got = machinev1.Machine{}
 			g.Expect(reconciler.Client.Get(context.TODO(), namespacedName, &got)).To(Succeed())
@@ -451,11 +452,11 @@ func TestSetPhase(t *testing.T) {
 				g.Expect(*machine.Status.LastUpdated).To(Equal(*objectLastUpdated))
 			}
 
-			if tc.errorMessage != "" {
+			if tc.err != nil {
 				g.Expect(got.Status.ErrorMessage).ToNot(BeNil())
-				g.Expect(*got.Status.ErrorMessage).To(Equal(tc.errorMessage))
+				g.Expect(*got.Status.ErrorMessage).To(Equal(tc.err.Error()))
 				g.Expect(machine.Status.ErrorMessage).ToNot(BeNil())
-				g.Expect(*machine.Status.ErrorMessage).To(Equal(tc.errorMessage))
+				g.Expect(*machine.Status.ErrorMessage).To(Equal(tc.err.Error()))
 			}
 
 			g.Expect(*got.Status.Phase).To(Equal(tc.phase))

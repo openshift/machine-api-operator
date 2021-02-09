@@ -195,7 +195,7 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 	}
 
 	if !m.ObjectMeta.DeletionTimestamp.IsZero() {
-		if err := r.setPhase(m, phaseDeleting, ""); err != nil {
+		if err := r.setPhase(m, phaseDeleting, nil); err != nil {
 			return reconcile.Result{}, err
 		}
 
@@ -286,34 +286,34 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 
 		if !machineHasNode(m) {
 			// Requeue until we reach running phase
-			if err := r.setPhase(m, phaseProvisioned, ""); err != nil {
+			if err := r.setPhase(m, phaseProvisioned, nil); err != nil {
 				return reconcile.Result{}, err
 			}
 			klog.Infof("%v: has no node yet, requeuing", machineName)
 			return reconcile.Result{RequeueAfter: requeueAfter}, nil
 		}
 
-		return reconcile.Result{}, r.setPhase(m, phaseRunning, "")
+		return reconcile.Result{}, r.setPhase(m, phaseRunning, nil)
 	}
 
 	// Instance does not exist but the machine has been given a providerID/address.
 	// This can only be reached if an instance was deleted outside the machine API
 	if machineIsProvisioned(m) {
-		if err := r.setPhase(m, phaseFailed, "Can't find created instance."); err != nil {
+		if err := r.setPhase(m, phaseFailed, errors.New("Can't find created instance.")); err != nil {
 			return reconcile.Result{}, err
 		}
 		return reconcile.Result{}, nil
 	}
 
 	// Machine resource created and instance does not exist yet.
-	if err := r.setPhase(m, phaseProvisioning, ""); err != nil {
+	if err := r.setPhase(m, phaseProvisioning, nil); err != nil {
 		return reconcile.Result{}, err
 	}
 	klog.Infof("%v: reconciling machine triggers idempotent create", machineName)
 	if err := r.actuator.Create(ctx, m); err != nil {
 		klog.Warningf("%v: failed to create machine: %v", machineName, err)
 		if isInvalidMachineConfigurationError(err) {
-			if err := r.setPhase(m, phaseFailed, err.Error()); err != nil {
+			if err := r.setPhase(m, phaseFailed, err); err != nil {
 				return reconcile.Result{}, err
 			}
 			return reconcile.Result{}, nil
@@ -421,7 +421,7 @@ func isInvalidMachineConfigurationError(err error) bool {
 	return false
 }
 
-func (r *ReconcileMachine) setPhase(machine *machinev1.Machine, phase string, errorMessage string) error {
+func (r *ReconcileMachine) setPhase(machine *machinev1.Machine, phase string, failureCause error) error {
 	if stringPointerDeref(machine.Status.Phase) != phase {
 		klog.V(3).Infof("%v: going into phase %q", machine.GetName(), phase)
 
@@ -448,11 +448,19 @@ func (r *ReconcileMachine) setPhase(machine *machinev1.Machine, phase string, er
 		}
 
 		machine.Status.Phase = &phase
+		machine.Status.ErrorReason = nil
 		machine.Status.ErrorMessage = nil
 		now := metav1.Now()
 		machine.Status.LastUpdated = &now
-		if phase == phaseFailed && errorMessage != "" {
-			machine.Status.ErrorMessage = &errorMessage
+		if phase == phaseFailed && failureCause != nil {
+			var machineError *MachineError
+			if errors.As(failureCause, &machineError) {
+				machine.Status.ErrorReason = &machineError.Reason
+				machine.Status.ErrorMessage = &machineError.Message
+			} else {
+				errorMessage := failureCause.Error()
+				machine.Status.ErrorMessage = &errorMessage
+			}
 		}
 		if err := r.Client.Status().Patch(context.Background(), machine, baseToPatch); err != nil {
 			klog.Errorf("Failed to update machine status %q: %v", machine.GetName(), err)
