@@ -414,3 +414,12 @@ type ManagedDiskParameters struct {
 type DiskEncryptionSetParameters struct {
 	ID string `json:"id,omitempty"`
 }
+
+// SecurityProfile specifies the Security profile settings for a
+// virtual machine or virtual machine scale set.
+type SecurityProfile struct {
+	// This field indicates whether Host Encryption should be enabled
+	// or disabled for a virtual machine or virtual machine scale
+	// set. Default is disabled.
+	EncryptionAtHost *bool `json:"encryptionAtHost,omitempty"`
+}
