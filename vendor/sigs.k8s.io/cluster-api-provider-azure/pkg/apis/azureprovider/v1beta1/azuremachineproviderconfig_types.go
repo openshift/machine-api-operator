@@ -91,6 +91,10 @@ type AzureMachineProviderSpec struct {
 
 	// SpotVMOptions allows the ability to specify the Machine should use a Spot VM
 	SpotVMOptions *SpotVMOptions `json:"spotVMOptions,omitempty"`
+
+	// SecurityProfile specifies the Security profile settings for a virtual machine.
+	// +optional
+	SecurityProfile *SecurityProfile `json:"securityProfile,omitempty"`
 }
 
 // SpotVMOptions defines the options relevant to running the Machine on Spot VMs
