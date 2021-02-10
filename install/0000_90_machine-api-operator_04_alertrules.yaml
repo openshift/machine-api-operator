@@ -22,16 +22,26 @@ spec:
             severity: warning
           annotations:
             message: "machine {{ $labels.name }} does not have valid node reference"
-    - name: machine-with-no-running-phase
+    - name: machine-not-yet-deleted
       rules:
-        - alert: MachineWithNoRunningPhase
+        - alert: MachineNotYetDeleted
           expr: |
-            (mapi_machine_created_timestamp_seconds{phase!="Running"}) > 0
+            (mapi_machine_created_timestamp_seconds{phase=="Deleting"}) > 0
           for: 60m
           labels:
             severity: warning
           annotations:
-            message: "machine {{ $labels.name }} is in phase: {{ $labels.phase }}"
+            message: "machine {{ $labels.name }} is having trouble deleting"
+    - name: machine-not-yet-running
+      rules:
+        - alert: MachineNotYetRunning
+          expr: |
+            (mapi_machine_created_timestamp_seconds{phase!="Running" and phase!="Deleting"}) > 0
+          for: 60m
+          labels:
+            severity: warning
+          annotations:
+            message: "machine {{ $labels.name }} is in phase: {{ $labels.phase }} (taking too long to start)"
     - name: machine-api-operator-metrics-collector-up
       rules:
         - alert: MachineAPIOperatorMetricsCollectionFailing

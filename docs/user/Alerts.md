@@ -1,3 +1,24 @@
+- [MachineWithoutValidNode](#machinewithoutvalidnode)
+  - [Query](#query)
+  - [Possible Causes](#possible-causes)
+  - [Resolution](#resolution)
+- [MachineNotStarting](#machinenotstarting)
+  - [Query](#query-1)
+  - [Possible Causes](#possible-causes-1)
+  - [Resolution](#resolution-1)
+- [MachineDeletingTooLong](#machinedeletingtoolong)
+  - [Query](#query-2)
+  - [Possibly Causes](#possibly-causes)
+  - [Resolution](#resolution-2)
+- [MachineAPIOperatorMetricsCollectionFailing](#machineapioperatormetricscollectionfailing)
+  - [Query](#query-3)
+  - [Possible Causes](#possible-causes-2)
+  - [Resolution](#resolution-3)
+- [MachineAPIOperatorDown](#machineapioperatordown)
+  - [Query](#query-4)
+  - [Possible Causes](#possible-causes-3)
+  - [Resolution](#resolution-4)
+
 ## MachineWithoutValidNode
 One or more machines does not have a valid node reference.  This condition has
 persisted for 10 minutes or longer.
@@ -13,16 +34,16 @@ persisted for 10 minutes or longer.
 * The node was deleted from the cluster via the api, but the machine still exists
 
 ### Resolution
-If the machine never became a node, consult the machine troubleshooting guide.
+If the machine never became a node, consult the [machine troubleshooting guide](TroubleShooting.md).
 If the node was deleted from the api, you may choose to delete the machine object, if appropriate.  (FYI, The machine-api will automatically delete nodes, there is no need to delete node objects directly)
 
-## MachineWithNoRunningPhase
+## MachineNotYetRunning
 Machine did not reach the “Running” Phase.  Running phase is when the machine has successfully become a node and joined the cluster.
 
 ### Query
 ```
-# for: 10m
-(mapi_machine_created_timestamp_seconds{phase!="Running"}) > 0
+# for: 60m
+(mapi_machine_created_timestamp_seconds{phase!="Running" and phase!="Deleting"}) > 0
 ```
 
 ### Possible Causes
@@ -31,7 +52,25 @@ Machine did not reach the “Running” Phase.  Running phase is when the machin
 * Unusual hostname presented by the kubelet on the bootstrap CSR is preventing CSR approval
 
 ### Resolution
-If the machine never became a node, consult the machine troubleshooting guide.
+If the machine never became a node, consult the [machine troubleshooting guide](TroubleShooting.md).
+
+## MachineNotYetDeleted
+Machine has been in the "Deleting" state for too long.
+
+### Query
+```
+# for: 60m
+(mapi_machine_created_timestamp_seconds{phase=="Deleting"}) > 0
+```
+
+### Possibly Causes
+* The node became unreachable and is preventing the machine from being removed
+* A communication failure with the provider is preventing the machine from being removed
+* A pod disruption budget is blocking the node from draining
+
+### Resolution
+Investigate why the machine has not finished deleting. Consult the
+[machine troubleshooting guide](TroubleShooting.md).
 
 ## MachineAPIOperatorMetricsCollectionFailing
 Machine-api metrics are not being collected successfully.  This would be a very unusual error to see.
