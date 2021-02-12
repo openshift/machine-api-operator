@@ -51,11 +51,7 @@ vendor:
 	go mod verify
 
 .PHONY: check
-check: lint fmt vet verify-codegen check-pkg test ## Run code validations
-
-.PHONY: check-pkg
-check-pkg:
-	./hack/verify-actuator-pkg.sh
+check: lint fmt vet verify-codegen test ## Run code validations
 
 .PHONY: build
 build: machine-api-operator nodelink-controller machine-healthcheck machineset vsphere ## Build binaries
@@ -99,12 +95,6 @@ update-codegen:
 .PHONY: verify-codegen
 verify-codegen:
 	$(DOCKER_CMD) ./hack/verify-codegen.sh
-
-.PHONY: build-integration
-build-integration: ## Build integration test binary
-	@echo -e "\033[32mBuilding integration test binary...\033[0m"
-	mkdir -p bin
-	$(DOCKER_CMD) go build $(GOGCFLAGS) -o bin/integration github.com/openshift/machine-api-operator/test/integration
 
 .PHONY: test-e2e
 test-e2e: ## Run openshift specific e2e tests
