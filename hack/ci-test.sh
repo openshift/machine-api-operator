@@ -20,8 +20,29 @@ set -o pipefail
 
 REPO_ROOT=$(dirname "${BASH_SOURCE}")/..
 
+OPENSHIFT_CI=${OPENSHIFT_CI:-""}
+ARTIFACT_DIR=${ARTIFACT_DIR:-""}
+
+function runTestsCI() {
+  echo "CI env detected, run tests with jUnit report extraction"
+  if [ -n "$ARTIFACT_DIR" ] && [ -d "$ARTIFACT_DIR" ]; then
+    JUNIT_LOCATION="$ARTIFACT_DIR"/junit_machine_api_operator.xml
+    echo "jUnit location: $JUNIT_LOCATION"
+    go get -u github.com/jstemmer/go-junit-report
+    go test -v ./pkg/... ./cmd/... | tee >(go-junit-report > "$JUNIT_LOCATION")
+  else
+    echo "\$ARTIFACT_DIR not set or does not exists, no jUnit will be published"
+    make unit
+  fi
+}
+
+
 cd $REPO_ROOT && \
-	source ./hack/fetch_ext_bins.sh && \
-	fetch_tools && \
-	setup_envs && \
-	NO_DOCKER=1 make unit
+  source ./hack/fetch_ext_bins.sh && \
+  fetch_tools && \
+  setup_envs && \
+if [ "$OPENSHIFT_CI" == "true" ]; then # detect ci environment there
+  runTestsCI
+else
+  make unit
+fi

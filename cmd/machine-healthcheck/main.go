@@ -107,9 +107,6 @@ func main() {
 	if err := mapiv1.AddToScheme(mgr.GetScheme()); err != nil {
 		klog.Fatal(err)
 	}
-	if err := mapiv1.AddToScheme(mgr.GetScheme()); err != nil {
-		klog.Fatal(err)
-	}
 
 	// Setup all Controllers
 	if err := controller.AddToManager(mgr, opts, machinehealthcheck.Add); err != nil {

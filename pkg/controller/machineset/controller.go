@@ -207,7 +207,7 @@ func (r *ReconcileMachineSet) reconcile(ctx context.Context, machineSet *machine
 		// Attempt to adopt machine if it meets previous conditions and it has no controller references.
 		if metav1.GetControllerOf(machine) == nil {
 			if err := r.adoptOrphan(machineSet, machine); err != nil {
-				klog.Warningf("Failed to adopt MachineSet %q into MachineSet %q: %v", machine.Name, machineSet.Name, err)
+				klog.Warningf("Failed to adopt Machine %q into MachineSet %q: %v", machine.Name, machineSet.Name, err)
 				continue
 			}
 		}

@@ -40,6 +40,8 @@ func node(name, providerID string, addresses []corev1.NodeAddress, taints []core
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: metav1.NamespaceNone,
+			// the following line is to account for a change in the fake client, see https://github.com/kubernetes-sigs/controller-runtime/pull/1306
+			ResourceVersion: "999",
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind: "Node",
@@ -81,6 +83,8 @@ func machine(name, providerID string, addresses []corev1.NodeAddress, taints []c
 					Kind: ownerControllerKind,
 				},
 			},
+			// the following line is to account for a change in the fake client, see https://github.com/kubernetes-sigs/controller-runtime/pull/1306
+			ResourceVersion: "999",
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind: "Machine",

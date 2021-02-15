@@ -17,6 +17,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog/v2"
@@ -43,6 +44,16 @@ const (
 	hostKubePKIPath                     = "/var/lib/kubelet/pki"
 )
 
+var (
+	// daemonsetMaxUnavailable must be set to "10%" to conform with other
+	// daemonsets.
+	daemonsetMaxUnavailable = intstr.FromString("10%")
+
+	commonPodTemplateAnnotations = map[string]string{
+		"target.workload.openshift.io/management": `{"effect": "PreferredDuringScheduling"}`,
+	}
+)
+
 func (optr *Operator) syncAll(config *OperatorConfig) error {
 	if err := optr.statusProgressing(); err != nil {
 		klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
@@ -58,33 +69,65 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 		return nil
 	}
 
+	errors := []error{}
 	// Sync webhook configuration
 	if err := optr.syncWebhookConfiguration(); err != nil {
-		if err := optr.statusDegraded(err.Error()); err != nil {
-			// Just log the error here.  We still want to
-			// return the outer error.
-			klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
-		}
-		klog.Errorf("Error syncing machine API webhook configurations: %v", err)
-		return err
+		errors = append(errors, fmt.Errorf("Error syncing machine API webhook configurations: %w", err))
 	}
-	klog.V(3).Info("Synced up all machine API webhook configurations")
 
 	if err := optr.syncClusterAPIController(config); err != nil {
+		errors = append(errors, fmt.Errorf("Error syncing machine-api-controller: %w", err))
+	}
+
+	// Sync Termination Handler DaemonSet if supported
+	if config.Controllers.TerminationHandler != clusterAPIControllerNoOp {
+		if err := optr.syncTerminationHandler(config); err != nil {
+			errors = append(errors, fmt.Errorf("Error syncing termination handler: %w", err))
+		}
+	}
+
+	if len(errors) > 0 {
+		err := utilerrors.NewAggregate(errors)
 		if err := optr.statusDegraded(err.Error()); err != nil {
 			// Just log the error here.  We still want to
 			// return the outer error.
 			klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
 		}
-		klog.Errorf("Error syncing machine-api-controller: %v", err)
+		klog.Errorf("Error syncing machine controller components: %v", err)
 		return err
 	}
-	klog.V(3).Info("Synced up all machine-api-controller components")
+
+	if err := optr.waitForRollout(config); err != nil {
+		if err := optr.statusDegraded(err.Error()); err != nil {
+			// Just log the error here.  We still want to
+			// return the outer error.
+			klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
+		}
+		klog.Errorf("Error waiting for resource to sync: %v", err)
+		return err
+	}
+
+	klog.V(3).Info("Synced up all machine API webhook configurations")
 
 	if err := optr.statusAvailable(); err != nil {
 		klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
 		return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
 	}
+	return nil
+}
+
+func (optr *Operator) waitForRollout(config *OperatorConfig) error {
+	// Wait for machine-controllers deployment
+	if err := optr.waitForDeploymentRollout(newDeployment(config, nil), deploymentRolloutPollInterval, deploymentRolloutTimeout); err != nil {
+		return err
+	}
+	if config.Controllers.TerminationHandler != clusterAPIControllerNoOp {
+		// Wait for termination handler
+		if err := optr.waitForDaemonSetRollout(newTerminationDaemonSet(config)); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -111,17 +154,6 @@ func (optr *Operator) syncClusterAPIController(config *OperatorConfig) error {
 		resourcemerge.SetDeploymentGeneration(&optr.generations, d)
 	}
 
-	if err := optr.waitForDeploymentRollout(controllersDeployment, deploymentRolloutPollInterval, deploymentRolloutTimeout); err != nil {
-		return err
-	}
-
-	// Sync Termination Handler DaemonSet if supported
-	if config.Controllers.TerminationHandler != clusterAPIControllerNoOp {
-		if err := optr.syncTerminationHandler(config); err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
@@ -136,7 +168,7 @@ func (optr *Operator) syncTerminationHandler(config *OperatorConfig) error {
 	if updated {
 		resourcemerge.SetDaemonSetGeneration(&optr.generations, ds)
 	}
-	return optr.waitForDaemonSetRollout(terminationDaemonSet)
+	return nil
 }
 
 func (optr *Operator) syncWebhookConfiguration() error {
@@ -400,6 +432,7 @@ func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev
 
 	return &corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
+			Annotations: commonPodTemplateAnnotations,
 			Labels: map[string]string{
 				"api":     "clusterapi",
 				"k8s-app": "controller",
@@ -614,6 +647,7 @@ func newKubeProxyContainer(image, portName, upstreamPort string, exposePort int3
 		fmt.Sprintf("--config-file=%s/config-file.yaml", configMountPath),
 		fmt.Sprintf("--tls-cert-file=%s/tls.crt", tlsCertMountPath),
 		fmt.Sprintf("--tls-private-key-file=%s/tls.key", tlsCertMountPath),
+		"--tls-cipher-suites=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305",
 		"--logtostderr=true",
 		"--v=3",
 	}
@@ -656,6 +690,11 @@ func newTerminationDaemonSet(config *OperatorConfig) *appsv1.DaemonSet {
 			},
 		},
 		Spec: appsv1.DaemonSetSpec{
+			UpdateStrategy: appsv1.DaemonSetUpdateStrategy{
+				RollingUpdate: &appsv1.RollingUpdateDaemonSet{
+					MaxUnavailable: &daemonsetMaxUnavailable,
+				},
+			},
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"api":     "clusterapi",
@@ -672,17 +711,19 @@ func newTerminationPodTemplateSpec(config *OperatorConfig) *corev1.PodTemplateSp
 
 	return &corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
+			Annotations: commonPodTemplateAnnotations,
 			Labels: map[string]string{
 				"api":     "clusterapi",
 				"k8s-app": "termination-handler",
 			},
 		},
 		Spec: corev1.PodSpec{
-			Containers:         containers,
-			PriorityClassName:  "system-node-critical",
-			NodeSelector:       map[string]string{machinecontroller.MachineInterruptibleInstanceLabelName: ""},
-			ServiceAccountName: machineAPITerminationHandler,
-			HostNetwork:        true,
+			Containers:                   containers,
+			PriorityClassName:            "system-node-critical",
+			NodeSelector:                 map[string]string{machinecontroller.MachineInterruptibleInstanceLabelName: ""},
+			ServiceAccountName:           machineAPITerminationHandler,
+			AutomountServiceAccountToken: pointer.BoolPtr(false),
+			HostNetwork:                  true,
 			Volumes: []corev1.Volume{
 				{
 					Name: "kubeconfig",

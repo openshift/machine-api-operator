@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/openshift/machine-api-operator/pkg/util/external"
+
 	. "github.com/onsi/gomega"
 	mapiv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
@@ -17,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
@@ -33,12 +36,34 @@ const (
 )
 
 var (
-	ctx = context.Background()
+	remediationAllowedCondition = mapiv1beta1.Condition{
+		Type:   mapiv1beta1.RemediationAllowedCondition,
+		Status: corev1.ConditionTrue,
+	}
 )
+
+type testCase struct {
+	name                        string
+	machine                     *mapiv1beta1.Machine
+	node                        *corev1.Node
+	mhc                         *mapiv1beta1.MachineHealthCheck
+	expected                    expectedReconcile
+	expectedEvents              []string
+	expectedStatus              *mapiv1beta1.MachineHealthCheckStatus
+	externalRemediationMachine  *unstructured.Unstructured
+	externalRemediationTemplate *unstructured.Unstructured
+}
+
+type expectedReconcile struct {
+	result reconcile.Result
+	error  bool
+}
 
 func init() {
 	// Add types to scheme
-	mapiv1beta1.AddToScheme(scheme.Scheme)
+	if err := mapiv1beta1.AddToScheme(scheme.Scheme); err != nil {
+		panic(err)
+	}
 }
 
 func TestHasMatchingLabels(t *testing.T) {
@@ -151,48 +176,6 @@ func TestGetNodeCondition(t *testing.T) {
 	}
 }
 
-func assertEvents(t *testing.T, testCase string, expectedEvents []string, realEvents chan string) {
-	if len(expectedEvents) != len(realEvents) {
-		t.Errorf(
-			"Test case: %s. Number of expected events (%v) differs from number of real events (%v)",
-			testCase,
-			len(expectedEvents),
-			len(realEvents),
-		)
-	} else {
-		for _, eventType := range expectedEvents {
-			select {
-			case event := <-realEvents:
-				if !strings.Contains(event, fmt.Sprintf(" %s ", eventType)) {
-					t.Errorf("Test case: %s. Expected %v event, got: %v", testCase, eventType, event)
-				}
-			default:
-				t.Errorf("Test case: %s. Expected %v event, but no event occured", testCase, eventType)
-			}
-		}
-	}
-}
-
-// newFakeReconciler returns a new reconcile.Reconciler with a fake client
-func newFakeReconciler(initObjects ...runtime.Object) *ReconcileMachineHealthCheck {
-	return newFakeReconcilerWithCustomRecorder(nil, initObjects...)
-}
-
-func newFakeReconcilerWithCustomRecorder(recorder record.EventRecorder, initObjects ...runtime.Object) *ReconcileMachineHealthCheck {
-	fakeClient := fake.NewFakeClient(initObjects...)
-	return &ReconcileMachineHealthCheck{
-		client:    fakeClient,
-		scheme:    scheme.Scheme,
-		namespace: namespace,
-		recorder:  recorder,
-	}
-}
-
-type expectedReconcile struct {
-	result reconcile.Result
-	error  bool
-}
-
 func TestReconcile(t *testing.T) {
 	ctx := context.Background()
 
@@ -257,25 +240,12 @@ func TestReconcile(t *testing.T) {
 	machineAlreadyDeleted := maotesting.NewMachine("machineAlreadyDeleted", nodeAlreadyDeleted.Name)
 	machineAlreadyDeleted.SetDeletionTimestamp(&metav1.Time{Time: time.Now()})
 
-	remediationAllowedCondition := mapiv1beta1.Condition{
-		Type:   mapiv1beta1.RemediationAllowedCondition,
-		Status: corev1.ConditionTrue,
-	}
-
-	testCases := []struct {
-		testCase       string
-		machine        *mapiv1beta1.Machine
-		node           *corev1.Node
-		mhc            *mapiv1beta1.MachineHealthCheck
-		expected       expectedReconcile
-		expectedEvents []string
-		expectedStatus *mapiv1beta1.MachineHealthCheckStatus
-	}{
+	testCases := []testCase{
 		{
-			testCase: "machine unhealthy",
-			machine:  machineUnhealthyForTooLong,
-			node:     nodeUnhealthyForTooLong,
-			mhc:      machineHealthCheck,
+			name:    "machine unhealthy",
+			machine: machineUnhealthyForTooLong,
+			node:    nodeUnhealthyForTooLong,
+			mhc:     machineHealthCheck,
 			expected: expectedReconcile{
 				result: reconcile.Result{},
 				error:  false,
@@ -291,10 +261,10 @@ func TestReconcile(t *testing.T) {
 			},
 		},
 		{
-			testCase: "machine with node healthy",
-			machine:  machineWithNodeHealthy,
-			node:     nodeHealthy,
-			mhc:      machineHealthCheck,
+			name:    "machine with node healthy",
+			machine: machineWithNodeHealthy,
+			node:    nodeHealthy,
+			mhc:     machineHealthCheck,
 			expected: expectedReconcile{
 				result: reconcile.Result{},
 				error:  false,
@@ -310,10 +280,10 @@ func TestReconcile(t *testing.T) {
 			},
 		},
 		{
-			testCase: "machine with node likely to go unhealthy",
-			machine:  machineWithNodeRecentlyUnhealthy,
-			node:     nodeRecentlyUnhealthy,
-			mhc:      machineHealthCheck,
+			name:    "machine with node likely to go unhealthy",
+			machine: machineWithNodeRecentlyUnhealthy,
+			node:    nodeRecentlyUnhealthy,
+			mhc:     machineHealthCheck,
 			expected: expectedReconcile{
 				result: reconcile.Result{
 					Requeue:      true,
@@ -332,10 +302,10 @@ func TestReconcile(t *testing.T) {
 			},
 		},
 		{
-			testCase: "no target: no machine and bad node annotation",
-			machine:  nil,
-			node:     nodeWithoutMachineAnnotation,
-			mhc:      machineHealthCheck,
+			name:    "no target: no machine and bad node annotation",
+			machine: nil,
+			node:    nodeWithoutMachineAnnotation,
+			mhc:     machineHealthCheck,
 			expected: expectedReconcile{
 				result: reconcile.Result{},
 				error:  false,
@@ -351,10 +321,10 @@ func TestReconcile(t *testing.T) {
 			},
 		},
 		{
-			testCase: "no target: no machine",
-			machine:  nil,
-			node:     nodeAnnotatedWithNoExistentMachine,
-			mhc:      machineHealthCheck,
+			name:    "no target: no machine",
+			machine: nil,
+			node:    nodeAnnotatedWithNoExistentMachine,
+			mhc:     machineHealthCheck,
 			expected: expectedReconcile{
 				result: reconcile.Result{},
 				error:  false,
@@ -370,10 +340,10 @@ func TestReconcile(t *testing.T) {
 			},
 		},
 		{
-			testCase: "machine no controller owner",
-			machine:  machineWithoutOwnerController,
-			node:     nodeAnnotatedWithMachineWithoutOwnerReference,
-			mhc:      machineHealthCheck,
+			name:    "machine no controller owner",
+			machine: machineWithoutOwnerController,
+			node:    nodeAnnotatedWithMachineWithoutOwnerReference,
+			mhc:     machineHealthCheck,
 			expected: expectedReconcile{
 				result: reconcile.Result{},
 				error:  false,
@@ -389,10 +359,10 @@ func TestReconcile(t *testing.T) {
 			},
 		},
 		{
-			testCase: "machine no noderef",
-			machine:  machineWithoutNodeRef,
-			node:     nodeAnnotatedWithMachineWithoutNodeReference,
-			mhc:      machineHealthCheck,
+			name:    "machine no noderef",
+			machine: machineWithoutNodeRef,
+			node:    nodeAnnotatedWithMachineWithoutNodeReference,
+			mhc:     machineHealthCheck,
 			expected: expectedReconcile{
 				result: reconcile.Result{
 					RequeueAfter: nodeStartupTimeout,
@@ -410,10 +380,10 @@ func TestReconcile(t *testing.T) {
 			},
 		},
 		{
-			testCase: "machine already deleted",
-			machine:  machineAlreadyDeleted,
-			node:     nodeAlreadyDeleted,
-			mhc:      machineHealthCheck,
+			name:    "machine already deleted",
+			machine: machineAlreadyDeleted,
+			node:    nodeAlreadyDeleted,
+			mhc:     machineHealthCheck,
 			expected: expectedReconcile{
 				result: reconcile.Result{},
 				error:  false,
@@ -429,10 +399,10 @@ func TestReconcile(t *testing.T) {
 			},
 		},
 		{
-			testCase: "machine healthy with MHC negative maxUnhealthy",
-			machine:  machineWithNodeHealthy,
-			node:     nodeHealthy,
-			mhc:      machineHealthCheckNegativeMaxUnhealthy,
+			name:    "machine healthy with MHC negative maxUnhealthy",
+			machine: machineWithNodeHealthy,
+			node:    nodeHealthy,
+			mhc:     machineHealthCheckNegativeMaxUnhealthy,
 			expected: expectedReconcile{
 				result: reconcile.Result{},
 				error:  false,
@@ -448,10 +418,10 @@ func TestReconcile(t *testing.T) {
 			},
 		},
 		{
-			testCase: "machine unhealthy with MHC negative maxUnhealthy",
-			machine:  machineUnhealthyForTooLong,
-			node:     nodeUnhealthyForTooLong,
-			mhc:      machineHealthCheckNegativeMaxUnhealthy,
+			name:    "machine unhealthy with MHC negative maxUnhealthy",
+			machine: machineUnhealthyForTooLong,
+			node:    nodeUnhealthyForTooLong,
+			mhc:     machineHealthCheckNegativeMaxUnhealthy,
 			expected: expectedReconcile{
 				result: reconcile.Result{
 					Requeue: true,
@@ -477,50 +447,104 @@ func TestReconcile(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(tc.testCase, func(t *testing.T) {
-			var objects []runtime.Object
-			objects = append(objects, tc.mhc)
-			if tc.machine != nil {
-				objects = append(objects, tc.machine)
-			}
-			objects = append(objects, tc.node)
+		t.Run(tc.name, func(t *testing.T) {
 			recorder := record.NewFakeRecorder(2)
-			r := newFakeReconcilerWithCustomRecorder(recorder, objects...)
+			r := newFakeReconcilerWithCustomRecorder(recorder, buildRunTimeObjects(tc)...)
+			assertBaseReconcile(t, tc, ctx, r)
+		})
+	}
+}
 
-			request := reconcile.Request{
-				NamespacedName: types.NamespacedName{
-					Namespace: tc.mhc.GetNamespace(),
-					Name:      tc.mhc.GetName(),
+func TestReconcileExternalRemediationTemplate(t *testing.T) {
+	ctx := context.Background()
+
+	nodeHealthy := maotesting.NewNode("NodeHealthy", true)
+	machineWithNodeHealthy := maotesting.NewMachine("Machine", nodeHealthy.Name)
+
+	nodeUnHealthy := maotesting.NewNode("NodeUnhealthy", false)
+	machineWithNodeUnHealthy := maotesting.NewMachine("Machine", nodeUnHealthy.Name)
+	machineWithNodeUnHealthy.APIVersion = mapiv1beta1.SchemeGroupVersion.String()
+	//external remediation machine template crd
+	ermTemplate := maotesting.NewExternalRemediationTemplate()
+	mhcWithRemediationTemplate := newMachineHealthCheckWithRemediationTemplate(ermTemplate)
+	erm := maotesting.NewExternalRemediationMachine()
+
+	testCases := []testCase{
+
+		{ //When remediationTemplate is set and node transitions back to healthy, new Remediation Request should be deleted
+			name:                        "external remediation is done",
+			machine:                     machineWithNodeHealthy,
+			node:                        nodeHealthy,
+			mhc:                         mhcWithRemediationTemplate,
+			externalRemediationMachine:  erm,
+			externalRemediationTemplate: ermTemplate,
+			expected: expectedReconcile{
+				result: reconcile.Result{},
+				error:  false,
+			},
+			expectedEvents: []string{},
+			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+				ExpectedMachines:    IntPtr(1),
+				CurrentHealthy:      IntPtr(1),
+				RemediationsAllowed: 1,
+				Conditions: mapiv1beta1.Conditions{
+					remediationAllowedCondition,
 				},
-			}
-			result, err := r.Reconcile(ctx, request)
-			assertEvents(t, tc.testCase, tc.expectedEvents, recorder.Events)
-			if tc.expected.error != (err != nil) {
-				var errorExpectation string
-				if !tc.expected.error {
-					errorExpectation = "no"
-				}
-				t.Errorf("Test case: %s. Expected: %s error, got: %v", tc.node.Name, errorExpectation, err)
-			}
+			},
+		},
 
-			if result != tc.expected.result {
-				if tc.expected.result.Requeue {
-					before := tc.expected.result.RequeueAfter
-					after := tc.expected.result.RequeueAfter + time.Second
-					if after < result.RequeueAfter || before > result.RequeueAfter {
-						t.Errorf("Test case: %s. Expected RequeueAfter between: %v and %v, got: %v", tc.node.Name, before, after, result)
-					}
-				} else {
-					t.Errorf("Test case: %s. Expected: %v, got: %v", tc.node.Name, tc.expected.result, result)
-				}
-			}
+		{ //When remediationTemplate is set and node transitions to unhealthy, new Remediation Request should be created
+			name:                        "create new external remediation",
+			machine:                     machineWithNodeUnHealthy,
+			node:                        nodeUnHealthy,
+			mhc:                         mhcWithRemediationTemplate,
+			externalRemediationMachine:  nil,
+			externalRemediationTemplate: ermTemplate,
+			expected: expectedReconcile{
+				result: reconcile.Result{},
+				error:  false,
+			},
+			expectedEvents: []string{},
+			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+				ExpectedMachines:    IntPtr(1),
+				CurrentHealthy:      IntPtr(0),
+				RemediationsAllowed: 0,
+				Conditions: mapiv1beta1.Conditions{
+					remediationAllowedCondition,
+				},
+			},
+		},
 
-			if tc.expectedStatus != nil {
-				g := NewWithT(t)
-				mhc := &mapiv1beta1.MachineHealthCheck{}
-				g.Expect(r.client.Get(ctx, request.NamespacedName, mhc)).To(Succeed())
-				g.Expect(&mhc.Status).To(MatchMachineHealthCheckStatus(tc.expectedStatus))
-			}
+		{ //When remediationTemplate is set and node transitions to unhealthy, and a a Remediation Request already exist
+			name:                        "external remediation is in process",
+			machine:                     machineWithNodeUnHealthy,
+			node:                        nodeUnHealthy,
+			mhc:                         mhcWithRemediationTemplate,
+			externalRemediationMachine:  erm,
+			externalRemediationTemplate: ermTemplate,
+			expected: expectedReconcile{
+				result: reconcile.Result{},
+				error:  false,
+			},
+			expectedEvents: []string{},
+			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+				ExpectedMachines:    IntPtr(1),
+				CurrentHealthy:      IntPtr(0),
+				RemediationsAllowed: 0,
+				Conditions: mapiv1beta1.Conditions{
+					remediationAllowedCondition,
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			recorder := record.NewFakeRecorder(2)
+			r := newFakeReconcilerWithCustomRecorder(recorder, buildRunTimeObjects(tc)...)
+			assertBaseReconcile(t, tc, ctx, r)
+			assertExternalRemediation(t, tc, ctx, r)
+
 		})
 	}
 }
@@ -1147,6 +1171,8 @@ func TestGetTargetsFromMHC(t *testing.T) {
 								machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "match1"),
 							},
 							Labels: map[string]string{},
+							// the following line is to account for a change in the fake client, see https://github.com/kubernetes-sigs/controller-runtime/pull/1306
+							ResourceVersion: "999",
 						},
 						TypeMeta: metav1.TypeMeta{
 							Kind:       "Node",
@@ -1214,6 +1240,8 @@ func TestGetTargetsFromMHC(t *testing.T) {
 								machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "match1"),
 							},
 							Labels: map[string]string{},
+							// the following line is to account for a change in the fake client, see https://github.com/kubernetes-sigs/controller-runtime/pull/1306
+							ResourceVersion: "999",
 						},
 						TypeMeta: metav1.TypeMeta{
 							Kind:       "Node",
@@ -1235,6 +1263,8 @@ func TestGetTargetsFromMHC(t *testing.T) {
 								machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "match2"),
 							},
 							Labels: map[string]string{},
+							// the following line is to account for a change in the fake client, see https://github.com/kubernetes-sigs/controller-runtime/pull/1306
+							ResourceVersion: "999",
 						},
 						TypeMeta: metav1.TypeMeta{
 							Kind:       "Node",
@@ -1276,6 +1306,8 @@ func TestGetTargetsFromMHC(t *testing.T) {
 							Namespace:       namespace,
 							Labels:          map[string]string{"foo": "bar"},
 							OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
+							// the following line is to account for a change in the fake client, see https://github.com/kubernetes-sigs/controller-runtime/pull/1306
+							ResourceVersion: "999",
 						},
 						Spec:   mapiv1beta1.MachineSpec{},
 						Status: mapiv1beta1.MachineStatus{},
@@ -1378,6 +1410,8 @@ func TestGetNodeFromMachine(t *testing.T) {
 						machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "machine"),
 					},
 					Labels: map[string]string{},
+					// the following line is to account for a change in the fake client, see https://github.com/kubernetes-sigs/controller-runtime/pull/1306
+					ResourceVersion: "999",
 				},
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "Node",
@@ -1588,7 +1622,7 @@ func TestNeedsRemediation(t *testing.T) {
 					},
 					Spec: mapiv1beta1.MachineSpec{},
 					Status: mapiv1beta1.MachineStatus{
-						LastUpdated: &metav1.Time{Time: time.Now().Add(time.Duration(-defaultNodeStartupTimeout) - 1*time.Second)},
+						LastUpdated: &metav1.Time{Time: time.Now().Add(-defaultNodeStartupTimeout - 1*time.Second)},
 					},
 				},
 				Node: nil,
@@ -1641,7 +1675,7 @@ func TestNeedsRemediation(t *testing.T) {
 					},
 					Spec: mapiv1beta1.MachineSpec{},
 					Status: mapiv1beta1.MachineStatus{
-						LastUpdated: &metav1.Time{Time: time.Now().Add(time.Duration(-defaultNodeStartupTimeout) - 1*time.Second)},
+						LastUpdated: &metav1.Time{Time: time.Now().Add(-defaultNodeStartupTimeout - 1*time.Second)},
 					},
 				},
 				Node: &corev1.Node{
@@ -1769,7 +1803,7 @@ func TestNeedsRemediation(t *testing.T) {
 					},
 					Spec: mapiv1beta1.MachineSpec{},
 					Status: mapiv1beta1.MachineStatus{
-						LastUpdated: &metav1.Time{Time: time.Now().Add(time.Duration(-defaultNodeStartupTimeout) - 1*time.Second)},
+						LastUpdated: &metav1.Time{Time: time.Now().Add(-defaultNodeStartupTimeout - 1*time.Second)},
 					},
 				},
 				Node: &corev1.Node{
@@ -1827,7 +1861,7 @@ func TestNeedsRemediation(t *testing.T) {
 			},
 			timeoutForMachineToHaveNode: defaultNodeStartupTimeout,
 			expectedNeedsRemediation:    false,
-			expectedNextCheck:           time.Duration(1 * time.Minute), // 300-200 rounded
+			expectedNextCheck:           1 * time.Minute, // 300-200 rounded
 			expectedError:               false,
 		},
 	}
@@ -2046,7 +2080,7 @@ func TestRemediate(t *testing.T) {
 			objects = append(objects, runtime.Object(&tc.target.Machine))
 			recorder := record.NewFakeRecorder(2)
 			r := newFakeReconcilerWithCustomRecorder(recorder, objects...)
-			if err := tc.target.remediate(r); (err != nil) != tc.expectedError {
+			if err := r.internalRemediation(*tc.target); (err != nil) != tc.expectedError {
 				t.Errorf("Case: %v. Got: %v, expected error: %v", tc.testCase, err, tc.expectedError)
 			}
 			assertEvents(t, tc.testCase, tc.expectedEvents, recorder.Events)
@@ -2404,7 +2438,7 @@ func TestHealthCheckTargets(t *testing.T) {
 						},
 						Spec: mapiv1beta1.MachineSpec{},
 						Status: mapiv1beta1.MachineStatus{
-							LastUpdated: &metav1.Time{Time: now.Add(time.Duration(-defaultNodeStartupTimeout) + 1*time.Minute)},
+							LastUpdated: &metav1.Time{Time: now.Add(-defaultNodeStartupTimeout + 1*time.Minute)},
 						},
 					},
 					Node: nil,
@@ -2516,7 +2550,7 @@ func TestHealthCheckTargets(t *testing.T) {
 		r := newFakeReconcilerWithCustomRecorder(recorder)
 		t.Run(tc.testCase, func(t *testing.T) {
 			currentHealhty, needRemediationTargets, nextCheckTimes, errList := r.healthCheckTargets(tc.targets, tc.timeoutForMachineToHaveNode)
-			if currentHealhty != tc.currentHealthy {
+			if len(currentHealhty) != tc.currentHealthy {
 				t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, currentHealhty, tc.currentHealthy)
 			}
 			if !equality.Semantic.DeepEqual(needRemediationTargets, tc.needRemediationTargets) {
@@ -2892,4 +2926,145 @@ func TestGetIntOrPercentValue(t *testing.T) {
 
 func IntPtr(i int) *int {
 	return &i
+}
+
+func assertEvents(t *testing.T, testCase string, expectedEvents []string, realEvents chan string) {
+	if len(expectedEvents) != len(realEvents) {
+		t.Errorf(
+			"Test case: %s. Number of expected events (%v) differs from number of real events (%v)",
+			testCase,
+			len(expectedEvents),
+			len(realEvents),
+		)
+	} else {
+		for _, eventType := range expectedEvents {
+			select {
+			case event := <-realEvents:
+				if !strings.Contains(event, fmt.Sprintf(" %s ", eventType)) {
+					t.Errorf("Test case: %s. Expected %v event, got: %v", testCase, eventType, event)
+				}
+			default:
+				t.Errorf("Test case: %s. Expected %v event, but no event occured", testCase, eventType)
+			}
+		}
+	}
+}
+
+// newFakeReconciler returns a new reconcile.Reconciler with a fake client
+func newFakeReconciler(initObjects ...runtime.Object) *ReconcileMachineHealthCheck {
+	return newFakeReconcilerWithCustomRecorder(nil, initObjects...)
+}
+
+func newFakeReconcilerWithCustomRecorder(recorder record.EventRecorder, initObjects ...runtime.Object) *ReconcileMachineHealthCheck {
+	fakeClient := fake.NewClientBuilder().WithRuntimeObjects(initObjects...).Build()
+	return &ReconcileMachineHealthCheck{
+		client:    fakeClient,
+		scheme:    scheme.Scheme,
+		namespace: namespace,
+		recorder:  recorder,
+	}
+}
+
+func assertBaseReconcile(t *testing.T, tc testCase, ctx context.Context, r *ReconcileMachineHealthCheck) {
+	recorder := r.recorder.(*record.FakeRecorder)
+
+	request := reconcile.Request{
+		NamespacedName: types.NamespacedName{
+			Namespace: tc.mhc.GetNamespace(),
+			Name:      tc.mhc.GetName(),
+		},
+	}
+	result, err := r.Reconcile(ctx, request)
+	if &result == nil {
+		t.Errorf("Test case: %s. Expected: non nil result error, got: nil", tc.node.Name)
+	}
+	assertEvents(t, tc.name, tc.expectedEvents, recorder.Events)
+	if tc.expected.error != (err != nil) {
+		var errorExpectation string
+		if !tc.expected.error {
+			errorExpectation = "no"
+		}
+		t.Errorf("Test case: %s. Expected: %s error, got: %v", tc.node.Name, errorExpectation, err)
+	}
+
+	if result != tc.expected.result {
+		if tc.expected.result.Requeue {
+			before := tc.expected.result.RequeueAfter
+			after := tc.expected.result.RequeueAfter + time.Second
+			if after < result.RequeueAfter || before > result.RequeueAfter {
+				t.Errorf("Test case: %s. Expected RequeueAfter between: %v and %v, got: %v", tc.node.Name, before, after, result)
+			}
+		} else {
+			t.Errorf("Test case: %s. Expected: %v, got: %v", tc.node.Name, tc.expected.result, result)
+		}
+	}
+	g := NewWithT(t)
+	if tc.expectedStatus != nil {
+		mhc := &mapiv1beta1.MachineHealthCheck{}
+		g.Expect(r.client.Get(ctx, request.NamespacedName, mhc)).To(Succeed())
+		g.Expect(tc.expectedStatus).To(MatchMachineHealthCheckStatus(&mhc.Status))
+	}
+}
+
+func assertExternalRemediation(t *testing.T, tc testCase, ctx context.Context, r *ReconcileMachineHealthCheck) {
+	//When remediationTemplate is set and node transitions to unhealthy, new Remediation Request should be created
+	nodeReadyStatus := tc.node.Status.Conditions[0].Status
+	if tc.externalRemediationMachine == nil {
+		//Trying to get External Machine Remediation
+		verifyErm(t, tc, ctx, r.client, true)
+	} else if nodeReadyStatus == corev1.ConditionTrue { //When remediationTemplate is set and node transitions back to healthy, new Remediation Request should be deleted
+		//Trying to get External Machine Remediation
+		verifyErm(t, tc, ctx, r.client, false)
+	} else { //When remediationTemplate is already in process
+		//Trying to get External Machine Remediation
+		verifyErm(t, tc, ctx, r.client, true)
+	}
+}
+
+func newMachineHealthCheckWithRemediationTemplate(infraRemediationTmpl *unstructured.Unstructured) *mapiv1beta1.MachineHealthCheck {
+
+	mhc := maotesting.NewMachineHealthCheck("machineHealthCheck")
+	remediationTemplateObjRef := &corev1.ObjectReference{
+		APIVersion: "infrastructure.machine.openshift.io/v1alpha3",
+		Kind:       "InfrastructureRemediationTemplate",
+		Name:       infraRemediationTmpl.GetName(),
+	}
+
+	mhc.Spec.RemediationTemplate = remediationTemplateObjRef
+	return mhc
+}
+
+func buildRunTimeObjects(tc testCase) []runtime.Object {
+	var objects []runtime.Object
+	objects = append(objects, tc.mhc)
+	if tc.machine != nil {
+		objects = append(objects, tc.machine)
+	}
+	objects = append(objects, tc.node)
+	if tc.externalRemediationTemplate != nil {
+		objects = append(objects, tc.externalRemediationTemplate)
+	}
+	if tc.externalRemediationMachine != nil {
+		objects = append(objects, tc.externalRemediationMachine)
+	}
+
+	return objects
+}
+
+func verifyErm(t *testing.T, tc testCase, ctx context.Context, client client.Client, isExist bool) {
+	g := NewWithT(t)
+	erm := new(unstructured.Unstructured)
+	erm.SetAPIVersion(tc.externalRemediationTemplate.GetAPIVersion())
+	erm.SetKind(strings.TrimSuffix(tc.externalRemediationTemplate.GetKind(), external.TemplateSuffix))
+	erm.SetName(tc.machine.GetName())
+
+	nameSpace := types.NamespacedName{
+		Namespace: tc.externalRemediationTemplate.GetNamespace(),
+		Name:      tc.machine.GetName(),
+	}
+	if isExist {
+		g.Expect(client.Get(ctx, nameSpace, erm)).To(Succeed())
+	} else {
+		g.Expect(client.Get(ctx, nameSpace, erm)).NotTo(Succeed())
+	}
 }

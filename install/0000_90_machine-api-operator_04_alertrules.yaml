@@ -42,13 +42,3 @@ spec:
             severity: critical
           annotations:
             message: "machine api operator metrics collection is failing. For more details:  oc logs <machine-api-operator-pod-name> -n openshift-machine-api"
-    - name: machine-api-operator-down
-      rules:
-        - alert: MachineAPIOperatorDown
-          expr: |
-             absent(up{job="machine-api-operator"} == 1)
-          for: 5m
-          labels:
-            severity: critical
-          annotations:
-            message: "machine api operator is down"

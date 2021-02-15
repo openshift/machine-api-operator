@@ -31,6 +31,7 @@ import (
 var _ = Describe("MachineSet Reconciler", func() {
 	namespace := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "ms-test"}}
 	var mgrCtxCancel context.CancelFunc
+	var mgrStopped chan struct{}
 
 	BeforeEach(func() {
 		By("Setting up a new manager")
@@ -45,11 +46,15 @@ var _ = Describe("MachineSet Reconciler", func() {
 		err = add(mgr, reconciler, reconciler.MachineToMachineSets)
 		Expect(err).NotTo(HaveOccurred())
 
+		var mgrCtx context.Context
+		mgrCtx, mgrCtxCancel = context.WithCancel(ctx)
+		mgrStopped = make(chan struct{})
+
 		By("Starting the manager")
 		go func() {
 			defer GinkgoRecover()
-			var mgrCtx context.Context
-			mgrCtx, mgrCtxCancel = context.WithCancel(ctx)
+			defer close(mgrStopped)
+
 			Expect(mgr.Start(mgrCtx)).To(Succeed())
 		}()
 
@@ -66,6 +71,7 @@ var _ = Describe("MachineSet Reconciler", func() {
 
 		By("Closing the manager")
 		mgrCtxCancel()
+		Eventually(mgrStopped, timeout).Should(BeClosed())
 	})
 
 	It("Should reconcile a MachineSet", func() {

@@ -88,7 +88,7 @@ func TestDefaults(t *testing.T) {
 func TestRoundTripMachineSet(t *testing.T) {
 	codecs := serializer.NewCodecFactory(scheme.Scheme)
 	seed := time.Now().UnixNano()
-	fuzzer := fuzzer.FuzzerFor(fuzzer.MergeFuzzerFuncs(metafuzzer.Funcs, machineFuzzerFuncs), rand.NewSource(seed), codecs)
+	machineFuzzer := fuzzer.FuzzerFor(fuzzer.MergeFuzzerFuncs(metafuzzer.Funcs, machineFuzzerFuncs), rand.NewSource(seed), codecs)
 	ctx := context.Background()
 	g := NewWithT(t)
 
@@ -103,8 +103,8 @@ func TestRoundTripMachineSet(t *testing.T) {
 		// losing data
 		spec := &MachineSetSpec{}
 		status := &MachineSetStatus{}
-		fuzzer.Fuzz(spec)
-		fuzzer.Fuzz(status)
+		machineFuzzer.Fuzz(spec)
+		machineFuzzer.Fuzz(status)
 
 		machineSet.Spec = *spec.DeepCopy()
 		g.Expect(c.Create(ctx, machineSet)).To(Succeed())

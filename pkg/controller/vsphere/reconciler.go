@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 
+	apimachineryutilerrors "k8s.io/apimachinery/pkg/util/errors"
+
 	"github.com/google/uuid"
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	vspherev1 "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
@@ -41,6 +43,11 @@ const (
 	GuestInfoIgnitionData     = "guestinfo.ignition.config.data"
 	GuestInfoIgnitionEncoding = "guestinfo.ignition.config.data.encoding"
 	GuestInfoHostname         = "guestinfo.hostname"
+)
+
+// vSphere tasks description IDs, for determinate task types (clone, delete, etc)
+const (
+	cloneVmTaskDescriptionId = "VirtualMachine.clone"
 )
 
 // Reconciler runs the logic to reconciles a machine resource towards its desired state
@@ -101,12 +108,22 @@ func (r *Reconciler) create() error {
 	}
 
 	if taskIsFinished, err := taskIsFinished(moTask); err != nil {
-		metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
-			Name:      r.machine.Name,
-			Namespace: r.machine.Namespace,
-			Reason:    "Task finished with error",
-		})
-		return err
+		if taskIsFinished {
+			metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
+				Name:      r.machine.Name,
+				Namespace: r.machine.Namespace,
+				Reason:    "Task finished with error",
+			})
+			conditionFailed := conditionFailed()
+			conditionFailed.Message = err.Error()
+			statusError := setProviderStatus(moTask.Reference().Value, conditionFailed, r.machineScope, nil)
+			if statusError != nil {
+				return fmt.Errorf("Failed to set provider status: %w", statusError)
+			}
+			return machineapierros.CreateMachine(err.Error())
+		} else {
+			return fmt.Errorf("Failed to check task status: %w", err)
+		}
 	} else if !taskIsFinished {
 		return fmt.Errorf("task %v has not finished", moTask.Reference().Value)
 	}
@@ -215,12 +232,21 @@ func (r *Reconciler) delete() error {
 		}
 		if moTask != nil {
 			if taskIsFinished, err := taskIsFinished(moTask); err != nil {
-				metrics.RegisterFailedInstanceDelete(&metrics.MachineLabels{
-					Name:      r.machine.Name,
-					Namespace: r.machine.Namespace,
-					Reason:    "Task finished with error",
-				})
-				return err
+				// Check if latest task is not a task for vm cloning
+				if taskIsFinished && moTask.Info.DescriptionId != cloneVmTaskDescriptionId {
+					metrics.RegisterFailedInstanceDelete(&metrics.MachineLabels{
+						Name:      r.machine.Name,
+						Namespace: r.machine.Namespace,
+						Reason:    "Task finished with error",
+					})
+					klog.Errorf("Delete task finished with error: %w", err)
+					return err
+				} else {
+					klog.Warningf(
+						"TaskRef points to clone task which finished with error: %w. Proceeding with machine deletion", err,
+					)
+					return err
+				}
 			} else if !taskIsFinished {
 				return fmt.Errorf("task %v has not finished", moTask.Reference().Value)
 			}
@@ -245,6 +271,19 @@ func (r *Reconciler) delete() error {
 		Context: r.Context,
 		Obj:     object.NewVirtualMachine(r.machineScope.session.Client.Client, vmRef),
 		Ref:     vmRef,
+	}
+
+	if r.machineScope.isNodeLinked() {
+		isNodeReachable, err := r.machineScope.checkNodeReachable()
+		if err != nil {
+			return fmt.Errorf("%v: Can't check node status before vm destroy: %w", r.machine.GetName(), err)
+		}
+		if !isNodeReachable {
+			klog.Infof("%v: node not ready, kubelet unreachable for some reason. Detaching disks before vm destroy.", r.machine.GetName())
+			if err := vm.detachPVDisks(); err != nil {
+				return fmt.Errorf("%v: Failed to detach virtual disks related to pvs: %w", r.machine.GetName(), err)
+			}
+		}
 	}
 
 	if _, err := vm.powerOffVM(); err != nil {
@@ -998,6 +1037,55 @@ func (vm *virtualMachine) getNetworkStatusList(client *vim25.Client) ([]NetworkS
 	}
 
 	return networkStatusList, nil
+}
+
+type attachedDisk struct {
+	device   *types.VirtualDisk
+	fileName string
+	diskMode string
+}
+
+func (vm *virtualMachine) getAttachedDisks() ([]attachedDisk, error) {
+	var attachedDiskList []attachedDisk
+	devices, err := vm.Obj.Device(vm.Context)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, disk := range devices.SelectByType((*types.VirtualDisk)(nil)) {
+		backingInfo := disk.GetVirtualDevice().Backing.(types.BaseVirtualDeviceFileBackingInfo).(*types.VirtualDiskFlatVer2BackingInfo)
+		attachedDiskList = append(attachedDiskList, attachedDisk{
+			device:   disk.(*types.VirtualDisk),
+			fileName: backingInfo.FileName,
+			diskMode: backingInfo.DiskMode,
+		})
+	}
+
+	return attachedDiskList, nil
+}
+
+func (vm *virtualMachine) detachPVDisks() error {
+	var errList []error
+	disks, err := vm.getAttachedDisks()
+	if err != nil {
+		return err
+	}
+	for _, disk := range disks {
+		// TODO (dmoiseev): should be enough, but maybe worth to check if its PV for sure
+		if disk.diskMode != string(types.VirtualDiskModePersistent) {
+			klog.V(3).Infof("Detaching disk associated with file %v", disk.fileName)
+			if err := vm.Obj.RemoveDevice(vm.Context, true, disk.device); err != nil {
+				errList = append(errList, err)
+				klog.Errorf("Failed to detach disk associated with file %v ", disk.fileName)
+			} else {
+				klog.V(3).Infof("Disk associated with file %v have been detached", disk.fileName)
+			}
+		}
+	}
+	if len(errList) > 0 {
+		return apimachineryutilerrors.NewAggregate(errList)
+	}
+	return nil
 }
 
 // IgnitionConfig returns a slice of option values that set the given data as

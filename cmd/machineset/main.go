@@ -125,7 +125,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	machineValidator, err := v1beta1.NewMachineValidator()
+	machineValidator, err := v1beta1.NewMachineValidator(mgr.GetClient())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -135,7 +135,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	machineSetValidator, err := v1beta1.NewMachineSetValidator()
+	machineSetValidator, err := v1beta1.NewMachineSetValidator(mgr.GetClient())
 	if err != nil {
 		log.Fatal(err)
 	}
