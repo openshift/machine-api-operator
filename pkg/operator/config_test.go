@@ -18,7 +18,6 @@ var (
 	expectedGCPImage                = "quay.io/openshift/origin-gcp-machine-controllers:v4.0.0"
 	expectedOvirtImage              = "quay.io/openshift/origin-ovirt-machine-controllers"
 	expectedVSphereImage            = "docker.io/openshift/origin-machine-api-operator:v4.0.0"
-	expectedKubevirtImage           = "quay.io/openshift/origin-kubevirt-machine-controllers"
 )
 
 func TestGetProviderFromInfrastructure(t *testing.T) {
@@ -137,9 +136,6 @@ func TestGetImagesFromJSONFile(t *testing.T) {
 	if img.ClusterAPIControllerVSphere != expectedVSphereImage {
 		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedVSphereImage, img.ClusterAPIControllerVSphere)
 	}
-	if img.ClusterAPIControllerKubevirt != expectedKubevirtImage {
-		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedKubevirtImage, img.ClusterAPIControllerKubevirt)
-	}
 }
 
 func TestGetProviderControllerFromImages(t *testing.T) {
@@ -185,10 +181,6 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 		{
 			provider:      configv1.OvirtPlatformType,
 			expectedImage: expectedOvirtImage,
-		},
-		{
-			provider:      configv1.KubevirtPlatformType,
-			expectedImage: expectedKubevirtImage,
 		},
 	}
 
