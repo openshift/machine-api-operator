@@ -45,7 +45,6 @@ type Images struct {
 	ClusterAPIControllerGCP       string `json:"clusterAPIControllerGCP"`
 	ClusterAPIControllerOvirt     string `json:"clusterAPIControllerOvirt"`
 	ClusterAPIControllerVSphere   string `json:"clusterAPIControllerVSphere"`
-	ClusterAPIControllerKubevirt  string `json:"clusterAPIControllerKubevirt"`
 	KubeRBACProxy                 string `json:"kubeRBACProxy"`
 }
 
@@ -87,8 +86,6 @@ func getProviderControllerFromImages(platform configv1.PlatformType, images Imag
 		return images.ClusterAPIControllerOvirt, nil
 	case configv1.VSpherePlatformType:
 		return images.ClusterAPIControllerVSphere, nil
-	case configv1.KubevirtPlatformType:
-		return images.ClusterAPIControllerKubevirt, nil
 	case kubemarkPlatform:
 		return clusterAPIControllerKubemark, nil
 	default:
