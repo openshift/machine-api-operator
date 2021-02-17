@@ -102,6 +102,8 @@ However you can run it in a vanilla Kubernetes cluster by precreating some asset
 - Then you can run it as a [deployment](install/0000_30_machine-api-operator_11_deployment.yaml)
 - You should then be able to deploy a [machineSet](config/machineset.yaml) object
 
+For more information see [hacking-guide](docs/dev/hacking-guide.md).
+
 ## Machine API operator with Kubemark over Kubernetes
 
 INFO: For development and testing purposes only

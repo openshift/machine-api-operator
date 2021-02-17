@@ -24,4 +24,4 @@ cd $REPO_ROOT && \
 	source ./hack/fetch_ext_bins.sh && \
 	fetch_tools && \
 	setup_envs && \
-	NO_DOCKER=1 make unit
+	make unit

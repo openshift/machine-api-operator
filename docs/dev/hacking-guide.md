@@ -20,6 +20,7 @@ A diagram of the Machine lifecycle can be found here - https://github.com/opensh
 - [How to update dependencies](#how-to-update-dependencies)
 - [How to update generated artifacts](#how-to-update-generated-artifacts)
 - [How to use something other than Docker to run make targets](#how-to-use-something-other-than-Docker-to-run-make-targets)
+  * [Troubleshooting make targets](#troubleshooting-make-targets)
 - [Some links to the CI configuration](#some-links-to-the-ci-configuration)
 - [Where to file an issue](#where-to-file-an-issue)
 
@@ -106,7 +107,7 @@ Finally, once all has been scaled down you can compile and run the controller.
 
 ```
 NO_DOCKER=1 make build
- ./bin/manager -v 5
+ ./bin/machine-api-operator -v 5
 ```
 
 *Notes*:
@@ -217,8 +218,19 @@ Checkout the machine-api-operator repo.
 Run `make generate`.
 
 ## How to use something other than Docker to run make targets
-TODO
+Make targets can be run outide cointainer when the `NO_DOCKER=1` is set. 
+For running make targets inside containers:
+* targets will run `podman` as the default engine,
+* if `podman` is not installed, targets will use `docker`
+* to run targets with `docker` even when `podman` is installed, set `USE_DOCKER=1` 
 
+### Troubleshooting make targets
+Running make targets with `docker`, causes some files to be created with root owner. This means that running make targets with `podman` afterwards will fail, due to permission issues.
+To fix this, run:
+```
+./hack/owner_reset.sh
+```
+*Note* : Changing owners with this script requires user to have sudo priviliges.
 ## Some links to the CI configuration
 TODO
 
