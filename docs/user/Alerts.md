@@ -22,7 +22,7 @@ Machine did not reach the “Running” Phase.  Running phase is when the machin
 ### Query
 ```
 # for: 10m
-(mapi_machine_created_timestamp_seconds{phase!="Running"}) > 0
+(mapi_machine_created_timestamp_seconds{phase!="Running|Deleting"}) > 0
 ```
 
 ### Possible Causes
@@ -32,6 +32,26 @@ Machine did not reach the “Running” Phase.  Running phase is when the machin
 
 ### Resolution
 If the machine never became a node, consult the machine troubleshooting guide.
+
+## MachineNotYetDeleted
+Machine has been in the "Deleting" phase for a long time. Deleting phase is added to a machine when it has been marked for deletion and given a deletion timestamp in etcd.
+
+### Query
+```
+# for: 360m
+(mapi_machine_created_timestamp_seconds{phase="Deleting"}) > 0
+```
+
+### Possible Causes
+* Invalid cloud credentials are preventing deletion.
+* A [Pod disruption budget](https://kubernetes.io/docs/concepts/workloads/pods/disruptions/#pod-disruption-budgets) is
+  preventing Node removal.
+* A Pod with a very long [graceful termination period](https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption/#graceful-termination-of-preemption-victims) is preventing Node removal.
+
+### Resolution
+Consult the `machine-controller`'s logs for root causes (see the [Troubleshooting Guide](TroubleShooting.md). In some
+cases the machine may need to be removed manaually, starting with the instance in the cloud provider's console and
+then the machine in OpenShift.
 
 ## MachineAPIOperatorMetricsCollectionFailing
 Machine-api metrics are not being collected successfully.  This would be a very unusual error to see.
