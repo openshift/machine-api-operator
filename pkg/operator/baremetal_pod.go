@@ -71,6 +71,18 @@ var volumes = []corev1.Volume{
 			},
 		},
 	},
+	{
+		Name: "trusted-ca",
+		VolumeSource: corev1.VolumeSource{
+			ConfigMap: &corev1.ConfigMapVolumeSource{
+				Items: []corev1.KeyToPath{{Key: "ca-bundle.crt", Path: "tls-ca-bundle.pem"}},
+				LocalObjectReference: corev1.LocalObjectReference{
+					Name: externalTrustBundleConfigMapName,
+				},
+				Optional: pointer.BoolPtr(true),
+			},
+		},
+	},
 }
 
 var sharedVolumeMount = corev1.VolumeMount{
@@ -88,6 +100,24 @@ var inspectorCredentialsMount = corev1.VolumeMount{
 	Name:      inspectorCredentialsVolume,
 	MountPath: metal3AuthRootDir + "/ironic-inspector",
 	ReadOnly:  true,
+}
+
+var trustedCABundleMount = corev1.VolumeMount{
+	Name:      "trusted-ca",
+	MountPath: "/etc/pki/ca-trust/extracted/pem",
+	ReadOnly:  true,
+}
+
+func injectProxyAndCA(config *OperatorConfig, containers []corev1.Container) []corev1.Container {
+	var injectedContainers []corev1.Container
+
+	for _, container := range containers {
+		container.Env = append(container.Env, getProxyArgs(config)...)
+		container.VolumeMounts = append(container.VolumeMounts, trustedCABundleMount)
+		injectedContainers = append(injectedContainers, container)
+	}
+
+	return injectedContainers
 }
 
 func buildEnvVar(name string, baremetalProvisioningConfig BaremetalProvisioningConfig) corev1.EnvVar {
@@ -358,7 +388,7 @@ func newMetal3InitContainers(config *OperatorConfig, baremetalProvisioningConfig
 	}
 	initContainers = append(initContainers, createInitContainerMachineOsDownloader(config, baremetalProvisioningConfig))
 	initContainers = append(initContainers, createInitContainerStaticIpSet(config, baremetalProvisioningConfig))
-	return initContainers
+	return injectProxyAndCA(config, initContainers)
 }
 
 func createInitContainerMachineOsDownloader(config *OperatorConfig, baremetalProvisioningConfig BaremetalProvisioningConfig) corev1.Container {
@@ -454,7 +484,7 @@ func newMetal3Containers(config *OperatorConfig, baremetalProvisioningConfig Bar
 	containers = append(containers, createContainerMetal3IronicApi(config, baremetalProvisioningConfig))
 	containers = append(containers, createContainerMetal3IronicInspector(config, baremetalProvisioningConfig))
 	containers = append(containers, createContainerMetal3StaticIpManager(config, baremetalProvisioningConfig))
-	return containers
+	return injectProxyAndCA(config, containers)
 }
 
 func createContainerMetal3Dnsmasq(config *OperatorConfig, baremetalProvisioningConfig BaremetalProvisioningConfig) corev1.Container {
