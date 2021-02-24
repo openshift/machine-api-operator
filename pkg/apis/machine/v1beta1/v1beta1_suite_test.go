@@ -142,6 +142,9 @@ func machineFuzzerFuncs(codecs runtimeserializer.CodecFactory) []interface{} {
 			if len(j.Addresses) == 0 {
 				j.Addresses = nil
 			}
+			if len(j.Conditions) == 0 {
+				j.Conditions = nil
+			}
 		},
 		// Fuzzer for MachineSetSpec to ensure value restrictions are honoured
 		func(j *MachineSetSpec, c fuzz.Continue) {
