@@ -43,6 +43,12 @@ const (
 	hostKubePKIPath                     = "/var/lib/kubelet/pki"
 )
 
+var (
+	// daemonsetMaxUnavailable must be set to "10%" to conform with other
+	// daemonsets.
+	daemonsetMaxUnavailable = intstr.FromString("10%")
+)
+
 func (optr *Operator) syncAll(config *OperatorConfig) error {
 	if err := optr.statusProgressing(); err != nil {
 		klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
@@ -656,6 +662,11 @@ func newTerminationDaemonSet(config *OperatorConfig) *appsv1.DaemonSet {
 			},
 		},
 		Spec: appsv1.DaemonSetSpec{
+			UpdateStrategy: appsv1.DaemonSetUpdateStrategy{
+				RollingUpdate: &appsv1.RollingUpdateDaemonSet{
+					MaxUnavailable: &daemonsetMaxUnavailable,
+				},
+			},
 			Selector: &metav1.LabelSelector{
 				MatchLabels: map[string]string{
 					"api":     "clusterapi",
