@@ -17,6 +17,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog/v2"
@@ -58,33 +59,65 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 		return nil
 	}
 
+	errors := []error{}
 	// Sync webhook configuration
 	if err := optr.syncWebhookConfiguration(); err != nil {
-		if err := optr.statusDegraded(err.Error()); err != nil {
-			// Just log the error here.  We still want to
-			// return the outer error.
-			klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
-		}
-		klog.Errorf("Error syncing machine API webhook configurations: %v", err)
-		return err
+		errors = append(errors, fmt.Errorf("Error syncing machine API webhook configurations: %w", err))
 	}
-	klog.V(3).Info("Synced up all machine API webhook configurations")
 
 	if err := optr.syncClusterAPIController(config); err != nil {
+		errors = append(errors, fmt.Errorf("Error syncing machine-api-controller: %w", err))
+	}
+
+	// Sync Termination Handler DaemonSet if supported
+	if config.Controllers.TerminationHandler != clusterAPIControllerNoOp {
+		if err := optr.syncTerminationHandler(config); err != nil {
+			errors = append(errors, fmt.Errorf("Error syncing termination handler: %w", err))
+		}
+	}
+
+	if len(errors) > 0 {
+		err := utilerrors.NewAggregate(errors)
 		if err := optr.statusDegraded(err.Error()); err != nil {
 			// Just log the error here.  We still want to
 			// return the outer error.
 			klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
 		}
-		klog.Errorf("Error syncing machine-api-controller: %v", err)
+		klog.Errorf("Error syncing machine controller components: %v", err)
 		return err
 	}
-	klog.V(3).Info("Synced up all machine-api-controller components")
+
+	if err := optr.waitForRollout(config); err != nil {
+		if err := optr.statusDegraded(err.Error()); err != nil {
+			// Just log the error here.  We still want to
+			// return the outer error.
+			klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
+		}
+		klog.Errorf("Error waiting for resource to sync: %v", err)
+		return err
+	}
+
+	klog.V(3).Info("Synced up all machine API webhook configurations")
 
 	if err := optr.statusAvailable(); err != nil {
 		klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
 		return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
 	}
+	return nil
+}
+
+func (optr *Operator) waitForRollout(config *OperatorConfig) error {
+	// Wait for machine-controllers deployment
+	if err := optr.waitForDeploymentRollout(newDeployment(config, nil), deploymentRolloutPollInterval, deploymentRolloutTimeout); err != nil {
+		return err
+	}
+	if config.Controllers.TerminationHandler != clusterAPIControllerNoOp {
+		// Wait for termination handler
+		if err := optr.waitForDaemonSetRollout(newTerminationDaemonSet(config)); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -111,17 +144,6 @@ func (optr *Operator) syncClusterAPIController(config *OperatorConfig) error {
 		resourcemerge.SetDeploymentGeneration(&optr.generations, d)
 	}
 
-	if err := optr.waitForDeploymentRollout(controllersDeployment, deploymentRolloutPollInterval, deploymentRolloutTimeout); err != nil {
-		return err
-	}
-
-	// Sync Termination Handler DaemonSet if supported
-	if config.Controllers.TerminationHandler != clusterAPIControllerNoOp {
-		if err := optr.syncTerminationHandler(config); err != nil {
-			return err
-		}
-	}
-
 	return nil
 }
 
@@ -136,7 +158,7 @@ func (optr *Operator) syncTerminationHandler(config *OperatorConfig) error {
 	if updated {
 		resourcemerge.SetDaemonSetGeneration(&optr.generations, ds)
 	}
-	return optr.waitForDaemonSetRollout(terminationDaemonSet)
+	return nil
 }
 
 func (optr *Operator) syncWebhookConfiguration() error {
