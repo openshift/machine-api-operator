@@ -32,6 +32,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+
+	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/cluster"
 )
 
 const (
@@ -112,6 +117,7 @@ func main() {
 		// Slow the default retry and renew election rate to reduce etcd writes at idle: BZ 1858400
 		RetryPeriod:   &retryPeriod,
 		RenewDeadline: &renewDealine,
+		ClientBuilder: NewClientBuilder(),
 	}
 
 	mgr, err := manager.New(cfg, opts)
@@ -173,4 +179,32 @@ func main() {
 
 	// Start the Cmd
 	log.Fatal(mgr.Start(signals.SetupSignalHandler()))
+}
+
+func NewClientBuilder() cluster.ClientBuilder {
+	return &newClientBuilder{}
+}
+
+type newClientBuilder struct {
+	uncached []client.Object
+}
+
+func (n *newClientBuilder) WithUncached(objs ...client.Object) cluster.ClientBuilder {
+	n.uncached = append(n.uncached, objs...)
+	return n
+}
+
+func (n *newClientBuilder) Build(cache cache.Cache, config *rest.Config, options client.Options) (client.Client, error) {
+	// Create the Client for Write operations.
+	config.Burst = 250
+	c, err := client.New(config, options)
+	if err != nil {
+		return nil, err
+	}
+
+	return client.NewDelegatingClient(client.NewDelegatingClientInput{
+		CacheReader:     cache,
+		Client:          c,
+		UncachedObjects: n.uncached,
+	})
 }
