@@ -32,6 +32,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+
+	"k8s.io/client-go/rest"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/cluster"
 )
 
 const (
@@ -97,6 +102,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	cfg.Burst = 250
 
 	// Create a new Cmd to provide shared dependencies and start components
 	syncPeriod := 10 * time.Minute
@@ -173,4 +180,34 @@ func main() {
 
 	// Start the Cmd
 	log.Fatal(mgr.Start(signals.SetupSignalHandler()))
+}
+
+func NewClientBuilder() cluster.ClientBuilder {
+	return &newClientBuilder{}
+}
+
+type newClientBuilder struct {
+	uncached []client.Object
+}
+
+func (n *newClientBuilder) WithUncached(objs ...client.Object) cluster.ClientBuilder {
+	n.uncached = append(n.uncached, objs...)
+	return n
+}
+
+func (n *newClientBuilder) Build(cache cache.Cache, config *rest.Config, options client.Options) (client.Client, error) {
+	// Create the Client for Write operations.
+	config.Burst = 250
+	log.Printf("Config: %s", config.Burst)
+	log.Printf("Client options: %s", options)
+	c, err := client.New(config, options)
+	if err != nil {
+		return nil, err
+	}
+
+	return client.NewDelegatingClient(client.NewDelegatingClientInput{
+		CacheReader:     cache,
+		Client:          c,
+		UncachedObjects: n.uncached,
+	})
 }
