@@ -103,7 +103,8 @@ func main() {
 		log.Fatal(err)
 	}
 
-	cfg.Burst = 250
+	cfg.Burst = 150
+	cfg.QPS = 75.0
 
 	// Create a new Cmd to provide shared dependencies and start components
 	syncPeriod := 10 * time.Minute
@@ -181,6 +182,8 @@ func main() {
 	// Start the Cmd
 	log.Fatal(mgr.Start(signals.SetupSignalHandler()))
 }
+
+
 
 func NewClientBuilder() cluster.ClientBuilder {
 	return &newClientBuilder{}
