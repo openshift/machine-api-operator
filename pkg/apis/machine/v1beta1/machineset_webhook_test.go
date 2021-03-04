@@ -48,6 +48,7 @@ func TestMachineSetCreation(t *testing.T) {
 		platformType      osconfigv1.PlatformType
 		clusterID         string
 		expectedError     string
+		disconnected      bool
 		providerSpecValue *runtime.RawExtension
 	}{
 		{
@@ -108,6 +109,34 @@ func TestMachineSetCreation(t *testing.T) {
 				},
 			},
 			expectedError: "",
+		},
+		{
+			name:         "with Azure disconnected installation request public IP",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &runtime.RawExtension{
+				Object: &azure.AzureMachineProviderSpec{
+					OSDisk: azure.OSDisk{
+						DiskSizeGB: 128,
+					},
+					PublicIP: true,
+				},
+			},
+			disconnected:  true,
+			expectedError: "providerSpec.publicIP: Forbidden: publicIP is not allowed in Azure disconnected installation",
+		},
+		{
+			name:         "with Azure disconnected installation success",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &runtime.RawExtension{
+				Object: &azure.AzureMachineProviderSpec{
+					OSDisk: azure.OSDisk{
+						DiskSizeGB: 128,
+					},
+				},
+			},
+			disconnected: true,
 		},
 		{
 			name:              "with GCP and a nil provider spec value",
@@ -198,8 +227,16 @@ func TestMachineSetCreation(t *testing.T) {
 				},
 			}
 
+			infra := plainInfra.DeepCopy()
+			infra.Status.InfrastructureName = tc.clusterID
+			infra.Status.PlatformStatus = platformStatus
+
+			dns := plainDNS.DeepCopy()
+			if !tc.disconnected {
+				dns.Spec.PublicZone = &osconfigv1.DNSZone{}
+			}
 			machineSetDefaulter := createMachineSetDefaulter(platformStatus, tc.clusterID)
-			machineSetValidator := createMachineSetValidator(platformStatus.Type, tc.clusterID)
+			machineSetValidator := createMachineSetValidator(infra, dns)
 			mgr.GetWebhookServer().Register(DefaultMachineSetMutatingHookPath, &webhook.Admission{Handler: machineSetDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineSetValidatingHookPath, &webhook.Admission{Handler: machineSetValidator})
 
@@ -662,8 +699,12 @@ func TestMachineSetUpdate(t *testing.T) {
 				},
 			}
 
+			infra := plainInfra.DeepCopy()
+			infra.Status.InfrastructureName = tc.clusterID
+			infra.Status.PlatformStatus = platformStatus
+
 			machineSetDefaulter := createMachineSetDefaulter(platformStatus, tc.clusterID)
-			machineSetValidator := createMachineSetValidator(platformStatus.Type, tc.clusterID)
+			machineSetValidator := createMachineSetValidator(infra, plainDNS)
 			mgr.GetWebhookServer().Register(DefaultMachineSetMutatingHookPath, &webhook.Admission{Handler: machineSetDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineSetValidatingHookPath, &webhook.Admission{Handler: machineSetValidator})
 
