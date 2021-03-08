@@ -26,6 +26,7 @@ import (
 
 	. "github.com/onsi/gomega"
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	"github.com/openshift/machine-api-operator/pkg/util/conditions"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -325,7 +326,7 @@ func TestReconcileRequest(t *testing.T) {
 	}
 }
 
-func TestSetPhase(t *testing.T) {
+func TestUpdateStatus(t *testing.T) {
 	testCases := []struct {
 		name                   string
 		phase                  string
@@ -333,9 +334,12 @@ func TestSetPhase(t *testing.T) {
 		annotations            map[string]string
 		existingProviderStatus string
 		expectedProviderStatus string
+		conditions             machinev1.Conditions
+		originalConditions     machinev1.Conditions
+		updated                bool
 	}{
 		{
-			name:        "when updating the phase to Running",
+			name:        "when the status is not changed",
 			phase:       phaseRunning,
 			err:         nil,
 			annotations: nil,
@@ -347,6 +351,7 @@ func TestSetPhase(t *testing.T) {
 			annotations: map[string]string{
 				MachineInstanceStateAnnotationName: unknownInstanceState,
 			},
+			updated: true,
 		},
 		{
 			name:  "when updating the phase to Failed with instanceState Set",
@@ -357,6 +362,7 @@ func TestSetPhase(t *testing.T) {
 			},
 			existingProviderStatus: `{"instanceState":"Running"}`,
 			expectedProviderStatus: `{"instanceState":"Unknown"}`,
+			updated:                true,
 		},
 		{
 			name:  "when updating the phase to Failed with vmState Set",
@@ -367,6 +373,7 @@ func TestSetPhase(t *testing.T) {
 			},
 			existingProviderStatus: `{"vmState":"Running"}`,
 			expectedProviderStatus: `{"vmState":"Unknown"}`,
+			updated:                true,
 		},
 		{
 			name:  "when updating the phase to Failed with state Set",
@@ -377,6 +384,43 @@ func TestSetPhase(t *testing.T) {
 			},
 			existingProviderStatus: `{"state":"Running"}`,
 			expectedProviderStatus: `{"state":"Running"}`,
+			updated:                true,
+		},
+		{
+			name:        "when adding a condition",
+			phase:       phaseRunning,
+			err:         nil,
+			annotations: nil,
+			conditions: machinev1.Conditions{
+				*conditions.TrueCondition(machinev1.InstanceExistsCondition),
+			},
+			updated: true,
+		},
+		{
+			name:        "when updating a condition",
+			phase:       phaseRunning,
+			err:         nil,
+			annotations: nil,
+			conditions: machinev1.Conditions{
+				*conditions.FalseCondition(machinev1.InstanceExistsCondition, machinev1.InstanceMissingReason, machinev1.ConditionSeverityWarning, "message"),
+			},
+			originalConditions: machinev1.Conditions{
+				*conditions.TrueCondition(machinev1.InstanceExistsCondition),
+			},
+			updated: true,
+		},
+		{
+			name:        "when the conditions do not change",
+			phase:       phaseRunning,
+			err:         nil,
+			annotations: nil,
+			conditions: machinev1.Conditions{
+				*conditions.TrueCondition(machinev1.InstanceExistsCondition),
+			},
+			originalConditions: machinev1.Conditions{
+				*conditions.TrueCondition(machinev1.InstanceExistsCondition),
+			},
+			updated: false,
 		},
 	}
 
@@ -425,14 +469,20 @@ func TestSetPhase(t *testing.T) {
 				Name:      machine.Name,
 			}
 
+			for _, cond := range tc.originalConditions {
+				c := cond
+				conditions.Set(machine, &c)
+			}
+
 			// Set the phase to Running initially
-			g.Expect(reconciler.setPhase(machine, phaseRunning, nil)).To(Succeed())
+			g.Expect(reconciler.updateStatus(machine, phaseRunning, nil, machinev1.Conditions{})).To(Succeed())
 			// validate persisted object
 			got := machinev1.Machine{}
 			g.Expect(reconciler.Client.Get(context.TODO(), namespacedName, &got)).To(Succeed())
 			g.Expect(got.Status.Phase).ToNot(BeNil())
 			g.Expect(*got.Status.Phase).To(Equal(phaseRunning))
 			lastUpdated := got.Status.LastUpdated
+			gotConditions := got.GetConditions()
 			g.Expect(lastUpdated).ToNot(BeNil())
 			// validate passed object
 			g.Expect(machine.Status.Phase).ToNot(BeNil())
@@ -440,16 +490,27 @@ func TestSetPhase(t *testing.T) {
 			objectLastUpdated := machine.Status.LastUpdated
 			g.Expect(objectLastUpdated).ToNot(BeNil())
 
-			// Modify the phase and verify the result
-			g.Expect(reconciler.setPhase(machine, tc.phase, tc.err)).To(Succeed())
+			// Set the time func so that we can check lastUpdated is set correctly
+			reconciler.nowFunc = func() time.Time {
+				return time.Now().Add(5 * time.Second)
+			}
+
+			// Modify the phase and conditions and verify the result
+			for _, cond := range tc.conditions {
+				c := cond
+				conditions.Set(machine, &c)
+			}
+			g.Expect(reconciler.updateStatus(machine, tc.phase, tc.err, gotConditions)).To(Succeed())
 			// validate the persisted object
 			got = machinev1.Machine{}
 			g.Expect(reconciler.Client.Get(context.TODO(), namespacedName, &got)).To(Succeed())
 
-			if tc.phase == phaseRunning {
-				// The phase hasn't changed so the lastUpdated shouldn't either
-				g.Expect(*got.Status.LastUpdated).To(Equal(*lastUpdated))
-				g.Expect(*machine.Status.LastUpdated).To(Equal(*objectLastUpdated))
+			if tc.updated {
+				g.Expect(got.Status.LastUpdated.UnixNano()).ToNot(Equal(lastUpdated.UnixNano()))
+				g.Expect(machine.Status.LastUpdated.UnixNano()).ToNot(Equal(objectLastUpdated.UnixNano()))
+			} else {
+				g.Expect(got.Status.LastUpdated.UnixNano()).To(Equal(lastUpdated.UnixNano()))
+				g.Expect(machine.Status.LastUpdated.UnixNano()).To(Equal(objectLastUpdated.UnixNano()))
 			}
 
 			if tc.err != nil {
@@ -461,6 +522,9 @@ func TestSetPhase(t *testing.T) {
 
 			g.Expect(*got.Status.Phase).To(Equal(tc.phase))
 			g.Expect(*machine.Status.Phase).To(Equal(tc.phase))
+
+			g.Expect(got.GetConditions()).To(conditions.MatchConditions(tc.conditions))
+			g.Expect(machine.GetConditions()).To(conditions.MatchConditions(tc.conditions))
 
 			g.Expect(got.GetAnnotations()).To(Equal(tc.annotations))
 			g.Expect(machine.GetAnnotations()).To(Equal(tc.annotations))
