@@ -948,6 +948,14 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			expectedOk:    false,
 			expectedError: "providerSpec.tenancy: Invalid value: \"invalid\": Invalid providerSpec.tenancy, the only allowed options are: default, dedicated, host",
 		},
+		{
+			testCase: "with no iam instance profile",
+			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+				p.IAMInstanceProfile = nil
+			},
+			expectedOk:       true,
+			expectedWarnings: []string{"providerSpec.iamInstanceProfile: no IAM instance profile provided: nodes may be unable to join the cluster"},
+		},
 	}
 
 	secret := &corev1.Secret{
