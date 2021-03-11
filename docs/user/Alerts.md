@@ -49,19 +49,3 @@ due to either network issue or missing service definition.
 
 ### Resolution
 Investigate the logs of the machine-api-operator to determine why it is unable to gather machines and machinesets, or investigate the collection of metrics.
-
-## MachineAPIOperatorDown
-The machine-api-operator is not up.
-
-### Query
-```
-# for: 5m
-absent(up{job="machine-api-operator"} == 1)
-```
-
-### Possible Causes
-* The deployment has been scaled down
-* machine-api-operator is in a failed state
-
-### Resolution
-Investigate logs, deployment, and pod events for the machine-api-operator.
