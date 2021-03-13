@@ -477,6 +477,10 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 			corev1.ResourceMemory: resource.MustParse("20Mi"),
 			corev1.ResourceCPU:    resource.MustParse("10m"),
 		},
+		Limits: map[corev1.ResourceName]resource.Quantity{
+			corev1.ResourceMemory: resource.MustParse("50Mi"),
+			corev1.ResourceCPU:    resource.MustParse("100m"),
+		},
 	}
 	args := []string{
 		"--logtostderr=true",
@@ -635,6 +639,10 @@ func newKubeProxyContainer(image, portName, upstreamPort string, exposePort int3
 			corev1.ResourceMemory: resource.MustParse("20Mi"),
 			corev1.ResourceCPU:    resource.MustParse("10m"),
 		},
+		Limits: map[corev1.ResourceName]resource.Quantity{
+			corev1.ResourceMemory: resource.MustParse("50Mi"),
+			corev1.ResourceCPU:    resource.MustParse("100m"),
+		},
 	}
 	args := []string{
 		fmt.Sprintf("--secure-listen-address=0.0.0.0:%d", exposePort),
@@ -744,7 +752,12 @@ func newTerminationContainers(config *OperatorConfig) []corev1.Container {
 			corev1.ResourceMemory: resource.MustParse("20Mi"),
 			corev1.ResourceCPU:    resource.MustParse("10m"),
 		},
+		Limits: map[corev1.ResourceName]resource.Quantity{
+			corev1.ResourceMemory: resource.MustParse("25Mi"),
+			corev1.ResourceCPU:    resource.MustParse("10m"),
+		},
 	}
+
 	terminationArgs := []string{
 		"--logtostderr=true",
 		"--v=3",
