@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/imdario/mergo"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 	"github.com/openshift/library-go/pkg/operator/resource/resourcehash"
@@ -13,6 +14,7 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/metrics"
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
 	mapiwebhooks "github.com/openshift/machine-api-operator/pkg/webhooks"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -195,31 +197,119 @@ func (optr *Operator) syncWebhookConfiguration() error {
 }
 
 func (optr *Operator) syncValidatingWebhook() error {
-	validatingWebhook, updated, err := resourceapply.ApplyValidatingWebhookConfiguration(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
-		events.NewLoggingEventRecorder(optr.name),
-		mapiwebhooks.NewValidatingWebhookConfiguration())
-	if err != nil {
-		return err
+	client := optr.kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations()
+	ctx := context.TODO()
+	expected := mapiwebhooks.NewValidatingWebhookConfiguration()
+
+	current, err := client.Get(ctx, expected.Name, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		// Doesn't exist yet so create a fresh configuration
+		if _, err := client.Create(ctx, expected, metav1.CreateOptions{}); err != nil {
+			return fmt.Errorf("error creating ValidatingWebhookConfiguration: %v", err)
+		}
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("error getting ValidatingWebhookConfiguration: %v", err)
 	}
-	if updated {
-		resourcemerge.SetValidatingWebhooksConfigurationGeneration(&optr.generations, validatingWebhook)
+
+	// The webhook already exists, so merge the existing fields with the desired fields
+	if err := mergo.Merge(expected, current); err != nil {
+		return fmt.Errorf("error merging ValidatingWebhookConfiguration: %v", err)
+	}
+	// Merge webhooks separately as slices are normally overwritten by mergo and
+	// we need to preserve the defaults that are set within the webhooks
+	expected.Webhooks, err = mergeValidatingWebhooks(expected.Webhooks, current.Webhooks)
+	if err != nil {
+		return fmt.Errorf("error merging ValidatingWebhooks: %v", err)
+	}
+
+	if _, err := client.Update(ctx, expected, metav1.UpdateOptions{}); err != nil {
+		return fmt.Errorf("error updating ValidatingWebhookConfiguration: %v", err)
 	}
 
 	return nil
 }
 
-func (optr *Operator) syncMutatingWebhook() error {
-	validatingWebhook, updated, err := resourceapply.ApplyMutatingWebhookConfiguration(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
-		events.NewLoggingEventRecorder(optr.name),
-		mapiwebhooks.NewMutatingWebhookConfiguration())
-	if err != nil {
-		return err
+// mergeValidatingWebhooks merges the two sets of webhooks so that any defaulted or additional fields (eg CABundle)
+// are preserved from the current set of webhooks.
+// In any case where fields in the webhooks differ, expected takes precedence.
+// Webhooks are merged using Name as the key, if any webhook is present in current but not expected, it is dropped.
+func mergeValidatingWebhooks(expected, current []admissionregistrationv1.ValidatingWebhook) ([]admissionregistrationv1.ValidatingWebhook, error) {
+	currentSet := make(map[string]admissionregistrationv1.ValidatingWebhook)
+	for _, webhook := range current {
+		currentSet[webhook.Name] = webhook
 	}
-	if updated {
-		resourcemerge.SetMutatingWebhooksConfigurationGeneration(&optr.generations, validatingWebhook)
+
+	out := []admissionregistrationv1.ValidatingWebhook{}
+	for _, expectedWebhook := range expected {
+		// If a current webhook exists with the same name, merge it with the expected one
+		if currentWebhook, found := currentSet[expectedWebhook.Name]; found {
+			if err := mergo.Merge(&expectedWebhook, currentWebhook); err != nil {
+				return nil, fmt.Errorf("error merging webhook %q: %v", expectedWebhook.Name, err)
+			}
+		}
+		out = append(out, expectedWebhook)
+	}
+
+	return out, nil
+}
+
+func (optr *Operator) syncMutatingWebhook() error {
+	client := optr.kubeClient.AdmissionregistrationV1().MutatingWebhookConfigurations()
+	ctx := context.TODO()
+	expected := mapiwebhooks.NewMutatingWebhookConfiguration()
+
+	current, err := client.Get(ctx, expected.Name, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		// Doesn't exist yet so create a fresh configuration
+		if _, err := client.Create(ctx, expected, metav1.CreateOptions{}); err != nil {
+			return fmt.Errorf("error creating MutatingWebhookConfiguration: %v", err)
+		}
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("error getting MutatingWebhookConfiguration: %v", err)
+	}
+
+	// The webhook already exists, so merge the existing fields with the desired fields
+	if err := mergo.Merge(expected, current); err != nil {
+		return fmt.Errorf("error merging MutatingWebhookConfiguration: %v", err)
+	}
+	// Merge webhooks separately as slices are normally overwritten by mergo and
+	// we need to preserve the defaults that are set within the webhooks
+	expected.Webhooks, err = mergeMutatingWebhooks(expected.Webhooks, current.Webhooks)
+	if err != nil {
+		return fmt.Errorf("error merging MutatingWebhooks: %v", err)
+	}
+
+	if _, err := client.Update(ctx, expected, metav1.UpdateOptions{}); err != nil {
+		return fmt.Errorf("error updating MutatingWebhookConfiguration: %v", err)
 	}
 
 	return nil
+}
+
+// mergeMutatingWebhooks merges the two sets of webhooks so that any defaulted or additional fields (eg CABundle)
+// are preserved from the current set of webhooks.
+// In any case where fields in the webhooks differ, expected takes precedence.
+// Webhooks are merged using Name as the key, if any webhook is present in current but not expected, it is dropped.
+func mergeMutatingWebhooks(expected, current []admissionregistrationv1.MutatingWebhook) ([]admissionregistrationv1.MutatingWebhook, error) {
+	currentSet := make(map[string]admissionregistrationv1.MutatingWebhook)
+	for _, webhook := range current {
+		currentSet[webhook.Name] = webhook
+	}
+
+	out := []admissionregistrationv1.MutatingWebhook{}
+	for _, expectedWebhook := range expected {
+		// If a current webhook exists with the same name, merge it with the expected one
+		if currentWebhook, found := currentSet[expectedWebhook.Name]; found {
+			if err := mergo.Merge(&expectedWebhook, currentWebhook); err != nil {
+				return nil, fmt.Errorf("error merging webhook %q: %v", expectedWebhook.Name, err)
+			}
+		}
+		out = append(out, expectedWebhook)
+	}
+
+	return out, nil
 }
 
 func (optr *Operator) checkDeploymentRolloutStatus(resource *appsv1.Deployment) (reconcile.Result, error) {
