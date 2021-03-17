@@ -1,16 +1,21 @@
 package operator
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
 
+	. "github.com/onsi/gomega"
+	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/diff"
+	"k8s.io/utils/pointer"
 )
 
 func TestWaitForDeploymentRollout(t *testing.T) {
@@ -117,6 +122,174 @@ func TestWaitForDeploymentRollout(t *testing.T) {
 			} else if tc.expected != got {
 				t.Errorf("Got: %v, expected: %v", got, tc.expected)
 			}
+		})
+	}
+}
+
+func TestSyncValidatingWebhooks(t *testing.T) {
+	defaultConfiguration := mapiv1.NewValidatingWebhookConfiguration()
+
+	withCABundle := defaultConfiguration.DeepCopy()
+	for i, webhook := range withCABundle.Webhooks {
+		webhook.ClientConfig.CABundle = []byte("test")
+		webhook.TimeoutSeconds = pointer.Int32Ptr(10)
+		withCABundle.Webhooks[i] = webhook
+	}
+
+	fail := admissionregistrationv1.Fail
+	withExtraWebhook := withCABundle.DeepCopy()
+	withExtraWebhook.Webhooks = append(withExtraWebhook.Webhooks, admissionregistrationv1.ValidatingWebhook{
+		Name:          "extra.webhook",
+		FailurePolicy: &fail,
+	})
+
+	withChangedFields := withCABundle.DeepCopy()
+	for i, webhook := range withChangedFields.Webhooks {
+		fail := admissionregistrationv1.Fail
+		webhook.FailurePolicy = &fail
+
+		webhook.ClientConfig.Service.Name = "wrong.service.name"
+		webhook.Rules = append(webhook.Rules, webhook.Rules...)
+		withChangedFields.Webhooks[i] = webhook
+	}
+
+	cases := []struct {
+		name            string
+		existingWebhook *admissionregistrationv1.ValidatingWebhookConfiguration
+		expectedWebhook *admissionregistrationv1.ValidatingWebhookConfiguration
+	}{
+		{
+			name:            "It should create the configuration if it does not exist",
+			expectedWebhook: defaultConfiguration.DeepCopy(),
+		},
+		{
+			name:            "It should not overwrite the cabundle or defaulted fields once populated",
+			expectedWebhook: withCABundle.DeepCopy(),
+			existingWebhook: withCABundle.DeepCopy(),
+		},
+		{
+			name:            "It should drop any extra webhooks present",
+			expectedWebhook: withCABundle.DeepCopy(),
+			existingWebhook: withExtraWebhook.DeepCopy(),
+		},
+		{
+			name:            "It should overwrite any fields that have been changed",
+			expectedWebhook: withCABundle.DeepCopy(),
+			existingWebhook: withChangedFields.DeepCopy(),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			stop := make(chan struct{})
+			defer close(stop)
+
+			kubeObjs := []runtime.Object{}
+			if tc.existingWebhook != nil {
+				kubeObjs = append(kubeObjs, tc.existingWebhook)
+			}
+
+			optr := newFakeOperator(kubeObjs, nil, stop)
+
+			err := optr.syncValidatingWebhook()
+			g.Expect(err).ToNot(HaveOccurred())
+
+			if tc.expectedWebhook == nil {
+				// Nothing to check
+				return
+			}
+
+			client := optr.kubeClient.AdmissionregistrationV1().ValidatingWebhookConfigurations()
+			gotWebhook, err := client.Get(context.Background(), tc.expectedWebhook.Name, metav1.GetOptions{})
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(gotWebhook).To(Equal(tc.expectedWebhook))
+		})
+	}
+}
+
+func TestSyncMutatingWebhooks(t *testing.T) {
+	defaultConfiguration := mapiv1.NewMutatingWebhookConfiguration()
+
+	withCABundle := defaultConfiguration.DeepCopy()
+	for i, webhook := range withCABundle.Webhooks {
+		webhook.ClientConfig.CABundle = []byte("test")
+		webhook.TimeoutSeconds = pointer.Int32Ptr(10)
+		never := admissionregistrationv1.NeverReinvocationPolicy
+		webhook.ReinvocationPolicy = &never
+		withCABundle.Webhooks[i] = webhook
+	}
+
+	fail := admissionregistrationv1.Fail
+	withExtraWebhook := withCABundle.DeepCopy()
+	withExtraWebhook.Webhooks = append(withExtraWebhook.Webhooks, admissionregistrationv1.MutatingWebhook{
+		Name:          "extra.webhook",
+		FailurePolicy: &fail,
+	})
+
+	withChangedFields := withCABundle.DeepCopy()
+	for i, webhook := range withChangedFields.Webhooks {
+		fail := admissionregistrationv1.Fail
+		webhook.FailurePolicy = &fail
+
+		webhook.ClientConfig.Service.Name = "wrong.service.name"
+		webhook.Rules = append(webhook.Rules, webhook.Rules...)
+		withChangedFields.Webhooks[i] = webhook
+	}
+
+	cases := []struct {
+		name            string
+		existingWebhook *admissionregistrationv1.MutatingWebhookConfiguration
+		expectedWebhook *admissionregistrationv1.MutatingWebhookConfiguration
+	}{
+		{
+			name:            "It should create the configuration if it does not exist",
+			expectedWebhook: defaultConfiguration.DeepCopy(),
+		},
+		{
+			name:            "It should not overwrite the cabundle or defaulted fields once populated",
+			expectedWebhook: withCABundle.DeepCopy(),
+			existingWebhook: withCABundle.DeepCopy(),
+		},
+		{
+			name:            "It should drop any extra webhooks present",
+			expectedWebhook: withCABundle.DeepCopy(),
+			existingWebhook: withExtraWebhook.DeepCopy(),
+		},
+		{
+			name:            "It should overwrite any fields that have been changed",
+			expectedWebhook: withCABundle.DeepCopy(),
+			existingWebhook: withChangedFields.DeepCopy(),
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			stop := make(chan struct{})
+			defer close(stop)
+
+			kubeObjs := []runtime.Object{}
+			if tc.existingWebhook != nil {
+				kubeObjs = append(kubeObjs, tc.existingWebhook)
+			}
+
+			optr := newFakeOperator(kubeObjs, nil, stop)
+
+			err := optr.syncMutatingWebhook()
+			g.Expect(err).ToNot(HaveOccurred())
+
+			if tc.expectedWebhook == nil {
+				// Nothing to check
+				return
+			}
+
+			client := optr.kubeClient.AdmissionregistrationV1().MutatingWebhookConfigurations()
+			gotWebhook, err := client.Get(context.Background(), tc.expectedWebhook.Name, metav1.GetOptions{})
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(gotWebhook).To(Equal(tc.expectedWebhook))
 		})
 	}
 }
