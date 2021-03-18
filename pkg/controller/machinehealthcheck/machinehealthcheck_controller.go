@@ -71,6 +71,11 @@ const (
 	EventExternalAnnotationAdded string = "ExternalAnnotationAdded"
 )
 
+var (
+	// We allow users to disable the nodeStartupTimeout by setting the duration to 0.
+	disabledNodeStartupTimeout = metav1.Duration{Duration: 0}
+)
+
 // Add creates a new MachineHealthCheck Controller and adds it to the Manager. The Manager will set fields on the Controller
 // and start it when the Manager is started.
 func Add(mgr manager.Manager, opts manager.Options) error {
@@ -180,8 +185,13 @@ func (r *ReconcileMachineHealthCheck) Reconcile(ctx context.Context, request rec
 
 	metrics.ObserveMachineHealthCheckNodesCovered(mhc.Name, mhc.Namespace, totalTargets)
 
+	nodeStartupTimeout := mhc.Spec.NodeStartupTimeout
+	if nodeStartupTimeout == nil {
+		nodeStartupTimeout = &metav1.Duration{Duration: defaultNodeStartupTimeout}
+	}
+
 	// health check all targets and reconcile mhc status
-	currentHealthy, needRemediationTargets, nextCheckTimes, errList := r.healthCheckTargets(targets, mhc.Spec.NodeStartupTimeout.Duration)
+	currentHealthy, needRemediationTargets, nextCheckTimes, errList := r.healthCheckTargets(targets, nodeStartupTimeout.Duration)
 	healthyCount := len(currentHealthy)
 	mhc.Status.CurrentHealthy = &healthyCount
 	mhc.Status.ExpectedMachines = &totalTargets
@@ -470,7 +480,7 @@ func (r *ReconcileMachineHealthCheck) healthCheckTargets(targets []target, timeo
 			continue
 		}
 
-		if t.Machine.DeletionTimestamp == nil {
+		if t.Machine.DeletionTimestamp == nil && t.Node != nil {
 			currentHealthy = append(currentHealthy, t)
 		}
 	}
@@ -738,6 +748,12 @@ func (t *target) needsRemediation(timeoutForMachineToHaveNode time.Duration) (bo
 
 	// the node has not been set yet
 	if t.Node == nil {
+		if timeoutForMachineToHaveNode.Seconds() == disabledNodeStartupTimeout.Seconds() {
+			// Startup timeout is disabled so no need to go any further.
+			// No node yet to check conditions, can return early here.
+			return false, 0, nil
+		}
+
 		// status not updated yet
 		if t.Machine.Status.LastUpdated == nil {
 			return false, timeoutForMachineToHaveNode, nil
