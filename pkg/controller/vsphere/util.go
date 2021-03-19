@@ -24,6 +24,7 @@ const (
 // either the legacy or newer cloud provider code here, so we're just
 // duplicating part of the type and parsing it ourselves using the same gcfg
 // library for now.
+// One more comment for testing
 type vSphereConfig struct {
 	// Global is the vSphere cloud provider's global configuration.
 	Labels Labels `gcfg:"Labels"`
