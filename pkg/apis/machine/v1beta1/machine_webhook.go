@@ -655,6 +655,11 @@ func validateAWS(m *Machine, config *admissionConfig) (bool, []string, utilerror
 			"providerSpec.subnet: No subnet has been provided. Instances may be created in an unexpected subnet and may not join the cluster.",
 		)
 	}
+
+	if providerSpec.IAMInstanceProfile == nil {
+		warnings = append(warnings, "providerSpec.iamInstanceProfile: no IAM instance profile provided: nodes may be unable to join the cluster")
+	}
+
 	// TODO(alberto): Validate providerSpec.BlockDevices.
 	// https://github.com/openshift/cluster-api-provider-aws/pull/299#discussion_r433920532
 
