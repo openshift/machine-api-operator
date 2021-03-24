@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"strings"
 
+	apimachineryutilerrors "k8s.io/apimachinery/pkg/util/errors"
+
 	"github.com/google/uuid"
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	vspherev1 "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
@@ -245,6 +247,19 @@ func (r *Reconciler) delete() error {
 		Context: r.Context,
 		Obj:     object.NewVirtualMachine(r.machineScope.session.Client.Client, vmRef),
 		Ref:     vmRef,
+	}
+
+	if r.machineScope.isNodeLinked() {
+		isNodeReachable, err := r.machineScope.checkNodeReachable()
+		if err != nil {
+			return fmt.Errorf("%v: Can't check node status before vm destroy: %w", r.machine.GetName(), err)
+		}
+		if !isNodeReachable {
+			klog.Infof("%v: node not ready, kubelet unreachable for some reason. Detaching disks before vm destroy.", r.machine.GetName())
+			if err := vm.detachPVDisks(); err != nil {
+				return fmt.Errorf("%v: Failed to detach virtual disks related to pvs: %w", r.machine.GetName(), err)
+			}
+		}
 	}
 
 	if _, err := vm.powerOffVM(); err != nil {
@@ -998,6 +1013,55 @@ func (vm *virtualMachine) getNetworkStatusList(client *vim25.Client) ([]NetworkS
 	}
 
 	return networkStatusList, nil
+}
+
+type attachedDisk struct {
+	device   *types.VirtualDisk
+	fileName string
+	diskMode string
+}
+
+func (vm *virtualMachine) getAttachedDisks() ([]attachedDisk, error) {
+	var attachedDiskList []attachedDisk
+	devices, err := vm.Obj.Device(vm.Context)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, disk := range devices.SelectByType((*types.VirtualDisk)(nil)) {
+		backingInfo := disk.GetVirtualDevice().Backing.(types.BaseVirtualDeviceFileBackingInfo).(*types.VirtualDiskFlatVer2BackingInfo)
+		attachedDiskList = append(attachedDiskList, attachedDisk{
+			device:   disk.(*types.VirtualDisk),
+			fileName: backingInfo.FileName,
+			diskMode: backingInfo.DiskMode,
+		})
+	}
+
+	return attachedDiskList, nil
+}
+
+func (vm *virtualMachine) detachPVDisks() error {
+	var errList []error
+	disks, err := vm.getAttachedDisks()
+	if err != nil {
+		return err
+	}
+	for _, disk := range disks {
+		// TODO (dmoiseev): should be enough, but maybe worth to check if its PV for sure
+		if disk.diskMode != string(types.VirtualDiskModePersistent) {
+			klog.V(3).Infof("Detaching disk associated with file %v", disk.fileName)
+			if err := vm.Obj.RemoveDevice(vm.Context, true, disk.device); err != nil {
+				errList = append(errList, err)
+				klog.Errorf("Failed to detach disk associated with file %v ", disk.fileName)
+			} else {
+				klog.V(3).Infof("Disk associated with file %v have been detached", disk.fileName)
+			}
+		}
+	}
+	if len(errList) > 0 {
+		return apimachineryutilerrors.NewAggregate(errList)
+	}
+	return nil
 }
 
 // IgnitionConfig returns a slice of option values that set the given data as
