@@ -286,6 +286,14 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 			"Failed to check if machine exists: %v", err,
 		))
 
+		if isInvalidMachineConfigurationError(err) {
+			if patchErr := r.updateStatus(m, phaseFailed, err, originalConditions); patchErr != nil {
+				klog.Errorf("%v: error patching status: %v", machineName, patchErr)
+				return reconcile.Result{}, patchErr
+			}
+			return reconcile.Result{}, nil
+		}
+
 		if patchErr := r.updateStatus(m, pointer.StringPtrDerefOr(m.Status.Phase, ""), nil, originalConditions); patchErr != nil {
 			klog.Errorf("%v: error patching status: %v", machineName, patchErr)
 		}
