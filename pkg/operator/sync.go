@@ -678,11 +678,12 @@ func newTerminationPodTemplateSpec(config *OperatorConfig) *corev1.PodTemplateSp
 			},
 		},
 		Spec: corev1.PodSpec{
-			Containers:         containers,
-			PriorityClassName:  "system-node-critical",
-			NodeSelector:       map[string]string{machinecontroller.MachineInterruptibleInstanceLabelName: ""},
-			ServiceAccountName: machineAPITerminationHandler,
-			HostNetwork:        true,
+			Containers:                   containers,
+			PriorityClassName:            "system-node-critical",
+			NodeSelector:                 map[string]string{machinecontroller.MachineInterruptibleInstanceLabelName: ""},
+			ServiceAccountName:           machineAPITerminationHandler,
+			AutomountServiceAccountToken: pointer.BoolPtr(false),
+			HostNetwork:                  true,
 			Volumes: []corev1.Volume{
 				{
 					Name: "kubeconfig",
