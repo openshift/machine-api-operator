@@ -3,10 +3,13 @@ module github.com/openshift/machine-api-operator
 go 1.13
 
 require (
+	github.com/MakeNowJust/heredoc v1.0.0 // indirect
 	github.com/blang/semver v3.5.1+incompatible
+	github.com/gobuffalo/flect v0.2.2 // indirect
 	github.com/go-logr/logr v0.3.0
 	github.com/google/gofuzz v1.1.0
 	github.com/google/uuid v1.1.2
+	github.com/mattn/go-isatty v0.0.12 // indirect
 	github.com/onsi/ginkgo v1.14.1
 	github.com/onsi/gomega v1.10.2
 	github.com/openshift/api v0.0.0-20201216151826-78a19e96f9eb
@@ -23,6 +26,7 @@ require (
 	gopkg.in/gcfg.v1 v1.2.3
 	k8s.io/api v0.20.0
 	k8s.io/apimachinery v0.20.0
+	k8s.io/apiserver v0.20.0
 	k8s.io/client-go v0.20.0
 	k8s.io/code-generator v0.20.0
 	k8s.io/klog/v2 v2.4.0
