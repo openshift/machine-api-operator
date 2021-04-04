@@ -7,6 +7,7 @@ import (
 	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/utils/pointer"
 )
@@ -36,6 +37,37 @@ func NewSelector(labels map[string]string) *metav1.LabelSelector {
 // NewSelectorFooBar returns new foo:bar label selector
 func NewSelectorFooBar() *metav1.LabelSelector {
 	return NewSelector(FooBar())
+}
+
+func NewExternalRemediationTemplate() *unstructured.Unstructured {
+	// Create remediation template resource.
+	infraRemediationTmpl := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"kind":       "InfrastructureRemediationTemplate",
+			"apiVersion": "infrastructure.machine.openshift.io/v1alpha3",
+			"spec": map[string]interface{}{
+				"template": map[string]interface{}{},
+			},
+			"metadata": map[string]interface{}{
+				"namespace": Namespace,
+			},
+		},
+	}
+
+	return infraRemediationTmpl
+}
+
+func NewExternalRemediationMachine() *unstructured.Unstructured {
+	return &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"kind":       "InfrastructureRemediation",
+			"apiVersion": "infrastructure.machine.openshift.io/v1alpha3",
+			"metadata": map[string]interface{}{
+				"name":      "Machine",
+				"namespace": Namespace,
+			},
+		},
+	}
 }
 
 // NewNode returns new node object that can be used for testing
