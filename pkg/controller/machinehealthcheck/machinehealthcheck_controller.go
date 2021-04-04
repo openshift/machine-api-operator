@@ -686,7 +686,7 @@ func minDuration(durations []time.Duration) time.Duration {
 		return time.Duration(0)
 	}
 
-	minDuration := time.Duration(1 * time.Hour)
+	minDuration := time.Hour
 	for _, nc := range durations {
 		if nc < minDuration {
 			minDuration = nc
@@ -764,7 +764,7 @@ func getIntOrPercentValue(intOrStr *intstr.IntOrString) (int, bool, error) {
 		if err != nil {
 			return 0, isPercent, fmt.Errorf("invalid value %q: %v", intOrStr.StrVal, err)
 		}
-		return int(v), isPercent, nil
+		return v, isPercent, nil
 	}
 	return 0, false, fmt.Errorf("invalid type: neither int nor percentage")
 }
