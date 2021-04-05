@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	apivsphere "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
@@ -230,8 +231,8 @@ func getCredentialsSecret(client runtimeclient.Client, namespace string, spec ap
 		return "", "", errors.New("no workspace")
 	}
 
-	credentialsSecretUser := fmt.Sprintf("%s.username", spec.Workspace.Server)
-	credentialsSecretPassword := fmt.Sprintf("%s.password", spec.Workspace.Server)
+	credentialsSecretUser := fmt.Sprintf("%s.username", strings.ToLower(spec.Workspace.Server))
+	credentialsSecretPassword := fmt.Sprintf("%s.password", strings.ToLower(spec.Workspace.Server))
 
 	user, exists := credentialsSecret.Data[credentialsSecretUser]
 	if !exists {

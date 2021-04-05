@@ -146,6 +146,7 @@ func TestGetCredentialsSecret(t *testing.T) {
 	expectedUser := "user"
 	expectedPassword := "password"
 	expectedServer := "test-server"
+	expectedCaseInsensitiveServer := "TEST-server"
 	expectedCredentialsSecretUsername := fmt.Sprintf("%s.username", expectedServer)
 	expectedCredentialsSecretPassword := fmt.Sprintf("%s.password", expectedServer)
 	testCases := []struct {
@@ -173,6 +174,28 @@ func TestGetCredentialsSecret(t *testing.T) {
 				},
 				Workspace: &vspherev1.Workspace{
 					Server: expectedServer,
+				},
+			},
+			expectCredentials: true,
+		},
+		{
+		    testCase: "all good when server name is case insensitive",
+		    secret: &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: TestNamespace,
+				},
+				Data: map[string][]byte{
+					expectedCredentialsSecretUsername: []byte(expectedUser),
+					expectedCredentialsSecretPassword: []byte(expectedPassword),
+				},
+			},
+		    providerSpec: &vspherev1.VSphereMachineProviderSpec{
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: "test",
+				},
+				Workspace: &vspherev1.Workspace{
+					Server: expectedCaseInsensitiveServer,
 				},
 			},
 			expectCredentials: true,
