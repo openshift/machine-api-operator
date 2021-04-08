@@ -638,6 +638,14 @@ func (t *target) needsRemediation(timeoutForMachineToHaveNode time.Duration) (bo
 		return false, nextCheck, nil
 	}
 
+	if t.MHC.Spec.MaxAge != nil {
+		machineCreationTime := t.Machine.CreationTimestamp.Time
+		if machineCreationTime.Add(t.MHC.Spec.MaxAge.Duration).Before(now) {
+			klog.V(3).Infof("%s: unhealthy: machine reached maximal age %v", t.string(), t.MHC.Spec.MaxAge.Duration)
+			return true, time.Duration(0), nil
+		}
+	}
+
 	// the node does not exist
 	if t.Node != nil && t.Node.UID == "" {
 		return true, time.Duration(0), nil

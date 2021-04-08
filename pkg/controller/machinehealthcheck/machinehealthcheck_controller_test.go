@@ -1830,6 +1830,112 @@ func TestNeedsRemediation(t *testing.T) {
 			expectedNextCheck:           time.Duration(1 * time.Minute), // 300-200 rounded
 			expectedError:               false,
 		},
+		{
+			testCase: "unhealthy: machine reached its maximal age",
+			target: &target{
+				Machine: mapiv1beta1.Machine{
+					TypeMeta: metav1.TypeMeta{Kind: "Machine"},
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations:       make(map[string]string),
+						Name:              "machine",
+						Namespace:         namespace,
+						Labels:            map[string]string{"foo": "bar"},
+						OwnerReferences:   []metav1.OwnerReference{{Kind: "MachineSet"}},
+						CreationTimestamp: metav1.Time{Time: time.Now().AddDate(0, 0, -1)}, // Now minus one day
+					},
+					Spec: mapiv1beta1.MachineSpec{},
+				},
+				Node: &corev1.Node{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "node",
+						Namespace: metav1.NamespaceNone,
+						Annotations: map[string]string{
+							machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "machine"),
+						},
+						Labels: map[string]string{},
+						UID:    "uid",
+					},
+					TypeMeta: metav1.TypeMeta{
+						Kind: "Node",
+					},
+				},
+				MHC: mapiv1beta1.MachineHealthCheck{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: namespace,
+					},
+					TypeMeta: metav1.TypeMeta{
+						Kind: "MachineHealthCheck",
+					},
+					Spec: mapiv1beta1.MachineHealthCheckSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"foo": "bar",
+							},
+						},
+						MaxAge: &metav1.Duration{Duration: 20 * time.Hour},
+					},
+					Status: mapiv1beta1.MachineHealthCheckStatus{},
+				},
+			},
+			timeoutForMachineToHaveNode: defaultNodeStartupTimeout,
+			expectedNeedsRemediation:    true,
+			expectedNextCheck:           time.Duration(0),
+			expectedError:               false,
+		},
+		{
+			testCase: "healthy: machine has not reached its maximal age",
+			target: &target{
+				Machine: mapiv1beta1.Machine{
+					TypeMeta: metav1.TypeMeta{Kind: "Machine"},
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations:       make(map[string]string),
+						Name:              "machine",
+						Namespace:         namespace,
+						Labels:            map[string]string{"foo": "bar"},
+						OwnerReferences:   []metav1.OwnerReference{{Kind: "MachineSet"}},
+						CreationTimestamp: metav1.Time{Time: time.Now().AddDate(0, 0, -1)}, // Now minus one day
+					},
+					Spec: mapiv1beta1.MachineSpec{},
+				},
+				Node: &corev1.Node{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "node",
+						Namespace: metav1.NamespaceNone,
+						Annotations: map[string]string{
+							machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "machine"),
+						},
+						Labels: map[string]string{},
+						UID:    "uid",
+					},
+					TypeMeta: metav1.TypeMeta{
+						Kind: "Node",
+					},
+				},
+				MHC: mapiv1beta1.MachineHealthCheck{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: namespace,
+					},
+					TypeMeta: metav1.TypeMeta{
+						Kind: "MachineHealthCheck",
+					},
+					Spec: mapiv1beta1.MachineHealthCheckSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"foo": "bar",
+							},
+						},
+						MaxAge: &metav1.Duration{Duration: 25 * time.Hour},
+					},
+					Status: mapiv1beta1.MachineHealthCheckStatus{},
+				},
+			},
+			timeoutForMachineToHaveNode: defaultNodeStartupTimeout,
+			expectedNeedsRemediation:    false,
+			expectedNextCheck:           time.Duration(0),
+			expectedError:               false,
+		},
 	}
 
 	for _, tc := range testCases {
