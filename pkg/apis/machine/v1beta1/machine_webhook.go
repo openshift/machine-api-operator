@@ -95,7 +95,7 @@ const (
 	defaultGCPDiskType          = "pd-standard"
 	// https://releases-art-rhcos.svc.ci.openshift.org/art/storage/releases/rhcos-4.8/48.83.202103122318-0/x86_64/meta.json
 	// https://github.com/openshift/installer/blob/796a99049d3b7489b6c08ec5bd7c7983731afbcf/data/data/rhcos.json#L90-L94
-	defaultGCPDiskImage = "projects/rhcos-cloud/global/images/rhcos-48.83.202103122318-0-gcp.x86_64"
+	defaultGCPDiskImage = "projects/rhcos-cloud/global/images/rhcos-48-83-202103221318-0-gcp-x86-64"
 
 	// vSphere Defaults
 	defaultVSphereCredentialsSecret = "vsphere-cloud-credentials"
