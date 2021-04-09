@@ -4,6 +4,7 @@ go 1.13
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
+	github.com/go-logr/logr v0.3.0
 	github.com/google/gofuzz v1.1.0
 	github.com/google/uuid v1.1.2
 	github.com/onsi/ginkgo v1.14.1
