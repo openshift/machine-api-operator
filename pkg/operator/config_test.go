@@ -19,6 +19,7 @@ var (
 	expectedOvirtImage              = "quay.io/openshift/origin-ovirt-machine-controllers"
 	expectedVSphereImage            = "docker.io/openshift/origin-machine-api-operator:v4.0.0"
 	expectedKubevirtImage           = "quay.io/openshift/origin-kubevirt-machine-controllers"
+	expectedEquinixMetalImage       = "quay.io/openshift/origin-equinix-metal-machine-controllers"
 )
 
 func TestGetProviderFromInfrastructure(t *testing.T) {
@@ -95,6 +96,13 @@ func TestGetProviderFromInfrastructure(t *testing.T) {
 			},
 		},
 		expected: configv1.OvirtPlatformType,
+	}, {
+		infra: &configv1.Infrastructure{
+			Status: configv1.InfrastructureStatus{
+				Platform: configv1.EquinixMetalPlatformType,
+			},
+		},
+		expected: configv1.EquinixMetalPlatformType,
 	}}
 
 	for _, test := range tests {
@@ -139,6 +147,9 @@ func TestGetImagesFromJSONFile(t *testing.T) {
 	}
 	if img.ClusterAPIControllerKubevirt != expectedKubevirtImage {
 		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedKubevirtImage, img.ClusterAPIControllerKubevirt)
+	}
+	if img.ClusterAPIControllerEquinixMetal != expectedEquinixMetalImage {
+		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedEquinixMetalImage, img.ClusterAPIControllerEquinixMetal)
 	}
 }
 
@@ -189,6 +200,10 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 		{
 			provider:      configv1.KubevirtPlatformType,
 			expectedImage: expectedKubevirtImage,
+		},
+		{
+			provider:      configv1.EquinixMetalPlatformType,
+			expectedImage: expectedEquinixMetalImage,
 		},
 	}
 
@@ -250,6 +265,10 @@ func TestGetTerminationHandlerFromImages(t *testing.T) {
 		},
 		{
 			provider:      configv1.OvirtPlatformType,
+			expectedImage: clusterAPIControllerNoOp,
+		},
+		{
+			provider:      configv1.EquinixMetalPlatformType,
 			expectedImage: clusterAPIControllerNoOp,
 		},
 	}

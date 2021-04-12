@@ -66,3 +66,7 @@ spec:
     from:
       kind: DockerImage
       name: registry.svc.ci.openshift.org/openshift:kubevirt-machine-controllers
+  - name: equinix-metal-machine-controllers
+    from:
+      kind: DockerImage
+      name: registry.svc.ci.openshift.org/openshift:equinix-metal-machine-controllers

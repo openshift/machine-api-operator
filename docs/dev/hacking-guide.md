@@ -42,6 +42,7 @@ Machine API consists of a number different components:
   - https://github.com/openshift/cluster-api-provider-openstack
   - https://github.com/openshift/cluster-api-provider-baremetal
   - https://github.com/openshift/cluster-api-provider-ovirt
+  - https://github.com/openshift/cluster-api-provider-equinix-metal
 
 ### How to start contributing
 
@@ -156,6 +157,7 @@ data:
         "clusterAPIControllerGCP": "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:...",
         "clusterAPIControllerOvirt": "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:...",
         "clusterAPIControllerVSphere": "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:...",
+        "clusterAPIControllerEquinixMetal": "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:...",
         "baremetalOperator": "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:...",
         "baremetalIronic": "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:...",
         "baremetalIronicInspector": "quay.io/openshift-release-dev/ocp-v4.0-art-dev@sha256:...",
