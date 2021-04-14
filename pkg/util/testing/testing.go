@@ -118,6 +118,8 @@ func NewMachine(name string, nodeName string) *mapiv1.Machine {
 					Controller: pointer.BoolPtr(true),
 				},
 			},
+			// the following line is to account for a change in the fake client, see https://github.com/kubernetes-sigs/controller-runtime/pull/1306
+			ResourceVersion: "999",
 		},
 		Spec: mapiv1.MachineSpec{},
 	}
@@ -138,6 +140,8 @@ func NewMachineHealthCheck(name string) *mapiv1.MachineHealthCheck {
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: Namespace,
+			// the following line is to account for a change in the fake client, see https://github.com/kubernetes-sigs/controller-runtime/pull/1306
+			ResourceVersion: "999",
 		},
 		TypeMeta: metav1.TypeMeta{
 			Kind: "MachineHealthCheck",
