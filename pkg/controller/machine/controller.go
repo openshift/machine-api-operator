@@ -476,9 +476,9 @@ func (r *ReconcileMachine) updateStatus(machine *machinev1.Machine, phase string
 		klog.V(3).Infof("%v: going into phase %q", machine.GetName(), phase)
 	}
 
-	// Conditions need to be copied as they are set outside of this function.
-	// They will be restored after any updates to the base.
-	conditions := machine.GetConditions()
+	// Conditions need to be deep copied as they are set outside of this function.
+	// They will be restored after any updates to the base (done by patching annotations).
+	conditions := machine.GetConditions().DeepCopy()
 
 	// A call to Patch will mutate our local copy of the machine to match what is stored in the API.
 	// Before we make any changes to the status subresource on our local copy, we need to patch the object first,
