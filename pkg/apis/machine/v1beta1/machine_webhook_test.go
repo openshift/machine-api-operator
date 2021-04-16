@@ -981,7 +981,7 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 				Placement: aws.Placement{
 					Region: "region",
 				},
-				InstanceType: "m4.large",
+				InstanceType: "m5.large",
 				IAMInstanceProfile: &aws.AWSResourceReference{
 					ID: pointer.StringPtr("profileID"),
 				},

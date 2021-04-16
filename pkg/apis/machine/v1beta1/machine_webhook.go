@@ -80,7 +80,7 @@ const (
 
 	// AWS Defaults
 	defaultAWSCredentialsSecret = "aws-cloud-credentials"
-	defaultAWSX86InstanceType   = "m4.large"
+	defaultAWSX86InstanceType   = "m5.large"
 	defaultAWSARMInstanceType   = "m6g.large"
 
 	// Azure Defaults
