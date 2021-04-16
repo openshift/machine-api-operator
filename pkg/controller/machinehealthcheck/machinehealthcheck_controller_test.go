@@ -1171,6 +1171,8 @@ func TestGetTargetsFromMHC(t *testing.T) {
 								machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "match1"),
 							},
 							Labels: map[string]string{},
+							// the following line is to account for a change in the fake client, see https://github.com/kubernetes-sigs/controller-runtime/pull/1306
+							ResourceVersion: "999",
 						},
 						TypeMeta: metav1.TypeMeta{
 							Kind:       "Node",
@@ -1238,6 +1240,8 @@ func TestGetTargetsFromMHC(t *testing.T) {
 								machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "match1"),
 							},
 							Labels: map[string]string{},
+							// the following line is to account for a change in the fake client, see https://github.com/kubernetes-sigs/controller-runtime/pull/1306
+							ResourceVersion: "999",
 						},
 						TypeMeta: metav1.TypeMeta{
 							Kind:       "Node",
@@ -1259,6 +1263,8 @@ func TestGetTargetsFromMHC(t *testing.T) {
 								machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "match2"),
 							},
 							Labels: map[string]string{},
+							// the following line is to account for a change in the fake client, see https://github.com/kubernetes-sigs/controller-runtime/pull/1306
+							ResourceVersion: "999",
 						},
 						TypeMeta: metav1.TypeMeta{
 							Kind:       "Node",
@@ -1300,6 +1306,8 @@ func TestGetTargetsFromMHC(t *testing.T) {
 							Namespace:       namespace,
 							Labels:          map[string]string{"foo": "bar"},
 							OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
+							// the following line is to account for a change in the fake client, see https://github.com/kubernetes-sigs/controller-runtime/pull/1306
+							ResourceVersion: "999",
 						},
 						Spec:   mapiv1beta1.MachineSpec{},
 						Status: mapiv1beta1.MachineStatus{},
@@ -1402,6 +1410,8 @@ func TestGetNodeFromMachine(t *testing.T) {
 						machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "machine"),
 					},
 					Labels: map[string]string{},
+					// the following line is to account for a change in the fake client, see https://github.com/kubernetes-sigs/controller-runtime/pull/1306
+					ResourceVersion: "999",
 				},
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "Node",
