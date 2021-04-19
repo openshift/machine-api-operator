@@ -13,7 +13,6 @@ import (
 const (
 	DefaultMachineSetMetricsAddress = ":8082"
 	DefaultMachineMetricsAddress    = ":8081"
-	DefaultMetal3MetricsAddress     = ":60000"
 )
 
 var (
@@ -65,7 +64,7 @@ var (
 
 // Metrics for use in the Machine controller
 var (
-	// MachinePhaseTransitionSeconds is a metric to capute the time between a Machine being created and entering a particular phase
+	// MachinePhaseTransitionSeconds is a metric to capture the time between a Machine being created and entering a particular phase
 	MachinePhaseTransitionSeconds = prometheus.NewHistogramVec(
 		prometheus.HistogramOpts{
 			Name:    "mapi_machine_phase_transition_seconds",
