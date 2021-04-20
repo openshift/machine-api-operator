@@ -475,7 +475,7 @@ func TestUpdateStatus(t *testing.T) {
 			}
 
 			// Set the phase to Running initially
-			g.Expect(reconciler.updateStatus(machine, phaseRunning, nil, machinev1.Conditions{})).To(Succeed())
+			g.Expect(reconciler.updateStatus(context.TODO(), machine, phaseRunning, nil, machinev1.Conditions{})).To(Succeed())
 			// validate persisted object
 			got := machinev1.Machine{}
 			g.Expect(reconciler.Client.Get(context.TODO(), namespacedName, &got)).To(Succeed())
@@ -500,7 +500,7 @@ func TestUpdateStatus(t *testing.T) {
 				c := cond
 				conditions.Set(machine, &c)
 			}
-			g.Expect(reconciler.updateStatus(machine, tc.phase, tc.err, gotConditions)).To(Succeed())
+			g.Expect(reconciler.updateStatus(context.TODO(), machine, tc.phase, tc.err, gotConditions)).To(Succeed())
 			// validate the persisted object
 			got = machinev1.Machine{}
 			g.Expect(reconciler.Client.Get(context.TODO(), namespacedName, &got)).To(Succeed())
