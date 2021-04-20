@@ -13,7 +13,9 @@ import (
 	machine "github.com/openshift/machine-api-operator/pkg/controller/vsphere"
 	machinesetcontroller "github.com/openshift/machine-api-operator/pkg/controller/vsphere/machineset"
 	"github.com/openshift/machine-api-operator/pkg/metrics"
+	"github.com/openshift/machine-api-operator/pkg/util"
 	"github.com/openshift/machine-api-operator/pkg/version"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -80,8 +82,12 @@ func main() {
 
 	cfg := config.GetConfigOrDie()
 	syncPeriod := 10 * time.Minute
+	sch := scheme.Scheme
+	mapperProvider := util.NewDefaultWithLazyFallbackRESTMapperProviderFromScheme(sch)
 
 	opts := manager.Options{
+		Scheme:                  sch,
+		MapperProvider:          mapperProvider,
 		MetricsBindAddress:      *metricsAddress,
 		HealthProbeBindAddress:  *healthAddr,
 		SyncPeriod:              &syncPeriod,

@@ -8,7 +8,9 @@ import (
 	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/controller"
 	"github.com/openshift/machine-api-operator/pkg/controller/nodelink"
+	"github.com/openshift/machine-api-operator/pkg/util"
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -65,7 +67,12 @@ func main() {
 		klog.Fatal(err)
 	}
 
+	sch := scheme.Scheme
+	mapperProvider := util.NewDefaultWithLazyFallbackRESTMapperProviderFromScheme(sch)
+
 	opts := manager.Options{
+		Scheme:         sch,
+		MapperProvider: mapperProvider,
 		// Disable metrics serving
 		MetricsBindAddress:      "0",
 		LeaderElection:          *leaderElect,
