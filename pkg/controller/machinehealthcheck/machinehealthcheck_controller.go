@@ -37,6 +37,7 @@ import (
 const (
 	machineAnnotationKey          = "machine.openshift.io/machine"
 	machineExternalAnnotationKey  = "host.metal3.io/external-remediation"
+	oldEmrAnnotationKey           = "machine.openshift.io/old-emr-flag"
 	nodeMasterLabel               = "node-role.kubernetes.io/master"
 	machineRoleLabel              = "machine.openshift.io/cluster-api-machine-role"
 	machineMasterRole             = "master"
@@ -46,6 +47,7 @@ const (
 	defaultNodeStartupTimeout     = 10 * time.Minute
 	machineNodeNameIndex          = "machineNodeNameIndex"
 	controllerName                = "machinehealthcheck-controller"
+	oldEmrAlertTimeout            = time.Hour * 48
 
 	// Event types
 	// EventRemediationRestricted is emitted in case when machine remediation
@@ -375,6 +377,9 @@ func (r *ReconcileMachineHealthCheck) externalRemediationRequestExists(ctx conte
 	remediationReq, err := r.getExternalRemediationRequest(ctx, m, machineName)
 	if err != nil && !apierrors.IsNotFound(err) {
 		return false, err
+	}
+	if r.isAlertOldEmr(remediationReq) {
+		metrics.ObserveMachineHealthCheckOldEmr(m.Name, m.Namespace)
 	}
 	return remediationReq != nil, nil
 }
@@ -729,11 +734,17 @@ func (t *target) nodeName() string {
 func (t *target) needsRemediation(timeoutForMachineToHaveNode time.Duration) (bool, time.Duration, error) {
 	var nextCheckTimes []time.Duration
 	now := time.Now()
+	//default of 0 means no reconcile will be queued
+	nextReconcileCheck := time.Duration(0)
+	//requeuing reconcile in case we need to send an alert for an old emr
+	if t.MHC.Spec.RemediationTemplate != nil {
+		nextReconcileCheck = oldEmrAlertTimeout + time.Minute
+	}
 
 	// machine has failed
 	if derefStringPointer(t.Machine.Status.Phase) == machinePhaseFailed {
 		klog.V(3).Infof("%s: unhealthy: machine phase is %q", t.string(), machinePhaseFailed)
-		return true, time.Duration(0), nil
+		return true, nextReconcileCheck, nil
 	}
 
 	// the node has not been set yet
@@ -744,7 +755,7 @@ func (t *target) needsRemediation(timeoutForMachineToHaveNode time.Duration) (bo
 		}
 		if t.Machine.Status.LastUpdated.Add(timeoutForMachineToHaveNode).Before(now) {
 			klog.V(3).Infof("%s: unhealthy: machine has no node after %v", t.string(), timeoutForMachineToHaveNode)
-			return true, time.Duration(0), nil
+			return true, nextReconcileCheck, nil
 		}
 		durationUnhealthy := now.Sub(t.Machine.Status.LastUpdated.Time)
 		nextCheck := timeoutForMachineToHaveNode - durationUnhealthy + time.Second
@@ -753,7 +764,7 @@ func (t *target) needsRemediation(timeoutForMachineToHaveNode time.Duration) (bo
 
 	// the node does not exist
 	if t.Node != nil && t.Node.UID == "" {
-		return true, time.Duration(0), nil
+		return true, nextReconcileCheck, nil
 	}
 
 	// check conditions
@@ -771,7 +782,7 @@ func (t *target) needsRemediation(timeoutForMachineToHaveNode time.Duration) (bo
 		// timeout, return true with no requeue time.
 		if nodeCondition.LastTransitionTime.Add(c.Timeout.Duration).Before(now) {
 			klog.V(3).Infof("%s: unhealthy: condition %v in state %v longer than %v", t.string(), c.Type, c.Status, c.Timeout)
-			return true, time.Duration(0), nil
+			return true, nextReconcileCheck, nil
 		}
 
 		durationUnhealthy := now.Sub(nodeCondition.LastTransitionTime.Time)
@@ -880,4 +891,32 @@ func getIntOrPercentValue(intOrStr *intstr.IntOrString) (int, bool, error) {
 		return v, isPercent, nil
 	}
 	return 0, false, fmt.Errorf("invalid type: neither int nor percentage")
+}
+
+func (r *ReconcileMachineHealthCheck) isAlertOldEmr(emr *unstructured.Unstructured) bool {
+	//verify emr exist
+	if emr == nil {
+		return false
+	}
+	isSendAlert := false
+	//verify emr is old
+	if time.Now().After(emr.GetCreationTimestamp().Add(oldEmrAlertTimeout)) {
+		var emrAnnotations map[string]string
+		if emrAnnotations = emr.GetAnnotations(); emrAnnotations == nil {
+			emrAnnotations = map[string]string{}
+		}
+		//verify this is the first alert for this emr
+		if _, isAlertedSent := emrAnnotations[oldEmrAnnotationKey]; !isAlertedSent {
+			emrAnnotations[oldEmrAnnotationKey] = "flagon"
+			emr.SetAnnotations(emrAnnotations)
+			if err := r.client.Update(context.TODO(), emr); err == nil {
+				isSendAlert = true
+			} else {
+				klog.Warning("Setting old emr annotation on Emr %s: failed to update: %v", emr.GetName(), err)
+			}
+
+		}
+	}
+	return isSendAlert
+
 }

@@ -467,7 +467,11 @@ func TestReconcileExternalRemediationTemplate(t *testing.T) {
 	//external remediation machine template crd
 	ermTemplate := maotesting.NewExternalRemediationTemplate()
 	mhcWithRemediationTemplate := newMachineHealthCheckWithRemediationTemplate(ermTemplate)
+	now := time.Now()
 	erm := maotesting.NewExternalRemediationMachine()
+	erm.SetCreationTimestamp(metav1.NewTime(now))
+	oldErm := maotesting.NewExternalRemediationMachine()
+	oldErm.SetCreationTimestamp(metav1.NewTime(now.Add(time.Hour * -49)))
 
 	testCases := []testCase{
 
@@ -521,6 +525,27 @@ func TestReconcileExternalRemediationTemplate(t *testing.T) {
 			node:                        nodeUnHealthy,
 			mhc:                         mhcWithRemediationTemplate,
 			externalRemediationMachine:  erm,
+			externalRemediationTemplate: ermTemplate,
+			expected: expectedReconcile{
+				result: reconcile.Result{},
+				error:  false,
+			},
+			expectedEvents: []string{},
+			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+				ExpectedMachines:    IntPtr(1),
+				CurrentHealthy:      IntPtr(0),
+				RemediationsAllowed: 0,
+				Conditions: mapiv1beta1.Conditions{
+					remediationAllowedCondition,
+				},
+			},
+		},
+		{ //When an old remediation request already exist
+			name:                        "external remediation is in process for a long time",
+			machine:                     machineWithNodeUnHealthy,
+			node:                        nodeUnHealthy,
+			mhc:                         mhcWithRemediationTemplate,
+			externalRemediationMachine:  oldErm,
 			externalRemediationTemplate: ermTemplate,
 			expected: expectedReconcile{
 				result: reconcile.Result{},
@@ -3064,6 +3089,15 @@ func verifyErm(t *testing.T, tc testCase, ctx context.Context, client client.Cli
 	}
 	if isExist {
 		g.Expect(client.Get(ctx, nameSpace, erm)).To(Succeed())
+		var defaultTime metav1.Time
+		isOldEmr := defaultTime != erm.GetCreationTimestamp() && time.Now().After(erm.GetCreationTimestamp().Add(time.Hour*48))
+		_, isAnnotationExist := erm.GetAnnotations()[oldEmrAnnotationKey]
+		if isOldEmr && !isAnnotationExist {
+			t.Errorf("Expected old Emr should contain : %s annotation key, actual %s annotation key does not exist", oldEmrAnnotationKey, oldEmrAnnotationKey)
+		}
+		if !isOldEmr && isAnnotationExist {
+			t.Errorf("Expected new Emr should not contain : %s annotation key, actual %s annotation key exists", oldEmrAnnotationKey, oldEmrAnnotationKey)
+		}
 	} else {
 		g.Expect(client.Get(ctx, nameSpace, erm)).NotTo(Succeed())
 	}
