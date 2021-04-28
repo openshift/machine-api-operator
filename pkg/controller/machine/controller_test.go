@@ -43,6 +43,26 @@ var (
 )
 
 func TestReconcileRequest(t *testing.T) {
+	machineNoPhase := machinev1.Machine{
+		TypeMeta: metav1.TypeMeta{
+			Kind: "Machine",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "emptyPhase",
+			Namespace:  "default",
+			Finalizers: []string{machinev1.MachineFinalizer, metav1.FinalizerDeleteDependents},
+			Labels: map[string]string{
+				machinev1.MachineClusterIDLabel: "testcluster",
+			},
+		},
+		Spec: machinev1.MachineSpec{
+			ProviderSpec: machinev1.ProviderSpec{
+				Value: &runtime.RawExtension{
+					Raw: []byte("{}"),
+				},
+			},
+		},
+	}
 	machineProvisioning := machinev1.Machine{
 		TypeMeta: metav1.TypeMeta{
 			Kind: "Machine",
@@ -61,6 +81,9 @@ func TestReconcileRequest(t *testing.T) {
 					Raw: []byte("{}"),
 				},
 			},
+		},
+		Status: machinev1.MachineStatus{
+			Phase: pointer.StringPtr(phaseProvisioning),
 		},
 	}
 	machineProvisioned := machinev1.Machine{
@@ -190,6 +213,19 @@ func TestReconcileRequest(t *testing.T) {
 		expected    expected
 	}{
 		{
+			request:     reconcile.Request{NamespacedName: types.NamespacedName{Name: machineNoPhase.Name, Namespace: machineNoPhase.Namespace}},
+			existsValue: false,
+			expected: expected{
+				createCallCount: 0,
+				existCallCount:  1,
+				updateCallCount: 0,
+				deleteCallCount: 0,
+				result:          reconcile.Result{RequeueAfter: requeueAfter},
+				error:           false,
+				phase:           phaseProvisioning,
+			},
+		},
+		{
 			request:     reconcile.Request{NamespacedName: types.NamespacedName{Name: machineProvisioning.Name, Namespace: machineProvisioning.Namespace}},
 			existsValue: false,
 			expected: expected{
@@ -270,59 +306,62 @@ func TestReconcileRequest(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		act := newTestActuator()
-		act.ExistsValue = tc.existsValue
-		machinev1.AddToScheme(scheme.Scheme)
-		r := &ReconcileMachine{
-			Client: fake.NewFakeClientWithScheme(scheme.Scheme,
-				&machineProvisioning,
-				&machineProvisioned,
-				&machineDeleting,
-				&machineFailed,
-				&machineRunning,
-			),
-			scheme:   scheme.Scheme,
-			actuator: act,
-		}
-
-		result, err := r.Reconcile(ctx, tc.request)
-		gotError := (err != nil)
-		if tc.expected.error != gotError {
-			var errorExpectation string
-			if !tc.expected.error {
-				errorExpectation = "no"
+		t.Run(tc.request.Name, func(t *testing.T) {
+			act := newTestActuator()
+			act.ExistsValue = tc.existsValue
+			machinev1.AddToScheme(scheme.Scheme)
+			r := &ReconcileMachine{
+				Client: fake.NewFakeClientWithScheme(scheme.Scheme,
+					&machineNoPhase,
+					&machineProvisioning,
+					&machineProvisioned,
+					&machineDeleting,
+					&machineFailed,
+					&machineRunning,
+				),
+				scheme:   scheme.Scheme,
+				actuator: act,
 			}
-			t.Errorf("Case: %s. Expected %s error, got: %v", tc.request.Name, errorExpectation, err)
-		}
 
-		if !reflect.DeepEqual(result, tc.expected.result) {
-			t.Errorf("Case %s. Got: %v, expected %v", tc.request.Name, result, tc.expected.result)
-		}
+			result, err := r.Reconcile(ctx, tc.request)
+			gotError := (err != nil)
+			if tc.expected.error != gotError {
+				var errorExpectation string
+				if !tc.expected.error {
+					errorExpectation = "no"
+				}
+				t.Errorf("Case: %s. Expected %s error, got: %v", tc.request.Name, errorExpectation, err)
+			}
 
-		if act.CreateCallCount != tc.expected.createCallCount {
-			t.Errorf("Case %s. Got: %d createCallCount, expected %d", tc.request.Name, act.CreateCallCount, tc.expected.createCallCount)
-		}
+			if !reflect.DeepEqual(result, tc.expected.result) {
+				t.Errorf("Case %s. Got: %v, expected %v", tc.request.Name, result, tc.expected.result)
+			}
 
-		if act.UpdateCallCount != tc.expected.updateCallCount {
-			t.Errorf("Case %s. Got: %d updateCallCount, expected %d", tc.request.Name, act.UpdateCallCount, tc.expected.updateCallCount)
-		}
+			if act.CreateCallCount != tc.expected.createCallCount {
+				t.Errorf("Case %s. Got: %d createCallCount, expected %d", tc.request.Name, act.CreateCallCount, tc.expected.createCallCount)
+			}
 
-		if act.ExistsCallCount != tc.expected.existCallCount {
-			t.Errorf("Case %s. Got: %d existCallCount, expected %d", tc.request.Name, act.ExistsCallCount, tc.expected.existCallCount)
-		}
+			if act.UpdateCallCount != tc.expected.updateCallCount {
+				t.Errorf("Case %s. Got: %d updateCallCount, expected %d", tc.request.Name, act.UpdateCallCount, tc.expected.updateCallCount)
+			}
 
-		if act.DeleteCallCount != tc.expected.deleteCallCount {
-			t.Errorf("Case %s. Got: %d deleteCallCount, expected %d", tc.request.Name, act.DeleteCallCount, tc.expected.deleteCallCount)
-		}
+			if act.ExistsCallCount != tc.expected.existCallCount {
+				t.Errorf("Case %s. Got: %d existCallCount, expected %d", tc.request.Name, act.ExistsCallCount, tc.expected.existCallCount)
+			}
 
-		machine := &machinev1.Machine{}
-		if err := r.Client.Get(context.TODO(), tc.request.NamespacedName, machine); err != nil {
-			t.Fatalf("unexpected error: %v", err)
-		}
+			if act.DeleteCallCount != tc.expected.deleteCallCount {
+				t.Errorf("Case %s. Got: %d deleteCallCount, expected %d", tc.request.Name, act.DeleteCallCount, tc.expected.deleteCallCount)
+			}
 
-		if tc.expected.phase != stringPointerDeref(machine.Status.Phase) {
-			t.Errorf("Case %s. Got: %v, expected: %v", tc.request.Name, stringPointerDeref(machine.Status.Phase), tc.expected.phase)
-		}
+			machine := &machinev1.Machine{}
+			if err := r.Client.Get(context.TODO(), tc.request.NamespacedName, machine); err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if tc.expected.phase != stringPointerDeref(machine.Status.Phase) {
+				t.Errorf("Case %s. Got: %v, expected: %v", tc.request.Name, stringPointerDeref(machine.Status.Phase), tc.expected.phase)
+			}
+		})
 	}
 }
 
