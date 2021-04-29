@@ -307,10 +307,14 @@ func (r *ReconcileMachine) Reconcile(request reconcile.Request) (reconcile.Resul
 		return reconcile.Result{}, nil
 	}
 
-	// Machine resource created and instance does not exist yet.
-	if err := r.setPhase(m, phaseProvisioning, ""); err != nil {
-		return reconcile.Result{}, err
+	if stringPointerDeref(m.Status.Phase) == "" {
+		klog.V(2).Infof("%v: setting phase to Provisioning and requeuing", machineName)
+		if err := r.setPhase(m, phaseProvisioning, ""); err != nil {
+			return reconcile.Result{}, err
+		}
+		return reconcile.Result{RequeueAfter: requeueAfter}, nil
 	}
+
 	klog.Infof("%v: reconciling machine triggers idempotent create", machineName)
 	if err := r.actuator.Create(ctx, m); err != nil {
 		klog.Warningf("%v: failed to create machine: %v", machineName, err)
