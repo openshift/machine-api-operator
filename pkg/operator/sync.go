@@ -48,6 +48,10 @@ var (
 	// daemonsetMaxUnavailable must be set to "10%" to conform with other
 	// daemonsets.
 	daemonsetMaxUnavailable = intstr.FromString("10%")
+
+	commonPodTemplateAnnotations = map[string]string{
+		"target.workload.openshift.io/management": `{"effect": "PreferredDuringScheduling"}`,
+	}
 )
 
 func (optr *Operator) syncAll(config *OperatorConfig) error {
@@ -428,6 +432,7 @@ func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev
 
 	return &corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
+			Annotations: commonPodTemplateAnnotations,
 			Labels: map[string]string{
 				"api":     "clusterapi",
 				"k8s-app": "controller",
@@ -706,6 +711,7 @@ func newTerminationPodTemplateSpec(config *OperatorConfig) *corev1.PodTemplateSp
 
 	return &corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
+			Annotations: commonPodTemplateAnnotations,
 			Labels: map[string]string{
 				"api":     "clusterapi",
 				"k8s-app": "termination-handler",

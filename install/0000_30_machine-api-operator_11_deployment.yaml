@@ -16,6 +16,8 @@ spec:
       k8s-app: machine-api-operator
   template:
     metadata:
+      annotations:
+        target.workload.openshift.io/management: '{"effect": "PreferredDuringScheduling"}'
       labels:
         k8s-app: machine-api-operator
     spec:
