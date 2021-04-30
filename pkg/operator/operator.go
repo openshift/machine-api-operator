@@ -263,7 +263,7 @@ func isMachineWebhook(obj interface{}) bool {
 		return mutatingWebhook.Name == "machine-api"
 	}
 
-	validatingWebhook, ok := obj.(*admissionregistrationv1.MutatingWebhookConfiguration)
+	validatingWebhook, ok := obj.(*admissionregistrationv1.ValidatingWebhookConfiguration)
 	if ok {
 		return validatingWebhook.Name == "machine-api"
 	}
