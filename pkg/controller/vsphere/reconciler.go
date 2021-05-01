@@ -45,6 +45,11 @@ const (
 	GuestInfoHostname         = "guestinfo.hostname"
 )
 
+// vSphere tasks description IDs, for determinate task types (clone, delete, etc)
+const (
+	cloneVmTaskDescriptionId = "VirtualMachine.clone"
+)
+
 // Reconciler runs the logic to reconciles a machine resource towards its desired state
 type Reconciler struct {
 	*machineScope
@@ -103,12 +108,22 @@ func (r *Reconciler) create() error {
 	}
 
 	if taskIsFinished, err := taskIsFinished(moTask); err != nil {
-		metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
-			Name:      r.machine.Name,
-			Namespace: r.machine.Namespace,
-			Reason:    "Task finished with error",
-		})
-		return err
+		if taskIsFinished {
+			metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
+				Name:      r.machine.Name,
+				Namespace: r.machine.Namespace,
+				Reason:    "Task finished with error",
+			})
+			conditionFailed := conditionFailed()
+			conditionFailed.Message = err.Error()
+			statusError := setProviderStatus(moTask.Reference().Value, conditionFailed, r.machineScope, nil)
+			if statusError != nil {
+				return fmt.Errorf("Failed to set provider status: %w", statusError)
+			}
+			return machineapierros.CreateMachine(err.Error())
+		} else {
+			return fmt.Errorf("Failed to check task status: %w", err)
+		}
 	} else if !taskIsFinished {
 		return fmt.Errorf("task %v has not finished", moTask.Reference().Value)
 	}
@@ -217,12 +232,21 @@ func (r *Reconciler) delete() error {
 		}
 		if moTask != nil {
 			if taskIsFinished, err := taskIsFinished(moTask); err != nil {
-				metrics.RegisterFailedInstanceDelete(&metrics.MachineLabels{
-					Name:      r.machine.Name,
-					Namespace: r.machine.Namespace,
-					Reason:    "Task finished with error",
-				})
-				return err
+				// Check if latest task is not a task for vm cloning
+				if taskIsFinished && moTask.Info.DescriptionId != cloneVmTaskDescriptionId {
+					metrics.RegisterFailedInstanceDelete(&metrics.MachineLabels{
+						Name:      r.machine.Name,
+						Namespace: r.machine.Namespace,
+						Reason:    "Task finished with error",
+					})
+					klog.Errorf("Delete task finished with error: %w", err)
+					return err
+				} else {
+					klog.Warningf(
+						"TaskRef points to clone task which finished with error: %w. Proceeding with machine deletion", err,
+					)
+					return err
+				}
 			} else if !taskIsFinished {
 				return fmt.Errorf("task %v has not finished", moTask.Reference().Value)
 			}
