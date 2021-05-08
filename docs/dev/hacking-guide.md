@@ -63,7 +63,7 @@ You may want to run unit tests before pushing changes. It can be done in a simil
 
 Prerequisite:
 ```
-git checkout github.com/openshit/$repository_name
+git checkout github.com/openshift/$repository_name
 cd $repository_name
 ```
 In order to run the unit tests locally on your machine run the following command:
@@ -78,7 +78,7 @@ If this command is run inside a cloud provider repository you will run only clou
 ### Running machine controller
 Prerequisites:
 ```
-git checkout github.com/openshit/$repository_name
+git checkout github.com/openshift/$repository_name
 cd $repository_name
 ```
 Make sure your $KUBECONFIG is set properly, because it will be used to interact with your cluster.
@@ -120,7 +120,7 @@ The section is inspired by [this](https://notes.elmiko.dev/2020/08/18/tips-exper
 
 Prerequisites:
 ```
-git checkout github.com/openshit/$repository_name
+git checkout github.com/openshift/$repository_name
 cd $repository_name
 ```
 
@@ -207,7 +207,7 @@ machine-api-operator is vendored in every provider repository.
 ```
 git checkout github.com/openshfit/$provider_repository_name
 cd $provider_repository_name
-go get github.com/openshit/machine-api-operator@master
+go get github.com/openshift/machine-api-operator@master
 make vendor
 ```
 
