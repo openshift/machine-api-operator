@@ -191,7 +191,7 @@ func (r *ReconcileMachineHealthCheck) Reconcile(ctx context.Context, request rec
 	}
 
 	// health check all targets and reconcile mhc status
-	currentHealthy, needRemediationTargets, nextCheckTimes, errList := r.healthCheckTargets(targets, nodeStartupTimeout.Duration)
+	currentHealthy, needRemediationTargets, nextCheckTimes, errList := r.healthCheckTargets(targets, nodeStartupTimeout.Duration, mhc.Spec.FailedNodeStartupTimeout.Duration)
 	healthyCount := len(currentHealthy)
 	mhc.Status.CurrentHealthy = &healthyCount
 	mhc.Status.ExpectedMachines = &totalTargets
@@ -448,13 +448,13 @@ func (r *ReconcileMachineHealthCheck) reconcileStatus(baseToPatch client.Patch, 
 
 // healthCheckTargets health checks a slice of targets
 // and gives a data to measure the average health
-func (r *ReconcileMachineHealthCheck) healthCheckTargets(targets []target, timeoutForMachineToHaveNode time.Duration) ([]target, []target, []time.Duration, []error) {
+func (r *ReconcileMachineHealthCheck) healthCheckTargets(targets []target, timeoutForMachineToHaveNode time.Duration, failedNodeStartupTimeout time.Duration) ([]target, []target, []time.Duration, []error) {
 	var errList []error
 	var needRemediationTargets, currentHealthy []target
 	var nextCheckTimes []time.Duration
 	for _, t := range targets {
 		klog.V(3).Infof("Reconciling %s: health checking", t.string())
-		needsRemediation, nextCheck, err := t.needsRemediation(timeoutForMachineToHaveNode)
+		needsRemediation, nextCheck, err := t.needsRemediation(timeoutForMachineToHaveNode, failedNodeStartupTimeout)
 		if err != nil {
 			klog.Errorf("Reconciling %s: error health checking: %v", t.string(), err)
 			errList = append(errList, err)
@@ -736,12 +736,19 @@ func (t *target) nodeName() string {
 	return ""
 }
 
-func (t *target) needsRemediation(timeoutForMachineToHaveNode time.Duration) (bool, time.Duration, error) {
+func (t *target) needsRemediation(timeoutForMachineToHaveNode time.Duration, failedNodeStartupTimeout time.Duration) (bool, time.Duration, error) {
 	var nextCheckTimes []time.Duration
 	now := time.Now()
 
 	// machine has failed
 	if derefStringPointer(t.Machine.Status.Phase) == machinePhaseFailed {
+		// A machine that fails without getting a NodeRef of ProviderID means that there was a fatal configuration error.
+		// Typically remediating this machine will not actually resolve the issue.
+		// Delay remediation for this machine to allow manual intervention to resolve the configuration issue.
+		if (t.Machine.Status.NodeRef == nil || t.Machine.Spec.ProviderID == nil) && now.Sub(t.Machine.CreationTimestamp.Time) <= failedNodeStartupTimeout {
+			klog.Warningf("Machine %q is in failed phase, remediation is skipped to allow manual intervention", t.Machine.Name)
+			return false, time.Duration(0), nil
+		}
 		klog.V(3).Infof("%s: unhealthy: machine phase is %q", t.string(), machinePhaseFailed)
 		return true, time.Duration(0), nil
 	}

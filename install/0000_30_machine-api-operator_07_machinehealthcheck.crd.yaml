@@ -55,6 +55,16 @@ spec:
           spec:
             description: Specification of machine health check policy
             properties:
+              failedNodeStartupTimeout:
+                default: 48h
+                description: Failed Machines that are older than this value and are
+                  without a nodeRef or a providerID will be considered to have passed
+                  the time period allocated for a manual fix and will be remediated.
+                  Expects an unsigned duration string of decimal numbers each with
+                  optional fraction and a unit suffix, eg "300ms", "1.5h" or "2h45m".
+                  Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".
+                pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
+                type: string
               maxUnhealthy:
                 anyOf:
                 - type: integer
