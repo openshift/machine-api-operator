@@ -5,7 +5,7 @@ metadata:
   name: machine-api-termination-handler
   namespace: openshift-machine-api
   labels:
-    api: clsuterapi
+    api: clusterapi
     k8s-app: termination-handler
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
