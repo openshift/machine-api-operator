@@ -71,11 +71,13 @@ spec:
               nodeStartupTimeout:
                 default: 10m
                 description: Machines older than this duration without a node will
-                  be considered to have failed and will be remediated. Expects an
-                  unsigned duration string of decimal numbers each with optional fraction
-                  and a unit suffix, eg "300ms", "1.5h" or "2h45m". Valid time units
-                  are "ns", "us" (or "µs"), "ms", "s", "m", "h".
-                pattern: ^([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
+                  be considered to have failed and will be remediated. To prevent
+                  Machines without Nodes from being removed, disable startup checks
+                  by setting this value explicitly to "0". Expects an unsigned duration
+                  string of decimal numbers each with optional fraction and a unit
+                  suffix, eg "300ms", "1.5h" or "2h45m". Valid time units are "ns",
+                  "us" (or "µs"), "ms", "s", "m", "h".
+                pattern: ^0|([0-9]+(\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$
                 type: string
               remediationTemplate:
                 description: "RemediationTemplate is a reference to a remediation

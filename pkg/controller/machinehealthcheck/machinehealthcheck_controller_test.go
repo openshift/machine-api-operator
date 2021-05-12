@@ -220,11 +220,12 @@ func TestReconcile(t *testing.T) {
 
 	machineHealthCheck := maotesting.NewMachineHealthCheck("machineHealthCheck")
 	nodeStartupTimeout := 15 * time.Minute
-	machineHealthCheck.Spec.NodeStartupTimeout = metav1.Duration{Duration: nodeStartupTimeout}
+	machineHealthCheck.Spec.NodeStartupTimeout = &metav1.Duration{Duration: nodeStartupTimeout}
 
 	machineHealthCheckNegativeMaxUnhealthy := maotesting.NewMachineHealthCheck("machineHealthCheckNegativeMaxUnhealthy")
 	negativeOne := intstr.FromInt(-1)
 	machineHealthCheckNegativeMaxUnhealthy.Spec.MaxUnhealthy = &negativeOne
+	machineHealthCheckNegativeMaxUnhealthy.Spec.NodeStartupTimeout = &metav1.Duration{Duration: nodeStartupTimeout}
 
 	// remediationExternal
 	nodeUnhealthyForTooLong := maotesting.NewNode("nodeUnhealthyForTooLong", false)
@@ -1658,6 +1659,59 @@ func TestNeedsRemediation(t *testing.T) {
 			},
 			timeoutForMachineToHaveNode: defaultNodeStartupTimeout,
 			expectedNeedsRemediation:    true,
+			expectedNextCheck:           time.Duration(0),
+			expectedError:               false,
+		},
+		{
+			testCase: "unhealthy: nodeRef nil, timeout disabled",
+			target: &target{
+				Machine: mapiv1beta1.Machine{
+					TypeMeta: metav1.TypeMeta{Kind: "Machine"},
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations:     make(map[string]string),
+						Name:            "machine",
+						Namespace:       namespace,
+						Labels:          map[string]string{"foo": "bar"},
+						OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
+					},
+					Spec: mapiv1beta1.MachineSpec{},
+					Status: mapiv1beta1.MachineStatus{
+						LastUpdated: &metav1.Time{Time: time.Now().Add(time.Duration(-defaultNodeStartupTimeout) - 1*time.Second)},
+					},
+				},
+				Node: nil,
+				MHC: mapiv1beta1.MachineHealthCheck{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: namespace,
+					},
+					TypeMeta: metav1.TypeMeta{
+						Kind: "MachineHealthCheck",
+					},
+					Spec: mapiv1beta1.MachineHealthCheckSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"foo": "bar",
+							},
+						},
+						UnhealthyConditions: []mapiv1beta1.UnhealthyCondition{
+							{
+								Type:    "Ready",
+								Status:  "Unknown",
+								Timeout: metav1.Duration{Duration: 3600 * time.Second},
+							},
+							{
+								Type:    "Ready",
+								Status:  "False",
+								Timeout: metav1.Duration{Duration: 3600 * time.Second},
+							},
+						},
+					},
+					Status: mapiv1beta1.MachineHealthCheckStatus{},
+				},
+			},
+			timeoutForMachineToHaveNode: time.Duration(0),
+			expectedNeedsRemediation:    false,
 			expectedNextCheck:           time.Duration(0),
 			expectedError:               false,
 		},

@@ -15,6 +15,9 @@ spec:
     matchLabels:
       machine.openshift.io/interruptible-instance: ""
   maxUnhealthy: 100%
+  # This MHC should only ever remove nodes that have the terminating condition.
+  # Disable node startup timeout check.
+  nodeStartupTimeout: "0"
   unhealthyConditions:
   - type: Terminating
     status: "True"
