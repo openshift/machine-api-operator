@@ -45,7 +45,7 @@ github.com/go-openapi/spec
 github.com/go-openapi/swag
 # github.com/gobuffalo/flect v0.2.0
 github.com/gobuffalo/flect
-# github.com/gogo/protobuf v1.3.1
+# github.com/gogo/protobuf v1.3.2
 github.com/gogo/protobuf/proto
 github.com/gogo/protobuf/sortkeys
 # github.com/golang/groupcache v0.0.0-20200121045136-8c9f03a8e57e
@@ -147,7 +147,7 @@ github.com/onsi/gomega/matchers/support/goraph/edge
 github.com/onsi/gomega/matchers/support/goraph/node
 github.com/onsi/gomega/matchers/support/goraph/util
 github.com/onsi/gomega/types
-# github.com/openshift/api v0.0.0-20201216151826-78a19e96f9eb
+# github.com/openshift/api v0.0.0-20210428205234-a8389931bee7
 github.com/openshift/api
 github.com/openshift/api/apps
 github.com/openshift/api/apps/v1
@@ -198,7 +198,7 @@ github.com/openshift/api/template
 github.com/openshift/api/template/v1
 github.com/openshift/api/user
 github.com/openshift/api/user/v1
-# github.com/openshift/client-go v0.0.0-20201214125552-e615e336eb49
+# github.com/openshift/client-go v0.0.0-20210112165513-ebc401615f47
 github.com/openshift/client-go/config/clientset/versioned
 github.com/openshift/client-go/config/clientset/versioned/fake
 github.com/openshift/client-go/config/clientset/versioned/scheme
@@ -209,9 +209,9 @@ github.com/openshift/client-go/config/informers/externalversions/config
 github.com/openshift/client-go/config/informers/externalversions/config/v1
 github.com/openshift/client-go/config/informers/externalversions/internalinterfaces
 github.com/openshift/client-go/config/listers/config/v1
-# github.com/openshift/cluster-api-provider-gcp v0.0.1-0.20201201000827-1117a4fc438c
+# github.com/openshift/cluster-api-provider-gcp v0.0.1-0.20210318124828-7215497c95a4
 github.com/openshift/cluster-api-provider-gcp/pkg/apis/gcpprovider/v1beta1
-# github.com/openshift/library-go v0.0.0-20201215165635-4ee79b1caed5
+# github.com/openshift/library-go v0.0.0-20210205203934-9eb0d970f2f4
 github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers
 github.com/openshift/library-go/pkg/operator/events
 github.com/openshift/library-go/pkg/operator/resource/resourceapply
@@ -330,7 +330,7 @@ golang.org/x/text/unicode/norm
 golang.org/x/text/width
 # golang.org/x/time v0.0.0-20200630173020-3af7569d3a1e
 golang.org/x/time/rate
-# golang.org/x/tools v0.0.0-20201020123448-f5c826d1900e
+# golang.org/x/tools v0.0.0-20210106214847-113979e3529a
 golang.org/x/tools/go/ast/astutil
 golang.org/x/tools/go/gcexportdata
 golang.org/x/tools/go/internal/gcimporter
@@ -408,7 +408,7 @@ gopkg.in/warnings.v0
 gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776
 gopkg.in/yaml.v3
-# k8s.io/api v0.20.0
+# k8s.io/api v0.20.6
 k8s.io/api/admission/v1
 k8s.io/api/admission/v1beta1
 k8s.io/api/admissionregistration/v1
@@ -463,7 +463,7 @@ k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1
-# k8s.io/apimachinery v0.20.0
+# k8s.io/apimachinery v0.20.6
 k8s.io/apimachinery/pkg/api/apitesting
 k8s.io/apimachinery/pkg/api/apitesting/fuzzer
 k8s.io/apimachinery/pkg/api/equality
@@ -521,7 +521,7 @@ k8s.io/apimachinery/pkg/watch
 k8s.io/apimachinery/third_party/forked/golang/json
 k8s.io/apimachinery/third_party/forked/golang/netutil
 k8s.io/apimachinery/third_party/forked/golang/reflect
-# k8s.io/cli-runtime v0.20.0
+# k8s.io/cli-runtime v0.20.6
 k8s.io/cli-runtime/pkg/genericclioptions
 k8s.io/cli-runtime/pkg/kustomize
 k8s.io/cli-runtime/pkg/kustomize/k8sdeps
@@ -534,7 +534,7 @@ k8s.io/cli-runtime/pkg/kustomize/k8sdeps/transformer/patch
 k8s.io/cli-runtime/pkg/kustomize/k8sdeps/validator
 k8s.io/cli-runtime/pkg/printers
 k8s.io/cli-runtime/pkg/resource
-# k8s.io/client-go v0.20.0
+# k8s.io/client-go v0.20.6
 k8s.io/client-go/discovery
 k8s.io/client-go/discovery/cached/disk
 k8s.io/client-go/discovery/fake
@@ -773,7 +773,7 @@ k8s.io/client-go/util/jsonpath
 k8s.io/client-go/util/keyutil
 k8s.io/client-go/util/retry
 k8s.io/client-go/util/workqueue
-# k8s.io/code-generator v0.20.0
+# k8s.io/code-generator v0.20.6
 k8s.io/code-generator/cmd/client-gen
 k8s.io/code-generator/cmd/client-gen/args
 k8s.io/code-generator/cmd/client-gen/generators
@@ -805,7 +805,7 @@ k8s.io/code-generator/cmd/set-gen
 k8s.io/code-generator/pkg/namer
 k8s.io/code-generator/pkg/util
 k8s.io/code-generator/third_party/forked/golang/reflect
-# k8s.io/component-base v0.20.0
+# k8s.io/component-base v0.20.6
 k8s.io/component-base/config
 k8s.io/component-base/config/v1alpha1
 k8s.io/component-base/metrics
@@ -835,7 +835,7 @@ k8s.io/kube-aggregator/pkg/client/clientset_generated/clientset/typed/apiregistr
 k8s.io/kube-openapi/pkg/common
 k8s.io/kube-openapi/pkg/util/proto
 k8s.io/kube-openapi/pkg/util/proto/validation
-# k8s.io/kubectl v0.20.0
+# k8s.io/kubectl v0.20.6
 k8s.io/kubectl/pkg/cmd/util
 k8s.io/kubectl/pkg/drain
 k8s.io/kubectl/pkg/scheme
@@ -851,9 +851,9 @@ k8s.io/utils/exec
 k8s.io/utils/integer
 k8s.io/utils/pointer
 k8s.io/utils/trace
-# sigs.k8s.io/cluster-api-provider-aws v0.0.0-00010101000000-000000000000 => github.com/openshift/cluster-api-provider-aws v0.2.1-0.20201125052318-b85a18cbf338
+# sigs.k8s.io/cluster-api-provider-aws v0.0.0-00010101000000-000000000000 => github.com/openshift/cluster-api-provider-aws v0.2.1-0.20210430231032-3967c2861801
 sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsprovider/v1beta1
-# sigs.k8s.io/cluster-api-provider-azure v0.0.0-00010101000000-000000000000 => github.com/openshift/cluster-api-provider-azure v0.0.0-20210303050217-fb7b13d3ef02
+# sigs.k8s.io/cluster-api-provider-azure v0.0.0-00010101000000-000000000000 => github.com/openshift/cluster-api-provider-azure v0.1.0-alpha.3.0.20210318155632-e744815d9f05
 sigs.k8s.io/cluster-api-provider-azure/pkg/apis/azureprovider/v1beta1
 # sigs.k8s.io/controller-runtime v0.7.0
 sigs.k8s.io/controller-runtime
@@ -938,7 +938,7 @@ sigs.k8s.io/kustomize/pkg/transformers
 sigs.k8s.io/kustomize/pkg/transformers/config
 sigs.k8s.io/kustomize/pkg/transformers/config/defaultconfig
 sigs.k8s.io/kustomize/pkg/types
-# sigs.k8s.io/structured-merge-diff/v4 v4.0.2
+# sigs.k8s.io/structured-merge-diff/v4 v4.0.3
 sigs.k8s.io/structured-merge-diff/v4/value
 # sigs.k8s.io/yaml v1.2.0
 sigs.k8s.io/yaml
