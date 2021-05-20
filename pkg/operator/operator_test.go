@@ -146,7 +146,9 @@ func TestOperatorSync_NoOp(t *testing.T) {
 					Name: "cluster",
 				},
 				Status: openshiftv1.InfrastructureStatus{
-					Platform: tc.platform,
+					PlatformStatus: &openshiftv1.PlatformStatus{
+						Type: tc.platform,
+					},
 				},
 			}
 
@@ -533,7 +535,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			if tc.infra != nil {
 				inf := tc.infra.DeepCopy()
 				// Ensure platform is correct on infrastructure
-				inf.Status.Platform = tc.platform
+				inf.Status.PlatformStatus = &openshiftv1.PlatformStatus{Type: tc.platform}
 				objects = append(objects, inf)
 			}
 			if tc.proxy != nil {
