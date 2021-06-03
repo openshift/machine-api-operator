@@ -50,10 +50,12 @@ type Images struct {
 }
 
 func getProviderFromInfrastructure(infra *configv1.Infrastructure) (configv1.PlatformType, error) {
-	if infra.Status.Platform == "" {
-		return "", fmt.Errorf("no platform provider found on install config")
+	if infra.Status.PlatformStatus != nil {
+		if infra.Status.PlatformStatus.Type != "" {
+			return infra.Status.PlatformStatus.Type, nil
+		}
 	}
-	return infra.Status.Platform, nil
+	return "", fmt.Errorf("no platform provider found on install config")
 }
 
 func getImagesFromJSONFile(filePath string) (*Images, error) {

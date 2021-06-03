@@ -28,78 +28,106 @@ func TestGetProviderFromInfrastructure(t *testing.T) {
 	}{{
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
-				Platform: configv1.AWSPlatformType,
+				PlatformStatus: &configv1.PlatformStatus{
+					Type: configv1.AWSPlatformType,
+				},
 			},
 		},
 		expected: configv1.AWSPlatformType,
 	}, {
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
-				Platform: configv1.LibvirtPlatformType,
+				PlatformStatus: &configv1.PlatformStatus{
+					Type: configv1.LibvirtPlatformType,
+				},
 			},
 		},
 		expected: configv1.LibvirtPlatformType,
 	}, {
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
-				Platform: configv1.OpenStackPlatformType,
+				PlatformStatus: &configv1.PlatformStatus{
+					Type: configv1.OpenStackPlatformType,
+				},
 			},
 		},
 		expected: configv1.OpenStackPlatformType,
 	}, {
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
-				Platform: configv1.AzurePlatformType,
+				PlatformStatus: &configv1.PlatformStatus{
+					Type: configv1.AzurePlatformType,
+				},
 			},
 		},
 		expected: configv1.AzurePlatformType,
 	}, {
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
-				Platform: configv1.GCPPlatformType,
+				PlatformStatus: &configv1.PlatformStatus{
+					Type: configv1.GCPPlatformType,
+				},
 			},
 		},
 		expected: configv1.GCPPlatformType,
 	}, {
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
-				Platform: configv1.BareMetalPlatformType,
+				PlatformStatus: &configv1.PlatformStatus{
+					Type: configv1.BareMetalPlatformType,
+				},
 			},
 		},
 		expected: configv1.BareMetalPlatformType,
 	}, {
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
-				Platform: kubemarkPlatform,
+				PlatformStatus: &configv1.PlatformStatus{
+					Type: kubemarkPlatform,
+				},
 			},
 		},
 		expected: kubemarkPlatform,
 	}, {
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
-				Platform: configv1.VSpherePlatformType,
+				PlatformStatus: &configv1.PlatformStatus{
+					Type: configv1.VSpherePlatformType,
+				},
 			},
 		},
 		expected: configv1.VSpherePlatformType,
 	}, {
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
-				Platform: configv1.NonePlatformType,
+				PlatformStatus: &configv1.PlatformStatus{
+					Type: configv1.NonePlatformType,
+				},
 			},
 		},
 		expected: configv1.NonePlatformType,
 	}, {
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
-				Platform: configv1.OvirtPlatformType,
+				PlatformStatus: &configv1.PlatformStatus{
+					Type: configv1.OvirtPlatformType,
+				},
 			},
 		},
 		expected: configv1.OvirtPlatformType,
+	}, {
+		infra: &configv1.Infrastructure{
+			Status: configv1.InfrastructureStatus{
+				Platform: configv1.OvirtPlatformType,
+			},
+		},
+		expected: "",
 	}}
 
 	for _, test := range tests {
 		res, err := getProviderFromInfrastructure(test.infra)
-		if err != nil {
+		// empty expected string means we were expecting it to error
+		if err != nil && test.expected != "" {
 			t.Errorf("failed getProviderFromInfrastructure: %v", err)
 		}
 		if test.expected != res {
