@@ -119,27 +119,32 @@ func main() {
 		log.Fatal(err)
 	}
 
+	log.Printf("after manager")
 	// Enable defaulting and validating webhooks
 	machineDefaulter, err := v1beta1.NewMachineDefaulter()
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	log.Printf("after defaulter")
 	machineValidator, err := v1beta1.NewMachineValidator()
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	log.Printf("after validator")
 	machineSetDefaulter, err := v1beta1.NewMachineSetDefaulter()
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	log.Printf("after msdefaulter")
 	machineSetValidator, err := v1beta1.NewMachineSetValidator()
 	if err != nil {
 		log.Fatal(err)
 	}
 
+	log.Printf("after msvalidator")
 	if *webhookEnabled {
 		mgr.GetWebhookServer().Port = *webhookPort
 		mgr.GetWebhookServer().CertDir = *webhookCertdir
