@@ -24,6 +24,7 @@ import (
 	"reflect"
 	"testing"
 
+	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	vsphereapi "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
@@ -51,9 +52,15 @@ func init() {
 	configv1.AddToScheme(scheme.Scheme)
 }
 
-func initSimulator(t *testing.T) (*simulator.Model, *session.Session, *simulator.Server) {
+type simulatorModelOption func(m *simulator.Model)
+
+func initSimulator(t *testing.T, opts ...simulatorModelOption) (*simulator.Model, *session.Session, *simulator.Server) {
 	model := simulator.VPX()
 	model.Host = 0
+
+	for _, opt := range opts {
+		opt(model)
+	}
 	err := model.Create()
 	if err != nil {
 		t.Fatal(err)
@@ -1196,7 +1203,13 @@ func TestConvertUUIDToProviderID(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
-	model, _, server := initSimulator(t)
+	withMoreVms := func(vmsCount int) simulatorModelOption {
+		return func(m *simulator.Model) {
+			m.Machine = vmsCount
+		}
+	}
+
+	model, _, server := initSimulator(t, withMoreVms(5))
 	defer model.Remove()
 	defer server.Close()
 	host, port, err := net.SplitHostPort(server.URL.Host)
@@ -1209,9 +1222,8 @@ func TestDelete(t *testing.T) {
 
 	password, _ := server.URL.User.Password()
 	namespace := "test"
-	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+
 	instanceUUID := "a5764857-ae35-34dc-8f25-a9c9e73aa898"
-	vm.Config.InstanceUuid = instanceUUID
 
 	credentialsSecret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1247,40 +1259,102 @@ func TestDelete(t *testing.T) {
 		},
 	}
 
+	nodeName := "somenodename"
+
+	getMachineWithStatus := func(t *testing.T, status machinev1.MachineStatus) *machinev1.Machine {
+		providerSpec := vsphereapi.VSphereMachineProviderSpec{
+			CredentialsSecret: &corev1.LocalObjectReference{
+				Name: "test",
+			},
+			Workspace: &vsphereapi.Workspace{
+				Server: host,
+			},
+		}
+		raw, err := vsphereapi.RawExtensionFromProviderSpec(&providerSpec)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return &machinev1.Machine{
+			TypeMeta: metav1.TypeMeta{
+				Kind: "Machine",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				UID:       apimachinerytypes.UID(instanceUUID),
+				Name:      "defaultFolder",
+				Namespace: namespace,
+			},
+			Spec: machinev1.MachineSpec{
+				ProviderSpec: machinev1.ProviderSpec{
+					Value: raw,
+				},
+			},
+			Status: status,
+		}
+	}
+
+	getNodeWithConditions := func(conditions []corev1.NodeCondition) *corev1.Node {
+		return &corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      nodeName,
+				Namespace: metav1.NamespaceNone,
+			},
+			TypeMeta: metav1.TypeMeta{
+				Kind: "Node",
+			},
+			Status: corev1.NodeStatus{
+				Conditions: conditions,
+			},
+		}
+	}
+
 	testCases := []struct {
 		testCase string
 		machine  func(t *testing.T) *machinev1.Machine
+		node     func(t *testing.T) *corev1.Node
 	}{
 		{
 			testCase: "all good deletion",
 			machine: func(t *testing.T) *machinev1.Machine {
-				providerSpec := vsphereapi.VSphereMachineProviderSpec{
-					CredentialsSecret: &corev1.LocalObjectReference{
-						Name: "test",
+				return getMachineWithStatus(t, machinev1.MachineStatus{
+					NodeRef: &corev1.ObjectReference{
+						Name: nodeName,
 					},
-					Workspace: &vsphereapi.Workspace{
-						Server: host,
+				})
+			},
+			node: func(t *testing.T) *corev1.Node {
+				return getNodeWithConditions([]corev1.NodeCondition{
+					{
+						Type:   corev1.NodeReady,
+						Status: corev1.ConditionTrue,
 					},
-				}
-				raw, err := vsphereapi.RawExtensionFromProviderSpec(&providerSpec)
-				if err != nil {
-					t.Fatal(err)
-				}
-				return &machinev1.Machine{
-					TypeMeta: metav1.TypeMeta{
-						Kind: "Machine",
+				})
+			},
+		},
+		{
+			testCase: "all good, no node linked",
+			machine: func(t *testing.T) *machinev1.Machine {
+				return getMachineWithStatus(t, machinev1.MachineStatus{})
+			},
+			node: func(t *testing.T) *corev1.Node {
+				return &corev1.Node{}
+			},
+		},
+		{
+			testCase: "all good, node unreachable",
+			machine: func(t *testing.T) *machinev1.Machine {
+				return getMachineWithStatus(t, machinev1.MachineStatus{
+					NodeRef: &corev1.ObjectReference{
+						Name: nodeName,
 					},
-					ObjectMeta: metav1.ObjectMeta{
-						UID:       apimachinerytypes.UID(instanceUUID),
-						Name:      "defaultFolder",
-						Namespace: namespace,
+				})
+			},
+			node: func(t *testing.T) *corev1.Node {
+				return getNodeWithConditions([]corev1.NodeCondition{
+					{
+						Type:   corev1.NodeReady,
+						Status: corev1.ConditionUnknown,
 					},
-					Spec: machinev1.MachineSpec{
-						ProviderSpec: machinev1.ProviderSpec{
-							Value: raw,
-						},
-					},
-				}
+				})
 			},
 		},
 	}
@@ -1288,11 +1362,15 @@ func TestDelete(t *testing.T) {
 	machinev1.AddToScheme(scheme.Scheme)
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
+			vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+			vm.Config.InstanceUuid = instanceUUID
+
 			client := fake.NewFakeClientWithScheme(scheme.Scheme,
 				&credentialsSecret,
 				tc.machine(t),
 				configMap,
-				infra)
+				infra,
+				tc.node(t))
 			machineScope, err := newMachineScope(machineScopeParams{
 				client:    client,
 				Context:   context.Background(),
@@ -1901,6 +1979,96 @@ func createTagAndCategory(session *session.Session, categoryName, tagName string
 	}
 
 	return nil
+}
+
+func TestVmDisksManipulation(t *testing.T) {
+	ctx := context.Background()
+
+	model, session, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	simulatorVM := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	managedObjRef := simulatorVM.VirtualMachine.Reference()
+	vmObj := object.NewVirtualMachine(session.Client.Client, managedObjRef)
+
+	addDiskToVm := func(vm *object.VirtualMachine, diskNum int, diskMode string, gmgAssert *GomegaWithT) {
+		devices, err := vmObj.Device(ctx)
+		gmgAssert.Expect(err).ToNot(HaveOccurred())
+		scsi := devices.SelectByType((*types.VirtualSCSIController)(nil))[0]
+
+		additionalDisk := &types.VirtualDisk{
+			VirtualDevice: types.VirtualDevice{
+				Backing: &types.VirtualDiskFlatVer2BackingInfo{
+					DiskMode:        diskMode,
+					ThinProvisioned: types.NewBool(true),
+					VirtualDeviceFileBackingInfo: types.VirtualDeviceFileBackingInfo{
+						FileName:  fmt.Sprintf("[LocalDS_0] %s/disk%d.vmdk", simulatorVM.Name, diskNum),
+						Datastore: &simulatorVM.Datastore[0],
+					},
+				},
+			},
+		}
+		additionalDisk.CapacityInKB = 1024
+		devices.AssignController(additionalDisk, scsi.(types.BaseVirtualController))
+
+		err = vmObj.AddDevice(ctx, additionalDisk)
+		gmgAssert.Expect(err).ToNot(HaveOccurred())
+	}
+
+	vm := &virtualMachine{
+		Context: ctx,
+		Obj:     vmObj,
+		Ref:     managedObjRef,
+	}
+
+	t.Run("Test getAttachedDisks", func(t *testing.T) {
+		g := NewWithT(t)
+
+		disks, err := vm.getAttachedDisks()
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(disks[0].fileName).Should(ContainSubstring("disk1.vmdk"))
+		g.Expect(disks[0].diskMode).Should(Equal("persistent"))
+	})
+
+	t.Run("detachPVDisks should detach only non persistent disks", func(t *testing.T) {
+		g := NewWithT(t)
+
+		addDiskToVm(vmObj, 2, string(types.VirtualDiskModeIndependent_persistent), g)
+		addDiskToVm(vmObj, 3, string(types.VirtualDiskModeNonpersistent), g)
+		addDiskToVm(vmObj, 4, string(types.VirtualDiskModeUndoable), g)
+
+		disks, err := vm.getAttachedDisks()
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(len(disks)).Should(Equal(4))
+		g.Expect(disks[0].fileName).Should(ContainSubstring("disk1.vmdk"))
+		g.Expect(disks[0].diskMode).Should(Equal("persistent"))
+
+		g.Expect(disks[1].fileName).Should(ContainSubstring("disk2.vmdk"))
+
+		g.Expect(disks[1].diskMode).Should(Equal("independent_persistent"))
+		g.Expect(disks[2].diskMode).Should(Equal("nonpersistent"))
+		g.Expect(disks[3].diskMode).Should(Equal("undoable"))
+
+		err = vm.detachPVDisks()
+		g.Expect(err).ToNot(HaveOccurred())
+		disks, err = vm.getAttachedDisks()
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(len(disks)).Should(Equal(1))
+	})
+
+	t.Run("detachPVDisks do not detach persistent disks", func(t *testing.T) {
+		// Do not touch persistent disks
+		g := NewWithT(t)
+
+		addDiskToVm(vmObj, 5, string(types.VirtualDiskModePersistent), g)
+		disks, err := vm.getAttachedDisks()
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(len(disks)).Should(Equal(2))
+		err = vm.detachPVDisks()
+		g.Expect(err).ToNot(HaveOccurred())
+		g.Expect(len(disks)).Should(Equal(2))
+	})
 }
 
 func TestReconcilePowerStateAnnontation(t *testing.T) {

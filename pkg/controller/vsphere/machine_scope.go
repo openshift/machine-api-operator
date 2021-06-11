@@ -130,6 +130,44 @@ func (s *machineScope) GetSession() *session.Session {
 	return s.session
 }
 
+func (s *machineScope) isNodeLinked() bool {
+	return s.machine.Status.NodeRef != nil && s.machine.Status.NodeRef.Name != ""
+}
+
+func (s *machineScope) getNode() (*apicorev1.Node, error) {
+	var node apicorev1.Node
+	if !s.isNodeLinked() {
+		return nil, fmt.Errorf("NodeRef empty, unable to get related Node")
+	}
+	nodeName := s.machine.Status.NodeRef.Name
+	objectKey := runtimeclient.ObjectKey{
+		Name: nodeName,
+	}
+	if err := s.apiReader.Get(s.Context, objectKey, &node); err != nil {
+		if apimachineryerrors.IsNotFound(err) {
+			klog.V(2).Infof("Node %q not found", nodeName)
+			return nil, err
+		}
+		klog.Errorf("Failed to get node %q: %v", nodeName, err)
+		return nil, err
+	}
+
+	return &node, nil
+}
+
+func (s *machineScope) checkNodeReachable() (bool, error) {
+	node, err := s.getNode()
+	if err != nil {
+		return false, err
+	}
+	for _, condition := range node.Status.Conditions {
+		if condition.Type == apicorev1.NodeReady && condition.Status == apicorev1.ConditionUnknown {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
 // GetUserData fetches the user-data from the secret referenced in the Machine's
 // provider spec, if one is set.
 func (s *machineScope) GetUserData() ([]byte, error) {

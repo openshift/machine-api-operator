@@ -539,3 +539,266 @@ func TestPatchMachine(t *testing.T) {
 		})
 	}
 }
+
+func TestNodeGetter(t *testing.T) {
+	g := NewWithT(t)
+	ctx := context.Background()
+
+	testEnv := &envtest.Environment{
+		CRDDirectoryPaths: []string{
+			filepath.Join("..", "..", "..", "install"),
+			filepath.Join("..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1")},
+	}
+
+	cfg, err := testEnv.Start()
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(cfg).ToNot(BeNil())
+	defer func() {
+		g.Expect(testEnv.Stop()).To(Succeed())
+	}()
+
+	k8sClient, err := client.New(cfg, client.Options{})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	nodeName := "somenodename"
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      nodeName,
+			Namespace: metav1.NamespaceNone,
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind: "Node",
+		},
+		Status: corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{
+				{
+					Type:   corev1.NodeReady,
+					Status: corev1.ConditionTrue,
+				},
+			},
+		},
+	}
+	g.Expect(k8sClient.Create(ctx, node)).To(Succeed())
+	defer func() {
+		g.Expect(k8sClient.Delete(ctx, node)).To(Succeed())
+	}()
+
+	testNamespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: TestNamespace,
+		},
+	}
+	g.Expect(k8sClient.Create(ctx, testNamespace)).To(Succeed())
+	defer func() {
+		g.Expect(k8sClient.Delete(ctx, testNamespace)).To(Succeed())
+	}()
+
+	machineName := "somemachine"
+	machineKey := types.NamespacedName{Namespace: TestNamespace, Name: machineName}
+	machine := &machinev1.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      machineName,
+			Namespace: TestNamespace,
+			Labels:    map[string]string{},
+		},
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Machine",
+			APIVersion: "machine.openshift.io/v1beta1",
+		},
+	}
+	g.Expect(k8sClient.Create(ctx, machine)).To(Succeed())
+	defer func() {
+		g.Expect(k8sClient.Delete(ctx, machine)).To(Succeed())
+	}()
+
+	// Ensure the machine has synced to the cache
+	getMachine := func() error {
+		return k8sClient.Get(ctx, machineKey, machine)
+	}
+	g.Eventually(getMachine, 10*time.Second).Should(Succeed())
+
+	machineScope := &machineScope{
+		Context:      ctx,
+		client:       k8sClient,
+		apiReader:    k8sClient,
+		machine:      machine,
+		providerSpec: &vspherev1.VSphereMachineProviderSpec{},
+	}
+
+	resetStatuses := func(node *corev1.Node, machine *machinev1.Machine) {
+		machine.Status = machinev1.MachineStatus{}
+		node.Status = corev1.NodeStatus{
+			Conditions: []corev1.NodeCondition{
+				{
+					Type:   corev1.NodeReady,
+					Status: corev1.ConditionTrue,
+				},
+			},
+		}
+	}
+
+	////////////// getNode test cases
+
+	nodeGetterTestCases := []struct {
+		name        string
+		err         error
+		node        *corev1.Node
+		setStatuses func(node *corev1.Node, machine *machinev1.Machine)
+	}{
+		{
+			name:        "getNode: No node linked",
+			err:         fmt.Errorf("NodeRef empty, unable to get related Node"),
+			node:        nil,
+			setStatuses: func(node *corev1.Node, machine *machinev1.Machine) {},
+		},
+		{
+			name: "getNode: Node linked",
+			err:  nil,
+			node: node,
+			setStatuses: func(node *corev1.Node, machine *machinev1.Machine) {
+				machine.Status = machinev1.MachineStatus{
+					NodeRef: &corev1.ObjectReference{
+						Name: nodeName,
+					},
+				}
+			},
+		},
+	}
+	for _, tc := range nodeGetterTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			gs := NewWithT(t)
+			tc.setStatuses(node, machine)
+			defer resetStatuses(node, machine)
+
+			node, err := machineScope.getNode()
+			if tc.err != nil {
+				gs.Expect(err).To(Equal(tc.err))
+			} else {
+				gs.Expect(err).To(BeNil())
+			}
+			gs.Expect(node).To(Equal(tc.node))
+		})
+	}
+
+	////////////// isNodeLinked test cases
+
+	isNodeLinkedTestCases := []struct {
+		name        string
+		expected    bool
+		setStatuses func(node *corev1.Node, machine *machinev1.Machine)
+	}{
+		{
+			name:        "isNodeLinked: No node linked",
+			expected:    false,
+			setStatuses: func(node *corev1.Node, machine *machinev1.Machine) {},
+		},
+		{
+			name:     "isNodeLinked: Node name empty",
+			expected: false,
+			setStatuses: func(node *corev1.Node, machine *machinev1.Machine) {
+				machine.Status = machinev1.MachineStatus{
+					NodeRef: &corev1.ObjectReference{
+						Name: "",
+					},
+				}
+			},
+		},
+		{
+			name:     "isNodeLinked: Node ref filled",
+			expected: true,
+			setStatuses: func(node *corev1.Node, machine *machinev1.Machine) {
+				machine.Status = machinev1.MachineStatus{
+					NodeRef: &corev1.ObjectReference{
+						Name: nodeName,
+					},
+				}
+			},
+		},
+	}
+	for _, tc := range isNodeLinkedTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			gs := NewWithT(t)
+
+			tc.setStatuses(node, machine)
+			defer resetStatuses(node, machine)
+
+			isNodeLinked := machineScope.isNodeLinked()
+
+			gs.Expect(isNodeLinked).To(Equal(tc.expected))
+		})
+	}
+
+	////////////// checkNodeReachable test cases
+
+	checkNodeReachableTestCases := []struct {
+		name        string
+		err         error
+		expected    bool
+		setStatuses func(node *corev1.Node, machine *machinev1.Machine)
+	}{
+		{
+			name:        "checkNodeReachable: node not linked",
+			err:         fmt.Errorf("NodeRef empty, unable to get related Node"),
+			expected:    false,
+			setStatuses: func(node *corev1.Node, machine *machinev1.Machine) {},
+		},
+		{
+			name:     "checkNodeReachable: node reachable",
+			err:      nil,
+			expected: true,
+			setStatuses: func(node *corev1.Node, machine *machinev1.Machine) {
+				machine.Status = machinev1.MachineStatus{
+					NodeRef: &corev1.ObjectReference{
+						Name: nodeName,
+					},
+				}
+				node.Status = corev1.NodeStatus{
+					Conditions: []corev1.NodeCondition{
+						{
+							Type:   corev1.NodeReady,
+							Status: corev1.ConditionTrue,
+						},
+					},
+				}
+				g.Expect(k8sClient.Status().Update(ctx, node)).To(Succeed())
+			},
+		},
+		{
+			name:     "checkNodeReachable: node unreachable",
+			err:      nil,
+			expected: false,
+			setStatuses: func(node *corev1.Node, machine *machinev1.Machine) {
+				machine.Status = machinev1.MachineStatus{
+					NodeRef: &corev1.ObjectReference{
+						Name: nodeName,
+					},
+				}
+				node.Status = corev1.NodeStatus{
+					Conditions: []corev1.NodeCondition{
+						{
+							Type:   corev1.NodeReady,
+							Status: corev1.ConditionUnknown,
+						},
+					},
+				}
+				g.Expect(k8sClient.Status().Update(ctx, node)).To(Succeed())
+			},
+		},
+	}
+	for _, tc := range checkNodeReachableTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			gs := NewWithT(t)
+			tc.setStatuses(node, machine)
+			defer resetStatuses(node, machine)
+
+			isNodeAvailable, err := machineScope.checkNodeReachable()
+
+			if tc.err != nil {
+				gs.Expect(err).To(Equal(tc.err))
+			} else {
+				gs.Expect(err).To(BeNil())
+			}
+			gs.Expect(isNodeAvailable).To(Equal(tc.expected))
+		})
+	}
+}
