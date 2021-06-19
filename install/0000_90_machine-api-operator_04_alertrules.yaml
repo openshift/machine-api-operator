@@ -26,12 +26,22 @@ spec:
       rules:
         - alert: MachineWithNoRunningPhase
           expr: |
-            (mapi_machine_created_timestamp_seconds{phase!="Running"}) > 0
+            (mapi_machine_created_timestamp_seconds{phase!="Running|Deleting"}) > 0
           for: 60m
           labels:
             severity: warning
           annotations:
             message: "machine {{ $labels.name }} is in phase: {{ $labels.phase }}"
+    - name: machine-not-yet-deleted
+      rules:
+        - alert: MachineNotYetDeleted
+          expr: |
+            (mapi_machine_created_timestamp_seconds{phase="Deleting"}) > 0
+          for: 360m
+          labels:
+            severity: warning
+          annotations:
+            message: "machine {{ $labels.name }} has been in Deleting phase for more than 6 hours"
     - name: machine-api-operator-metrics-collector-up
       rules:
         - alert: MachineAPIOperatorMetricsCollectionFailing
