@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"runtime"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -15,7 +16,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
+	kruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/pointer"
@@ -101,7 +102,7 @@ func TestMachineCreation(t *testing.T) {
 		presetClusterID   bool
 		expectedError     string
 		disconnected      bool
-		providerSpecValue *runtime.RawExtension
+		providerSpecValue *kruntime.RawExtension
 	}{
 		{
 			name:              "with AWS and a nil provider spec value",
@@ -114,7 +115,7 @@ func TestMachineCreation(t *testing.T) {
 			name:         "with AWS and no fields set",
 			platformType: osconfigv1.AWSPlatformType,
 			clusterID:    "aws-cluster",
-			providerSpecValue: &runtime.RawExtension{
+			providerSpecValue: &kruntime.RawExtension{
 				Object: &aws.AWSMachineProviderConfig{},
 			},
 			expectedError: "providerSpec.ami: Required value: expected either providerSpec.ami.arn or providerSpec.ami.filters or providerSpec.ami.id to be populated",
@@ -123,7 +124,7 @@ func TestMachineCreation(t *testing.T) {
 			name:         "with AWS and an AMI ID set",
 			platformType: osconfigv1.AWSPlatformType,
 			clusterID:    "aws-cluster",
-			providerSpecValue: &runtime.RawExtension{
+			providerSpecValue: &kruntime.RawExtension{
 				Object: &aws.AWSMachineProviderConfig{
 					AMI: aws.AWSResourceReference{
 						ID: pointer.StringPtr("ami"),
@@ -143,7 +144,7 @@ func TestMachineCreation(t *testing.T) {
 			name:         "with Azure and no fields set",
 			platformType: osconfigv1.AzurePlatformType,
 			clusterID:    "azure-cluster",
-			providerSpecValue: &runtime.RawExtension{
+			providerSpecValue: &kruntime.RawExtension{
 				Object: &azure.AzureMachineProviderSpec{},
 			},
 			expectedError: "providerSpec.osDisk.diskSizeGB: Invalid value: 0: diskSizeGB must be greater than zero and less than 32768",
@@ -152,7 +153,7 @@ func TestMachineCreation(t *testing.T) {
 			name:         "with Azure and a disk size set",
 			platformType: osconfigv1.AzurePlatformType,
 			clusterID:    "azure-cluster",
-			providerSpecValue: &runtime.RawExtension{
+			providerSpecValue: &kruntime.RawExtension{
 				Object: &azure.AzureMachineProviderSpec{
 					OSDisk: azure.OSDisk{
 						DiskSizeGB: 128,
@@ -165,7 +166,7 @@ func TestMachineCreation(t *testing.T) {
 			name:         "with Azure disconnected installation request public IP",
 			platformType: osconfigv1.AzurePlatformType,
 			clusterID:    "azure-cluster",
-			providerSpecValue: &runtime.RawExtension{
+			providerSpecValue: &kruntime.RawExtension{
 				Object: &azure.AzureMachineProviderSpec{
 					OSDisk: azure.OSDisk{
 						DiskSizeGB: 128,
@@ -180,7 +181,7 @@ func TestMachineCreation(t *testing.T) {
 			name:         "with Azure disconnected installation success",
 			platformType: osconfigv1.AzurePlatformType,
 			clusterID:    "azure-cluster",
-			providerSpecValue: &runtime.RawExtension{
+			providerSpecValue: &kruntime.RawExtension{
 				Object: &azure.AzureMachineProviderSpec{
 					OSDisk: azure.OSDisk{
 						DiskSizeGB: 128,
@@ -200,7 +201,7 @@ func TestMachineCreation(t *testing.T) {
 			name:         "with GCP and no fields set",
 			platformType: osconfigv1.GCPPlatformType,
 			clusterID:    "gcp-cluster",
-			providerSpecValue: &runtime.RawExtension{
+			providerSpecValue: &kruntime.RawExtension{
 				Object: &gcp.GCPMachineProviderSpec{},
 			},
 			expectedError: "providerSpec.region: Required value: region is required",
@@ -209,7 +210,7 @@ func TestMachineCreation(t *testing.T) {
 			name:         "with GCP and the region and zone set",
 			platformType: osconfigv1.GCPPlatformType,
 			clusterID:    "gcp-cluster",
-			providerSpecValue: &runtime.RawExtension{
+			providerSpecValue: &kruntime.RawExtension{
 				Object: &gcp.GCPMachineProviderSpec{
 					Region: "region",
 					Zone:   "region-zone",
@@ -228,7 +229,7 @@ func TestMachineCreation(t *testing.T) {
 			name:         "with vSphere and no fields set",
 			platformType: osconfigv1.VSpherePlatformType,
 			clusterID:    "vsphere-cluster",
-			providerSpecValue: &runtime.RawExtension{
+			providerSpecValue: &kruntime.RawExtension{
 				Object: &vsphere.VSphereMachineProviderSpec{},
 			},
 			expectedError: "[providerSpec.template: Required value: template must be provided, providerSpec.workspace: Required value: workspace must be provided, providerSpec.network.devices: Required value: at least 1 network device must be provided]",
@@ -238,7 +239,7 @@ func TestMachineCreation(t *testing.T) {
 			platformType:    osconfigv1.VSpherePlatformType,
 			clusterID:       "vsphere-cluster",
 			presetClusterID: true,
-			providerSpecValue: &runtime.RawExtension{
+			providerSpecValue: &kruntime.RawExtension{
 				Object: &vsphere.VSphereMachineProviderSpec{
 					Template: "template",
 					Workspace: &vsphere.Workspace{
@@ -357,7 +358,7 @@ func TestMachineUpdate(t *testing.T) {
 		AMI: aws.AWSResourceReference{
 			ID: pointer.StringPtr("ami"),
 		},
-		InstanceType:      defaultAWSInstanceType,
+		InstanceType:      defaultAWSX86InstanceType,
 		UserDataSecret:    &corev1.LocalObjectReference{Name: defaultUserDataSecret},
 		CredentialsSecret: &corev1.LocalObjectReference{Name: defaultAWSCredentialsSecret},
 		Placement: aws.Placement{
@@ -505,18 +506,18 @@ func TestMachineUpdate(t *testing.T) {
 		platformType             osconfigv1.PlatformType
 		clusterID                string
 		expectedError            string
-		baseProviderSpecValue    *runtime.RawExtension
-		updatedProviderSpecValue func() *runtime.RawExtension
+		baseProviderSpecValue    *kruntime.RawExtension
+		updatedProviderSpecValue func() *kruntime.RawExtension
 	}{
 		{
 			name:         "with a valid AWS ProviderSpec",
 			platformType: osconfigv1.AWSPlatformType,
 			clusterID:    awsClusterID,
-			baseProviderSpecValue: &runtime.RawExtension{
+			baseProviderSpecValue: &kruntime.RawExtension{
 				Object: defaultAWSProviderSpec.DeepCopy(),
 			},
-			updatedProviderSpecValue: func() *runtime.RawExtension {
-				return &runtime.RawExtension{
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
+				return &kruntime.RawExtension{
 					Object: defaultAWSProviderSpec.DeepCopy(),
 				}
 			},
@@ -526,13 +527,13 @@ func TestMachineUpdate(t *testing.T) {
 			name:         "with an AWS ProviderSpec, removing the instance type",
 			platformType: osconfigv1.AWSPlatformType,
 			clusterID:    awsClusterID,
-			baseProviderSpecValue: &runtime.RawExtension{
+			baseProviderSpecValue: &kruntime.RawExtension{
 				Object: defaultAWSProviderSpec.DeepCopy(),
 			},
-			updatedProviderSpecValue: func() *runtime.RawExtension {
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
 				object := defaultAWSProviderSpec.DeepCopy()
 				object.InstanceType = ""
-				return &runtime.RawExtension{
+				return &kruntime.RawExtension{
 					Object: object,
 				}
 			},
@@ -542,13 +543,13 @@ func TestMachineUpdate(t *testing.T) {
 			name:         "with an AWS ProviderSpec, removing the region",
 			platformType: osconfigv1.AWSPlatformType,
 			clusterID:    awsClusterID,
-			baseProviderSpecValue: &runtime.RawExtension{
+			baseProviderSpecValue: &kruntime.RawExtension{
 				Object: defaultAWSProviderSpec.DeepCopy(),
 			},
-			updatedProviderSpecValue: func() *runtime.RawExtension {
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
 				object := defaultAWSProviderSpec.DeepCopy()
 				object.Placement.Region = ""
-				return &runtime.RawExtension{
+				return &kruntime.RawExtension{
 					Object: object,
 				}
 			},
@@ -558,13 +559,13 @@ func TestMachineUpdate(t *testing.T) {
 			name:         "with an AWS ProviderSpec, removing the user data secret",
 			platformType: osconfigv1.AWSPlatformType,
 			clusterID:    awsClusterID,
-			baseProviderSpecValue: &runtime.RawExtension{
+			baseProviderSpecValue: &kruntime.RawExtension{
 				Object: defaultAWSProviderSpec.DeepCopy(),
 			},
-			updatedProviderSpecValue: func() *runtime.RawExtension {
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
 				object := defaultAWSProviderSpec.DeepCopy()
 				object.UserDataSecret = nil
-				return &runtime.RawExtension{
+				return &kruntime.RawExtension{
 					Object: object,
 				}
 			},
@@ -574,11 +575,11 @@ func TestMachineUpdate(t *testing.T) {
 			name:         "with a valid Azure ProviderSpec",
 			platformType: osconfigv1.AzurePlatformType,
 			clusterID:    azureClusterID,
-			baseProviderSpecValue: &runtime.RawExtension{
+			baseProviderSpecValue: &kruntime.RawExtension{
 				Object: defaultAzureProviderSpec.DeepCopy(),
 			},
-			updatedProviderSpecValue: func() *runtime.RawExtension {
-				return &runtime.RawExtension{
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
+				return &kruntime.RawExtension{
 					Object: defaultAzureProviderSpec.DeepCopy(),
 				}
 			},
@@ -588,13 +589,13 @@ func TestMachineUpdate(t *testing.T) {
 			name:         "with an Azure ProviderSpec, removing the vm size",
 			platformType: osconfigv1.AzurePlatformType,
 			clusterID:    azureClusterID,
-			baseProviderSpecValue: &runtime.RawExtension{
+			baseProviderSpecValue: &kruntime.RawExtension{
 				Object: defaultAzureProviderSpec.DeepCopy(),
 			},
-			updatedProviderSpecValue: func() *runtime.RawExtension {
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
 				object := defaultAzureProviderSpec.DeepCopy()
 				object.VMSize = ""
-				return &runtime.RawExtension{
+				return &kruntime.RawExtension{
 					Object: object,
 				}
 			},
@@ -604,13 +605,13 @@ func TestMachineUpdate(t *testing.T) {
 			name:         "with an Azure ProviderSpec, removing the subnet",
 			platformType: osconfigv1.AzurePlatformType,
 			clusterID:    azureClusterID,
-			baseProviderSpecValue: &runtime.RawExtension{
+			baseProviderSpecValue: &kruntime.RawExtension{
 				Object: defaultAzureProviderSpec.DeepCopy(),
 			},
-			updatedProviderSpecValue: func() *runtime.RawExtension {
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
 				object := defaultAzureProviderSpec.DeepCopy()
 				object.Subnet = ""
-				return &runtime.RawExtension{
+				return &kruntime.RawExtension{
 					Object: object,
 				}
 			},
@@ -620,13 +621,13 @@ func TestMachineUpdate(t *testing.T) {
 			name:         "with an Azure ProviderSpec, removing the credentials secret",
 			platformType: osconfigv1.AzurePlatformType,
 			clusterID:    azureClusterID,
-			baseProviderSpecValue: &runtime.RawExtension{
+			baseProviderSpecValue: &kruntime.RawExtension{
 				Object: defaultAzureProviderSpec.DeepCopy(),
 			},
-			updatedProviderSpecValue: func() *runtime.RawExtension {
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
 				object := defaultAzureProviderSpec.DeepCopy()
 				object.CredentialsSecret = nil
-				return &runtime.RawExtension{
+				return &kruntime.RawExtension{
 					Object: object,
 				}
 			},
@@ -636,11 +637,11 @@ func TestMachineUpdate(t *testing.T) {
 			name:         "with a valid GCP ProviderSpec",
 			platformType: osconfigv1.GCPPlatformType,
 			clusterID:    gcpClusterID,
-			baseProviderSpecValue: &runtime.RawExtension{
+			baseProviderSpecValue: &kruntime.RawExtension{
 				Object: defaultGCPProviderSpec.DeepCopy(),
 			},
-			updatedProviderSpecValue: func() *runtime.RawExtension {
-				return &runtime.RawExtension{
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
+				return &kruntime.RawExtension{
 					Object: defaultGCPProviderSpec.DeepCopy(),
 				}
 			},
@@ -650,13 +651,13 @@ func TestMachineUpdate(t *testing.T) {
 			name:         "with a GCP ProviderSpec, removing the region",
 			platformType: osconfigv1.GCPPlatformType,
 			clusterID:    gcpClusterID,
-			baseProviderSpecValue: &runtime.RawExtension{
+			baseProviderSpecValue: &kruntime.RawExtension{
 				Object: defaultGCPProviderSpec.DeepCopy(),
 			},
-			updatedProviderSpecValue: func() *runtime.RawExtension {
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
 				object := defaultGCPProviderSpec.DeepCopy()
 				object.Region = ""
-				return &runtime.RawExtension{
+				return &kruntime.RawExtension{
 					Object: object,
 				}
 			},
@@ -666,13 +667,13 @@ func TestMachineUpdate(t *testing.T) {
 			name:         "with a GCP ProviderSpec, and an invalid region",
 			platformType: osconfigv1.GCPPlatformType,
 			clusterID:    gcpClusterID,
-			baseProviderSpecValue: &runtime.RawExtension{
+			baseProviderSpecValue: &kruntime.RawExtension{
 				Object: defaultGCPProviderSpec.DeepCopy(),
 			},
-			updatedProviderSpecValue: func() *runtime.RawExtension {
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
 				object := defaultGCPProviderSpec.DeepCopy()
 				object.Zone = "zone"
-				return &runtime.RawExtension{
+				return &kruntime.RawExtension{
 					Object: object,
 				}
 			},
@@ -682,13 +683,13 @@ func TestMachineUpdate(t *testing.T) {
 			name:         "with a GCP ProviderSpec, removing the disks",
 			platformType: osconfigv1.GCPPlatformType,
 			clusterID:    gcpClusterID,
-			baseProviderSpecValue: &runtime.RawExtension{
+			baseProviderSpecValue: &kruntime.RawExtension{
 				Object: defaultGCPProviderSpec.DeepCopy(),
 			},
-			updatedProviderSpecValue: func() *runtime.RawExtension {
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
 				object := defaultGCPProviderSpec.DeepCopy()
 				object.Disks = nil
-				return &runtime.RawExtension{
+				return &kruntime.RawExtension{
 					Object: object,
 				}
 			},
@@ -698,13 +699,13 @@ func TestMachineUpdate(t *testing.T) {
 			name:         "with a GCP ProviderSpec, removing the network interfaces",
 			platformType: osconfigv1.GCPPlatformType,
 			clusterID:    gcpClusterID,
-			baseProviderSpecValue: &runtime.RawExtension{
+			baseProviderSpecValue: &kruntime.RawExtension{
 				Object: defaultGCPProviderSpec.DeepCopy(),
 			},
-			updatedProviderSpecValue: func() *runtime.RawExtension {
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
 				object := defaultGCPProviderSpec.DeepCopy()
 				object.NetworkInterfaces = nil
-				return &runtime.RawExtension{
+				return &kruntime.RawExtension{
 					Object: object,
 				}
 			},
@@ -714,11 +715,11 @@ func TestMachineUpdate(t *testing.T) {
 			name:         "with a valid VSphere ProviderSpec",
 			platformType: osconfigv1.VSpherePlatformType,
 			clusterID:    vsphereClusterID,
-			baseProviderSpecValue: &runtime.RawExtension{
+			baseProviderSpecValue: &kruntime.RawExtension{
 				Object: defaultVSphereProviderSpec.DeepCopy(),
 			},
-			updatedProviderSpecValue: func() *runtime.RawExtension {
-				return &runtime.RawExtension{
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
+				return &kruntime.RawExtension{
 					Object: defaultVSphereProviderSpec.DeepCopy(),
 				}
 			},
@@ -728,13 +729,13 @@ func TestMachineUpdate(t *testing.T) {
 			name:         "with an VSphere ProviderSpec, removing the template",
 			platformType: osconfigv1.VSpherePlatformType,
 			clusterID:    vsphereClusterID,
-			baseProviderSpecValue: &runtime.RawExtension{
+			baseProviderSpecValue: &kruntime.RawExtension{
 				Object: defaultVSphereProviderSpec.DeepCopy(),
 			},
-			updatedProviderSpecValue: func() *runtime.RawExtension {
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
 				object := defaultVSphereProviderSpec.DeepCopy()
 				object.Template = ""
-				return &runtime.RawExtension{
+				return &kruntime.RawExtension{
 					Object: object,
 				}
 			},
@@ -744,13 +745,13 @@ func TestMachineUpdate(t *testing.T) {
 			name:         "with an VSphere ProviderSpec, removing the workspace server",
 			platformType: osconfigv1.VSpherePlatformType,
 			clusterID:    vsphereClusterID,
-			baseProviderSpecValue: &runtime.RawExtension{
+			baseProviderSpecValue: &kruntime.RawExtension{
 				Object: defaultVSphereProviderSpec.DeepCopy(),
 			},
-			updatedProviderSpecValue: func() *runtime.RawExtension {
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
 				object := defaultVSphereProviderSpec.DeepCopy()
 				object.Workspace.Server = ""
-				return &runtime.RawExtension{
+				return &kruntime.RawExtension{
 					Object: object,
 				}
 			},
@@ -760,13 +761,13 @@ func TestMachineUpdate(t *testing.T) {
 			name:         "with an VSphere ProviderSpec, removing the network devices",
 			platformType: osconfigv1.VSpherePlatformType,
 			clusterID:    vsphereClusterID,
-			baseProviderSpecValue: &runtime.RawExtension{
+			baseProviderSpecValue: &kruntime.RawExtension{
 				Object: defaultVSphereProviderSpec.DeepCopy(),
 			},
-			updatedProviderSpecValue: func() *runtime.RawExtension {
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
 				object := defaultVSphereProviderSpec.DeepCopy()
 				object.Network = vsphere.NetworkSpec{}
-				return &runtime.RawExtension{
+				return &kruntime.RawExtension{
 					Object: object,
 				}
 			},
@@ -980,7 +981,7 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 				Placement: aws.Placement{
 					Region: "region",
 				},
-				InstanceType: "m4.large",
+				InstanceType: "m5.large",
 				IAMInstanceProfile: &aws.AWSResourceReference{
 					ID: pointer.StringPtr("profileID"),
 				},
@@ -1012,7 +1013,7 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
+			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 
 			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
@@ -1040,6 +1041,10 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 
 	clusterID := "clusterID"
 	region := "region"
+	arch := defaultAWSX86InstanceType
+	if runtime.GOARCH == "arm64" {
+		arch = defaultAWSARMInstanceType
+	}
 	testCases := []struct {
 		testCase             string
 		providerSpec         *aws.AWSMachineProviderConfig
@@ -1058,7 +1063,7 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 			},
 			expectedProviderSpec: &aws.AWSMachineProviderConfig{
 				AMI:               aws.AWSResourceReference{},
-				InstanceType:      defaultAWSInstanceType,
+				InstanceType:      arch,
 				UserDataSecret:    &corev1.LocalObjectReference{Name: defaultUserDataSecret},
 				CredentialsSecret: &corev1.LocalObjectReference{Name: defaultAWSCredentialsSecret},
 				Placement: aws.Placement{
@@ -1086,7 +1091,7 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
+			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 
 			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
@@ -1379,7 +1384,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
+			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 
 			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
@@ -1528,7 +1533,7 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
+			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 
 			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
@@ -1838,7 +1843,7 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
+			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 
 			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
@@ -1951,7 +1956,7 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
+			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 
 			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
@@ -2219,7 +2224,7 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
+			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 
 			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
@@ -2284,7 +2289,7 @@ func TestDefaultVSphereProviderSpec(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
+			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 
 			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
