@@ -26,7 +26,7 @@ spec:
       rules:
         - alert: MachineWithNoRunningPhase
           expr: |
-            (mapi_machine_created_timestamp_seconds{phase!="Running|Deleting"}) > 0
+            (mapi_machine_created_timestamp_seconds{phase!~"Running|Deleting"}) > 0
           for: 60m
           labels:
             severity: warning
