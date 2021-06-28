@@ -62,3 +62,7 @@ spec:
     from:
       kind: DockerImage
       name: registry.svc.ci.openshift.org/openshift:ovirt-machine-controllers
+  - name: kubevirt-machine-controllers
+    from:
+      kind: DockerImage
+      name: registry.svc.ci.openshift.org/openshift:kubevirt-machine-controllers
