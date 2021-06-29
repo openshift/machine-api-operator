@@ -56,7 +56,6 @@ spec:
             description: Specification of machine health check policy
             properties:
               failedNodeStartupTimeout:
-                default: 48h
                 description: Failed Machines that are older than this value and are
                   without a nodeRef or a providerID will be considered to have passed
                   the time period allocated for a manual fix and will be remediated.

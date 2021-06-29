@@ -89,7 +89,6 @@ type MachineHealthCheckSpec struct {
 	// fraction and a unit suffix, eg "300ms", "1.5h" or "2h45m".
 	// Valid time units are "ns", "us" (or "µs"), "ms", "s", "m", "h".
 	// +optional
-	// +kubebuilder:default:="48h"
 	// +kubebuilder:validation:Pattern="^([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))+$"
 	// +kubebuilder:validation:Type:=string
 	FailedNodeStartupTimeout metav1.Duration `json:"failedNodeStartupTimeout,omitempty"`
