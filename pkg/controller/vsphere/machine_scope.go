@@ -158,6 +158,10 @@ func (s *machineScope) getNode() (*apicorev1.Node, error) {
 func (s *machineScope) checkNodeReachable() (bool, error) {
 	node, err := s.getNode()
 	if err != nil {
+		// do not return error if node object not found, treat it as unreachable
+		if apimachineryerrors.IsNotFound(err) {
+			return false, nil
+		}
 		return false, err
 	}
 	for _, condition := range node.Status.Conditions {

@@ -1357,6 +1357,19 @@ func TestDelete(t *testing.T) {
 				})
 			},
 		},
+		{
+			testCase: "all good, node not found",
+			machine: func(t *testing.T) *machinev1.Machine {
+				return getMachineWithStatus(t, machinev1.MachineStatus{
+					NodeRef: &corev1.ObjectReference{
+						Name: "not-exists",
+					},
+				})
+			},
+			node: func(t *testing.T) *corev1.Node {
+				return &corev1.Node{}
+			},
+		},
 	}
 
 	machinev1.AddToScheme(scheme.Scheme)
