@@ -4,19 +4,25 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net"
+	"net/url"
 	"path/filepath"
 
 	configv1 "github.com/openshift/api/config/v1"
 )
 
+type Provider string
+type NetworkStackType int
+
 const (
 	// TODO(alberto): move to "quay.io/openshift/origin-kubemark-machine-controllers:v4.0.0" once available
-	clusterAPIControllerKubemark = "docker.io/gofed/kubemark-machine-controllers:v1.0"
-	clusterAPIControllerNoOp     = "no-op"
-	kubemarkPlatform             = configv1.PlatformType("kubemark")
+	clusterAPIControllerKubemark                  = "docker.io/gofed/kubemark-machine-controllers:v1.0"
+	clusterAPIControllerNoOp                      = "no-op"
+	kubemarkPlatform                              = configv1.PlatformType("kubemark")
+	NetworkStackV4               NetworkStackType = 1 << iota
+	NetworkStackV6               NetworkStackType = 1 << iota
+	NetworkStackDual             NetworkStackType = (NetworkStackV4 | NetworkStackV6)
 )
-
-type Provider string
 
 // OperatorConfig contains configuration for MAO
 type OperatorConfig struct {
@@ -24,6 +30,7 @@ type OperatorConfig struct {
 	Controllers          Controllers
 	BaremetalControllers BaremetalControllers
 	Proxy                *configv1.Proxy
+	NetworkStack         NetworkStackType
 }
 
 type Controllers struct {
@@ -63,6 +70,39 @@ type Images struct {
 	BaremetalIpaDownloader       string `json:"baremetalIpaDownloader"`
 	BaremetalMachineOsDownloader string `json:"baremetalMachineOsDownloader"`
 	BaremetalStaticIpManager     string `json:"baremetalStaticIpManager"`
+}
+
+func networkStack(ips []net.IP) NetworkStackType {
+	ns := NetworkStackType(0)
+	for _, ip := range ips {
+		if ip.IsLoopback() {
+			continue
+		}
+		if ip.To4() != nil {
+			ns |= NetworkStackV4
+		} else {
+			ns |= NetworkStackV6
+		}
+	}
+	return ns
+}
+
+func apiServerInternalHost(infra *configv1.Infrastructure) (string, error) {
+	if infra.Status.APIServerInternalURL == "" {
+		return "", fmt.Errorf("invalid APIServerInternalURL in Infrastructure CR")
+	}
+
+	apiServerInternalURL, err := url.Parse(infra.Status.APIServerInternalURL)
+	if err != nil {
+		return "", fmt.Errorf("unable to parse API Server Internal URL: %w", err)
+	}
+
+	host, _, err := net.SplitHostPort(apiServerInternalURL.Host)
+	if err != nil {
+		return "", err
+	}
+
+	return host, nil
 }
 
 func getProviderFromInfrastructure(infra *configv1.Infrastructure) (configv1.PlatformType, error) {

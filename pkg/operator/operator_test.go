@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"net"
 	"os"
 	"syscall"
 	"testing"
@@ -70,6 +71,7 @@ func newFakeOperator(kubeObjects []runtime.Object, osObjects []runtime.Object, s
 		featureGateCacheSynced:        featureGateInformer.Informer().HasSynced,
 		mutatingWebhookListerSynced:   mutatingWebhookInformer.Informer().HasSynced,
 		validatingWebhookListerSynced: validatingWebhookInformer.Informer().HasSynced,
+		LookupIP:                      fakeLookupIP,
 	}
 
 	configSharedInformer.Start(stopCh)
@@ -84,6 +86,12 @@ func newFakeOperator(kubeObjects []runtime.Object, osObjects []runtime.Object, s
 	}
 
 	return optr
+}
+
+func fakeLookupIP(host string) ([]net.IP, error) {
+	return []net.IP{
+		net.ParseIP("192.168.1.3"),
+	}, nil
 }
 
 // TestOperatorSync_NoOp tests syncing to ensure that the mao reports available
@@ -146,7 +154,8 @@ func TestOperatorSync_NoOp(t *testing.T) {
 					Name: "cluster",
 				},
 				Status: openshiftv1.InfrastructureStatus{
-					Platform: tc.platform,
+					Platform:             tc.platform,
+					APIServerInternalURL: "https://api-int.test.test.metalkube.org:6443",
 				},
 			}
 
@@ -275,6 +284,9 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "cluster",
 		},
+		Status: openshiftv1.InfrastructureStatus{
+			APIServerInternalURL: "https://api-int.test.test.metalkube.org:6443",
+		},
 	}
 
 	proxy := &openshiftv1.Proxy{
@@ -308,6 +320,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: images.ClusterAPIControllerAWS,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				NetworkStack: NetworkStackV4,
 			},
 		},
 		{
@@ -326,6 +339,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: clusterAPIControllerNoOp,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				NetworkStack: NetworkStackV4,
 			},
 		},
 		{
@@ -344,6 +358,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: clusterAPIControllerNoOp,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				NetworkStack: NetworkStackV4,
 			},
 		},
 		{
@@ -362,6 +377,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: images.ClusterAPIControllerAzure,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				NetworkStack: NetworkStackV4,
 			},
 		},
 		{
@@ -388,6 +404,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					IronicMachineOsDownloader: images.BaremetalMachineOsDownloader,
 					IronicStaticIpManager:     images.BaremetalStaticIpManager,
 				},
+				NetworkStack: NetworkStackV4,
 			},
 		},
 		{
@@ -406,6 +423,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: images.ClusterAPIControllerGCP,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				NetworkStack: NetworkStackV4,
 			},
 		},
 		{
@@ -424,6 +442,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: clusterAPIControllerNoOp,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				NetworkStack: NetworkStackV4,
 			},
 		},
 		{
@@ -442,6 +461,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: clusterAPIControllerNoOp,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				NetworkStack: NetworkStackV4,
 			},
 		},
 		{
@@ -460,6 +480,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: clusterAPIControllerNoOp,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				NetworkStack: NetworkStackV4,
 			},
 		},
 		{
@@ -478,6 +499,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: clusterAPIControllerNoOp,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				NetworkStack: NetworkStackV4,
 			},
 		},
 		{
@@ -496,6 +518,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: clusterAPIControllerNoOp,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				NetworkStack: NetworkStackV4,
 			},
 		},
 		{
