@@ -391,6 +391,19 @@ func newMetal3InitContainers(config *OperatorConfig, baremetalProvisioningConfig
 	return injectProxyAndCA(config, initContainers)
 }
 
+func ipOptionForMachineOsDownloader(config *OperatorConfig) string {
+	var optionValue string
+	switch config.NetworkStack {
+	case NetworkStackV4:
+		optionValue = "ip=dhcp"
+	case NetworkStackV6:
+		optionValue = "ip=dhcp6"
+	case NetworkStackDual:
+		optionValue = ""
+	}
+	return optionValue
+}
+
 func createInitContainerMachineOsDownloader(config *OperatorConfig, baremetalProvisioningConfig BaremetalProvisioningConfig) corev1.Container {
 	initContainer := corev1.Container{
 		Name:            "metal3-machine-os-downloader",
@@ -403,6 +416,10 @@ func createInitContainerMachineOsDownloader(config *OperatorConfig, baremetalPro
 		VolumeMounts: []corev1.VolumeMount{sharedVolumeMount},
 		Env: []corev1.EnvVar{
 			buildEnvVar("RHCOS_IMAGE_URL", baremetalProvisioningConfig),
+			{
+				Name:  "IP_OPTIONS",
+				Value: ipOptionForMachineOsDownloader(config),
+			},
 		},
 	}
 	return initContainer

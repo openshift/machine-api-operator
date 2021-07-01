@@ -119,6 +119,7 @@ func newOperatorWithBaremetalConfig() *OperatorConfig {
 			"quay.io/openshift/origin-ironic-static-ip-manager:v4.2.0",
 		},
 		&osconfigv1.Proxy{},
+		NetworkStackV4,
 	}
 }
 

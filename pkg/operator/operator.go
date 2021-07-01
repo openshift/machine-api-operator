@@ -3,6 +3,7 @@ package operator
 import (
 	"context"
 	"fmt"
+	"net"
 	"os"
 	"time"
 
@@ -47,6 +48,8 @@ type Operator struct {
 
 	imagesFile string
 	config     string
+
+	LookupIP func(host string) ([]net.IP, error)
 
 	kubeClient    kubernetes.Interface
 	osClient      osclientset.Interface
@@ -144,6 +147,8 @@ func New(
 
 	optr.featureGateLister = featureGateInformer.Lister()
 	optr.featureGateCacheSynced = featureGateInformer.Informer().HasSynced
+
+	optr.LookupIP = net.LookupIP
 
 	return optr
 }
@@ -370,6 +375,16 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 		return nil, err
 	}
 
+	apiInt, err := apiServerInternalHost(infra)
+	if err != nil {
+		return nil, fmt.Errorf("could not get internal APIServer: %w", err)
+	}
+
+	ips, err := optr.LookupIP(apiInt)
+	if err != nil {
+		return nil, fmt.Errorf("could not lookupIP for internal APIServer (%s): %w ", apiInt, err)
+	}
+
 	return &OperatorConfig{
 		TargetNamespace: optr.namespace,
 		Proxy:           clusterWideProxy,
@@ -382,5 +397,6 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 			TerminationHandler: terminationHandlerImage,
 		},
 		BaremetalControllers: baremetalControllers,
+		NetworkStack:         networkStack(ips),
 	}, nil
 }
