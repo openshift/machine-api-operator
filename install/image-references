@@ -5,64 +5,64 @@ spec:
   - name: machine-api-operator
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:machine-api-operator
+      name: quay.io/openshift/origin-machine-api-operator
   - name: aws-machine-controllers
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:aws-machine-controllers
+      name: quay.io/openshift/origin-aws-machine-controllers
   - name: openstack-machine-controllers
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:openstack-machine-controllers
+      name: quay.io/openshift/origin-openstack-machine-controllers
   - name: libvirt-machine-controllers
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:libvirt-machine-controllers
+      name: quay.io/openshift/origin-libvirt-machine-controllers
   - name: baremetal-machine-controllers
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:baremetal-machine-controllers
+      name: quay.io/openshift/origin-baremetal-machine-controllers
   - name: azure-machine-controllers
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:azure-machine-controllers
+      name: quay.io/openshift/origin-azure-machine-controllers
   - name: gcp-machine-controllers
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:gcp-machine-controllers
+      name: quay.io/openshift/origin-gcp-machine-controllers
   - name: baremetal-operator
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:baremetal-operator
+      name: quay.io/openshift/origin-baremetal-operator
   - name: ironic
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:ironic
+      name: quay.io/openshift/origin-ironic
   - name: ironic-inspector
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:ironic-inspector
+      name: quay.io/openshift/origin-ironic-inspector
   - name: ironic-ipa-downloader
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:ironic-ipa-downloader
+      name: quay.io/openshift/origin-ironic-ipa-downloader
   - name: ironic-machine-os-downloader
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:ironic-machine-os-downloader
+      name: quay.io/openshift/origin-ironic-machine-os-downloader
   - name: ironic-static-ip-manager
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:ironic-static-ip-manager
+      name: quay.io/openshift/origin-ironic-static-ip-manager
   - name: kube-rbac-proxy
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:kube-rbac-proxy
+      name: quay.io/openshift/origin-kube-rbac-proxy
   - name: ovirt-machine-controllers
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:ovirt-machine-controllers
+      name: quay.io/openshift/origin-ovirt-machine-controllers
   - name: kubevirt-machine-controllers
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:kubevirt-machine-controllers
+      name: quay.io/openshift/origin-kubevirt-machine-controllers

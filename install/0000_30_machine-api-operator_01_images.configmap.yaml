@@ -10,15 +10,15 @@ metadata:
 data:
   images.json: >
     {
-      "machineAPIOperator": "registry.svc.ci.openshift.org/openshift:machine-api-operator",
-      "kubeRBACProxy": "registry.svc.ci.openshift.org/openshift:kube-rbac-proxy",
-      "clusterAPIControllerAWS": "registry.svc.ci.openshift.org/openshift:aws-machine-controllers",
-      "clusterAPIControllerOpenStack": "registry.svc.ci.openshift.org/openshift:openstack-machine-controllers",
-      "clusterAPIControllerLibvirt": "registry.svc.ci.openshift.org/openshift:libvirt-machine-controllers",
-      "clusterAPIControllerBareMetal": "registry.svc.ci.openshift.org/openshift:baremetal-machine-controllers",
-      "clusterAPIControllerAzure": "registry.svc.ci.openshift.org/openshift:azure-machine-controllers",
-      "clusterAPIControllerGCP": "registry.svc.ci.openshift.org/openshift:gcp-machine-controllers",
-      "clusterAPIControllerOvirt": "registry.svc.ci.openshift.org/openshift:ovirt-machine-controllers",
-      "clusterAPIControllerKubevirt": "registry.svc.ci.openshift.org/openshift:kubevirt-machine-controllers",
-      "clusterAPIControllerVSphere": "registry.svc.ci.openshift.org/openshift:machine-api-operator"
+      "machineAPIOperator": "quay.io/openshift/origin-machine-api-operator",
+      "kubeRBACProxy": "quay.io/openshift/origin-kube-rbac-proxy",
+      "clusterAPIControllerAWS": "quay.io/openshift/origin-aws-machine-controllers",
+      "clusterAPIControllerOpenStack": "quay.io/openshift/origin-openstack-machine-controllers",
+      "clusterAPIControllerLibvirt": "quay.io/openshift/origin-libvirt-machine-controllers",
+      "clusterAPIControllerBareMetal": "quay.io/openshift/origin-baremetal-machine-controllers",
+      "clusterAPIControllerAzure": "quay.io/openshift/origin-azure-machine-controllers",
+      "clusterAPIControllerGCP": "quay.io/openshift/origin-gcp-machine-controllers",
+      "clusterAPIControllerOvirt": "quay.io/openshift/origin-ovirt-machine-controllers",
+      "clusterAPIControllerKubevirt": "quay.io/openshift/origin-kubevirt-machine-controllers",
+      "clusterAPIControllerVSphere": "quay.io/openshift/origin-machine-api-operator"
     }
