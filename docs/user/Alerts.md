@@ -1,3 +1,7 @@
+---
+id: alerts
+title: Alerts
+---
 ## MachineWithoutValidNode
 One or more machines does not have a valid node reference.  This condition has
 persisted for 10 minutes or longer.

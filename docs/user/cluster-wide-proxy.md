@@ -1,3 +1,7 @@
+---
+id: cluster-wide-proxy
+title: Cluster-wide Proxy
+---
 # Overview
 
 The [cluster-wide proxy](https://docs.openshift.com/container-platform/4.6/networking/enable-cluster-wide-proxy.html) is a configuration applied which communicates the need to perform outbound communication via an HTTP proxy.  Components are responsible for watching for changes to a `Proxy` resource named `cluster` and configuring applicable deployments to consume and honor the HTTP proxy configuration.  In some environments, such as installations in to some private networks, direct connections to external servers are not allowed and must flow through an HTTP proxy.

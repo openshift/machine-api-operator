@@ -1,3 +1,7 @@
+---
+id: hacking
+title: Hacking Guide
+---
 # Machine API - Hacking guide
 
 ## Important
