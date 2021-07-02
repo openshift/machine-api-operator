@@ -48,6 +48,15 @@ var (
 			Help: "Short circuit status for MachineHealthCheck (0=no, 1=yes)",
 		}, []string{"name", "namespace"},
 	)
+
+	// MachineHealthCheckOldEmr is a Prometheus metric, which reports the number of old Emrs (External Machine Remediation).
+	// It is an indication for remediation that is pending for a long while, which might indicate a problem with the external remediation mechanism.
+	MachineHealthCheckOldEmr = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Name: "mapi_machinehealthcheck_old_emr",
+			Help: "Number of old Emrs detected by MachineHealthChecks",
+		}, []string{"name", "namespace"},
+	)
 )
 
 func InitializeMachineHealthCheckMetrics() {
@@ -55,6 +64,7 @@ func InitializeMachineHealthCheckMetrics() {
 		MachineHealthCheckNodesCovered,
 		MachineHealthCheckRemediationSuccessTotal,
 		MachineHealthCheckShortCircuit,
+		MachineHealthCheckOldEmr,
 	)
 }
 
@@ -74,6 +84,13 @@ func ObserveMachineHealthCheckNodesCovered(name string, namespace string, count 
 
 func ObserveMachineHealthCheckRemediationSuccess(name string, namespace string) {
 	MachineHealthCheckRemediationSuccessTotal.With(prometheus.Labels{
+		"name":      name,
+		"namespace": namespace,
+	}).Inc()
+}
+
+func ObserveMachineHealthCheckOldEmr(name string, namespace string) {
+	MachineHealthCheckOldEmr.With(prometheus.Labels{
 		"name":      name,
 		"namespace": namespace,
 	}).Inc()
