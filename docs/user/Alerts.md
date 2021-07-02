@@ -29,6 +29,9 @@ Machine did not reach the “Running” Phase.  Running phase is when the machin
 * The machine was not properly provisioned in the cloud provider due to machine misconfiguration, invalid credentials, or lack of cloud capacity
 * The machine took longer than two hours to join the cluster and the bootstrap CSRs were not approved (due to networking or cloud quota/capacity constraints)
 * Unusual hostname presented by the kubelet on the bootstrap CSR is preventing CSR approval
+* While attempting to replace a failing machine, draining its
+  corresponding node was delayed because the node became unreachable
+  and/or pods refused to be evicted due to their disruption budget.
 
 ### Resolution
 If the machine never became a node, consult the machine troubleshooting guide.
