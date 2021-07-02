@@ -204,6 +204,7 @@ func (in *MachineHealthCheckSpec) DeepCopyInto(out *MachineHealthCheckSpec) {
 		*out = new(v1.Duration)
 		**out = **in
 	}
+	out.FailedNodeStartupTimeout = in.FailedNodeStartupTimeout
 	if in.RemediationTemplate != nil {
 		in, out := &in.RemediationTemplate, &out.RemediationTemplate
 		*out = new(corev1.ObjectReference)

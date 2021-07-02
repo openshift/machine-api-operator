@@ -221,11 +221,25 @@ func TestReconcile(t *testing.T) {
 	machineHealthCheck := maotesting.NewMachineHealthCheck("machineHealthCheck")
 	nodeStartupTimeout := 15 * time.Minute
 	machineHealthCheck.Spec.NodeStartupTimeout = &metav1.Duration{Duration: nodeStartupTimeout}
+	machineHealthCheck.Spec.FailedNodeStartupTimeout = metav1.Duration{Duration: time.Hour}
 
 	machineHealthCheckNegativeMaxUnhealthy := maotesting.NewMachineHealthCheck("machineHealthCheckNegativeMaxUnhealthy")
 	negativeOne := intstr.FromInt(-1)
 	machineHealthCheckNegativeMaxUnhealthy.Spec.MaxUnhealthy = &negativeOne
 	machineHealthCheckNegativeMaxUnhealthy.Spec.NodeStartupTimeout = &metav1.Duration{Duration: nodeStartupTimeout}
+
+	// Failed Machine with no node
+	failedVar := machinePhaseFailed
+	failedMachineWithoutNode := maotesting.NewMachine("failedMachineWithoutNode", "")
+	failedMachineWithoutNode.Status.Phase = &failedVar
+	failedMachineWithoutNode.CreationTimestamp = metav1.Now()
+
+	// Failed Machine with node
+	failedMachineWithNodeAndProviderId := maotesting.NewMachine("failedMachineWithoutNode", "recentlyUnhealthy")
+	failedMachineWithNodeAndProviderId.Status.Phase = &failedVar
+	mockProviderId := "mockProviderId"
+	failedMachineWithNodeAndProviderId.Spec.ProviderID = &mockProviderId
+	failedMachineWithNodeAndProviderId.CreationTimestamp = metav1.Now()
 
 	// remediationExternal
 	nodeUnhealthyForTooLong := maotesting.NewNode("nodeUnhealthyForTooLong", false)
@@ -412,6 +426,44 @@ func TestReconcile(t *testing.T) {
 			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
 				ExpectedMachines:    IntPtr(1),
 				CurrentHealthy:      IntPtr(1),
+				RemediationsAllowed: 0,
+				Conditions: mapiv1beta1.Conditions{
+					remediationAllowedCondition,
+				},
+			},
+		},
+		{
+			name:    "failed machine with no node",
+			machine: failedMachineWithoutNode,
+			node:    nodeAlreadyDeleted,
+			mhc:     machineHealthCheck,
+			expected: expectedReconcile{
+				result: reconcile.Result{},
+				error:  false,
+			},
+			expectedEvents: []string{},
+			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+				ExpectedMachines:    IntPtr(1),
+				CurrentHealthy:      IntPtr(0),
+				RemediationsAllowed: 0,
+				Conditions: mapiv1beta1.Conditions{
+					remediationAllowedCondition,
+				},
+			},
+		},
+		{
+			name:    "failed machine with node",
+			machine: failedMachineWithNodeAndProviderId,
+			node:    nodeRecentlyUnhealthy,
+			mhc:     machineHealthCheck,
+			expected: expectedReconcile{
+				result: reconcile.Result{},
+				error:  false,
+			},
+			expectedEvents: []string{EventMachineDeleted},
+			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+				ExpectedMachines:    IntPtr(1),
+				CurrentHealthy:      IntPtr(0),
 				RemediationsAllowed: 0,
 				Conditions: mapiv1beta1.Conditions{
 					remediationAllowedCondition,
@@ -1498,6 +1550,7 @@ func TestGetNodeFromMachine(t *testing.T) {
 
 func TestNeedsRemediation(t *testing.T) {
 	knownDate := metav1.Time{Time: time.Date(1985, 06, 03, 0, 0, 0, 0, time.Local)}
+	providerID := "mockProviderId"
 	machineFailed := machinePhaseFailed
 	testCases := []struct {
 		testCase                    string
@@ -1506,6 +1559,7 @@ func TestNeedsRemediation(t *testing.T) {
 		expectedNeedsRemediation    bool
 		expectedNextCheck           time.Duration
 		expectedError               bool
+		failedNodeStartupTimeout    time.Duration
 	}{
 		{
 			testCase: "healthy: does not met conditions criteria",
@@ -1791,18 +1845,21 @@ func TestNeedsRemediation(t *testing.T) {
 			expectedError:               false,
 		},
 		{
-			testCase: "unhealthy: machine phase failed",
+			testCase: "unhealthy: machine phase failed without node",
 			target: &target{
 				Machine: mapiv1beta1.Machine{
 					TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 					ObjectMeta: metav1.ObjectMeta{
-						Annotations:     make(map[string]string),
-						Name:            "machine",
-						Namespace:       namespace,
-						Labels:          map[string]string{"foo": "bar"},
-						OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
+						Annotations:       make(map[string]string),
+						Name:              "machine",
+						Namespace:         namespace,
+						Labels:            map[string]string{"foo": "bar"},
+						OwnerReferences:   []metav1.OwnerReference{{Kind: "MachineSet"}},
+						CreationTimestamp: metav1.Now(),
 					},
-					Spec: mapiv1beta1.MachineSpec{},
+					Spec: mapiv1beta1.MachineSpec{
+						ProviderID: &providerID,
+					},
 					Status: mapiv1beta1.MachineStatus{
 						Phase: &machineFailed,
 					},
@@ -1839,9 +1896,71 @@ func TestNeedsRemediation(t *testing.T) {
 				},
 			},
 			timeoutForMachineToHaveNode: defaultNodeStartupTimeout,
+			expectedNeedsRemediation:    false,
+			expectedNextCheck:           time.Duration(0),
+			expectedError:               false,
+			failedNodeStartupTimeout:    time.Minute,
+		},
+		{
+			testCase: "unhealthy: machine phase failed with node",
+			target: &target{
+				Machine: mapiv1beta1.Machine{
+					TypeMeta: metav1.TypeMeta{Kind: "Machine"},
+					ObjectMeta: metav1.ObjectMeta{
+						Annotations:       make(map[string]string),
+						Name:              "machine",
+						Namespace:         namespace,
+						Labels:            map[string]string{"foo": "bar"},
+						OwnerReferences:   []metav1.OwnerReference{{Kind: "MachineSet"}},
+						CreationTimestamp: metav1.Now(),
+					},
+					Spec: mapiv1beta1.MachineSpec{
+						ProviderID: &providerID,
+					},
+					Status: mapiv1beta1.MachineStatus{
+						Phase: &machineFailed,
+						NodeRef: &corev1.ObjectReference{
+							Name:      "nodeUnhealthy",
+							Namespace: metav1.NamespaceNone,
+						},
+					},
+				},
+				Node: maotesting.NewNode("nodeUnhealthy", false),
+				MHC: mapiv1beta1.MachineHealthCheck{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: namespace,
+					},
+					TypeMeta: metav1.TypeMeta{
+						Kind: "MachineHealthCheck",
+					},
+					Spec: mapiv1beta1.MachineHealthCheckSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"foo": "bar",
+							},
+						},
+						UnhealthyConditions: []mapiv1beta1.UnhealthyCondition{
+							{
+								Type:    "Ready",
+								Status:  "Unknown",
+								Timeout: metav1.Duration{Duration: 300 * time.Second},
+							},
+							{
+								Type:    "Ready",
+								Status:  "False",
+								Timeout: metav1.Duration{Duration: 300 * time.Second},
+							},
+						},
+					},
+					Status: mapiv1beta1.MachineHealthCheckStatus{},
+				},
+			},
+			timeoutForMachineToHaveNode: defaultNodeStartupTimeout,
 			expectedNeedsRemediation:    true,
 			expectedNextCheck:           time.Duration(0),
 			expectedError:               false,
+			failedNodeStartupTimeout:    time.Minute,
 		},
 		{
 			testCase: "healthy: meet conditions criteria but timeout",
@@ -1922,7 +2041,7 @@ func TestNeedsRemediation(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
-			needsRemediation, nextCheck, err := tc.target.needsRemediation(tc.timeoutForMachineToHaveNode)
+			needsRemediation, nextCheck, err := tc.target.needsRemediation(tc.timeoutForMachineToHaveNode, tc.failedNodeStartupTimeout)
 			if needsRemediation != tc.expectedNeedsRemediation {
 				t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, needsRemediation, tc.expectedNeedsRemediation)
 			}
@@ -2603,7 +2722,7 @@ func TestHealthCheckTargets(t *testing.T) {
 		recorder := record.NewFakeRecorder(2)
 		r := newFakeReconcilerWithCustomRecorder(recorder)
 		t.Run(tc.testCase, func(t *testing.T) {
-			currentHealhty, needRemediationTargets, nextCheckTimes, errList := r.healthCheckTargets(tc.targets, tc.timeoutForMachineToHaveNode)
+			currentHealhty, needRemediationTargets, nextCheckTimes, errList := r.healthCheckTargets(tc.targets, tc.timeoutForMachineToHaveNode, 0)
 			if len(currentHealhty) != tc.currentHealthy {
 				t.Errorf("Case: %v. Got: %v, expected: %v", tc.testCase, currentHealhty, tc.currentHealthy)
 			}
