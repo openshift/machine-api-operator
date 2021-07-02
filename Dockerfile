@@ -1,9 +1,9 @@
-FROM registry.svc.ci.openshift.org/openshift/release:golang-1.13 AS builder
+FROM registry.ci.openshift.org/openshift/release:golang-1.16 AS builder
 WORKDIR /go/src/github.com/openshift/machine-api-operator
 COPY . .
 RUN NO_DOCKER=1 make build
 
-FROM registry.svc.ci.openshift.org/openshift/origin-v4.0:base
+FROM registry.ci.openshift.org/openshift/origin-v4.0:base
 COPY --from=builder /go/src/github.com/openshift/machine-api-operator/install manifests
 COPY --from=builder /go/src/github.com/openshift/machine-api-operator/bin/machine-api-operator .
 COPY --from=builder /go/src/github.com/openshift/machine-api-operator/bin/nodelink-controller .
