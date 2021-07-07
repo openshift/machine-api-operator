@@ -1,0 +1,26 @@
+# See the OWNERS_ALIASES docs: https://git.k8s.io/community/contributors/guide/owners.md#OWNERS_ALIASES
+
+aliases:
+  machine-api-approvers:
+  - enxebre
+  - michaelgugino
+  - JoelSpeed
+  - elmiko
+  - Danil-Grigorev
+  - alexander-demichev
+  - lobziik
+  - Fedosin
+  machine-api-reviewers:
+  - JoelSpeed
+  - elmiko
+  - Danil-Grigorev
+  - alexander-demichev
+  - lobziik
+  - SamuelStuchly
+  - Fedosin
+  machine-health-check-approvers:
+  - slintes
+  - beekhof
+  machine-health-check-reviewers:
+  - slintes
+  - beekhof
