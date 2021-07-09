@@ -52,3 +52,13 @@ spec:
             severity: critical
           annotations:
             message: "machine api operator metrics collection is failing. For more details:  oc logs <machine-api-operator-pod-name> -n openshift-machine-api"
+    - name: machine-health-check-unterminated-short-circuit
+      rules:
+        - alert: MachineHealthCheckUnterminatedShortCircuit
+          expr: |
+            mapi_machinehealthcheck_short_circuit == 1
+          for: 30m
+          labels:
+            severity: warning
+          annotation:
+            message: "machine health check {{ $labels.name }} has been disabled by short circuit for more than 30 minutes"
