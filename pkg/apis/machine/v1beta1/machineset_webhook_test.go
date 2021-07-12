@@ -101,7 +101,39 @@ func TestMachineSetCreation(t *testing.T) {
 			providerSpecValue: &runtime.RawExtension{
 				Object: &aws.AWSMachineProviderConfig{},
 			},
-			expectedError: "providerSpec.ami: Required value: expected either providerSpec.ami.arn or providerSpec.ami.filters or providerSpec.ami.id to be populated",
+			expectedError: "providerSpec.ami: Required value: expected providerSpec.ami.id to be populated",
+		},
+		{
+			name:         "with AWS and AMI ARN set",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &runtime.RawExtension{
+				Object: &aws.AWSMachineProviderConfig{
+					AMI: aws.AWSResourceReference{
+						ID:  pointer.StringPtr("ami"),
+						ARN: pointer.StringPtr("arn"),
+					},
+				},
+			},
+			expectedError: "providerSpec.ami.arn: Invalid value: \"arn\": only providerSpec.ami.id can be used to reference AMI",
+		},
+		{
+			name:         "with AWS and AMI Filters set",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &runtime.RawExtension{
+				Object: &aws.AWSMachineProviderConfig{
+					AMI: aws.AWSResourceReference{
+						ID: pointer.StringPtr("ami"),
+						Filters: []aws.Filter{
+							{
+								Name: "filter",
+							},
+						},
+					},
+				},
+			},
+			expectedError: "providerSpec.ami.filters: Invalid value: []v1beta1.Filter{v1beta1.Filter{Name:\"filter\", Values:[]string(nil)}}: only providerSpec.ami.id can be used to reference AMI",
 		},
 		{
 			name:         "with AWS and an AMI ID",
