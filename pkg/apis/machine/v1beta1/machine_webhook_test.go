@@ -118,7 +118,7 @@ func TestMachineCreation(t *testing.T) {
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &aws.AWSMachineProviderConfig{},
 			},
-			expectedError: "providerSpec.ami: Required value: expected either providerSpec.ami.arn or providerSpec.ami.filters or providerSpec.ami.id to be populated",
+			expectedError: "providerSpec.ami: Required value: expected providerSpec.ami.id to be populated",
 		},
 		{
 			name:         "with AWS and an AMI ID set",
@@ -872,7 +872,7 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 				p.AMI = aws.AWSResourceReference{}
 			},
 			expectedOk:    false,
-			expectedError: "providerSpec.ami: Required value: expected either providerSpec.ami.arn or providerSpec.ami.filters or providerSpec.ami.id to be populated",
+			expectedError: "providerSpec.ami: Required value: expected providerSpec.ami.id to be populated",
 		},
 		{
 			testCase: "with no region values it fails",
@@ -1015,6 +1015,32 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 				}
 			},
 			expectedOk: true,
+		},
+		{
+			testCase: "with AMI ARN set",
+			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+				p.AMI = aws.AWSResourceReference{
+					ID:  pointer.StringPtr("ami"),
+					ARN: pointer.StringPtr("arn"),
+				}
+			},
+			expectedOk:       true,
+			expectedWarnings: []string{"can't use providerSpec.ami.arn, only providerSpec.ami.id can be used to reference AMI"},
+		},
+		{
+			testCase: "with AMI filters set",
+			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+				p.AMI = aws.AWSResourceReference{
+					ID: pointer.StringPtr("ami"),
+					Filters: []aws.Filter{
+						{
+							Name: "filter",
+						},
+					},
+				}
+			},
+			expectedOk:       true,
+			expectedWarnings: []string{"can't use providerSpec.ami.filters, only providerSpec.ami.id can be used to reference AMI"},
 		},
 	}
 

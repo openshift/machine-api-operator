@@ -101,7 +101,7 @@ func TestMachineSetCreation(t *testing.T) {
 			providerSpecValue: &runtime.RawExtension{
 				Object: &aws.AWSMachineProviderConfig{},
 			},
-			expectedError: "providerSpec.ami: Required value: expected either providerSpec.ami.arn or providerSpec.ami.filters or providerSpec.ami.id to be populated",
+			expectedError: "providerSpec.ami: Required value: expected providerSpec.ami.id to be populated",
 		},
 		{
 			name:         "with AWS and an AMI ID",
