@@ -15,7 +15,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 )
 
-// The default durations for the leader electrion operations.
+// The default durations for the leader election operations.
 var (
 	leaseDuration = 120 * time.Second
 	renewDealine  = 110 * time.Second
