@@ -241,6 +241,10 @@ func TestReconcile(t *testing.T) {
 	machineAlreadyDeleted := maotesting.NewMachine("machineAlreadyDeleted", nodeAlreadyDeleted.Name)
 	machineAlreadyDeleted.SetDeletionTimestamp(&metav1.Time{Time: time.Now()})
 
+	// machine with external remediation annotation, but with now healthy node
+	machineHealthyWithExtRemAnnotation := maotesting.NewMachine("healthyWithExtRemAnn", nodeHealthy.Name)
+	machineHealthyWithExtRemAnnotation.Annotations[machineExternalAnnotationKey] = ""
+
 	testCases := []testCase{
 		{
 			name:    "machine unhealthy",
@@ -445,6 +449,27 @@ func TestReconcile(t *testing.T) {
 				},
 			},
 		},
+		{
+			name:    "machine healthy but with external remediation annotation",
+			machine: machineHealthyWithExtRemAnnotation,
+			node:    nodeHealthy,
+			mhc:     machineHealthCheck,
+			expected: expectedReconcile{
+				result: reconcile.Result{
+					Requeue: false,
+				},
+				error: false,
+			},
+			expectedEvents: []string{EventExternalAnnotationRemoved},
+			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+				ExpectedMachines:    IntPtr(1),
+				CurrentHealthy:      IntPtr(1),
+				RemediationsAllowed: 1,
+				Conditions: mapiv1beta1.Conditions{
+					remediationAllowedCondition,
+				},
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -646,6 +671,48 @@ func TestApplyRemediationExternal(t *testing.T) {
 
 	if _, ok := machine.Annotations[machineExternalAnnotationKey]; !ok {
 		t.Errorf("Expected: machine to have external annotion %s, got: %v", machineExternalAnnotationKey, machine.Annotations)
+	}
+}
+
+func TestRemoveRemediationExternal(t *testing.T) {
+	nodeHealthy := maotesting.NewNode("healthyNode", true)
+	nodeHealthy.Annotations = map[string]string{
+		machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "healthyMachine"),
+	}
+	machineHealthy := maotesting.NewMachine("healthyMachine", nodeHealthy.Name)
+	// set external remediation annotation, should be removed
+	machineHealthy.Annotations[machineExternalAnnotationKey] = ""
+	machineHealthCheck := maotesting.NewMachineHealthCheck("machineHealthCheck")
+	request := reconcile.Request{
+		NamespacedName: types.NamespacedName{
+			Namespace: namespace,
+			Name:      machineHealthy.Name,
+		},
+	}
+	recorder := record.NewFakeRecorder(2)
+	r := newFakeReconcilerWithCustomRecorder(recorder, nodeHealthy, machineHealthy, machineHealthCheck)
+	target := target{
+		Node:    nodeHealthy,
+		Machine: *machineHealthy,
+		MHC:     mapiv1beta1.MachineHealthCheck{},
+	}
+	if err := target.removeRemediationStrategyExternal(r); err != nil {
+		t.Fatalf("unexpected error %v", err)
+	}
+	assertEvents(
+		t,
+		"remove remediation external",
+		[]string{EventExternalAnnotationRemoved},
+		recorder.Events,
+	)
+
+	machine := &mapiv1beta1.Machine{}
+	if err := r.client.Get(context.TODO(), request.NamespacedName, machine); err != nil {
+		t.Errorf("Expected: no error, got: %v", err)
+	}
+
+	if _, ok := machine.Annotations[machineExternalAnnotationKey]; ok {
+		t.Errorf("Expected: machine to not have external annotion %s, got: %v", machineExternalAnnotationKey, machine.Annotations)
 	}
 }
 

@@ -69,6 +69,12 @@ const (
 	// EventExternalAnnotationAdded is emitted when external annotation was
 	// successfully added to a Node object
 	EventExternalAnnotationAdded string = "ExternalAnnotationAdded"
+	// EventExternalAnnotationRemovalFailed is emitted in case removing external annotation
+	// from a Machine object failed
+	EventExternalAnnotationRemovalFailed string = "ExternalAnnotationRemovalFailed"
+	// EventExternalAnnotationRemoved is emitted when external annotation was
+	// successfully removed from a Machine object
+	EventExternalAnnotationRemoved string = "ExternalAnnotationRemoved"
 )
 
 var (
@@ -253,8 +259,18 @@ func (r *ReconcileMachineHealthCheck) Reconcile(ctx context.Context, request rec
 		return reconcile.Result{}, err
 	}
 	errList = append(errList, r.remediate(ctx, needRemediationTargets, mhc)...)
+
+	// remove external remediation annotation for healthy machines in case they get healthy before remediation happened
+	for _, h := range currentHealthy {
+		if err = h.removeRemediationStrategyExternal(r); err != nil {
+			klog.Errorf("Reconciling %s: error removing external remediation annotation: %v", request.String(), err)
+			return reconcile.Result{}, err
+		}
+	}
+
 	// deletes External Machine Remediation for healthy machines - indicating remediation was successful
 	r.cleanEMR(ctx, currentHealthy, mhc)
+
 	// return values
 	if len(errList) > 0 {
 		requeueError := apimachineryutilerrors.NewAggregate(errList)
@@ -701,6 +717,35 @@ func (t *target) remediationStrategyExternal(r *ReconcileMachineHealthCheck) err
 		corev1.EventTypeNormal,
 		EventExternalAnnotationAdded,
 		"Requesting external remediation of node associated with machine %v",
+		t.string(),
+	)
+	return nil
+}
+
+func (t *target) removeRemediationStrategyExternal(r *ReconcileMachineHealthCheck) error {
+	// external annotation does not exist on the machine, nothing to do
+	if _, ok := t.Machine.Annotations[machineExternalAnnotationKey]; !ok {
+		return nil
+	}
+
+	klog.Infof("Machine %s is healthy, removing external annotation", t.Machine.Name)
+	delete(t.Machine.Annotations, machineExternalAnnotationKey)
+	if err := r.client.Update(context.TODO(), &t.Machine); err != nil {
+		r.recorder.Eventf(
+			&t.Machine,
+			corev1.EventTypeWarning,
+			EventExternalAnnotationRemovalFailed,
+			"Stopping external remediation of node associated with machine %v failed: %v",
+			t.string(),
+			err,
+		)
+		return err
+	}
+	r.recorder.Eventf(
+		&t.Machine,
+		corev1.EventTypeNormal,
+		EventExternalAnnotationRemoved,
+		"Stopping external remediation of node associated with machine %v",
 		t.string(),
 	)
 	return nil
