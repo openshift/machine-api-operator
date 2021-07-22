@@ -724,6 +724,9 @@ func (t *target) remediationStrategyExternal(r *ReconcileMachineHealthCheck) err
 
 func (t *target) removeRemediationStrategyExternal(r *ReconcileMachineHealthCheck) error {
 	// external annotation does not exist on the machine, nothing to do
+	if t.Machine.Annotations == nil {
+		return nil
+	}
 	if _, ok := t.Machine.Annotations[machineExternalAnnotationKey]; !ok {
 		return nil
 	}
