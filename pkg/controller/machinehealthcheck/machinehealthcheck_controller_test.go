@@ -227,6 +227,10 @@ func TestReconcile(t *testing.T) {
 	machineHealthCheckNegativeMaxUnhealthy.Spec.MaxUnhealthy = &negativeOne
 	machineHealthCheckNegativeMaxUnhealthy.Spec.NodeStartupTimeout = &metav1.Duration{Duration: nodeStartupTimeout}
 
+	machineHealthCheckPaused := maotesting.NewMachineHealthCheck("machineHealthCheck")
+	machineHealthCheckPaused.Annotations = make(map[string]string)
+	machineHealthCheckPaused.Annotations[mapiv1beta1.PausedAnnotation] = "test"
+
 	// remediationExternal
 	nodeUnhealthyForTooLong := maotesting.NewNode("nodeUnhealthyForTooLong", false)
 	nodeUnhealthyForTooLong.Annotations = map[string]string{
@@ -260,6 +264,18 @@ func TestReconcile(t *testing.T) {
 					remediationAllowedCondition,
 				},
 			},
+		},
+		{
+			name:    "machine unhealthy, MHC paused",
+			machine: machineUnhealthyForTooLong,
+			node:    nodeUnhealthyForTooLong,
+			mhc:     machineHealthCheckPaused,
+			expected: expectedReconcile{
+				result: reconcile.Result{},
+				error:  false,
+			},
+			expectedEvents: []string{},
+			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{},
 		},
 		{
 			name:    "machine with node healthy",

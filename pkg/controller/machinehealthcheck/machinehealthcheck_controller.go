@@ -9,29 +9,31 @@ import (
 	"strings"
 	"time"
 
-	"github.com/openshift/machine-api-operator/pkg/util/external"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
-	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/klog/v2"
-
-	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
-	"github.com/openshift/machine-api-operator/pkg/metrics"
-	"github.com/openshift/machine-api-operator/pkg/util/conditions"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimachineryerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	apimachineryutilerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/klog/v2"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+
+	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	"github.com/openshift/machine-api-operator/pkg/metrics"
+	"github.com/openshift/machine-api-operator/pkg/util/annotations"
+	"github.com/openshift/machine-api-operator/pkg/util/conditions"
+	"github.com/openshift/machine-api-operator/pkg/util/external"
 )
 
 const (
@@ -170,6 +172,12 @@ func (r *ReconcileMachineHealthCheck) Reconcile(ctx context.Context, request rec
 		}
 		klog.Errorf("Reconciling %s: failed to get MHC: %v", request.String(), err)
 		return reconcile.Result{}, err
+	}
+
+	// Return early if the object is paused
+	if annotations.IsPaused(mhc) {
+		klog.V(3).Infof("Reconciliation is paused for %s", request.String())
+		return ctrl.Result{}, nil
 	}
 
 	// Create a base from which the MHC status patch will be calculated
