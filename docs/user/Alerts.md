@@ -69,3 +69,30 @@ due to either network issue or missing service definition.
 
 ### Resolution
 Investigate the logs of the machine-api-operator to determine why it is unable to gather machines and machinesets, or investigate the collection of metrics.
+
+## MachineHealthCheckUnterminatedShortCircuit
+A MachineHealthCheck has been in short circuit for an extended period of time
+and is no longer remediating unhealthy machines.
+
+### Query
+```
+# for: 30m
+mapi_machinehealthcheck_short_circuit == 1
+```
+
+### Possible Causes
+* The number of unhealthy machines has exceeded the `maxUnhealthy` limit for the check
+
+### Resolution
+Check to ensure that the `maxUnhealthy` field on the MachineHealthCheck is not set too low.
+In some cases a low value for `maxUnhealthy` will mean that the MachineHealthCheck will enter
+short-circuit if only a few nodes are unhealthy. Setting this value will be different for
+every cluster's and user's needs, but in general you should consider the size of your cluster
+and the maximum number of machines which can unhealthy before the MachineHealthCheck will
+stop attempting remediation. You might consider setting this value to a percentage (eg `50%`)
+to ensure that the MachineHealthCheck will continue to perform as expected as your cluster
+grows.
+
+If the `maxUnhealthy` value looks acceptable, the next step is to inspect the
+unhealthy machines and remediate them manually if possible. This can usually be achieved
+by deleting the machines in question and allowing the Machine API to recreate them.
