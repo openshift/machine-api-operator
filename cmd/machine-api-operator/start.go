@@ -11,6 +11,7 @@ import (
 	osconfigv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/machine-api-operator/pkg/metrics"
 	"github.com/openshift/machine-api-operator/pkg/operator"
+	"github.com/openshift/machine-api-operator/pkg/util"
 	"github.com/openshift/machine-api-operator/pkg/version"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -73,9 +74,9 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 
 	leaderelection.RunOrDie(context.TODO(), leaderelection.LeaderElectionConfig{
 		Lock:          CreateResourceLock(cb, componentNamespace, componentName),
-		LeaseDuration: LeaseDuration,
-		RenewDeadline: RenewDeadline,
-		RetryPeriod:   RetryPeriod,
+		LeaseDuration: util.LeaseDuration,
+		RenewDeadline: util.RenewDeadline,
+		RetryPeriod:   util.RetryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				ctrlCtx := CreateControllerContext(cb, stopCh, componentNamespace)
