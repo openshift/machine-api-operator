@@ -30,6 +30,10 @@ spec:
     from:
       kind: DockerImage
       name: registry.svc.ci.openshift.org/openshift:gcp-machine-controllers
+  - name: ibmcloud-machine-controllers
+    from:
+      kind: DockerImage
+      name: registry.svc.ci.openshift.org/openshift:ibmcloud-machine-controllers
   - name: baremetal-operator
     from:
       kind: DockerImage
