@@ -25,6 +25,8 @@ import (
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 )
 
@@ -260,6 +262,15 @@ func (r *Reconciler) delete() error {
 				return fmt.Errorf("%v: Failed to detach virtual disks related to pvs: %w", r.machine.GetName(), err)
 			}
 		}
+
+		// After node draining, make sure volumes are detached before deleting the Node.
+		attached, err := r.nodeHasVolumesAttached(r.Context, r.machine.Status.NodeRef.Name, r.machine.Name)
+		if err != nil {
+			return fmt.Errorf("failed to determine if node %v has attached volumes: %w", r.machine.Status.NodeRef.Name, err)
+		}
+		if attached {
+			return fmt.Errorf("node %v has attached volumes, requeuing", r.machine.Status.NodeRef.Name)
+		}
 	}
 
 	if _, err := vm.powerOffVM(); err != nil {
@@ -284,6 +295,24 @@ func (r *Reconciler) delete() error {
 
 	// TODO: consider returning an error to specify retry time here
 	return fmt.Errorf("destroying vm in progress, reconciling")
+}
+
+// nodeHasVolumesAttached returns true if node status still have volumes attached
+// pod deletion and volume detach happen asynchronously, so pod could be deleted before volume detached from the node
+// this could cause issue for some storage provisioner, for example, vsphere-volume this is problematic
+// because if the node is deleted before detach success, then the underline VMDK will be deleted together with the Machine
+// so after node draining we need to check if all volumes are detached before deleting the node.
+func (r *Reconciler) nodeHasVolumesAttached(ctx context.Context, nodeName string, machineName string) (bool, error) {
+	node := &corev1.Node{}
+	if err := r.apiReader.Get(ctx, apimachinerytypes.NamespacedName{Name: nodeName}, node); err != nil {
+		if apierrors.IsNotFound(err) {
+			klog.Errorf("Could not find node from noderef, it may have already been deleted: %w", err)
+			return false, nil
+		}
+		return true, err
+	}
+
+	return len(node.Status.VolumesAttached) != 0, nil
 }
 
 // reconcileMachineWithCloudState reconcile machineSpec and status with the latest cloud state
