@@ -480,7 +480,7 @@ func (r *ReconcileMachineHealthCheck) healthCheckTargets(targets []target, timeo
 			continue
 		}
 
-		if t.Machine.DeletionTimestamp == nil && t.Node != nil {
+		if _, externalRemediation := t.Machine.Annotations[machineExternalAnnotationKey]; t.Machine.DeletionTimestamp == nil && t.Node != nil && !externalRemediation {
 			currentHealthy = append(currentHealthy, t)
 		}
 	}
