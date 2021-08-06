@@ -38,7 +38,7 @@ In short the nodelink controller does the following:
 3. If the machine is found, update its node reference (`.status.nodeRef`)
    with the name and UID of the associated node.
 4. Add the `machine.openshift.io/machine` annotation to the node, with
-   the value of `{machine name}/{machine namespace}`.
+   the value of `{machine namespace}/{machine name}`.
 5. Copy the labels from the machine spec (`.spec.labels`) to the node.
 6. Copy the taints from the machine spec (`.spec.taints`) to the node.
 
