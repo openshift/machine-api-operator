@@ -313,6 +313,10 @@ func TestMachineEvents(t *testing.T) {
 				if len(eventList.Items) != 1 {
 					return fmt.Errorf("expected len 1, got %d", len(eventList.Items))
 				}
+
+				if eventList.Items[0].Count != 1 {
+					return fmt.Errorf("expected event %v to happen only once", eventList.Items[0].Name)
+				}
 				return nil
 			}
 
