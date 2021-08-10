@@ -488,7 +488,10 @@ func (r *ReconcileMachineHealthCheck) healthCheckTargets(targets []target, timeo
 			continue
 		}
 
-		if _, externalRemediation := t.Machine.Annotations[machineExternalAnnotationKey]; t.Machine.DeletionTimestamp == nil && t.Node != nil && !externalRemediation {
+		// Consider hosts with external remediation requested as unhealthy,
+		// in order to take them into account for maxUnhealthy calculation.
+		// TODO once external remediation templates are used, also check for external remediation CRs!
+		if t.Machine.DeletionTimestamp == nil && t.Node != nil && !externalRemediationAnnotationExists(&t.Machine) {
 			currentHealthy = append(currentHealthy, t)
 		}
 	}
@@ -683,7 +686,7 @@ func (r *ReconcileMachineHealthCheck) internalRemediation(t target) error {
 
 func (t *target) remediationStrategyExternal(r *ReconcileMachineHealthCheck) error {
 	// we already have external annotation on the machine, stop reconcile
-	if _, ok := t.Machine.Annotations[machineExternalAnnotationKey]; ok {
+	if externalRemediationAnnotationExists(&t.Machine) {
 		return nil
 	}
 
@@ -712,6 +715,14 @@ func (t *target) remediationStrategyExternal(r *ReconcileMachineHealthCheck) err
 		t.string(),
 	)
 	return nil
+}
+
+func externalRemediationAnnotationExists(machine *mapiv1.Machine) bool {
+	if machine.Annotations == nil {
+		return false
+	}
+	_, externalRemediation := machine.Annotations[machineExternalAnnotationKey]
+	return externalRemediation
 }
 
 func (r *ReconcileMachineHealthCheck) getNodeFromMachine(machine mapiv1.Machine) (*corev1.Node, error) {
