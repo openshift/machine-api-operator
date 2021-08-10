@@ -241,6 +241,9 @@ func TestReconcile(t *testing.T) {
 	machineAlreadyDeleted := maotesting.NewMachine("machineAlreadyDeleted", nodeAlreadyDeleted.Name)
 	machineAlreadyDeleted.SetDeletionTimestamp(&metav1.Time{Time: time.Now()})
 
+	machineHealthyWithExtRemediationAnnotation := maotesting.NewMachine("machineHealthyWithExtRemAnn", nodeHealthy.Name)
+	machineHealthyWithExtRemediationAnnotation.Annotations[machineExternalAnnotationKey] = ""
+
 	testCases := []testCase{
 		{
 			name:    "machine unhealthy",
@@ -275,6 +278,25 @@ func TestReconcile(t *testing.T) {
 				ExpectedMachines:    IntPtr(1),
 				CurrentHealthy:      IntPtr(1),
 				RemediationsAllowed: 1,
+				Conditions: mapiv1beta1.Conditions{
+					remediationAllowedCondition,
+				},
+			},
+		},
+		{
+			name:    "machine with node healthy but external remediation annotation",
+			machine: machineHealthyWithExtRemediationAnnotation,
+			node:    nodeHealthy,
+			mhc:     machineHealthCheck,
+			expected: expectedReconcile{
+				result: reconcile.Result{Requeue: true},
+				error:  false,
+			},
+			expectedEvents: []string{},
+			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+				ExpectedMachines:    IntPtr(1),
+				CurrentHealthy:      IntPtr(0),
+				RemediationsAllowed: 0,
 				Conditions: mapiv1beta1.Conditions{
 					remediationAllowedCondition,
 				},
