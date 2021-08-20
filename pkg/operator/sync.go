@@ -1,6 +1,7 @@
 package operator
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -145,7 +146,7 @@ func (optr *Operator) syncClusterAPIController(config *OperatorConfig) error {
 	ensureDependecyAnnotations(inputHashes, controllersDeployment)
 
 	expectedGeneration := resourcemerge.ExpectedDeploymentGeneration(controllersDeployment, optr.generations)
-	d, updated, err := resourceapply.ApplyDeployment(optr.kubeClient.AppsV1(),
+	d, updated, err := resourceapply.ApplyDeployment(context.TODO(), optr.kubeClient.AppsV1(),
 		events.NewLoggingEventRecorder(optr.name), controllersDeployment, expectedGeneration)
 	if err != nil {
 		return err
@@ -160,7 +161,7 @@ func (optr *Operator) syncClusterAPIController(config *OperatorConfig) error {
 func (optr *Operator) syncTerminationHandler(config *OperatorConfig) error {
 	terminationDaemonSet := newTerminationDaemonSet(config)
 	expectedGeneration := resourcemerge.ExpectedDaemonSetGeneration(terminationDaemonSet, optr.generations)
-	ds, updated, err := resourceapply.ApplyDaemonSet(optr.kubeClient.AppsV1(),
+	ds, updated, err := resourceapply.ApplyDaemonSet(context.TODO(), optr.kubeClient.AppsV1(),
 		events.NewLoggingEventRecorder(optr.name), terminationDaemonSet, expectedGeneration)
 	if err != nil {
 		return err
@@ -181,7 +182,7 @@ func (optr *Operator) syncWebhookConfiguration() error {
 
 func (optr *Operator) syncValidatingWebhook() error {
 	expectedGeneration := resourcemerge.ExpectedValidatingWebhooksConfiguration(mapiv1.NewValidatingWebhookConfiguration().Name, optr.generations)
-	validatingWebhook, updated, err := resourceapply.ApplyValidatingWebhookConfiguration(optr.kubeClient.AdmissionregistrationV1(),
+	validatingWebhook, updated, err := resourceapply.ApplyValidatingWebhookConfiguration(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
 		events.NewLoggingEventRecorder(optr.name),
 		mapiv1.NewValidatingWebhookConfiguration(), expectedGeneration)
 	if err != nil {
@@ -196,7 +197,7 @@ func (optr *Operator) syncValidatingWebhook() error {
 
 func (optr *Operator) syncMutatingWebhook() error {
 	expectedGeneration := resourcemerge.ExpectedMutatingWebhooksConfiguration(mapiv1.NewMutatingWebhookConfiguration().Name, optr.generations)
-	validatingWebhook, updated, err := resourceapply.ApplyMutatingWebhookConfiguration(optr.kubeClient.AdmissionregistrationV1(),
+	validatingWebhook, updated, err := resourceapply.ApplyMutatingWebhookConfiguration(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
 		events.NewLoggingEventRecorder(optr.name),
 		mapiv1.NewMutatingWebhookConfiguration(), expectedGeneration)
 	if err != nil {
