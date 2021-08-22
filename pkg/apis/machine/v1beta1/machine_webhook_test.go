@@ -957,6 +957,65 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			expectedOk:       true,
 			expectedWarnings: []string{"providerSpec.iamInstanceProfile: no IAM instance profile provided: nodes may be unable to join the cluster"},
 		},
+		{
+			testCase: "with double tag names, lists duplicated tags",
+			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+				p.Tags = []aws.TagSpecification{
+					{
+						Name: "Tag-A",
+					},
+					{
+						Name: "Tag-B",
+					},
+					{
+						Name: "Tag-C",
+					},
+					{
+						Name: "Tag-A",
+					},
+					{
+						Name: "Tag-B",
+					},
+				}
+			},
+			expectedOk:       true,
+			expectedWarnings: []string{"providerSpec.tags: duplicated tag names (Tag-A,Tag-B): only the first value will be used."},
+		},
+		{
+			testCase: "with triplicated tag names, lists duplicated tag",
+			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+				p.Tags = []aws.TagSpecification{
+					{
+						Name: "Tag-A",
+					},
+					{
+						Name: "Tag-A",
+					},
+					{
+						Name: "Tag-A",
+					},
+				}
+			},
+			expectedOk:       true,
+			expectedWarnings: []string{"providerSpec.tags: duplicated tag names (Tag-A): only the first value will be used."},
+		},
+		{
+			testCase: "with alternately cased tag names, AWS tags are case sensitive, does not list duplicated tags",
+			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+				p.Tags = []aws.TagSpecification{
+					{
+						Name: "Tag-A",
+					},
+					{
+						Name: "Tag-a",
+					},
+					{
+						Name: "tag-a",
+					},
+				}
+			},
+			expectedOk: true,
+		},
 	}
 
 	secret := &corev1.Secret{
