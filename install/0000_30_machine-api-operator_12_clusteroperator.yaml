@@ -11,3 +11,28 @@ status:
   versions:
     - name: operator
       version: "0.0.1-snapshot"
+  relatedObjects:
+  - group: ""
+    name: openshift-machine-api
+    resource: namespaces
+  - group: machine.openshift.io
+    name: ""
+    resource: machines
+  - group: machine.openshift.io
+    name: ""
+    resource: machinesets
+  - group: machine.openshift.io
+    name: ""
+    resource: machinehealthchecks
+  - group: rbac.authorization.k8s.io
+    name: ""
+    resource: roles
+  - group: rbac.authorization.k8s.io
+    name: machine-api-operator
+    resource: clusterroles
+  - group: rbac.authorization.k8s.io
+    name: machine-api-controllers
+    resource: clusterroles
+  - group: metal3.io
+    resource: baremetalhosts
+    name: ""

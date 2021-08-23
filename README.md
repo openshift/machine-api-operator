@@ -94,7 +94,7 @@ You can see it in action by running an [OpenShift Cluster deployed by the Instal
 
 However you can run it in a vanilla Kubernetes cluster by precreating some assets:
 
-- Create a `openshift-machine-api-operator` namespace
+- Create a `openshift-machine-api` namespace
 - Create a [CRD Status definition](config/0000_00_cluster-version-operator_01_clusteroperator.crd.yaml)
 - Create a [CRD Machine definition](install/0000_30_machine-api-operator_02_machine.crd.yaml)
 - Create a [CRD MachineSet definition](install/0000_30_machine-api-operator_03_machineset.crd.yaml)

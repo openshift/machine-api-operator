@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"runtime"
 	"strings"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
@@ -16,7 +17,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
+	kruntime "k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
@@ -79,7 +80,8 @@ const (
 
 	// AWS Defaults
 	defaultAWSCredentialsSecret = "aws-cloud-credentials"
-	defaultAWSInstanceType      = "m4.large"
+	defaultAWSX86InstanceType   = "m5.large"
+	defaultAWSARMInstanceType   = "m6g.large"
 
 	// Azure Defaults
 	defaultAzureVMSize            = "Standard_D4s_V3"
@@ -296,7 +298,8 @@ func getMachineDefaulterOperation(platformStatus *osconfigv1.PlatformStatus) mac
 		if platformStatus.AWS != nil {
 			region = platformStatus.AWS.Region
 		}
-		return awsDefaulter{region: region}.defaultAWS
+		arch := runtime.GOARCH
+		return awsDefaulter{region: region, arch: arch}.defaultAWS
 	case osconfigv1.AzurePlatformType:
 		return defaultAzure
 	case osconfigv1.GCPPlatformType:
@@ -532,6 +535,7 @@ func (h *machineDefaulterHandler) Handle(ctx context.Context, req admission.Requ
 
 type awsDefaulter struct {
 	region string
+	arch   string
 }
 
 func (a awsDefaulter) defaultAWS(m *Machine, config *admissionConfig) (bool, []string, utilerrors.Aggregate) {
@@ -546,7 +550,11 @@ func (a awsDefaulter) defaultAWS(m *Machine, config *admissionConfig) (bool, []s
 	}
 
 	if providerSpec.InstanceType == "" {
-		providerSpec.InstanceType = defaultAWSInstanceType
+		if a.arch == "arm64" {
+			providerSpec.InstanceType = defaultAWSARMInstanceType
+		} else {
+			providerSpec.InstanceType = defaultAWSX86InstanceType
+		}
 	}
 
 	if providerSpec.Placement.Region == "" {
@@ -570,7 +578,7 @@ func (a awsDefaulter) defaultAWS(m *Machine, config *admissionConfig) (bool, []s
 		return false, warnings, utilerrors.NewAggregate(errs)
 	}
 
-	m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
+	m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 	return true, warnings, nil
 }
 
@@ -676,11 +684,35 @@ func validateAWS(m *Machine, config *admissionConfig) (bool, []string, utilerror
 		)
 	}
 
+	duplicatedTags := getDuplicatedTags(providerSpec.Tags)
+	if len(duplicatedTags) > 0 {
+		warnings = append(warnings, fmt.Sprintf("providerSpec.tags: duplicated tag names (%s): only the first value will be used.", strings.Join(duplicatedTags, ",")))
+	}
+
 	if len(errs) > 0 {
 		return false, warnings, utilerrors.NewAggregate(errs)
 	}
 
 	return true, warnings, nil
+}
+
+// getDuplicatedTags iterates through the AWS TagSpecifications
+// to determine if any tag Name is duplicated within the list.
+// A list of duplicated names will be returned.
+func getDuplicatedTags(tagSpecs []aws.TagSpecification) []string {
+	tagNames := map[string]int{}
+	for _, spec := range tagSpecs {
+		tagNames[spec.Name] += 1
+	}
+
+	duplicatedTags := []string{}
+	for name, count := range tagNames {
+		if count > 1 {
+			duplicatedTags = append(duplicatedTags, name)
+		}
+	}
+
+	return duplicatedTags
 }
 
 func defaultAzure(m *Machine, config *admissionConfig) (bool, []string, utilerrors.Aggregate) {
@@ -734,7 +766,7 @@ func defaultAzure(m *Machine, config *admissionConfig) (bool, []string, utilerro
 		return false, warnings, utilerrors.NewAggregate(errs)
 	}
 
-	m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
+	m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 	return true, warnings, nil
 }
 
@@ -877,7 +909,7 @@ func defaultGCP(m *Machine, config *admissionConfig) (bool, []string, utilerrors
 		return false, warnings, utilerrors.NewAggregate(errs)
 	}
 
-	m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
+	m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 	return true, warnings, nil
 }
 
@@ -1060,7 +1092,7 @@ func defaultVSphere(m *Machine, config *admissionConfig) (bool, []string, utiler
 		return false, warnings, utilerrors.NewAggregate(errs)
 	}
 
-	m.Spec.ProviderSpec.Value = &runtime.RawExtension{Raw: rawBytes}
+	m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 	return true, warnings, nil
 }
 

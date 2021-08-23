@@ -22,7 +22,7 @@ Machine did not reach the “Running” Phase.  Running phase is when the machin
 ### Query
 ```
 # for: 10m
-(mapi_machine_created_timestamp_seconds{phase!="Running"}) > 0
+(mapi_machine_created_timestamp_seconds{phase!="Running|Deleting"}) > 0
 ```
 
 ### Possible Causes
@@ -32,6 +32,26 @@ Machine did not reach the “Running” Phase.  Running phase is when the machin
 
 ### Resolution
 If the machine never became a node, consult the machine troubleshooting guide.
+
+## MachineNotYetDeleted
+Machine has been in the "Deleting" phase for a long time. Deleting phase is added to a machine when it has been marked for deletion and given a deletion timestamp in etcd.
+
+### Query
+```
+# for: 360m
+(mapi_machine_created_timestamp_seconds{phase="Deleting"}) > 0
+```
+
+### Possible Causes
+* Invalid cloud credentials are preventing deletion.
+* A [Pod disruption budget](https://kubernetes.io/docs/concepts/workloads/pods/disruptions/#pod-disruption-budgets) is
+  preventing Node removal.
+* A Pod with a very long [graceful termination period](https://kubernetes.io/docs/concepts/configuration/pod-priority-preemption/#graceful-termination-of-preemption-victims) is preventing Node removal.
+
+### Resolution
+Consult the `machine-controller`'s logs for root causes (see the [Troubleshooting Guide](TroubleShooting.md). In some
+cases the machine may need to be removed manaually, starting with the instance in the cloud provider's console and
+then the machine in OpenShift.
 
 ## MachineAPIOperatorMetricsCollectionFailing
 Machine-api metrics are not being collected successfully.  This would be a very unusual error to see.
@@ -49,3 +69,30 @@ due to either network issue or missing service definition.
 
 ### Resolution
 Investigate the logs of the machine-api-operator to determine why it is unable to gather machines and machinesets, or investigate the collection of metrics.
+
+## MachineHealthCheckUnterminatedShortCircuit
+A MachineHealthCheck has been in short circuit for an extended period of time
+and is no longer remediating unhealthy machines.
+
+### Query
+```
+# for: 30m
+mapi_machinehealthcheck_short_circuit == 1
+```
+
+### Possible Causes
+* The number of unhealthy machines has exceeded the `maxUnhealthy` limit for the check
+
+### Resolution
+Check to ensure that the `maxUnhealthy` field on the MachineHealthCheck is not set too low.
+In some cases a low value for `maxUnhealthy` will mean that the MachineHealthCheck will enter
+short-circuit if only a few nodes are unhealthy. Setting this value will be different for
+every cluster's and user's needs, but in general you should consider the size of your cluster
+and the maximum number of machines which can unhealthy before the MachineHealthCheck will
+stop attempting remediation. You might consider setting this value to a percentage (eg `50%`)
+to ensure that the MachineHealthCheck will continue to perform as expected as your cluster
+grows.
+
+If the `maxUnhealthy` value looks acceptable, the next step is to inspect the
+unhealthy machines and remediate them manually if possible. This can usually be achieved
+by deleting the machines in question and allowing the Machine API to recreate them.

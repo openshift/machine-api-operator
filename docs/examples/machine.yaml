@@ -24,7 +24,7 @@ spec:
       deviceIndex: 0
       iamInstanceProfile:
         id: clusterID-worker-profile
-      instanceType: m4.large
+      instanceType: m5.large
       placement:
         availabilityZone: us-east-1a
         region: us-east-1

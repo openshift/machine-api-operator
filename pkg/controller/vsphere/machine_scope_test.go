@@ -784,6 +784,18 @@ func TestNodeGetter(t *testing.T) {
 				g.Expect(k8sClient.Status().Update(ctx, node)).To(Succeed())
 			},
 		},
+		{
+			name:     "checkNodeReachable: node not found",
+			err:      nil,
+			expected: false,
+			setStatuses: func(node *corev1.Node, machine *machinev1.Machine) {
+				machine.Status = machinev1.MachineStatus{
+					NodeRef: &corev1.ObjectReference{
+						Name: "not-exists",
+					},
+				}
+			},
+		},
 	}
 	for _, tc := range checkNodeReachableTestCases {
 		t.Run(tc.name, func(t *testing.T) {

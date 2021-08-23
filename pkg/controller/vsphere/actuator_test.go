@@ -277,6 +277,11 @@ func TestMachineEvents(t *testing.T) {
 						Value: providerSpec,
 					},
 				},
+				Status: machinev1.MachineStatus{
+					NodeRef: &v1.ObjectReference{
+						Name: "test",
+					},
+				},
 			}
 
 			// Create the machine
@@ -288,9 +293,36 @@ func TestMachineEvents(t *testing.T) {
 			// Ensure the machine has synced to the cache
 			getMachine := func() error {
 				machineKey := types.NamespacedName{Namespace: machine.Namespace, Name: machine.Name}
-				return k8sClient.Get(ctx, machineKey, machine)
+				return k8sClient.Get(ctx, machineKey, &machinev1.Machine{})
 			}
 			gs.Eventually(getMachine, timeout).Should(Succeed())
+
+			node := &v1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "test",
+					Labels: map[string]string{
+						machinev1.MachineClusterIDLabel: "CLUSTERID",
+					},
+				},
+				Spec: v1.NodeSpec{},
+				Status: v1.NodeStatus{
+					VolumesAttached: []v1.AttachedVolume{},
+				},
+			}
+
+			// Create the node
+			gs.Expect(k8sClient.Create(ctx, node)).To(Succeed())
+			defer func() {
+				gs.Expect(k8sClient.Delete(ctx, node)).To(Succeed())
+			}()
+
+			// Ensure the node has synced to the cache
+			getNode := func() error {
+				nodeKey := types.NamespacedName{Name: node.Name}
+				return k8sClient.Get(ctx, nodeKey, &v1.Node{})
+			}
+			gs.Eventually(getNode, timeout).Should(Succeed())
 
 			taskIDCache := make(map[string]string)
 			params := ActuatorParams{
@@ -312,6 +344,10 @@ func TestMachineEvents(t *testing.T) {
 
 				if len(eventList.Items) != 1 {
 					return fmt.Errorf("expected len 1, got %d", len(eventList.Items))
+				}
+
+				if eventList.Items[0].Count != 1 {
+					return fmt.Errorf("expected event %v to happen only once", eventList.Items[0].Name)
 				}
 				return nil
 			}

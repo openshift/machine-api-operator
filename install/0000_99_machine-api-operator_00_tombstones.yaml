@@ -1,0 +1,76 @@
+apiVersion: cloudcredential.openshift.io/v1
+kind: CredentialsRequest
+metadata:
+  name: openshift-machine-api
+  namespace: openshift-cloud-credential-operator
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+    release.openshift.io/delete: "true"
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: machinehealthchecks.healthchecking.openshift.io
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+    release.openshift.io/delete: "true"
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: machinedisruptionbudgets.healthchecking.openshift.io
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+    release.openshift.io/delete: "true"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: machine-api-manager
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+    release.openshift.io/delete: "true"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: machine-api-manager-rolebinding
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+    release.openshift.io/delete: "true"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: machine-api-termination-handler
+  namespace: openshift-machine-api
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+    release.openshift.io/delete: "true"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: machine-api-termination-handler
+  namespace: openshift-machine-api
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+    release.openshift.io/delete: "true"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cloud-provider-config-reader
+  namespace: openshift-config
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+    release.openshift.io/delete: "true"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: machine-api-cloud-provider-config-reader
+  namespace: openshift-config
+  annotations:
+    include.release.openshift.io/self-managed-high-availability: "true"
+    release.openshift.io/delete: "true"

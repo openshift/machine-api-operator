@@ -26,12 +26,22 @@ spec:
       rules:
         - alert: MachineWithNoRunningPhase
           expr: |
-            (mapi_machine_created_timestamp_seconds{phase!="Running"}) > 0
+            (mapi_machine_created_timestamp_seconds{phase!~"Running|Deleting"}) > 0
           for: 60m
           labels:
             severity: warning
           annotations:
             message: "machine {{ $labels.name }} is in phase: {{ $labels.phase }}"
+    - name: machine-not-yet-deleted
+      rules:
+        - alert: MachineNotYetDeleted
+          expr: |
+            (mapi_machine_created_timestamp_seconds{phase="Deleting"}) > 0
+          for: 360m
+          labels:
+            severity: warning
+          annotations:
+            message: "machine {{ $labels.name }} has been in Deleting phase for more than 6 hours"
     - name: machine-api-operator-metrics-collector-up
       rules:
         - alert: MachineAPIOperatorMetricsCollectionFailing
@@ -42,3 +52,13 @@ spec:
             severity: critical
           annotations:
             message: "machine api operator metrics collection is failing. For more details:  oc logs <machine-api-operator-pod-name> -n openshift-machine-api"
+    - name: machine-health-check-unterminated-short-circuit
+      rules:
+        - alert: MachineHealthCheckUnterminatedShortCircuit
+          expr: |
+            mapi_machinehealthcheck_short_circuit == 1
+          for: 30m
+          labels:
+            severity: warning
+          annotation:
+            message: "machine health check {{ $labels.name }} has been disabled by short circuit for more than 30 minutes"

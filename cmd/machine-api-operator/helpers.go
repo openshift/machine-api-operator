@@ -15,13 +15,6 @@ import (
 )
 
 const (
-	// LeaseDuration is the default duration for the leader election lease.
-	LeaseDuration = 90 * time.Second
-	// RenewDeadline is the default duration for the leader renewal.
-	RenewDeadline = 60 * time.Second
-	// RetryPeriod is the default duration for the leader electrion retrial.
-	RetryPeriod = 30 * time.Second
-
 	minResyncPeriod = 10 * time.Minute
 )
 

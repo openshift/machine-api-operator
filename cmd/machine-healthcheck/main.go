@@ -3,10 +3,10 @@ package main
 import (
 	"flag"
 	"runtime"
-	"time"
 
 	"github.com/openshift/machine-api-operator/pkg/controller/machinehealthcheck"
 	"github.com/openshift/machine-api-operator/pkg/metrics"
+	"github.com/openshift/machine-api-operator/pkg/util"
 
 	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/controller"
@@ -17,13 +17,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
-)
-
-// The default durations for the leader electrion operations.
-var (
-	leaseDuration = 120 * time.Second
-	renewDealine  = 110 * time.Second
-	retryPeriod   = 90 * time.Second
 )
 
 func printVersion() {
@@ -65,7 +58,7 @@ func main() {
 
 	leaderElectLeaseDuration := flag.Duration(
 		"leader-elect-lease-duration",
-		leaseDuration,
+		util.LeaseDuration,
 		"The duration that non-leader candidates will wait after observing a leadership renewal until attempting to acquire leadership of a led but unrenewed leader slot. This is effectively the maximum duration that a leader can be stopped before it is replaced by another candidate. This is only applicable if leader election is enabled.",
 	)
 
@@ -86,9 +79,8 @@ func main() {
 		LeaderElectionNamespace: *leaderElectResourceNamespace,
 		LeaderElectionID:        "cluster-api-provider-healthcheck-leader",
 		LeaseDuration:           leaderElectLeaseDuration,
-		// Slow the default retry and renew election rate to reduce etcd writes at idle: BZ 1858400
-		RetryPeriod:   &retryPeriod,
-		RenewDeadline: &renewDealine,
+		RetryPeriod:             util.TimeDuration(util.RetryPeriod),
+		RenewDeadline:           util.TimeDuration(util.RenewDeadline),
 	}
 
 	if *watchNamespace != "" {
