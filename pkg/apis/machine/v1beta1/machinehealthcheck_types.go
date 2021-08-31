@@ -66,8 +66,8 @@ type MachineHealthCheckSpec struct {
 	// Percentage values must be positive whole numbers and are capped at 100%.
 	// Both 0 and 0% are valid and will block all remediation.
 	// +kubebuilder:default:="100%"
+	// +kubebuilder:validation:XIntOrString
 	// +kubebuilder:validation:Pattern="^((100|[0-9]{1,2})%|[0-9]+)$"
-	// +kubebuilder:validation:Type:=string
 	MaxUnhealthy *intstr.IntOrString `json:"maxUnhealthy,omitempty"`
 
 	// Machines older than this duration without a node will be considered to have
