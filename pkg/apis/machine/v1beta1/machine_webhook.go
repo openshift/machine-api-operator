@@ -604,13 +604,27 @@ func validateAWS(m *Machine, config *admissionConfig) (bool, []string, utilerror
 		return false, warnings, utilerrors.NewAggregate(errs)
 	}
 
-	if providerSpec.AMI.ARN == nil && providerSpec.AMI.Filters == nil && providerSpec.AMI.ID == nil {
+	if providerSpec.AMI.ID == nil {
 		errs = append(
 			errs,
 			field.Required(
 				field.NewPath("providerSpec", "ami"),
-				"expected either providerSpec.ami.arn or providerSpec.ami.filters or providerSpec.ami.id to be populated",
+				"expected providerSpec.ami.id to be populated",
 			),
+		)
+	}
+
+	if providerSpec.AMI.ARN != nil {
+		warnings = append(
+			warnings,
+			"can't use providerSpec.ami.arn, only providerSpec.ami.id can be used to reference AMI",
+		)
+	}
+
+	if providerSpec.AMI.Filters != nil {
+		warnings = append(
+			warnings,
+			"can't use providerSpec.ami.filters, only providerSpec.ami.id can be used to reference AMI",
 		)
 	}
 
