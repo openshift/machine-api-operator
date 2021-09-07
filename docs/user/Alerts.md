@@ -39,7 +39,7 @@ Machine has been in the "Deleting" phase for a long time. Deleting phase is adde
 ### Query
 ```
 # for: 360m
-(mapi_machine_created_timestamp_seconds{phase="Deleting"}) > 0
+sum by (name, namespace) (mapi_machine_created_timestamp_seconds{phase="Deleting"}) > 0
 ```
 
 ### Possible Causes
