@@ -43,6 +43,7 @@ const (
 	externalTrustBundleConfigMapName    = "mao-trusted-ca"
 	hostKubeConfigPath                  = "/var/lib/kubelet/kubeconfig"
 	hostKubePKIPath                     = "/var/lib/kubelet/pki"
+	operatorStatusNoOpMessage           = "Cluster Machine API Operator is in NoOp mode"
 )
 
 var (
@@ -63,7 +64,7 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 
 	if config.Controllers.Provider == clusterAPIControllerNoOp {
 		klog.V(3).Info("Provider is NoOp, skipping synchronisation")
-		if err := optr.statusAvailable(); err != nil {
+		if err := optr.statusAvailable(operatorStatusNoOpMessage); err != nil {
 			klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
 			return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
 		}
@@ -110,7 +111,8 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 
 	klog.V(3).Info("Synced up all machine API webhook configurations")
 
-	if err := optr.statusAvailable(); err != nil {
+	message := fmt.Sprintf("Cluster Machine API Operator is available at %s", optr.printOperandVersions())
+	if err := optr.statusAvailable(message); err != nil {
 		klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
 		return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
 	}
