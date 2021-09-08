@@ -4,7 +4,7 @@ persisted for 10 minutes or longer.
 
 ### Query
 ```
-# for: 10m
+# for: 60m
 (mapi_machine_created_timestamp_seconds unless on(node) kube_node_info) > 0
 ```
 
@@ -21,7 +21,7 @@ Machine did not reach the “Running” Phase.  Running phase is when the machin
 
 ### Query
 ```
-# for: 10m
+# for: 60m
 (mapi_machine_created_timestamp_seconds{phase!="Running|Deleting"}) > 0
 ```
 
