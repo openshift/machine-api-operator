@@ -68,9 +68,14 @@ Providers which currently works with MAO, are:
 
 ### Status management
 
-MAO is responsible for status reporting on the `machine-api` ClusterOperator. Our status reporting  is following the [best practices](https://github.com/openshift/cluster-version-operator/blob/master/docs/dev/clusteroperator.md#conditions).
+MAO is responsible for status reporting on the `machine-api` ClusterOperator. Our status reporting  is following the [best practices](https://github.com/openshift/enhancements/blob/master/dev-guide/cluster-version-operator/dev/clusteroperator.md#conditions).
 
 The status condition will turn `Degraded` if any of the managed resources fail to rollout, or are unavailable for longer [periods](https://github.com/openshift/machine-api-operator/blob/master/pkg/operator/sync.go#L31-L34) of time.
+
+When the MAO is running on an unrecognized infrastructure platform it is
+considered to be running in "NoOp" (no operation) mode. Its operator status
+will be `Available`, but you will see a status message indicating that it is
+running in "NoOp" mode.
 
 In addition to the cluster-operator status reporting, it is recommended to know relevant alerts described in the alerting [document](https://github.com/openshift/machine-api-operator/blob/master/docs/user/Alerts.md)
 
