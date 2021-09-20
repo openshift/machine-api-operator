@@ -63,7 +63,11 @@ func GetOrCreate(
 
 	sessionKey := server + username + datacenter
 	if session, ok := sessionCache[sessionKey]; ok {
-		if ok, _ := session.SessionManager.SessionIsActive(ctx); ok {
+		sessionActive, err := session.SessionManager.SessionIsActive(ctx)
+		if err != nil {
+			klog.Errorf("Error performing session check request to vSphere: %w", err)
+		}
+		if sessionActive {
 			return &session, nil
 		}
 	}
