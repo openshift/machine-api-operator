@@ -65,7 +65,7 @@ func GetOrCreate(
 	if session, ok := sessionCache[sessionKey]; ok {
 		sessionActive, err := session.SessionManager.SessionIsActive(ctx)
 		if err != nil {
-			klog.Errorf("Error performing session check request to vSphere: %w", err)
+			klog.Errorf("Error performing session check request to vSphere: %v", err)
 		}
 		if sessionActive {
 			return &session, nil
