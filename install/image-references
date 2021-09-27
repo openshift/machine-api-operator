@@ -34,6 +34,10 @@ spec:
     from:
       kind: DockerImage
       name: registry.svc.ci.openshift.org/openshift:ibmcloud-machine-controllers
+  - name: powervs-machine-controllers
+    from:
+      kind: DockerImage
+      name: registry.svc.ci.openshift.org/openshift:powervs-machine-controllers
   - name: baremetal-operator
     from:
       kind: DockerImage

@@ -18,6 +18,7 @@ var (
 	expectedGCPImage                = "quay.io/openshift/origin-gcp-machine-controllers:v4.0.0"
 	expectedOvirtImage              = "quay.io/openshift/origin-ovirt-machine-controllers"
 	expectedVSphereImage            = "docker.io/openshift/origin-machine-api-operator:v4.0.0"
+	expectedPowerVSImage            = "quay.io/openshift/origin-powervs-machine-controllers:v4.0.0"
 )
 
 func TestGetProviderFromInfrastructure(t *testing.T) {
@@ -121,6 +122,15 @@ func TestGetProviderFromInfrastructure(t *testing.T) {
 			},
 		},
 		expected: "",
+	}, {
+		infra: &configv1.Infrastructure{
+			Status: configv1.InfrastructureStatus{
+				PlatformStatus: &configv1.PlatformStatus{
+					Type: configv1.PowerVSPlatformType,
+				},
+			},
+		},
+		expected: configv1.PowerVSPlatformType,
 	}}
 
 	for _, test := range tests {
@@ -163,6 +173,9 @@ func TestGetImagesFromJSONFile(t *testing.T) {
 	}
 	if img.ClusterAPIControllerVSphere != expectedVSphereImage {
 		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedVSphereImage, img.ClusterAPIControllerVSphere)
+	}
+	if img.ClusterAPIControllerPowerVS != expectedPowerVSImage {
+		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedPowerVSImage, img.ClusterAPIControllerPowerVS)
 	}
 }
 
@@ -209,6 +222,10 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 		{
 			provider:      configv1.OvirtPlatformType,
 			expectedImage: expectedOvirtImage,
+		},
+		{
+			provider:      configv1.PowerVSPlatformType,
+			expectedImage: expectedPowerVSImage,
 		},
 	}
 
@@ -270,6 +287,10 @@ func TestGetTerminationHandlerFromImages(t *testing.T) {
 		},
 		{
 			provider:      configv1.OvirtPlatformType,
+			expectedImage: clusterAPIControllerNoOp,
+		},
+		{
+			provider:      configv1.PowerVSPlatformType,
 			expectedImage: clusterAPIControllerNoOp,
 		},
 	}
