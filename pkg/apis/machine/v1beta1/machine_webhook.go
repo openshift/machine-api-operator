@@ -715,17 +715,13 @@ func validateAWS(m *Machine, config *admissionConfig) (bool, []string, utilerror
 // A list of duplicated names will be returned.
 func getDuplicatedTags(tagSpecs []aws.TagSpecification) []string {
 	tagNames := map[string]int{}
+	duplicatedTags := []string{}
 	for _, spec := range tagSpecs {
 		tagNames[spec.Name] += 1
-	}
-
-	duplicatedTags := []string{}
-	for name, count := range tagNames {
-		if count > 1 {
-			duplicatedTags = append(duplicatedTags, name)
+		if tagNames[spec.Name] == 2 {
+			duplicatedTags = append(duplicatedTags, spec.Name)
 		}
 	}
-
 	return duplicatedTags
 }
 
