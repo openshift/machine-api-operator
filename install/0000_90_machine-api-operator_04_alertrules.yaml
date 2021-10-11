@@ -21,7 +21,10 @@ spec:
           labels:
             severity: warning
           annotations:
-            message: "machine {{ $labels.name }} does not have valid node reference"
+            summary: "machine {{ $labels.name }} does not have valid node reference"
+            description: |
+              If the machine never became a node, you should diagnose the machine related failures.
+              If the node was deleted from the API, you may delete the machine if appropriate.
     - name: machine-with-no-running-phase
       rules:
         - alert: MachineWithNoRunningPhase
@@ -31,7 +34,11 @@ spec:
           labels:
             severity: warning
           annotations:
-            message: "machine {{ $labels.name }} is in phase: {{ $labels.phase }}"
+            summary: "machine {{ $labels.name }} is in phase: {{ $labels.phase }}"
+            description: |
+              The machine has been without a Running or Deleting phase for more than 60 minutes.
+              The machine may not have been provisioned properly from the infrastructure provider, or
+              it might have issues with CertificateSigningRequests being approved.
     - name: machine-not-yet-deleted
       rules:
         - alert: MachineNotYetDeleted
@@ -41,7 +48,11 @@ spec:
           labels:
             severity: warning
           annotations:
-            message: "machine {{ $labels.name }} has been in Deleting phase for more than 6 hours"
+            summary: "machine {{ $labels.name }} has been in Deleting phase for more than 6 hours"
+            description: |
+              The machine is not properly deleting, this may be due to a configuration issue with the
+              infrastructure provider, or because workloads on the node have PodDisruptionBudgets or
+              long termination periods which are preventing deletion.
     - name: machine-api-operator-metrics-collector-up
       rules:
         - alert: MachineAPIOperatorMetricsCollectionFailing
@@ -51,7 +62,8 @@ spec:
           labels:
             severity: critical
           annotations:
-            message: "machine api operator metrics collection is failing. For more details:  oc logs <machine-api-operator-pod-name> -n openshift-machine-api"
+            summary: "machine api operator metrics collection is failing."
+            description: "For more details:  oc logs <machine-api-operator-pod-name> -n openshift-machine-api"
     - name: machine-health-check-unterminated-short-circuit
       rules:
         - alert: MachineHealthCheckUnterminatedShortCircuit
@@ -61,4 +73,7 @@ spec:
           labels:
             severity: warning
           annotation:
-            message: "machine health check {{ $labels.name }} has been disabled by short circuit for more than 30 minutes"
+            summary: "machine health check {{ $labels.name }} has been disabled by short circuit for more than 30 minutes"
+            description: |
+              The number of unhealthy machines has exceeded the `maxUnhealthy` limit for the check, you should check
+              the status of machines in the cluster.
