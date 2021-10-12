@@ -7,7 +7,7 @@ HTTP GET requests to a specific port and URI of the MAO. The
 URI for all metrics is `/metrics`, see the Prometheus documentation for query
 parameter options. To find the exposed metrics port for the MAO you can either
 inspect the Deployment resource or the
-[install manifest](https://github.com/openshift/machine-api-operator/blob/master/install/0000_30_machine-api-operator_11_deployment.yaml)
+[install manifest](https://github.com/openshift/machine-api-operator/blob/master/install/0000_50_machine-api-operator_11_deployment.yaml)
 to find the environment variable `METRICS_PORT`, the default value for this is `8080`.
 
 **Example MAO metrics scrape procedure**
