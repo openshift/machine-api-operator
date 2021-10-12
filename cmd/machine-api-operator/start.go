@@ -73,10 +73,11 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 	stopCh := make(chan struct{})
 
 	leaderelection.RunOrDie(context.TODO(), leaderelection.LeaderElectionConfig{
-		Lock:          CreateResourceLock(cb, componentNamespace, componentName),
-		LeaseDuration: util.LeaseDuration,
-		RenewDeadline: util.RenewDeadline,
-		RetryPeriod:   util.RetryPeriod,
+		Lock:            CreateResourceLock(cb, componentNamespace, componentName),
+		ReleaseOnCancel: true,
+		LeaseDuration:   util.LeaseDuration,
+		RenewDeadline:   util.RenewDeadline,
+		RetryPeriod:     util.RetryPeriod,
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				ctrlCtx := CreateControllerContext(cb, stopCh, componentNamespace)
