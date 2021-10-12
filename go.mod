@@ -9,7 +9,7 @@ require (
 	github.com/google/uuid v1.1.2
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.14.0
-	github.com/openshift/api v0.0.0-20210816181336-8ff39b776da3
+	github.com/openshift/api v0.0.0-20210906075240-3611f00b94fd
 	github.com/openshift/client-go v0.0.0-20210730113412-1811c1b3fc0e
 	github.com/openshift/cluster-api-provider-gcp v0.0.1-0.20210910150352-3570511c0044
 	github.com/openshift/library-go v0.0.0-20210811133500-5e31383de2a7
@@ -21,11 +21,11 @@ require (
 	github.com/vmware/govmomi v0.22.2
 	golang.org/x/net v0.0.0-20210520170846-37e1c6afe023
 	gopkg.in/gcfg.v1 v1.2.3
-	k8s.io/api v0.22.0
-	k8s.io/apimachinery v0.22.0
+	k8s.io/api v0.22.1
+	k8s.io/apimachinery v0.22.1
 	k8s.io/apiserver v0.22.0
 	k8s.io/client-go v0.22.0
-	k8s.io/code-generator v0.22.0
+	k8s.io/code-generator v0.22.1
 	k8s.io/klog/v2 v2.9.0
 	k8s.io/kubectl v0.22.0
 	k8s.io/utils v0.0.0-20210802155522-efc7438f0176

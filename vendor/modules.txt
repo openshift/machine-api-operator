@@ -154,7 +154,7 @@ github.com/onsi/gomega/matchers/support/goraph/edge
 github.com/onsi/gomega/matchers/support/goraph/node
 github.com/onsi/gomega/matchers/support/goraph/util
 github.com/onsi/gomega/types
-# github.com/openshift/api v0.0.0-20210816181336-8ff39b776da3
+# github.com/openshift/api v0.0.0-20210906075240-3611f00b94fd
 ## explicit
 github.com/openshift/api
 github.com/openshift/api/apiserver
@@ -180,6 +180,8 @@ github.com/openshift/api/imageregistry/v1
 github.com/openshift/api/kubecontrolplane
 github.com/openshift/api/kubecontrolplane/v1
 github.com/openshift/api/legacyconfig/v1
+github.com/openshift/api/machine
+github.com/openshift/api/machine/v1beta1
 github.com/openshift/api/network
 github.com/openshift/api/network/v1
 github.com/openshift/api/networkoperator
@@ -446,7 +448,7 @@ gopkg.in/warnings.v0
 gopkg.in/yaml.v2
 # gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
 gopkg.in/yaml.v3
-# k8s.io/api v0.22.0
+# k8s.io/api v0.22.1
 ## explicit
 k8s.io/api/admission/v1
 k8s.io/api/admission/v1beta1
@@ -502,7 +504,7 @@ k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/scheme
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1
 k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/typed/apiextensions/v1beta1
-# k8s.io/apimachinery v0.22.0
+# k8s.io/apimachinery v0.22.1
 ## explicit
 k8s.io/apimachinery/pkg/api/apitesting
 k8s.io/apimachinery/pkg/api/apitesting/fuzzer
@@ -851,7 +853,7 @@ k8s.io/client-go/util/jsonpath
 k8s.io/client-go/util/keyutil
 k8s.io/client-go/util/retry
 k8s.io/client-go/util/workqueue
-# k8s.io/code-generator v0.22.0
+# k8s.io/code-generator v0.22.1
 ## explicit
 k8s.io/code-generator/cmd/client-gen
 k8s.io/code-generator/cmd/client-gen/args
