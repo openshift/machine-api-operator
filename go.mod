@@ -31,8 +31,8 @@ require (
 	k8s.io/utils v0.0.0-20210802155522-efc7438f0176
 	sigs.k8s.io/cluster-api-provider-aws v0.0.0-00010101000000-000000000000
 	sigs.k8s.io/cluster-api-provider-azure v0.0.0-00010101000000-000000000000
-	sigs.k8s.io/controller-runtime v0.9.3
-	sigs.k8s.io/controller-tools v0.6.2
+	sigs.k8s.io/controller-runtime v0.9.6
+	sigs.k8s.io/controller-tools v0.6.3-0.20210916130746-94401651a6c3
 	sigs.k8s.io/yaml v1.2.0
 )
 
