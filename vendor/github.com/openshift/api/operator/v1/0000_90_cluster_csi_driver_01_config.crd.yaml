@@ -48,11 +48,7 @@ spec:
                 - manila.csi.openstack.org
                 - csi.ovirt.org
                 - csi.kubevirt.io
-<<<<<<< HEAD
-                - csi.shared-resources.openshift.io
-=======
                 - csi.sharedresource.openshift.io
->>>>>>> Update dependecies
                 - diskplugin.csi.alibabacloud.com
                 - vpc.block.csi.ibm.io
                 type: string

@@ -133,6 +133,17 @@ const (
 	// MachineCreated indicates whether the machine has been created or not. If not,
 	// it should include a reason and message for the failure.
 	MachineCreated ConditionType = "MachineCreated"
+	// InstanceExistsCondition is set on the Machine to show whether a virtual mahcine has been created by the cloud provider.
+	InstanceExistsCondition ConditionType = "InstanceExists"
+	// RemediationAllowedCondition is set on MachineHealthChecks to show the status of whether the MachineHealthCheck is
+	// allowed to remediate any Machines or whether it is blocked from remediating any further.
+	RemediationAllowedCondition ConditionType = "RemediationAllowed"
+	// ExternalRemediationTemplateAvailable is set on machinehealthchecks when MachineHealthCheck controller uses external remediation.
+	// ExternalRemediationTemplateAvailable is set to false if external remediation template is not found.
+	ExternalRemediationTemplateAvailable ConditionType = "ExternalRemediationTemplateAvailable"
+	// ExternalRemediationRequestAvailable is set on machinehealthchecks when MachineHealthCheck controller uses external remediation.
+	// ExternalRemediationRequestAvailable is set to false if creating external remediation request fails.
+	ExternalRemediationRequestAvailable ConditionType = "ExternalRemediationRequestAvailable"
 )
 
 const (
@@ -140,6 +151,20 @@ const (
 	MachineCreationSucceededConditionReason string = "MachineCreationSucceeded"
 	// MachineCreationFailed indicates machine creation failure.
 	MachineCreationFailedConditionReason string = "MachineCreationFailed"
+	// ErrorCheckingProviderReason is the reason used when the exist operation fails.
+	// This would normally be because we cannot contact the provider.
+	ErrorCheckingProviderReason = "ErrorCheckingProvider"
+	// InstanceMissingReason is the reason used when the machine was provisioned, but the instance has gone missing.
+	InstanceMissingReason = "InstanceMissing"
+	// InstanceNotCreatedReason is the reason used when the machine has not yet been provisioned.
+	InstanceNotCreatedReason = "InstanceNotCreated"
+	// TooManyUnhealthy is the reason used when too many Machines are unhealthy and the MachineHealthCheck is blocked
+	// from making any further remediations.
+	TooManyUnhealthyReason = "TooManyUnhealthy"
+	// ExternalRemediationTemplateNotFound is the reason used when a machine health check fails to find external remediation template.
+	ExternalRemediationTemplateNotFound = "ExternalRemediationTemplateNotFound"
+	// ExternalRemediationRequestCreationFailed is the reason used when a machine health check fails to create external remediation request.
+	ExternalRemediationRequestCreationFailed = "ExternalRemediationRequestCreationFailed"
 )
 
 // Condition defines an observation of a Machine API resource operational state.

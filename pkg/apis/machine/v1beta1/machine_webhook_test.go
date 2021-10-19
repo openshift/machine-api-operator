@@ -10,8 +10,7 @@ import (
 
 	. "github.com/onsi/gomega"
 	osconfigv1 "github.com/openshift/api/config/v1"
-	gcp "github.com/openshift/cluster-api-provider-gcp/pkg/apis/gcpprovider/v1beta1"
-	vsphere "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -20,8 +19,6 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/pointer"
-	aws "sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsprovider/v1beta1"
-	azure "sigs.k8s.io/cluster-api-provider-azure/pkg/apis/azureprovider/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -116,7 +113,7 @@ func TestMachineCreation(t *testing.T) {
 			platformType: osconfigv1.AWSPlatformType,
 			clusterID:    "aws-cluster",
 			providerSpecValue: &kruntime.RawExtension{
-				Object: &aws.AWSMachineProviderConfig{},
+				Object: &machinev1.AWSMachineProviderConfig{},
 			},
 			expectedError: "providerSpec.ami: Required value: expected providerSpec.ami.id to be populated",
 		},
@@ -125,8 +122,8 @@ func TestMachineCreation(t *testing.T) {
 			platformType: osconfigv1.AWSPlatformType,
 			clusterID:    "aws-cluster",
 			providerSpecValue: &kruntime.RawExtension{
-				Object: &aws.AWSMachineProviderConfig{
-					AMI: aws.AWSResourceReference{
+				Object: &machinev1.AWSMachineProviderConfig{
+					AMI: machinev1.AWSResourceReference{
 						ID: pointer.StringPtr("ami"),
 					},
 				},
@@ -145,7 +142,7 @@ func TestMachineCreation(t *testing.T) {
 			platformType: osconfigv1.AzurePlatformType,
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
-				Object: &azure.AzureMachineProviderSpec{},
+				Object: &machinev1.AzureMachineProviderSpec{},
 			},
 			expectedError: "providerSpec.osDisk.diskSizeGB: Invalid value: 0: diskSizeGB must be greater than zero and less than 32768",
 		},
@@ -154,8 +151,8 @@ func TestMachineCreation(t *testing.T) {
 			platformType: osconfigv1.AzurePlatformType,
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
-				Object: &azure.AzureMachineProviderSpec{
-					OSDisk: azure.OSDisk{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
 						DiskSizeGB: 128,
 					},
 				},
@@ -167,8 +164,8 @@ func TestMachineCreation(t *testing.T) {
 			platformType: osconfigv1.AzurePlatformType,
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
-				Object: &azure.AzureMachineProviderSpec{
-					OSDisk: azure.OSDisk{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
 						DiskSizeGB: 128,
 					},
 					PublicIP: true,
@@ -182,8 +179,8 @@ func TestMachineCreation(t *testing.T) {
 			platformType: osconfigv1.AzurePlatformType,
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
-				Object: &azure.AzureMachineProviderSpec{
-					OSDisk: azure.OSDisk{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
 						DiskSizeGB: 128,
 					},
 				},
@@ -202,7 +199,7 @@ func TestMachineCreation(t *testing.T) {
 			platformType: osconfigv1.GCPPlatformType,
 			clusterID:    "gcp-cluster",
 			providerSpecValue: &kruntime.RawExtension{
-				Object: &gcp.GCPMachineProviderSpec{},
+				Object: &machinev1.GCPMachineProviderSpec{},
 			},
 			expectedError: "providerSpec.region: Required value: region is required",
 		},
@@ -211,7 +208,7 @@ func TestMachineCreation(t *testing.T) {
 			platformType: osconfigv1.GCPPlatformType,
 			clusterID:    "gcp-cluster",
 			providerSpecValue: &kruntime.RawExtension{
-				Object: &gcp.GCPMachineProviderSpec{
+				Object: &machinev1.GCPMachineProviderSpec{
 					Region: "region",
 					Zone:   "region-zone",
 				},
@@ -230,7 +227,7 @@ func TestMachineCreation(t *testing.T) {
 			platformType: osconfigv1.VSpherePlatformType,
 			clusterID:    "vsphere-cluster",
 			providerSpecValue: &kruntime.RawExtension{
-				Object: &vsphere.VSphereMachineProviderSpec{},
+				Object: &machinev1.VSphereMachineProviderSpec{},
 			},
 			expectedError: "[providerSpec.template: Required value: template must be provided, providerSpec.workspace: Required value: workspace must be provided, providerSpec.network.devices: Required value: at least 1 network device must be provided]",
 		},
@@ -240,14 +237,14 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:       "vsphere-cluster",
 			presetClusterID: true,
 			providerSpecValue: &kruntime.RawExtension{
-				Object: &vsphere.VSphereMachineProviderSpec{
+				Object: &machinev1.VSphereMachineProviderSpec{
 					Template: "template",
-					Workspace: &vsphere.Workspace{
+					Workspace: &machinev1.Workspace{
 						Datacenter: "datacenter",
 						Server:     "server",
 					},
-					Network: vsphere.NetworkSpec{
-						Devices: []vsphere.NetworkDeviceSpec{
+					Network: machinev1.NetworkSpec{
+						Devices: []machinev1.NetworkDeviceSpec{
 							{
 								NetworkName: "networkName",
 							},
@@ -354,26 +351,26 @@ func TestMachineCreation(t *testing.T) {
 func TestMachineUpdate(t *testing.T) {
 	awsClusterID := "aws-cluster"
 	awsRegion := "region"
-	defaultAWSProviderSpec := &aws.AWSMachineProviderConfig{
-		AMI: aws.AWSResourceReference{
+	defaultAWSProviderSpec := &machinev1.AWSMachineProviderConfig{
+		AMI: machinev1.AWSResourceReference{
 			ID: pointer.StringPtr("ami"),
 		},
 		InstanceType:      defaultAWSX86InstanceType,
 		UserDataSecret:    &corev1.LocalObjectReference{Name: defaultUserDataSecret},
 		CredentialsSecret: &corev1.LocalObjectReference{Name: defaultAWSCredentialsSecret},
-		Placement: aws.Placement{
+		Placement: machinev1.Placement{
 			Region: awsRegion,
 		},
 	}
 
 	azureClusterID := "azure-cluster"
-	defaultAzureProviderSpec := &azure.AzureMachineProviderSpec{
+	defaultAzureProviderSpec := &machinev1.AzureMachineProviderSpec{
 		Location:             "location",
 		VMSize:               defaultAzureVMSize,
 		Vnet:                 defaultAzureVnet(azureClusterID),
 		Subnet:               defaultAzureSubnet(azureClusterID),
 		NetworkResourceGroup: defaultAzureNetworkResourceGroup(azureClusterID),
-		Image: azure.Image{
+		Image: machinev1.Image{
 			ResourceID: defaultAzureImageResourceID(azureClusterID),
 		},
 		ManagedIdentity: defaultAzureManagedIdentiy(azureClusterID),
@@ -386,31 +383,31 @@ func TestMachineUpdate(t *testing.T) {
 			Name:      defaultAzureCredentialsSecret,
 			Namespace: defaultSecretNamespace,
 		},
-		OSDisk: azure.OSDisk{
+		OSDisk: machinev1.OSDisk{
 			DiskSizeGB: 128,
 			OSType:     defaultAzureOSDiskOSType,
-			ManagedDisk: azure.ManagedDiskParameters{
+			ManagedDisk: machinev1.ManagedDiskParameters{
 				StorageAccountType: defaultAzureOSDiskStorageType,
 			},
 		},
 	}
 
 	gcpClusterID := "gcp-cluster"
-	defaultGCPProviderSpec := &gcp.GCPMachineProviderSpec{
+	defaultGCPProviderSpec := &machinev1.GCPMachineProviderSpec{
 		Region:      "region",
 		Zone:        "region-zone",
 		MachineType: defaultGCPMachineType,
-		NetworkInterfaces: []*gcp.GCPNetworkInterface{
+		NetworkInterfaces: []*machinev1.GCPNetworkInterface{
 			{
 				Network:    defaultGCPNetwork(gcpClusterID),
 				Subnetwork: defaultGCPSubnetwork(gcpClusterID),
 			},
 		},
-		Disks: []*gcp.GCPDisk{
+		Disks: []*machinev1.GCPDisk{
 			{
 				AutoDelete: true,
 				Boot:       true,
-				SizeGb:     defaultGCPDiskSizeGb,
+				SizeGB:     defaultGCPDiskSizeGb,
 				Type:       defaultGCPDiskType,
 				Image:      defaultGCPDiskImage,
 			},
@@ -423,16 +420,15 @@ func TestMachineUpdate(t *testing.T) {
 			Name: defaultGCPCredentialsSecret,
 		},
 	}
-
 	vsphereClusterID := "vsphere-cluster"
-	defaultVSphereProviderSpec := &vsphere.VSphereMachineProviderSpec{
+	defaultVSphereProviderSpec := &machinev1.VSphereMachineProviderSpec{
 		Template: "template",
-		Workspace: &vsphere.Workspace{
+		Workspace: &machinev1.Workspace{
 			Datacenter: "datacenter",
 			Server:     "server",
 		},
-		Network: vsphere.NetworkSpec{
-			Devices: []vsphere.NetworkDeviceSpec{
+		Network: machinev1.NetworkSpec{
+			Devices: []machinev1.NetworkDeviceSpec{
 				{
 					NetworkName: "networkName",
 				},
@@ -766,7 +762,7 @@ func TestMachineUpdate(t *testing.T) {
 			},
 			updatedProviderSpecValue: func() *kruntime.RawExtension {
 				object := defaultVSphereProviderSpec.DeepCopy()
-				object.Network = vsphere.NetworkSpec{}
+				object.Network = machinev1.NetworkSpec{}
 				return &kruntime.RawExtension{
 					Object: object,
 				}
@@ -861,22 +857,22 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 
 	testCases := []struct {
 		testCase         string
-		modifySpec       func(*aws.AWSMachineProviderConfig)
+		modifySpec       func(*machinev1.AWSMachineProviderConfig)
 		expectedError    string
 		expectedOk       bool
 		expectedWarnings []string
 	}{
 		{
 			testCase: "with no ami values it fails",
-			modifySpec: func(p *aws.AWSMachineProviderConfig) {
-				p.AMI = aws.AWSResourceReference{}
+			modifySpec: func(p *machinev1.AWSMachineProviderConfig) {
+				p.AMI = machinev1.AWSResourceReference{}
 			},
 			expectedOk:    false,
 			expectedError: "providerSpec.ami: Required value: expected providerSpec.ami.id to be populated",
 		},
 		{
 			testCase: "with no region values it fails",
-			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+			modifySpec: func(p *machinev1.AWSMachineProviderConfig) {
 				p.Placement.Region = ""
 			},
 			expectedOk:    false,
@@ -884,7 +880,7 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no instanceType it fails",
-			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+			modifySpec: func(p *machinev1.AWSMachineProviderConfig) {
 				p.InstanceType = ""
 			},
 			expectedOk:    false,
@@ -892,7 +888,7 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no user data secret it fails",
-			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+			modifySpec: func(p *machinev1.AWSMachineProviderConfig) {
 				p.UserDataSecret = nil
 			},
 			expectedOk:    false,
@@ -900,7 +896,7 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no credentials secret it fails",
-			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+			modifySpec: func(p *machinev1.AWSMachineProviderConfig) {
 				p.CredentialsSecret = nil
 			},
 			expectedOk:    false,
@@ -908,7 +904,7 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "when the credentials secret does not exist",
-			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+			modifySpec: func(p *machinev1.AWSMachineProviderConfig) {
 				p.CredentialsSecret.Name = "does-not-exist"
 			},
 			expectedOk:       true,
@@ -916,8 +912,8 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no subnet values it fails",
-			modifySpec: func(p *aws.AWSMachineProviderConfig) {
-				p.Subnet = aws.AWSResourceReference{}
+			modifySpec: func(p *machinev1.AWSMachineProviderConfig) {
+				p.Subnet = machinev1.AWSResourceReference{}
 			},
 			expectedOk:       true,
 			expectedWarnings: []string{"providerSpec.subnet: No subnet has been provided. Instances may be created in an unexpected subnet and may not join the cluster."},
@@ -929,21 +925,21 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with valid tenancy field",
-			modifySpec: func(p *aws.AWSMachineProviderConfig) {
-				p.Placement.Tenancy = aws.DedicatedTenancy
+			modifySpec: func(p *machinev1.AWSMachineProviderConfig) {
+				p.Placement.Tenancy = machinev1.DedicatedTenancy
 			},
 			expectedOk: true,
 		},
 		{
 			testCase: "with empty tenancy field",
-			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+			modifySpec: func(p *machinev1.AWSMachineProviderConfig) {
 				p.Placement.Tenancy = ""
 			},
 			expectedOk: true,
 		},
 		{
 			testCase: "fail with invalid tenancy field",
-			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+			modifySpec: func(p *machinev1.AWSMachineProviderConfig) {
 				p.Placement.Tenancy = "invalid"
 			},
 			expectedOk:    false,
@@ -951,7 +947,7 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no iam instance profile",
-			modifySpec: func(p *aws.AWSMachineProviderConfig) {
+			modifySpec: func(p *machinev1.AWSMachineProviderConfig) {
 				p.IAMInstanceProfile = nil
 			},
 			expectedOk:       true,
@@ -959,8 +955,8 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with double tag names, lists duplicated tags",
-			modifySpec: func(p *aws.AWSMachineProviderConfig) {
-				p.Tags = []aws.TagSpecification{
+			modifySpec: func(p *machinev1.AWSMachineProviderConfig) {
+				p.Tags = []machinev1.TagSpecification{
 					{
 						Name: "Tag-A",
 					},
@@ -983,8 +979,8 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with triplicated tag names, lists duplicated tag",
-			modifySpec: func(p *aws.AWSMachineProviderConfig) {
-				p.Tags = []aws.TagSpecification{
+			modifySpec: func(p *machinev1.AWSMachineProviderConfig) {
+				p.Tags = []machinev1.TagSpecification{
 					{
 						Name: "Tag-A",
 					},
@@ -1001,8 +997,8 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with alternately cased tag names, AWS tags are case sensitive, does not list duplicated tags",
-			modifySpec: func(p *aws.AWSMachineProviderConfig) {
-				p.Tags = []aws.TagSpecification{
+			modifySpec: func(p *machinev1.AWSMachineProviderConfig) {
+				p.Tags = []machinev1.TagSpecification{
 					{
 						Name: "Tag-A",
 					},
@@ -1018,8 +1014,8 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with AMI ARN set",
-			modifySpec: func(p *aws.AWSMachineProviderConfig) {
-				p.AMI = aws.AWSResourceReference{
+			modifySpec: func(p *machinev1.AWSMachineProviderConfig) {
+				p.AMI = machinev1.AWSResourceReference{
 					ID:  pointer.StringPtr("ami"),
 					ARN: pointer.StringPtr("arn"),
 				}
@@ -1029,10 +1025,10 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with AMI filters set",
-			modifySpec: func(p *aws.AWSMachineProviderConfig) {
-				p.AMI = aws.AWSResourceReference{
+			modifySpec: func(p *machinev1.AWSMachineProviderConfig) {
+				p.AMI = machinev1.AWSResourceReference{
 					ID: pointer.StringPtr("ami"),
-					Filters: []aws.Filter{
+					Filters: []machinev1.Filter{
 						{
 							Name: "filter",
 						},
@@ -1059,15 +1055,15 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
-			providerSpec := &aws.AWSMachineProviderConfig{
-				AMI: aws.AWSResourceReference{
+			providerSpec := &machinev1.AWSMachineProviderConfig{
+				AMI: machinev1.AWSResourceReference{
 					ID: pointer.StringPtr("ami"),
 				},
-				Placement: aws.Placement{
+				Placement: machinev1.Placement{
 					Region: "region",
 				},
 				InstanceType: "m5.large",
-				IAMInstanceProfile: &aws.AWSResourceReference{
+				IAMInstanceProfile: &machinev1.AWSResourceReference{
 					ID: pointer.StringPtr("profileID"),
 				},
 				UserDataSecret: &corev1.LocalObjectReference{
@@ -1076,12 +1072,12 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: "secret",
 				},
-				SecurityGroups: []aws.AWSResourceReference{
+				SecurityGroups: []machinev1.AWSResourceReference{
 					{
 						ID: pointer.StringPtr("sg"),
 					},
 				},
-				Subnet: aws.AWSResourceReference{
+				Subnet: machinev1.AWSResourceReference{
 					ID: pointer.StringPtr("subnet"),
 				},
 			}
@@ -1132,26 +1128,26 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 	}
 	testCases := []struct {
 		testCase             string
-		providerSpec         *aws.AWSMachineProviderConfig
-		expectedProviderSpec *aws.AWSMachineProviderConfig
+		providerSpec         *machinev1.AWSMachineProviderConfig
+		expectedProviderSpec *machinev1.AWSMachineProviderConfig
 		expectedError        string
 		expectedOk           bool
 		expectedWarnings     []string
 	}{
 		{
 			testCase: "it defaults Region, InstanceType, UserDataSecret and CredentialsSecret",
-			providerSpec: &aws.AWSMachineProviderConfig{
-				AMI:               aws.AWSResourceReference{},
+			providerSpec: &machinev1.AWSMachineProviderConfig{
+				AMI:               machinev1.AWSResourceReference{},
 				InstanceType:      "",
 				UserDataSecret:    nil,
 				CredentialsSecret: nil,
 			},
-			expectedProviderSpec: &aws.AWSMachineProviderConfig{
-				AMI:               aws.AWSResourceReference{},
+			expectedProviderSpec: &machinev1.AWSMachineProviderConfig{
+				AMI:               machinev1.AWSResourceReference{},
 				InstanceType:      arch,
 				UserDataSecret:    &corev1.LocalObjectReference{Name: defaultUserDataSecret},
 				CredentialsSecret: &corev1.LocalObjectReference{Name: defaultAWSCredentialsSecret},
-				Placement: aws.Placement{
+				Placement: machinev1.Placement{
 					Region: "region",
 				},
 			},
@@ -1183,7 +1179,7 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
 
-			gotProviderSpec := new(aws.AWSMachineProviderConfig)
+			gotProviderSpec := new(machinev1.AWSMachineProviderConfig)
 			if err := yaml.Unmarshal(m.Spec.ProviderSpec.Value.Raw, &gotProviderSpec); err != nil {
 				t.Fatal(err)
 			}
@@ -1217,7 +1213,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 
 	testCases := []struct {
 		testCase            string
-		modifySpec          func(providerSpec *azure.AzureMachineProviderSpec)
+		modifySpec          func(providerSpec *machinev1.AzureMachineProviderSpec)
 		azurePlatformStatus *osconfigv1.AzurePlatformStatus
 		expectedError       string
 		expectedOk          bool
@@ -1225,7 +1221,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 	}{
 		{
 			testCase: "with no vmsize it fails",
-			modifySpec: func(p *azure.AzureMachineProviderSpec) {
+			modifySpec: func(p *machinev1.AzureMachineProviderSpec) {
 				p.VMSize = ""
 			},
 			expectedOk:    false,
@@ -1233,7 +1229,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with a vnet but no subnet it fails",
-			modifySpec: func(p *azure.AzureMachineProviderSpec) {
+			modifySpec: func(p *machinev1.AzureMachineProviderSpec) {
 				p.Vnet = "vnet"
 				p.Subnet = ""
 				p.NetworkResourceGroup = "nrg"
@@ -1243,7 +1239,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with a subnet but no vnet it fails",
-			modifySpec: func(p *azure.AzureMachineProviderSpec) {
+			modifySpec: func(p *machinev1.AzureMachineProviderSpec) {
 				p.Vnet = ""
 				p.Subnet = "subnet"
 				p.NetworkResourceGroup = "nrg"
@@ -1253,16 +1249,16 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no image it fails",
-			modifySpec: func(p *azure.AzureMachineProviderSpec) {
-				p.Image = azure.Image{}
+			modifySpec: func(p *machinev1.AzureMachineProviderSpec) {
+				p.Image = machinev1.Image{}
 			},
 			expectedOk:    false,
 			expectedError: "providerSpec.image: Required value: an image reference must be provided",
 		},
 		{
 			testCase: "with resourceId and other fields set it fails",
-			modifySpec: func(p *azure.AzureMachineProviderSpec) {
-				p.Image = azure.Image{
+			modifySpec: func(p *machinev1.AzureMachineProviderSpec) {
+				p.Image = machinev1.Image{
 					ResourceID: "rid",
 					SKU:        "sku-rand",
 					Offer:      "base-offer",
@@ -1275,8 +1271,8 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no offer it fails",
-			modifySpec: func(p *azure.AzureMachineProviderSpec) {
-				p.Image = azure.Image{
+			modifySpec: func(p *machinev1.AzureMachineProviderSpec) {
+				p.Image = machinev1.Image{
 					Version:   "1",
 					SKU:       "sku-rand",
 					Publisher: "test",
@@ -1287,8 +1283,8 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no SKU it fails",
-			modifySpec: func(p *azure.AzureMachineProviderSpec) {
-				p.Image = azure.Image{
+			modifySpec: func(p *machinev1.AzureMachineProviderSpec) {
+				p.Image = machinev1.Image{
 					Offer:     "base-offer",
 					Version:   "1",
 					Publisher: "test",
@@ -1299,8 +1295,8 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no Version it fails",
-			modifySpec: func(p *azure.AzureMachineProviderSpec) {
-				p.Image = azure.Image{
+			modifySpec: func(p *machinev1.AzureMachineProviderSpec) {
+				p.Image = machinev1.Image{
 					SKU:       "sku-rand",
 					Offer:     "base-offer",
 					Publisher: "test",
@@ -1311,8 +1307,8 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no Publisher it fails",
-			modifySpec: func(p *azure.AzureMachineProviderSpec) {
-				p.Image = azure.Image{
+			modifySpec: func(p *machinev1.AzureMachineProviderSpec) {
+				p.Image = machinev1.Image{
 					SKU:     "sku-rand",
 					Offer:   "base-offer",
 					Version: "1",
@@ -1323,8 +1319,8 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with resourceID in image it succeeds",
-			modifySpec: func(p *azure.AzureMachineProviderSpec) {
-				p.Image = azure.Image{
+			modifySpec: func(p *machinev1.AzureMachineProviderSpec) {
+				p.Image = machinev1.Image{
 					ResourceID: "rid",
 				}
 			},
@@ -1332,7 +1328,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no user data secret it fails",
-			modifySpec: func(p *azure.AzureMachineProviderSpec) {
+			modifySpec: func(p *machinev1.AzureMachineProviderSpec) {
 				p.UserDataSecret = nil
 			},
 			expectedOk:    false,
@@ -1340,7 +1336,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no user data secret name it fails",
-			modifySpec: func(p *azure.AzureMachineProviderSpec) {
+			modifySpec: func(p *machinev1.AzureMachineProviderSpec) {
 				p.UserDataSecret = &corev1.SecretReference{}
 			},
 			expectedOk:    false,
@@ -1348,7 +1344,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no credentials secret it fails",
-			modifySpec: func(p *azure.AzureMachineProviderSpec) {
+			modifySpec: func(p *machinev1.AzureMachineProviderSpec) {
 				p.CredentialsSecret = nil
 			},
 			expectedOk:    false,
@@ -1356,7 +1352,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no credentials secret namespace it fails",
-			modifySpec: func(p *azure.AzureMachineProviderSpec) {
+			modifySpec: func(p *machinev1.AzureMachineProviderSpec) {
 				p.CredentialsSecret = &corev1.SecretReference{
 					Name: "name",
 				}
@@ -1366,7 +1362,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "when the credentials secret does not exist",
-			modifySpec: func(p *azure.AzureMachineProviderSpec) {
+			modifySpec: func(p *machinev1.AzureMachineProviderSpec) {
 				p.CredentialsSecret.Name = "does-not-exist"
 			},
 			expectedOk:       true,
@@ -1374,7 +1370,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no credentials secret name it fails",
-			modifySpec: func(p *azure.AzureMachineProviderSpec) {
+			modifySpec: func(p *machinev1.AzureMachineProviderSpec) {
 				p.CredentialsSecret = &corev1.SecretReference{
 					Namespace: namespace.Name,
 				}
@@ -1384,10 +1380,10 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no os disk size it fails",
-			modifySpec: func(p *azure.AzureMachineProviderSpec) {
-				p.OSDisk = azure.OSDisk{
+			modifySpec: func(p *machinev1.AzureMachineProviderSpec) {
+				p.OSDisk = machinev1.OSDisk{
 					OSType: "osType",
-					ManagedDisk: azure.ManagedDiskParameters{
+					ManagedDisk: machinev1.ManagedDiskParameters{
 						StorageAccountType: "storageAccountType",
 					},
 				}
@@ -1402,8 +1398,8 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with government cloud and spot VMs enabled",
-			modifySpec: func(p *azure.AzureMachineProviderSpec) {
-				p.SpotVMOptions = &azure.SpotVMOptions{}
+			modifySpec: func(p *machinev1.AzureMachineProviderSpec) {
+				p.SpotVMOptions = &machinev1.SpotVMOptions{}
 			},
 			azurePlatformStatus: &osconfigv1.AzurePlatformStatus{
 				CloudName: osconfigv1.AzureUSGovernmentCloud,
@@ -1413,8 +1409,8 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with public cloud and spot VMs enabled",
-			modifySpec: func(p *azure.AzureMachineProviderSpec) {
-				p.SpotVMOptions = &azure.SpotVMOptions{}
+			modifySpec: func(p *machinev1.AzureMachineProviderSpec) {
+				p.SpotVMOptions = &machinev1.SpotVMOptions{}
 			},
 			azurePlatformStatus: &osconfigv1.AzurePlatformStatus{
 				CloudName: osconfigv1.AzurePublicCloud,
@@ -1440,9 +1436,9 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 			h := createMachineValidator(infra, c, plainDNS)
 
 			// create a valid spec that will then be 'broken' by modifySpec
-			providerSpec := &azure.AzureMachineProviderSpec{
+			providerSpec := &machinev1.AzureMachineProviderSpec{
 				VMSize: "vmSize",
-				Image: azure.Image{
+				Image: machinev1.Image{
 					ResourceID: "resourceID",
 				},
 				UserDataSecret: &corev1.SecretReference{
@@ -1452,7 +1448,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 					Name:      "name",
 					Namespace: namespace.Name,
 				},
-				OSDisk: azure.OSDisk{
+				OSDisk: machinev1.OSDisk{
 					DiskSizeGB: 1,
 				},
 			}
@@ -1498,30 +1494,30 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 	clusterID := "clusterID"
 	testCases := []struct {
 		testCase         string
-		providerSpec     *azure.AzureMachineProviderSpec
-		modifyDefault    func(*azure.AzureMachineProviderSpec)
+		providerSpec     *machinev1.AzureMachineProviderSpec
+		modifyDefault    func(*machinev1.AzureMachineProviderSpec)
 		expectedError    string
 		expectedOk       bool
 		expectedWarnings []string
 	}{
 		{
 			testCase:      "it defaults defaultable fields",
-			providerSpec:  &azure.AzureMachineProviderSpec{},
+			providerSpec:  &machinev1.AzureMachineProviderSpec{},
 			expectedOk:    true,
 			expectedError: "",
 		},
 		{
 			testCase: "it does not override azure image spec",
-			providerSpec: &azure.AzureMachineProviderSpec{
-				Image: azure.Image{
+			providerSpec: &machinev1.AzureMachineProviderSpec{
+				Image: machinev1.Image{
 					Offer:     "test-offer",
 					SKU:       "test-sku",
 					Publisher: "base-publisher",
 					Version:   "1",
 				},
 			},
-			modifyDefault: func(p *azure.AzureMachineProviderSpec) {
-				p.Image = azure.Image{
+			modifyDefault: func(p *machinev1.AzureMachineProviderSpec) {
+				p.Image = machinev1.Image{
 					Offer:     "test-offer",
 					SKU:       "test-sku",
 					Publisher: "base-publisher",
@@ -1533,13 +1529,13 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "it does not override azure image ResourceID",
-			providerSpec: &azure.AzureMachineProviderSpec{
-				Image: azure.Image{
+			providerSpec: &machinev1.AzureMachineProviderSpec{
+				Image: machinev1.Image{
 					ResourceID: "rid",
 				},
 			},
-			modifyDefault: func(p *azure.AzureMachineProviderSpec) {
-				p.Image = azure.Image{
+			modifyDefault: func(p *machinev1.AzureMachineProviderSpec) {
+				p.Image = machinev1.Image{
 					ResourceID: "rid",
 				}
 			},
@@ -1548,10 +1544,10 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "does not overwrite the network resource group if it already exists",
-			providerSpec: &azure.AzureMachineProviderSpec{
+			providerSpec: &machinev1.AzureMachineProviderSpec{
 				NetworkResourceGroup: "nrg",
 			},
-			modifyDefault: func(p *azure.AzureMachineProviderSpec) {
+			modifyDefault: func(p *machinev1.AzureMachineProviderSpec) {
 				p.NetworkResourceGroup = "nrg"
 			},
 			expectedOk:    true,
@@ -1559,12 +1555,12 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "does not overwrite the credentials secret namespace if they already exist",
-			providerSpec: &azure.AzureMachineProviderSpec{
+			providerSpec: &machinev1.AzureMachineProviderSpec{
 				CredentialsSecret: &corev1.SecretReference{
 					Namespace: "foo",
 				},
 			},
-			modifyDefault: func(p *azure.AzureMachineProviderSpec) {
+			modifyDefault: func(p *machinev1.AzureMachineProviderSpec) {
 				p.CredentialsSecret.Namespace = "foo"
 			},
 			expectedOk:    true,
@@ -1572,7 +1568,7 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "does not overwrite the secret names if they already exist",
-			providerSpec: &azure.AzureMachineProviderSpec{
+			providerSpec: &machinev1.AzureMachineProviderSpec{
 				UserDataSecret: &corev1.SecretReference{
 					Name: "foo",
 				},
@@ -1580,7 +1576,7 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 					Name: "foo",
 				},
 			},
-			modifyDefault: func(p *azure.AzureMachineProviderSpec) {
+			modifyDefault: func(p *machinev1.AzureMachineProviderSpec) {
 				p.UserDataSecret.Name = "foo"
 				p.CredentialsSecret.Name = "foo"
 			},
@@ -1594,11 +1590,11 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
-			defaultProviderSpec := &azure.AzureMachineProviderSpec{
+			defaultProviderSpec := &machinev1.AzureMachineProviderSpec{
 				VMSize: defaultAzureVMSize,
 				Vnet:   defaultAzureVnet(clusterID),
 				Subnet: defaultAzureSubnet(clusterID),
-				Image: azure.Image{
+				Image: machinev1.Image{
 					ResourceID: defaultAzureImageResourceID(clusterID),
 				},
 				UserDataSecret: &corev1.SecretReference{
@@ -1625,7 +1621,7 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
 
-			gotProviderSpec := new(azure.AzureMachineProviderSpec)
+			gotProviderSpec := new(machinev1.AzureMachineProviderSpec)
 			if err := yaml.Unmarshal(m.Spec.ProviderSpec.Value.Raw, &gotProviderSpec); err != nil {
 				t.Fatal(err)
 			}
@@ -1659,14 +1655,14 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 
 	testCases := []struct {
 		testCase         string
-		modifySpec       func(*gcp.GCPMachineProviderSpec)
+		modifySpec       func(*machinev1.GCPMachineProviderSpec)
 		expectedError    string
 		expectedOk       bool
 		expectedWarnings []string
 	}{
 		{
 			testCase: "with no region",
-			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
 				p.Region = ""
 			},
 			expectedOk:    false,
@@ -1674,7 +1670,7 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no zone",
-			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
 				p.Zone = ""
 			},
 			expectedOk:    false,
@@ -1682,7 +1678,7 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with an invalid zone",
-			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
 				p.Zone = "zone"
 			},
 			expectedOk:    false,
@@ -1690,7 +1686,7 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no machine type",
-			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
 				p.MachineType = ""
 			},
 			expectedOk:    false,
@@ -1698,7 +1694,7 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no network interfaces",
-			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
 				p.NetworkInterfaces = nil
 			},
 			expectedOk:    false,
@@ -1706,8 +1702,8 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with a network interfaces is missing the network",
-			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
-				p.NetworkInterfaces = []*gcp.GCPNetworkInterface{
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
+				p.NetworkInterfaces = []*machinev1.GCPNetworkInterface{
 					{
 						Network:    "network",
 						Subnetwork: "subnetwork",
@@ -1722,8 +1718,8 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with a network interfaces is missing the subnetwork",
-			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
-				p.NetworkInterfaces = []*gcp.GCPNetworkInterface{
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
+				p.NetworkInterfaces = []*machinev1.GCPNetworkInterface{
 					{
 						Network:    "network",
 						Subnetwork: "subnetwork",
@@ -1738,7 +1734,7 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no disks",
-			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
 				p.Disks = nil
 			},
 			expectedOk:    false,
@@ -1746,10 +1742,10 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with a disk that is too small",
-			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
-				p.Disks = []*gcp.GCPDisk{
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
+				p.Disks = []*machinev1.GCPDisk{
 					{
-						SizeGb: 1,
+						SizeGB: 1,
 					},
 				}
 			},
@@ -1758,10 +1754,10 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with a disk that is too large",
-			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
-				p.Disks = []*gcp.GCPDisk{
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
+				p.Disks = []*machinev1.GCPDisk{
 					{
-						SizeGb: 100000,
+						SizeGB: 100000,
 					},
 				}
 			},
@@ -1770,10 +1766,10 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with a disk type that is not supported",
-			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
-				p.Disks = []*gcp.GCPDisk{
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
+				p.Disks = []*machinev1.GCPDisk{
 					{
-						SizeGb: 16,
+						SizeGB: 16,
 						Type:   "invalid",
 					},
 				}
@@ -1783,7 +1779,7 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no service accounts",
-			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
 				p.ServiceAccounts = nil
 			},
 			expectedOk:       true,
@@ -1792,8 +1788,8 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with multiple service accounts",
-			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
-				p.ServiceAccounts = []gcp.GCPServiceAccount{
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
+				p.ServiceAccounts = []machinev1.GCPServiceAccount{
 					{},
 					{},
 				}
@@ -1803,8 +1799,8 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with the service account's email missing",
-			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
-				p.ServiceAccounts = []gcp.GCPServiceAccount{
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
+				p.ServiceAccounts = []machinev1.GCPServiceAccount{
 					{
 						Scopes: []string{"scope"},
 					},
@@ -1815,8 +1811,8 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with the service account's with no scopes",
-			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
-				p.ServiceAccounts = []gcp.GCPServiceAccount{
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
+				p.ServiceAccounts = []machinev1.GCPServiceAccount{
 					{
 						Email: "email",
 					},
@@ -1827,7 +1823,7 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no user data secret",
-			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
 				p.UserDataSecret = nil
 			},
 			expectedOk:    false,
@@ -1835,7 +1831,7 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no user data secret name",
-			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
 				p.UserDataSecret = &corev1.LocalObjectReference{}
 			},
 			expectedOk:    false,
@@ -1843,7 +1839,7 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no credentials data secret",
-			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
 				p.CredentialsSecret = nil
 			},
 			expectedOk:    false,
@@ -1851,7 +1847,7 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "when the credentials secret does not exist",
-			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
 				p.CredentialsSecret.Name = "does-not-exist"
 			},
 			expectedOk:       true,
@@ -1859,7 +1855,7 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no user data secret name",
-			modifySpec: func(p *gcp.GCPMachineProviderSpec) {
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
 				p.CredentialsSecret = &corev1.LocalObjectReference{}
 			},
 			expectedOk:    false,
@@ -1885,23 +1881,23 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 	h := createMachineValidator(infra, c, plainDNS)
 
 	for _, tc := range testCases {
-		providerSpec := &gcp.GCPMachineProviderSpec{
+		providerSpec := &machinev1.GCPMachineProviderSpec{
 			Region:      "region",
 			Zone:        "region-zone",
 			ProjectID:   "projectID",
 			MachineType: "machineType",
-			NetworkInterfaces: []*gcp.GCPNetworkInterface{
+			NetworkInterfaces: []*machinev1.GCPNetworkInterface{
 				{
 					Network:    "network",
 					Subnetwork: "subnetwork",
 				},
 			},
-			Disks: []*gcp.GCPDisk{
+			Disks: []*machinev1.GCPDisk{
 				{
-					SizeGb: 16,
+					SizeGB: 16,
 				},
 			},
-			ServiceAccounts: []gcp.GCPServiceAccount{
+			ServiceAccounts: []machinev1.GCPServiceAccount{
 				{
 					Email:  "email",
 					Scopes: []string{"scope"},
@@ -1958,35 +1954,35 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 	projectID := "projectID"
 	testCases := []struct {
 		testCase         string
-		providerSpec     *gcp.GCPMachineProviderSpec
-		modifyDefault    func(*gcp.GCPMachineProviderSpec)
+		providerSpec     *machinev1.GCPMachineProviderSpec
+		modifyDefault    func(*machinev1.GCPMachineProviderSpec)
 		expectedError    string
 		expectedOk       bool
 		expectedWarnings []string
 	}{
 		{
 			testCase:      "it defaults defaultable fields",
-			providerSpec:  &gcp.GCPMachineProviderSpec{},
+			providerSpec:  &machinev1.GCPMachineProviderSpec{},
 			expectedOk:    true,
 			expectedError: "",
 		},
 		{
 			testCase: "it does not overwrite disks which already have fields set",
-			providerSpec: &gcp.GCPMachineProviderSpec{
-				Disks: []*gcp.GCPDisk{
+			providerSpec: &machinev1.GCPMachineProviderSpec{
+				Disks: []*machinev1.GCPDisk{
 					{
 						AutoDelete: false,
 						Boot:       false,
-						SizeGb:     32,
+						SizeGB:     32,
 					},
 				},
 			},
-			modifyDefault: func(p *gcp.GCPMachineProviderSpec) {
-				p.Disks = []*gcp.GCPDisk{
+			modifyDefault: func(p *machinev1.GCPMachineProviderSpec) {
+				p.Disks = []*machinev1.GCPDisk{
 					{
 						AutoDelete: false,
 						Boot:       false,
-						SizeGb:     32,
+						SizeGB:     32,
 						Type:       defaultGCPDiskType,
 						Image:      defaultGCPDiskImage,
 					},
@@ -2006,19 +2002,19 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 	h := createMachineDefaulter(platformStatus, clusterID)
 
 	for _, tc := range testCases {
-		defaultProviderSpec := &gcp.GCPMachineProviderSpec{
+		defaultProviderSpec := &machinev1.GCPMachineProviderSpec{
 			MachineType: defaultGCPMachineType,
-			NetworkInterfaces: []*gcp.GCPNetworkInterface{
+			NetworkInterfaces: []*machinev1.GCPNetworkInterface{
 				{
 					Network:    defaultGCPNetwork(clusterID),
 					Subnetwork: defaultGCPSubnetwork(clusterID),
 				},
 			},
-			Disks: []*gcp.GCPDisk{
+			Disks: []*machinev1.GCPDisk{
 				{
 					AutoDelete: true,
 					Boot:       true,
-					SizeGb:     defaultGCPDiskSizeGb,
+					SizeGB:     defaultGCPDiskSizeGb,
 					Type:       defaultGCPDiskType,
 					Image:      defaultGCPDiskImage,
 				},
@@ -2048,7 +2044,7 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
 
-			gotProviderSpec := new(gcp.GCPMachineProviderSpec)
+			gotProviderSpec := new(machinev1.GCPMachineProviderSpec)
 			if err := yaml.Unmarshal(m.Spec.ProviderSpec.Value.Raw, &gotProviderSpec); err != nil {
 				t.Fatal(err)
 			}
@@ -2082,14 +2078,14 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 
 	testCases := []struct {
 		testCase         string
-		modifySpec       func(*vsphere.VSphereMachineProviderSpec)
+		modifySpec       func(*machinev1.VSphereMachineProviderSpec)
 		expectedError    string
 		expectedOk       bool
 		expectedWarnings []string
 	}{
 		{
 			testCase: "with no template provided",
-			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+			modifySpec: func(p *machinev1.VSphereMachineProviderSpec) {
 				p.Template = ""
 			},
 			expectedOk:    false,
@@ -2097,7 +2093,7 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no workspace provided",
-			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+			modifySpec: func(p *machinev1.VSphereMachineProviderSpec) {
 				p.Workspace = nil
 			},
 			expectedOk:    false,
@@ -2105,8 +2101,8 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no workspace server provided",
-			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
-				p.Workspace = &vsphere.Workspace{
+			modifySpec: func(p *machinev1.VSphereMachineProviderSpec) {
+				p.Workspace = &machinev1.Workspace{
 					Datacenter: "datacenter",
 				}
 			},
@@ -2115,8 +2111,8 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no workspace datacenter provided",
-			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
-				p.Workspace = &vsphere.Workspace{
+			modifySpec: func(p *machinev1.VSphereMachineProviderSpec) {
+				p.Workspace = &machinev1.Workspace{
 					Server: "server",
 				}
 			},
@@ -2126,8 +2122,8 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with a workspace folder outside of the current datacenter",
-			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
-				p.Workspace = &vsphere.Workspace{
+			modifySpec: func(p *machinev1.VSphereMachineProviderSpec) {
+				p.Workspace = &machinev1.Workspace{
 					Server:     "server",
 					Datacenter: "datacenter",
 					Folder:     "/foo/vm/folder",
@@ -2138,9 +2134,9 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no network devices provided",
-			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
-				p.Network = vsphere.NetworkSpec{
-					Devices: []vsphere.NetworkDeviceSpec{},
+			modifySpec: func(p *machinev1.VSphereMachineProviderSpec) {
+				p.Network = machinev1.NetworkSpec{
+					Devices: []machinev1.NetworkDeviceSpec{},
 				}
 			},
 			expectedOk:    false,
@@ -2148,9 +2144,9 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no network device name provided",
-			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
-				p.Network = vsphere.NetworkSpec{
-					Devices: []vsphere.NetworkDeviceSpec{
+			modifySpec: func(p *machinev1.VSphereMachineProviderSpec) {
+				p.Network = machinev1.NetworkSpec{
+					Devices: []machinev1.NetworkDeviceSpec{
 						{
 							NetworkName: "networkName",
 						},
@@ -2163,7 +2159,7 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with too few CPUs provided",
-			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+			modifySpec: func(p *machinev1.VSphereMachineProviderSpec) {
 				p.NumCPUs = 1
 			},
 			expectedOk:       true,
@@ -2172,7 +2168,7 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with too little memory provided",
-			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+			modifySpec: func(p *machinev1.VSphereMachineProviderSpec) {
 				p.MemoryMiB = 1024
 			},
 			expectedOk:       true,
@@ -2181,7 +2177,7 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with too little disk size provided",
-			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+			modifySpec: func(p *machinev1.VSphereMachineProviderSpec) {
 				p.DiskGiB = 1
 			},
 			expectedOk:       true,
@@ -2190,7 +2186,7 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no user data secret provided",
-			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+			modifySpec: func(p *machinev1.VSphereMachineProviderSpec) {
 				p.UserDataSecret = nil
 			},
 			expectedOk:    false,
@@ -2198,7 +2194,7 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no user data secret name provided",
-			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+			modifySpec: func(p *machinev1.VSphereMachineProviderSpec) {
 				p.UserDataSecret = &corev1.LocalObjectReference{}
 			},
 			expectedOk:    false,
@@ -2206,7 +2202,7 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no credentials secret provided",
-			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+			modifySpec: func(p *machinev1.VSphereMachineProviderSpec) {
 				p.CredentialsSecret = nil
 			},
 			expectedOk:    false,
@@ -2214,7 +2210,7 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "when the credentials secret does not exist",
-			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+			modifySpec: func(p *machinev1.VSphereMachineProviderSpec) {
 				p.CredentialsSecret.Name = "does-not-exist"
 			},
 			expectedOk:       true,
@@ -2222,7 +2218,7 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with no credentials secret name provided",
-			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+			modifySpec: func(p *machinev1.VSphereMachineProviderSpec) {
 				p.CredentialsSecret = &corev1.LocalObjectReference{}
 			},
 			expectedOk:    false,
@@ -2235,7 +2231,7 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with numCPUs equal to 0",
-			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+			modifySpec: func(p *machinev1.VSphereMachineProviderSpec) {
 				p.NumCPUs = 0
 			},
 			expectedOk:       true,
@@ -2243,7 +2239,7 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with memoryMiB equal to 0",
-			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+			modifySpec: func(p *machinev1.VSphereMachineProviderSpec) {
 				p.MemoryMiB = 0
 			},
 			expectedOk:       true,
@@ -2251,7 +2247,7 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 		},
 		{
 			testCase: "with diskGiB equal to 0",
-			modifySpec: func(p *vsphere.VSphereMachineProviderSpec) {
+			modifySpec: func(p *machinev1.VSphereMachineProviderSpec) {
 				p.DiskGiB = 0
 			},
 			expectedOk:       true,
@@ -2273,14 +2269,14 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
-			providerSpec := &vsphere.VSphereMachineProviderSpec{
+			providerSpec := &machinev1.VSphereMachineProviderSpec{
 				Template: "template",
-				Workspace: &vsphere.Workspace{
+				Workspace: &machinev1.Workspace{
 					Datacenter: "datacenter",
 					Server:     "server",
 				},
-				Network: vsphere.NetworkSpec{
-					Devices: []vsphere.NetworkDeviceSpec{
+				Network: machinev1.NetworkSpec{
+					Devices: []machinev1.NetworkDeviceSpec{
 						{
 							NetworkName: "networkName",
 						},
@@ -2338,15 +2334,15 @@ func TestDefaultVSphereProviderSpec(t *testing.T) {
 	clusterID := "clusterID"
 	testCases := []struct {
 		testCase         string
-		providerSpec     *vsphere.VSphereMachineProviderSpec
-		modifyDefault    func(*vsphere.VSphereMachineProviderSpec)
+		providerSpec     *machinev1.VSphereMachineProviderSpec
+		modifyDefault    func(*machinev1.VSphereMachineProviderSpec)
 		expectedError    string
 		expectedOk       bool
 		expectedWarnings []string
 	}{
 		{
 			testCase:      "it defaults defaultable fields",
-			providerSpec:  &vsphere.VSphereMachineProviderSpec{},
+			providerSpec:  &machinev1.VSphereMachineProviderSpec{},
 			expectedOk:    true,
 			expectedError: "",
 		},
@@ -2357,7 +2353,7 @@ func TestDefaultVSphereProviderSpec(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
-			defaultProviderSpec := &vsphere.VSphereMachineProviderSpec{
+			defaultProviderSpec := &machinev1.VSphereMachineProviderSpec{
 				UserDataSecret: &corev1.LocalObjectReference{
 					Name: defaultUserDataSecret,
 				},
@@ -2381,7 +2377,7 @@ func TestDefaultVSphereProviderSpec(t *testing.T) {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
 
-			gotProviderSpec := new(vsphere.VSphereMachineProviderSpec)
+			gotProviderSpec := new(machinev1.VSphereMachineProviderSpec)
 			if err := yaml.Unmarshal(m.Spec.ProviderSpec.Value.Raw, &gotProviderSpec); err != nil {
 				t.Fatal(err)
 			}

@@ -9,10 +9,9 @@ import (
 	"strings"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
-	gcp "github.com/openshift/cluster-api-provider-gcp/pkg/apis/gcpprovider/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/apis/machine"
-	vsphere "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -23,8 +22,6 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
-	aws "sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsprovider/v1beta1"
-	azure "sigs.k8s.io/cluster-api-provider-azure/pkg/apis/azureprovider/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -543,7 +540,7 @@ func (a awsDefaulter) defaultAWS(m *Machine, config *admissionConfig) (bool, []s
 
 	var errs []error
 	var warnings []string
-	providerSpec := new(aws.AWSMachineProviderConfig)
+	providerSpec := new(machinev1.AWSMachineProviderConfig)
 	if err := unmarshalInto(m, providerSpec); err != nil {
 		errs = append(errs, err)
 		return false, warnings, utilerrors.NewAggregate(errs)
@@ -598,7 +595,7 @@ func validateAWS(m *Machine, config *admissionConfig) (bool, []string, utilerror
 
 	var errs []error
 	var warnings []string
-	providerSpec := new(aws.AWSMachineProviderConfig)
+	providerSpec := new(machinev1.AWSMachineProviderConfig)
 	if err := unmarshalInto(m, providerSpec); err != nil {
 		errs = append(errs, err)
 		return false, warnings, utilerrors.NewAggregate(errs)
@@ -685,7 +682,7 @@ func validateAWS(m *Machine, config *admissionConfig) (bool, []string, utilerror
 	// https://github.com/openshift/cluster-api-provider-aws/pull/299#discussion_r433920532
 
 	switch providerSpec.Placement.Tenancy {
-	case "", aws.DefaultTenancy, aws.DedicatedTenancy, aws.HostTenancy:
+	case "", machinev1.DefaultTenancy, machinev1.DedicatedTenancy, machinev1.HostTenancy:
 		// Do nothing, valid values
 	default:
 		errs = append(
@@ -693,7 +690,7 @@ func validateAWS(m *Machine, config *admissionConfig) (bool, []string, utilerror
 			field.Invalid(
 				field.NewPath("providerSpec", "tenancy"),
 				providerSpec.Placement.Tenancy,
-				fmt.Sprintf("Invalid providerSpec.tenancy, the only allowed options are: %s, %s, %s", aws.DefaultTenancy, aws.DedicatedTenancy, aws.HostTenancy),
+				fmt.Sprintf("Invalid providerSpec.tenancy, the only allowed options are: %s, %s, %s", machinev1.DefaultTenancy, machinev1.DedicatedTenancy, machinev1.HostTenancy),
 			),
 		)
 	}
@@ -713,7 +710,7 @@ func validateAWS(m *Machine, config *admissionConfig) (bool, []string, utilerror
 // getDuplicatedTags iterates through the AWS TagSpecifications
 // to determine if any tag Name is duplicated within the list.
 // A list of duplicated names will be returned.
-func getDuplicatedTags(tagSpecs []aws.TagSpecification) []string {
+func getDuplicatedTags(tagSpecs []machinev1.TagSpecification) []string {
 	tagNames := map[string]int{}
 	duplicatedTags := []string{}
 	for _, spec := range tagSpecs {
@@ -732,7 +729,7 @@ func defaultAzure(m *Machine, config *admissionConfig) (bool, []string, utilerro
 
 	var errs []error
 	var warnings []string
-	providerSpec := new(azure.AzureMachineProviderSpec)
+	providerSpec := new(machinev1.AzureMachineProviderSpec)
 	if err := unmarshalInto(m, providerSpec); err != nil {
 		errs = append(errs, err)
 		return false, warnings, utilerrors.NewAggregate(errs)
@@ -748,7 +745,7 @@ func defaultAzure(m *Machine, config *admissionConfig) (bool, []string, utilerro
 		providerSpec.Subnet = defaultAzureSubnet(config.clusterID)
 	}
 
-	if providerSpec.Image == (azure.Image{}) {
+	if providerSpec.Image == (machinev1.Image{}) {
 		providerSpec.Image.ResourceID = defaultAzureImageResourceID(config.clusterID)
 	}
 
@@ -787,7 +784,7 @@ func validateAzure(m *Machine, config *admissionConfig) (bool, []string, utilerr
 
 	var errs []error
 	var warnings []string
-	providerSpec := new(azure.AzureMachineProviderSpec)
+	providerSpec := new(machinev1.AzureMachineProviderSpec)
 	if err := unmarshalInto(m, providerSpec); err != nil {
 		errs = append(errs, err)
 		return false, warnings, utilerrors.NewAggregate(errs)
@@ -846,14 +843,14 @@ func validateAzure(m *Machine, config *admissionConfig) (bool, []string, utilerr
 	return true, warnings, nil
 }
 
-func validateAzureImage(image azure.Image) []error {
+func validateAzureImage(image machinev1.Image) []error {
 	errors := []error{}
-	if image == (azure.Image{}) {
+	if image == (machinev1.Image{}) {
 		return append(errors, field.Required(field.NewPath("providerSpec", "image"), "an image reference must be provided"))
 	}
 
 	if image.ResourceID != "" {
-		if image != (azure.Image{ResourceID: image.ResourceID}) {
+		if image != (machinev1.Image{ResourceID: image.ResourceID}) {
 			return append(errors, field.Required(field.NewPath("providerSpec", "image", "resourceID"), "resourceID is already specified, other fields such as [Offer, Publisher, SKU, Version] should not be set"))
 		}
 		return errors
@@ -881,7 +878,7 @@ func defaultGCP(m *Machine, config *admissionConfig) (bool, []string, utilerrors
 
 	var errs []error
 	var warnings []string
-	providerSpec := new(gcp.GCPMachineProviderSpec)
+	providerSpec := new(machinev1.GCPMachineProviderSpec)
 	if err := unmarshalInto(m, providerSpec); err != nil {
 		errs = append(errs, err)
 		return false, warnings, utilerrors.NewAggregate(errs)
@@ -892,7 +889,7 @@ func defaultGCP(m *Machine, config *admissionConfig) (bool, []string, utilerrors
 	}
 
 	if len(providerSpec.NetworkInterfaces) == 0 {
-		providerSpec.NetworkInterfaces = append(providerSpec.NetworkInterfaces, &gcp.GCPNetworkInterface{
+		providerSpec.NetworkInterfaces = append(providerSpec.NetworkInterfaces, &machinev1.GCPNetworkInterface{
 			Network:    defaultGCPNetwork(config.clusterID),
 			Subnetwork: defaultGCPSubnetwork(config.clusterID),
 		})
@@ -925,13 +922,13 @@ func defaultGCP(m *Machine, config *admissionConfig) (bool, []string, utilerrors
 	return true, warnings, nil
 }
 
-func defaultGCPDisks(disks []*gcp.GCPDisk, clusterID string) []*gcp.GCPDisk {
+func defaultGCPDisks(disks []*machinev1.GCPDisk, clusterID string) []*machinev1.GCPDisk {
 	if len(disks) == 0 {
-		return []*gcp.GCPDisk{
+		return []*machinev1.GCPDisk{
 			{
 				AutoDelete: true,
 				Boot:       true,
-				SizeGb:     defaultGCPDiskSizeGb,
+				SizeGB:     defaultGCPDiskSizeGb,
 				Type:       defaultGCPDiskType,
 				Image:      defaultGCPDiskImage,
 			},
@@ -956,7 +953,7 @@ func validateGCP(m *Machine, config *admissionConfig) (bool, []string, utilerror
 
 	var errs []error
 	var warnings []string
-	providerSpec := new(gcp.GCPMachineProviderSpec)
+	providerSpec := new(machinev1.GCPMachineProviderSpec)
 	if err := unmarshalInto(m, providerSpec); err != nil {
 		errs = append(errs, err)
 		return false, warnings, utilerrors.NewAggregate(errs)
@@ -1007,7 +1004,7 @@ func validateGCP(m *Machine, config *admissionConfig) (bool, []string, utilerror
 	return true, warnings, nil
 }
 
-func validateGCPNetworkInterfaces(networkInterfaces []*gcp.GCPNetworkInterface, parentPath *field.Path) []error {
+func validateGCPNetworkInterfaces(networkInterfaces []*machinev1.GCPNetworkInterface, parentPath *field.Path) []error {
 	if len(networkInterfaces) == 0 {
 		return []error{field.Required(parentPath, "at least 1 network interface is required")}
 	}
@@ -1028,7 +1025,7 @@ func validateGCPNetworkInterfaces(networkInterfaces []*gcp.GCPNetworkInterface, 
 	return errs
 }
 
-func validateGCPDisks(disks []*gcp.GCPDisk, parentPath *field.Path) []error {
+func validateGCPDisks(disks []*machinev1.GCPDisk, parentPath *field.Path) []error {
 	if len(disks) == 0 {
 		return []error{field.Required(parentPath, "at least 1 disk is required")}
 	}
@@ -1037,11 +1034,11 @@ func validateGCPDisks(disks []*gcp.GCPDisk, parentPath *field.Path) []error {
 	for i, disk := range disks {
 		fldPath := parentPath.Index(i)
 
-		if disk.SizeGb != 0 {
-			if disk.SizeGb < 16 {
-				errs = append(errs, field.Invalid(fldPath.Child("sizeGb"), disk.SizeGb, "must be at least 16GB in size"))
-			} else if disk.SizeGb > 65536 {
-				errs = append(errs, field.Invalid(fldPath.Child("sizeGb"), disk.SizeGb, "exceeding maximum GCP disk size limit, must be below 65536"))
+		if disk.SizeGB != 0 {
+			if disk.SizeGB < 16 {
+				errs = append(errs, field.Invalid(fldPath.Child("sizeGb"), disk.SizeGB, "must be at least 16GB in size"))
+			} else if disk.SizeGB > 65536 {
+				errs = append(errs, field.Invalid(fldPath.Child("sizeGb"), disk.SizeGB, "exceeding maximum GCP disk size limit, must be below 65536"))
 			}
 		}
 
@@ -1056,7 +1053,7 @@ func validateGCPDisks(disks []*gcp.GCPDisk, parentPath *field.Path) []error {
 	return errs
 }
 
-func validateGCPServiceAccounts(serviceAccounts []gcp.GCPServiceAccount, parentPath *field.Path) []error {
+func validateGCPServiceAccounts(serviceAccounts []machinev1.GCPServiceAccount, parentPath *field.Path) []error {
 	if len(serviceAccounts) != 1 {
 		return []error{field.Invalid(parentPath, fmt.Sprintf("%d service accounts supplied", len(serviceAccounts)), "exactly 1 service account must be supplied")}
 	}
@@ -1081,7 +1078,7 @@ func defaultVSphere(m *Machine, config *admissionConfig) (bool, []string, utiler
 
 	var errs []error
 	var warnings []string
-	providerSpec := new(vsphere.VSphereMachineProviderSpec)
+	providerSpec := new(machinev1.VSphereMachineProviderSpec)
 	if err := unmarshalInto(m, providerSpec); err != nil {
 		errs = append(errs, err)
 		return false, warnings, utilerrors.NewAggregate(errs)
@@ -1113,7 +1110,7 @@ func validateVSphere(m *Machine, config *admissionConfig) (bool, []string, utile
 
 	var errs []error
 	var warnings []string
-	providerSpec := new(vsphere.VSphereMachineProviderSpec)
+	providerSpec := new(machinev1.VSphereMachineProviderSpec)
 	if err := unmarshalInto(m, providerSpec); err != nil {
 		errs = append(errs, err)
 		return false, warnings, utilerrors.NewAggregate(errs)
@@ -1163,7 +1160,7 @@ func validateVSphere(m *Machine, config *admissionConfig) (bool, []string, utile
 	return true, warnings, nil
 }
 
-func validateVSphereWorkspace(workspace *vsphere.Workspace, parentPath *field.Path) ([]string, []error) {
+func validateVSphereWorkspace(workspace *machinev1.Workspace, parentPath *field.Path) ([]string, []error) {
 	if workspace == nil {
 		return []string{}, []error{field.Required(parentPath, "workspace must be provided")}
 	}
@@ -1187,7 +1184,7 @@ func validateVSphereWorkspace(workspace *vsphere.Workspace, parentPath *field.Pa
 	return warnings, errs
 }
 
-func validateVSphereNetwork(network vsphere.NetworkSpec, parentPath *field.Path) []error {
+func validateVSphereNetwork(network machinev1.NetworkSpec, parentPath *field.Path) []error {
 	if len(network.Devices) == 0 {
 		return []error{field.Required(parentPath.Child("devices"), "at least 1 network device must be provided")}
 	}
