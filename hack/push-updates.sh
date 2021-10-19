@@ -48,7 +48,6 @@ cluster-api-provider-azure
 cluster-api-provider-baremetal
 cluster-api-provider-gcp
 cluster-api-provider-openstack
-cluster-api-provider-kubevirt
 "
 TITLE=""
 SHA=""
