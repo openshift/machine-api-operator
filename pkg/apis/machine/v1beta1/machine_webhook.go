@@ -718,6 +718,8 @@ func getDuplicatedTags(tagSpecs []aws.TagSpecification) []string {
 	duplicatedTags := []string{}
 	for _, spec := range tagSpecs {
 		tagNames[spec.Name] += 1
+		// Only append the duplicated tag on the second occurrence to prevent it
+		// being listed multiple times when there are more than 2 occurrences.
 		if tagNames[spec.Name] == 2 {
 			duplicatedTags = append(duplicatedTags, spec.Name)
 		}
