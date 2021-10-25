@@ -239,7 +239,7 @@ func TestReconcile(t *testing.T) {
 	machineUnhealthyForTooLong := maotesting.NewMachine("machineUnhealthyForTooLong", nodeUnhealthyForTooLong.Name)
 
 	nodeAlreadyDeleted := maotesting.NewNode("nodeAlreadyDelete", false)
-	nodeUnhealthyForTooLong.Annotations = map[string]string{
+	nodeAlreadyDeleted.Annotations = map[string]string{
 		machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "machineAlreadyDeleted"),
 	}
 	machineAlreadyDeleted := maotesting.NewMachine("machineAlreadyDeleted", nodeAlreadyDeleted.Name)
