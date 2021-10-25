@@ -131,6 +131,10 @@ func TestOperatorSync_NoOp(t *testing.T) {
 			expectedNoop: false,
 		},
 		{
+			platform:     openshiftv1.PowerVSPlatformType,
+			expectedNoop: false,
+		},
+		{
 			platform:        openshiftv1.NonePlatformType,
 			expectedNoop:    true,
 			expectedMessage: operatorStatusNoOpMessage,

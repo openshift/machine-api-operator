@@ -46,6 +46,7 @@ type Images struct {
 	ClusterAPIControllerOvirt     string `json:"clusterAPIControllerOvirt"`
 	ClusterAPIControllerVSphere   string `json:"clusterAPIControllerVSphere"`
 	ClusterAPIControllerIBMCloud  string `json:"clusterAPIControllerIBMCloud"`
+	ClusterAPIControllerPowerVS   string `json:"clusterAPIControllerPowerVS"`
 	KubeRBACProxy                 string `json:"kubeRBACProxy"`
 }
 
@@ -91,6 +92,8 @@ func getProviderControllerFromImages(platform configv1.PlatformType, images Imag
 		return images.ClusterAPIControllerVSphere, nil
 	case configv1.IBMCloudPlatformType:
 		return images.ClusterAPIControllerIBMCloud, nil
+	case configv1.PowerVSPlatformType:
+		return images.ClusterAPIControllerPowerVS, nil
 	case kubemarkPlatform:
 		return clusterAPIControllerKubemark, nil
 	default:

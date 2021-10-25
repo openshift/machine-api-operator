@@ -15,3 +15,5 @@
       - csi.ovirt.org
       - csi.kubevirt.io
       - csi.shared-resources.openshift.io
+      - diskplugin.csi.alibabacloud.com
+      - vpc.block.csi.ibm.io
