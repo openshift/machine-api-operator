@@ -43,7 +43,7 @@ spec:
       rules:
         - alert: MachineNotYetDeleted
           expr: |
-            sum by (name, namespace) (mapi_machine_created_timestamp_seconds{phase="Deleting"}) > 0
+            sum by (name, namespace) (avg_over_time(mapi_machine_created_timestamp_seconds{phase="Deleting"}[15m])) > 0
           for: 360m
           labels:
             severity: warning
