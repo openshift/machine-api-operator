@@ -25,7 +25,7 @@ import (
 	"time"
 
 	. "github.com/onsi/gomega"
-	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -521,7 +521,7 @@ func TestUpdateStatus(t *testing.T) {
 			g.Expect(got.Status.Phase).ToNot(BeNil())
 			g.Expect(*got.Status.Phase).To(Equal(phaseRunning))
 			lastUpdated := got.Status.LastUpdated
-			gotConditions := got.GetConditions()
+			gotConditions := got.Status.Conditions
 			g.Expect(lastUpdated).ToNot(BeNil())
 			// validate passed object
 			g.Expect(machine.Status.Phase).ToNot(BeNil())
@@ -562,8 +562,8 @@ func TestUpdateStatus(t *testing.T) {
 			g.Expect(*got.Status.Phase).To(Equal(tc.phase))
 			g.Expect(*machine.Status.Phase).To(Equal(tc.phase))
 
-			g.Expect(got.GetConditions()).To(conditions.MatchConditions(tc.conditions))
-			g.Expect(machine.GetConditions()).To(conditions.MatchConditions(tc.conditions))
+			g.Expect(got.Status.Conditions).To(conditions.MatchConditions(tc.conditions))
+			g.Expect(machine.Status.Conditions).To(conditions.MatchConditions(tc.conditions))
 
 			g.Expect(got.GetAnnotations()).To(Equal(tc.annotations))
 			g.Expect(machine.GetAnnotations()).To(Equal(tc.annotations))

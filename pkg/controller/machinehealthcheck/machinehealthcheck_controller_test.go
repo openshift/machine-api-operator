@@ -12,7 +12,8 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/util/external"
 
 	. "github.com/onsi/gomega"
-	mapiv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
+
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
 	maotesting "github.com/openshift/machine-api-operator/pkg/util/testing"
 	corev1 "k8s.io/api/core/v1"
@@ -36,20 +37,20 @@ const (
 )
 
 var (
-	remediationAllowedCondition = mapiv1beta1.Condition{
-		Type:   mapiv1beta1.RemediationAllowedCondition,
+	remediationAllowedCondition = machinev1.Condition{
+		Type:   machinev1.RemediationAllowedCondition,
 		Status: corev1.ConditionTrue,
 	}
 )
 
 type testCase struct {
 	name                        string
-	machine                     *mapiv1beta1.Machine
+	machine                     *machinev1.Machine
 	node                        *corev1.Node
-	mhc                         *mapiv1beta1.MachineHealthCheck
+	mhc                         *machinev1.MachineHealthCheck
 	expected                    expectedReconcile
 	expectedEvents              []string
-	expectedStatus              *mapiv1beta1.MachineHealthCheckStatus
+	expectedStatus              *machinev1.MachineHealthCheckStatus
 	externalRemediationMachine  *unstructured.Unstructured
 	externalRemediationTemplate *unstructured.Unstructured
 }
@@ -61,7 +62,7 @@ type expectedReconcile struct {
 
 func init() {
 	// Add types to scheme
-	if err := mapiv1beta1.AddToScheme(scheme.Scheme); err != nil {
+	if err := machinev1.AddToScheme(scheme.Scheme); err != nil {
 		panic(err)
 	}
 }
@@ -69,8 +70,8 @@ func init() {
 func TestHasMatchingLabels(t *testing.T) {
 	machine := maotesting.NewMachine("machine", "node")
 	testsCases := []struct {
-		machine            *mapiv1beta1.Machine
-		machineHealthCheck *mapiv1beta1.MachineHealthCheck
+		machine            *machinev1.Machine
+		machineHealthCheck *machinev1.MachineHealthCheck
 		expected           bool
 	}{
 		{
@@ -80,7 +81,7 @@ func TestHasMatchingLabels(t *testing.T) {
 		},
 		{
 			machine: machine,
-			machineHealthCheck: &mapiv1beta1.MachineHealthCheck{
+			machineHealthCheck: &machinev1.MachineHealthCheck{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "NoMatchingLabels",
 					Namespace: namespace,
@@ -88,20 +89,20 @@ func TestHasMatchingLabels(t *testing.T) {
 				TypeMeta: metav1.TypeMeta{
 					Kind: "MachineHealthCheck",
 				},
-				Spec: mapiv1beta1.MachineHealthCheckSpec{
+				Spec: machinev1.MachineHealthCheckSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{
 							"no": "match",
 						},
 					},
 				},
-				Status: mapiv1beta1.MachineHealthCheckStatus{},
+				Status: machinev1.MachineHealthCheckStatus{},
 			},
 			expected: false,
 		},
 		{
 			machine: machine,
-			machineHealthCheck: &mapiv1beta1.MachineHealthCheck{
+			machineHealthCheck: &machinev1.MachineHealthCheck{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "EmptySelector",
 					Namespace: namespace,
@@ -109,16 +110,16 @@ func TestHasMatchingLabels(t *testing.T) {
 				TypeMeta: metav1.TypeMeta{
 					Kind: "MachineHealthCheck",
 				},
-				Spec: mapiv1beta1.MachineHealthCheckSpec{
+				Spec: machinev1.MachineHealthCheckSpec{
 					Selector: metav1.LabelSelector{},
 				},
-				Status: mapiv1beta1.MachineHealthCheckStatus{},
+				Status: machinev1.MachineHealthCheckStatus{},
 			},
 			expected: true,
 		},
 		{
 			machine: machine,
-			machineHealthCheck: &mapiv1beta1.MachineHealthCheck{
+			machineHealthCheck: &machinev1.MachineHealthCheck{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "NilSelector", // Note this shouldn't happen, API schema validation requires the selector be non-nil
 					Namespace: namespace,
@@ -126,8 +127,8 @@ func TestHasMatchingLabels(t *testing.T) {
 				TypeMeta: metav1.TypeMeta{
 					Kind: "MachineHealthCheck",
 				},
-				Spec:   mapiv1beta1.MachineHealthCheckSpec{},
-				Status: mapiv1beta1.MachineHealthCheckStatus{},
+				Spec:   machinev1.MachineHealthCheckSpec{},
+				Status: machinev1.MachineHealthCheckStatus{},
 			},
 			expected: true,
 		},
@@ -229,7 +230,7 @@ func TestReconcile(t *testing.T) {
 
 	machineHealthCheckPaused := maotesting.NewMachineHealthCheck("machineHealthCheck")
 	machineHealthCheckPaused.Annotations = make(map[string]string)
-	machineHealthCheckPaused.Annotations[mapiv1beta1.PausedAnnotation] = "test"
+	machineHealthCheckPaused.Annotations[PausedAnnotation] = "test"
 
 	// remediationExternal
 	nodeUnhealthyForTooLong := maotesting.NewNode("nodeUnhealthyForTooLong", false)
@@ -259,11 +260,11 @@ func TestReconcile(t *testing.T) {
 				error:  false,
 			},
 			expectedEvents: []string{EventMachineDeleted},
-			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+			expectedStatus: &machinev1.MachineHealthCheckStatus{
 				ExpectedMachines:    IntPtr(1),
 				CurrentHealthy:      IntPtr(0),
 				RemediationsAllowed: 0,
-				Conditions: mapiv1beta1.Conditions{
+				Conditions: machinev1.Conditions{
 					remediationAllowedCondition,
 				},
 			},
@@ -278,7 +279,7 @@ func TestReconcile(t *testing.T) {
 				error:  false,
 			},
 			expectedEvents: []string{},
-			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{},
+			expectedStatus: &machinev1.MachineHealthCheckStatus{},
 		},
 		{
 			name:    "machine with node healthy",
@@ -290,11 +291,11 @@ func TestReconcile(t *testing.T) {
 				error:  false,
 			},
 			expectedEvents: []string{},
-			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+			expectedStatus: &machinev1.MachineHealthCheckStatus{
 				ExpectedMachines:    IntPtr(1),
 				CurrentHealthy:      IntPtr(1),
 				RemediationsAllowed: 1,
-				Conditions: mapiv1beta1.Conditions{
+				Conditions: machinev1.Conditions{
 					remediationAllowedCondition,
 				},
 			},
@@ -309,11 +310,11 @@ func TestReconcile(t *testing.T) {
 				error:  false,
 			},
 			expectedEvents: []string{},
-			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+			expectedStatus: &machinev1.MachineHealthCheckStatus{
 				ExpectedMachines:    IntPtr(1),
 				CurrentHealthy:      IntPtr(0),
 				RemediationsAllowed: 0,
-				Conditions: mapiv1beta1.Conditions{
+				Conditions: machinev1.Conditions{
 					remediationAllowedCondition,
 				},
 			},
@@ -331,11 +332,11 @@ func TestReconcile(t *testing.T) {
 				error: false,
 			},
 			expectedEvents: []string{EventDetectedUnhealthy},
-			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+			expectedStatus: &machinev1.MachineHealthCheckStatus{
 				ExpectedMachines:    IntPtr(1),
 				CurrentHealthy:      IntPtr(0),
 				RemediationsAllowed: 0,
-				Conditions: mapiv1beta1.Conditions{
+				Conditions: machinev1.Conditions{
 					remediationAllowedCondition,
 				},
 			},
@@ -350,11 +351,11 @@ func TestReconcile(t *testing.T) {
 				error:  false,
 			},
 			expectedEvents: []string{},
-			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+			expectedStatus: &machinev1.MachineHealthCheckStatus{
 				ExpectedMachines:    IntPtr(0),
 				CurrentHealthy:      IntPtr(0),
 				RemediationsAllowed: 0,
-				Conditions: mapiv1beta1.Conditions{
+				Conditions: machinev1.Conditions{
 					remediationAllowedCondition,
 				},
 			},
@@ -369,11 +370,11 @@ func TestReconcile(t *testing.T) {
 				error:  false,
 			},
 			expectedEvents: []string{},
-			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+			expectedStatus: &machinev1.MachineHealthCheckStatus{
 				ExpectedMachines:    IntPtr(0),
 				CurrentHealthy:      IntPtr(0),
 				RemediationsAllowed: 0,
-				Conditions: mapiv1beta1.Conditions{
+				Conditions: machinev1.Conditions{
 					remediationAllowedCondition,
 				},
 			},
@@ -388,11 +389,11 @@ func TestReconcile(t *testing.T) {
 				error:  false,
 			},
 			expectedEvents: []string{EventSkippedNoController},
-			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+			expectedStatus: &machinev1.MachineHealthCheckStatus{
 				ExpectedMachines:    IntPtr(1),
 				CurrentHealthy:      IntPtr(0),
 				RemediationsAllowed: 0,
-				Conditions: mapiv1beta1.Conditions{
+				Conditions: machinev1.Conditions{
 					remediationAllowedCondition,
 				},
 			},
@@ -409,11 +410,11 @@ func TestReconcile(t *testing.T) {
 				error: false,
 			},
 			expectedEvents: []string{EventDetectedUnhealthy},
-			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+			expectedStatus: &machinev1.MachineHealthCheckStatus{
 				ExpectedMachines:    IntPtr(1),
 				CurrentHealthy:      IntPtr(0),
 				RemediationsAllowed: 0,
-				Conditions: mapiv1beta1.Conditions{
+				Conditions: machinev1.Conditions{
 					remediationAllowedCondition,
 				},
 			},
@@ -428,11 +429,11 @@ func TestReconcile(t *testing.T) {
 				error:  false,
 			},
 			expectedEvents: []string{},
-			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+			expectedStatus: &machinev1.MachineHealthCheckStatus{
 				ExpectedMachines:    IntPtr(1),
 				CurrentHealthy:      IntPtr(0),
 				RemediationsAllowed: 0,
-				Conditions: mapiv1beta1.Conditions{
+				Conditions: machinev1.Conditions{
 					remediationAllowedCondition,
 				},
 			},
@@ -447,11 +448,11 @@ func TestReconcile(t *testing.T) {
 				error:  false,
 			},
 			expectedEvents: []string{},
-			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+			expectedStatus: &machinev1.MachineHealthCheckStatus{
 				ExpectedMachines:    IntPtr(1),
 				CurrentHealthy:      IntPtr(1),
 				RemediationsAllowed: 0,
-				Conditions: mapiv1beta1.Conditions{
+				Conditions: machinev1.Conditions{
 					remediationAllowedCondition,
 				},
 			},
@@ -468,16 +469,16 @@ func TestReconcile(t *testing.T) {
 				error: false,
 			},
 			expectedEvents: []string{EventRemediationRestricted},
-			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+			expectedStatus: &machinev1.MachineHealthCheckStatus{
 				ExpectedMachines:    IntPtr(1),
 				CurrentHealthy:      IntPtr(0),
 				RemediationsAllowed: 0,
-				Conditions: mapiv1beta1.Conditions{
+				Conditions: machinev1.Conditions{
 					{
-						Type:     mapiv1beta1.RemediationAllowedCondition,
+						Type:     machinev1.RemediationAllowedCondition,
 						Status:   corev1.ConditionFalse,
-						Severity: mapiv1beta1.ConditionSeverityWarning,
-						Reason:   mapiv1beta1.TooManyUnhealthyReason,
+						Severity: machinev1.ConditionSeverityWarning,
+						Reason:   machinev1.TooManyUnhealthyReason,
 						Message:  "Remediation is not allowed, the number of not started or unhealthy machines exceeds maxUnhealthy (total: 1, unhealthy: 1, maxUnhealthy: -1)",
 					},
 				},
@@ -502,7 +503,7 @@ func TestReconcileExternalRemediationTemplate(t *testing.T) {
 
 	nodeUnHealthy := maotesting.NewNode("NodeUnhealthy", false)
 	machineWithNodeUnHealthy := maotesting.NewMachine("Machine", nodeUnHealthy.Name)
-	machineWithNodeUnHealthy.APIVersion = mapiv1beta1.SchemeGroupVersion.String()
+	machineWithNodeUnHealthy.APIVersion = machinev1.SchemeGroupVersion.String()
 	//external remediation machine template crd
 	ermTemplate := maotesting.NewExternalRemediationTemplate()
 	mhcWithRemediationTemplate := newMachineHealthCheckWithRemediationTemplate(ermTemplate)
@@ -522,11 +523,11 @@ func TestReconcileExternalRemediationTemplate(t *testing.T) {
 				error:  false,
 			},
 			expectedEvents: []string{},
-			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+			expectedStatus: &machinev1.MachineHealthCheckStatus{
 				ExpectedMachines:    IntPtr(1),
 				CurrentHealthy:      IntPtr(1),
 				RemediationsAllowed: 1,
-				Conditions: mapiv1beta1.Conditions{
+				Conditions: machinev1.Conditions{
 					remediationAllowedCondition,
 				},
 			},
@@ -544,11 +545,11 @@ func TestReconcileExternalRemediationTemplate(t *testing.T) {
 				error:  false,
 			},
 			expectedEvents: []string{},
-			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+			expectedStatus: &machinev1.MachineHealthCheckStatus{
 				ExpectedMachines:    IntPtr(1),
 				CurrentHealthy:      IntPtr(0),
 				RemediationsAllowed: 0,
-				Conditions: mapiv1beta1.Conditions{
+				Conditions: machinev1.Conditions{
 					remediationAllowedCondition,
 				},
 			},
@@ -566,11 +567,11 @@ func TestReconcileExternalRemediationTemplate(t *testing.T) {
 				error:  false,
 			},
 			expectedEvents: []string{},
-			expectedStatus: &mapiv1beta1.MachineHealthCheckStatus{
+			expectedStatus: &machinev1.MachineHealthCheckStatus{
 				ExpectedMachines:    IntPtr(1),
 				CurrentHealthy:      IntPtr(0),
 				RemediationsAllowed: 0,
-				Conditions: mapiv1beta1.Conditions{
+				Conditions: machinev1.Conditions{
 					remediationAllowedCondition,
 				},
 			},
@@ -665,7 +666,7 @@ func TestApplyRemediationExternal(t *testing.T) {
 	target := target{
 		Node:    nodeUnhealthyForTooLong,
 		Machine: *machineUnhealthyForTooLong,
-		MHC:     mapiv1beta1.MachineHealthCheck{},
+		MHC:     machinev1.MachineHealthCheck{},
 	}
 	if err := target.remediationStrategyExternal(r); err != nil {
 		t.Fatalf("unexpected error %v", err)
@@ -677,7 +678,7 @@ func TestApplyRemediationExternal(t *testing.T) {
 		recorder.Events,
 	)
 
-	machine := &mapiv1beta1.Machine{}
+	machine := &machinev1.Machine{}
 	if err := r.client.Get(context.TODO(), request.NamespacedName, machine); err != nil {
 		t.Errorf("Expected: no error, got: %v", err)
 	}
@@ -690,13 +691,13 @@ func TestApplyRemediationExternal(t *testing.T) {
 func TestMHCRequestsFromMachine(t *testing.T) {
 	testCases := []struct {
 		testCase         string
-		mhcs             []*mapiv1beta1.MachineHealthCheck
-		machine          *mapiv1beta1.Machine
+		mhcs             []*machinev1.MachineHealthCheck
+		machine          *machinev1.Machine
 		expectedRequests []reconcile.Request
 	}{
 		{
 			testCase: "at least one match",
-			mhcs: []*mapiv1beta1.MachineHealthCheck{
+			mhcs: []*machinev1.MachineHealthCheck{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "match",
@@ -705,14 +706,14 @@ func TestMHCRequestsFromMachine(t *testing.T) {
 					TypeMeta: metav1.TypeMeta{
 						Kind: "MachineHealthCheck",
 					},
-					Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Spec: machinev1.MachineHealthCheckSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"foo": "bar",
 							},
 						},
 					},
-					Status: mapiv1beta1.MachineHealthCheckStatus{},
+					Status: machinev1.MachineHealthCheckStatus{},
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -722,14 +723,14 @@ func TestMHCRequestsFromMachine(t *testing.T) {
 					TypeMeta: metav1.TypeMeta{
 						Kind: "MachineHealthCheck",
 					},
-					Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Spec: machinev1.MachineHealthCheckSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"no": "match",
 							},
 						},
 					},
-					Status: mapiv1beta1.MachineHealthCheckStatus{},
+					Status: machinev1.MachineHealthCheckStatus{},
 				},
 			},
 			machine: maotesting.NewMachine("test", "node1"),
@@ -744,7 +745,7 @@ func TestMHCRequestsFromMachine(t *testing.T) {
 		},
 		{
 			testCase: "more than one match",
-			mhcs: []*mapiv1beta1.MachineHealthCheck{
+			mhcs: []*machinev1.MachineHealthCheck{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "match1",
@@ -753,14 +754,14 @@ func TestMHCRequestsFromMachine(t *testing.T) {
 					TypeMeta: metav1.TypeMeta{
 						Kind: "MachineHealthCheck",
 					},
-					Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Spec: machinev1.MachineHealthCheckSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"foo": "bar",
 							},
 						},
 					},
-					Status: mapiv1beta1.MachineHealthCheckStatus{},
+					Status: machinev1.MachineHealthCheckStatus{},
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -770,14 +771,14 @@ func TestMHCRequestsFromMachine(t *testing.T) {
 					TypeMeta: metav1.TypeMeta{
 						Kind: "MachineHealthCheck",
 					},
-					Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Spec: machinev1.MachineHealthCheckSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"foo": "bar",
 							},
 						},
 					},
-					Status: mapiv1beta1.MachineHealthCheckStatus{},
+					Status: machinev1.MachineHealthCheckStatus{},
 				},
 			},
 			machine: maotesting.NewMachine("test", "node1"),
@@ -798,7 +799,7 @@ func TestMHCRequestsFromMachine(t *testing.T) {
 		},
 		{
 			testCase: "no match",
-			mhcs: []*mapiv1beta1.MachineHealthCheck{
+			mhcs: []*machinev1.MachineHealthCheck{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "noMatch1",
@@ -807,14 +808,14 @@ func TestMHCRequestsFromMachine(t *testing.T) {
 					TypeMeta: metav1.TypeMeta{
 						Kind: "MachineHealthCheck",
 					},
-					Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Spec: machinev1.MachineHealthCheckSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"no": "match",
 							},
 						},
 					},
-					Status: mapiv1beta1.MachineHealthCheckStatus{},
+					Status: machinev1.MachineHealthCheckStatus{},
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -824,14 +825,14 @@ func TestMHCRequestsFromMachine(t *testing.T) {
 					TypeMeta: metav1.TypeMeta{
 						Kind: "MachineHealthCheck",
 					},
-					Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Spec: machinev1.MachineHealthCheckSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"no": "match",
 							},
 						},
 					},
-					Status: mapiv1beta1.MachineHealthCheckStatus{},
+					Status: machinev1.MachineHealthCheckStatus{},
 				},
 			},
 			machine:          maotesting.NewMachine("test", "node1"),
@@ -857,14 +858,14 @@ func TestMHCRequestsFromMachine(t *testing.T) {
 func TestMHCRequestsFromNode(t *testing.T) {
 	testCases := []struct {
 		testCase         string
-		mhcs             []*mapiv1beta1.MachineHealthCheck
+		mhcs             []*machinev1.MachineHealthCheck
 		node             *corev1.Node
-		machine          *mapiv1beta1.Machine
+		machine          *machinev1.Machine
 		expectedRequests []reconcile.Request
 	}{
 		{
 			testCase: "at least one match",
-			mhcs: []*mapiv1beta1.MachineHealthCheck{
+			mhcs: []*machinev1.MachineHealthCheck{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "match",
@@ -873,14 +874,14 @@ func TestMHCRequestsFromNode(t *testing.T) {
 					TypeMeta: metav1.TypeMeta{
 						Kind: "MachineHealthCheck",
 					},
-					Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Spec: machinev1.MachineHealthCheckSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"foo": "bar",
 							},
 						},
 					},
-					Status: mapiv1beta1.MachineHealthCheckStatus{},
+					Status: machinev1.MachineHealthCheckStatus{},
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -890,14 +891,14 @@ func TestMHCRequestsFromNode(t *testing.T) {
 					TypeMeta: metav1.TypeMeta{
 						Kind: "MachineHealthCheck",
 					},
-					Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Spec: machinev1.MachineHealthCheckSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"no": "match",
 							},
 						},
 					},
-					Status: mapiv1beta1.MachineHealthCheckStatus{},
+					Status: machinev1.MachineHealthCheckStatus{},
 				},
 			},
 			machine: maotesting.NewMachine("fakeMachine", "node1"),
@@ -913,7 +914,7 @@ func TestMHCRequestsFromNode(t *testing.T) {
 		},
 		{
 			testCase: "more than one match",
-			mhcs: []*mapiv1beta1.MachineHealthCheck{
+			mhcs: []*machinev1.MachineHealthCheck{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "match1",
@@ -922,14 +923,14 @@ func TestMHCRequestsFromNode(t *testing.T) {
 					TypeMeta: metav1.TypeMeta{
 						Kind: "MachineHealthCheck",
 					},
-					Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Spec: machinev1.MachineHealthCheckSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"foo": "bar",
 							},
 						},
 					},
-					Status: mapiv1beta1.MachineHealthCheckStatus{},
+					Status: machinev1.MachineHealthCheckStatus{},
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -939,14 +940,14 @@ func TestMHCRequestsFromNode(t *testing.T) {
 					TypeMeta: metav1.TypeMeta{
 						Kind: "MachineHealthCheck",
 					},
-					Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Spec: machinev1.MachineHealthCheckSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"foo": "bar",
 							},
 						},
 					},
-					Status: mapiv1beta1.MachineHealthCheckStatus{},
+					Status: machinev1.MachineHealthCheckStatus{},
 				},
 			},
 			machine: maotesting.NewMachine("fakeMachine", "node1"),
@@ -968,7 +969,7 @@ func TestMHCRequestsFromNode(t *testing.T) {
 		},
 		{
 			testCase: "no match",
-			mhcs: []*mapiv1beta1.MachineHealthCheck{
+			mhcs: []*machinev1.MachineHealthCheck{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "noMatch1",
@@ -977,14 +978,14 @@ func TestMHCRequestsFromNode(t *testing.T) {
 					TypeMeta: metav1.TypeMeta{
 						Kind: "MachineHealthCheck",
 					},
-					Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Spec: machinev1.MachineHealthCheckSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"no": "match",
 							},
 						},
 					},
-					Status: mapiv1beta1.MachineHealthCheckStatus{},
+					Status: machinev1.MachineHealthCheckStatus{},
 				},
 				{
 					ObjectMeta: metav1.ObjectMeta{
@@ -994,14 +995,14 @@ func TestMHCRequestsFromNode(t *testing.T) {
 					TypeMeta: metav1.TypeMeta{
 						Kind: "MachineHealthCheck",
 					},
-					Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Spec: machinev1.MachineHealthCheckSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"no": "match",
 							},
 						},
 					},
-					Status: mapiv1beta1.MachineHealthCheckStatus{},
+					Status: machinev1.MachineHealthCheckStatus{},
 				},
 			},
 			machine:          maotesting.NewMachine("fakeMachine", "node1"),
@@ -1010,7 +1011,7 @@ func TestMHCRequestsFromNode(t *testing.T) {
 		},
 		{
 			testCase: "node has bad machine annotation",
-			mhcs: []*mapiv1beta1.MachineHealthCheck{
+			mhcs: []*machinev1.MachineHealthCheck{
 				{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "mhc1",
@@ -1019,14 +1020,14 @@ func TestMHCRequestsFromNode(t *testing.T) {
 					TypeMeta: metav1.TypeMeta{
 						Kind: "MachineHealthCheck",
 					},
-					Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Spec: machinev1.MachineHealthCheckSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"no": "match",
 							},
 						},
 					},
-					Status: mapiv1beta1.MachineHealthCheckStatus{},
+					Status: machinev1.MachineHealthCheckStatus{},
 				},
 			},
 			machine:          maotesting.NewMachine("noNodeAnnotation", "node1"),
@@ -1052,15 +1053,15 @@ func TestMHCRequestsFromNode(t *testing.T) {
 }
 
 func TestGetMachinesFromMHC(t *testing.T) {
-	machines := []mapiv1beta1.Machine{
+	machines := []machinev1.Machine{
 		*maotesting.NewMachine("test1", "node1"),
 		*maotesting.NewMachine("test2", "node2"),
 	}
 	testCases := []struct {
 		testCase         string
-		mhc              *mapiv1beta1.MachineHealthCheck
-		machines         []mapiv1beta1.Machine
-		expectedMachines []mapiv1beta1.Machine
+		mhc              *machinev1.MachineHealthCheck
+		machines         []machinev1.Machine
+		expectedMachines []machinev1.Machine
 		expectedError    bool
 	}{
 		{
@@ -1071,7 +1072,7 @@ func TestGetMachinesFromMHC(t *testing.T) {
 		},
 		{
 			testCase: "no match",
-			mhc: &mapiv1beta1.MachineHealthCheck{
+			mhc: &machinev1.MachineHealthCheck{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "match",
 					Namespace: namespace,
@@ -1079,21 +1080,21 @@ func TestGetMachinesFromMHC(t *testing.T) {
 				TypeMeta: metav1.TypeMeta{
 					Kind: "MachineHealthCheck",
 				},
-				Spec: mapiv1beta1.MachineHealthCheckSpec{
+				Spec: machinev1.MachineHealthCheckSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{
 							"dont": "match",
 						},
 					},
 				},
-				Status: mapiv1beta1.MachineHealthCheckStatus{},
+				Status: machinev1.MachineHealthCheckStatus{},
 			},
 			machines:         machines,
 			expectedMachines: nil,
 		},
 		{
 			testCase: "bad selector",
-			mhc: &mapiv1beta1.MachineHealthCheck{
+			mhc: &machinev1.MachineHealthCheck{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "match",
 					Namespace: namespace,
@@ -1101,14 +1102,14 @@ func TestGetMachinesFromMHC(t *testing.T) {
 				TypeMeta: metav1.TypeMeta{
 					Kind: "MachineHealthCheck",
 				},
-				Spec: mapiv1beta1.MachineHealthCheckSpec{
+				Spec: machinev1.MachineHealthCheckSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{
 							"bad selector": "''",
 						},
 					},
 				},
-				Status: mapiv1beta1.MachineHealthCheckStatus{},
+				Status: machinev1.MachineHealthCheckStatus{},
 			},
 			machines:         machines,
 			expectedMachines: nil,
@@ -1141,8 +1142,8 @@ func TestGetTargetsFromMHC(t *testing.T) {
 	mhc := maotesting.NewMachineHealthCheck("findTargets")
 	testCases := []struct {
 		testCase        string
-		mhc             *mapiv1beta1.MachineHealthCheck
-		machines        []*mapiv1beta1.Machine
+		mhc             *machinev1.MachineHealthCheck
+		machines        []*machinev1.Machine
 		nodes           []*corev1.Node
 		expectedTargets []target
 		expectedError   bool
@@ -1150,7 +1151,7 @@ func TestGetTargetsFromMHC(t *testing.T) {
 		{
 			testCase: "at least one match",
 			mhc:      mhc,
-			machines: []*mapiv1beta1.Machine{
+			machines: []*machinev1.Machine{
 				machine1,
 				{
 					TypeMeta: metav1.TypeMeta{Kind: "Machine"},
@@ -1161,7 +1162,7 @@ func TestGetTargetsFromMHC(t *testing.T) {
 						Labels:          map[string]string{"no": "match"},
 						OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
 					},
-					Spec: mapiv1beta1.MachineSpec{},
+					Spec: machinev1.MachineSpec{},
 				},
 			},
 			nodes: []*corev1.Node{
@@ -1227,7 +1228,7 @@ func TestGetTargetsFromMHC(t *testing.T) {
 		{
 			testCase: "more than one match",
 			mhc:      mhc,
-			machines: []*mapiv1beta1.Machine{
+			machines: []*machinev1.Machine{
 				machine1,
 				machine2,
 			},
@@ -1319,7 +1320,7 @@ func TestGetTargetsFromMHC(t *testing.T) {
 		{
 			testCase: "machine has no node",
 			mhc:      mhc,
-			machines: []*mapiv1beta1.Machine{
+			machines: []*machinev1.Machine{
 				{
 					TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 					ObjectMeta: metav1.ObjectMeta{
@@ -1329,15 +1330,15 @@ func TestGetTargetsFromMHC(t *testing.T) {
 						Labels:          map[string]string{"foo": "bar"},
 						OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
 					},
-					Spec:   mapiv1beta1.MachineSpec{},
-					Status: mapiv1beta1.MachineStatus{},
+					Spec:   machinev1.MachineSpec{},
+					Status: machinev1.MachineStatus{},
 				},
 			},
 			nodes: []*corev1.Node{},
 			expectedTargets: []target{
 				{
 					MHC: *mhc,
-					Machine: mapiv1beta1.Machine{
+					Machine: machinev1.Machine{
 						TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 						ObjectMeta: metav1.ObjectMeta{
 							Annotations:     make(map[string]string),
@@ -1348,8 +1349,8 @@ func TestGetTargetsFromMHC(t *testing.T) {
 							// the following line is to account for a change in the fake client, see https://github.com/kubernetes-sigs/controller-runtime/pull/1306
 							ResourceVersion: "999",
 						},
-						Spec:   mapiv1beta1.MachineSpec{},
-						Status: mapiv1beta1.MachineStatus{},
+						Spec:   machinev1.MachineSpec{},
+						Status: machinev1.MachineStatus{},
 					},
 					Node: nil,
 				},
@@ -1358,7 +1359,7 @@ func TestGetTargetsFromMHC(t *testing.T) {
 		{
 			testCase: "node not found",
 			mhc:      mhc,
-			machines: []*mapiv1beta1.Machine{
+			machines: []*machinev1.Machine{
 				machine1,
 			},
 			nodes: []*corev1.Node{},
@@ -1401,14 +1402,14 @@ func TestGetTargetsFromMHC(t *testing.T) {
 func TestGetNodeFromMachine(t *testing.T) {
 	testCases := []struct {
 		testCase      string
-		machine       *mapiv1beta1.Machine
+		machine       *machinev1.Machine
 		node          *corev1.Node
 		expectedNode  *corev1.Node
 		expectedError bool
 	}{
 		{
 			testCase: "match",
-			machine: &mapiv1beta1.Machine{
+			machine: &machinev1.Machine{
 				TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations:     make(map[string]string),
@@ -1417,8 +1418,8 @@ func TestGetNodeFromMachine(t *testing.T) {
 					Labels:          map[string]string{"foo": "bar"},
 					OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
 				},
-				Spec: mapiv1beta1.MachineSpec{},
-				Status: mapiv1beta1.MachineStatus{
+				Spec: machinev1.MachineSpec{},
+				Status: machinev1.MachineStatus{
 					NodeRef: &corev1.ObjectReference{
 						Name:      "node",
 						Namespace: metav1.NamespaceNone,
@@ -1464,7 +1465,7 @@ func TestGetNodeFromMachine(t *testing.T) {
 		},
 		{
 			testCase: "no nodeRef",
-			machine: &mapiv1beta1.Machine{
+			machine: &machinev1.Machine{
 				TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations:     make(map[string]string),
@@ -1473,8 +1474,8 @@ func TestGetNodeFromMachine(t *testing.T) {
 					Labels:          map[string]string{"foo": "bar"},
 					OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
 				},
-				Spec:   mapiv1beta1.MachineSpec{},
-				Status: mapiv1beta1.MachineStatus{},
+				Spec:   machinev1.MachineSpec{},
+				Status: machinev1.MachineStatus{},
 			},
 			node: &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
@@ -1497,7 +1498,7 @@ func TestGetNodeFromMachine(t *testing.T) {
 		},
 		{
 			testCase: "node not found",
-			machine: &mapiv1beta1.Machine{
+			machine: &machinev1.Machine{
 				TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations:     make(map[string]string),
@@ -1506,8 +1507,8 @@ func TestGetNodeFromMachine(t *testing.T) {
 					Labels:          map[string]string{"foo": "bar"},
 					OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
 				},
-				Spec: mapiv1beta1.MachineSpec{},
-				Status: mapiv1beta1.MachineStatus{
+				Spec: machinev1.MachineSpec{},
+				Status: machinev1.MachineStatus{
 					NodeRef: &corev1.ObjectReference{
 						Name:      "nonExistingNode",
 						Namespace: metav1.NamespaceNone,
@@ -1572,7 +1573,7 @@ func TestNeedsRemediation(t *testing.T) {
 						},
 					},
 				},
-				MHC: mapiv1beta1.MachineHealthCheck{
+				MHC: machinev1.MachineHealthCheck{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test",
 						Namespace: namespace,
@@ -1580,13 +1581,13 @@ func TestNeedsRemediation(t *testing.T) {
 					TypeMeta: metav1.TypeMeta{
 						Kind: "MachineHealthCheck",
 					},
-					Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Spec: machinev1.MachineHealthCheckSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"foo": "bar",
 							},
 						},
-						UnhealthyConditions: []mapiv1beta1.UnhealthyCondition{
+						UnhealthyConditions: []machinev1.UnhealthyCondition{
 							{
 								Type:    "Ready",
 								Status:  "Unknown",
@@ -1599,7 +1600,7 @@ func TestNeedsRemediation(t *testing.T) {
 							},
 						},
 					},
-					Status: mapiv1beta1.MachineHealthCheckStatus{},
+					Status: machinev1.MachineHealthCheckStatus{},
 				},
 			},
 			timeoutForMachineToHaveNode: defaultNodeStartupTimeout,
@@ -1612,7 +1613,7 @@ func TestNeedsRemediation(t *testing.T) {
 			target: &target{
 				Machine: *maotesting.NewMachine("test", "node"),
 				Node:    &corev1.Node{},
-				MHC: mapiv1beta1.MachineHealthCheck{
+				MHC: machinev1.MachineHealthCheck{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test",
 						Namespace: namespace,
@@ -1620,13 +1621,13 @@ func TestNeedsRemediation(t *testing.T) {
 					TypeMeta: metav1.TypeMeta{
 						Kind: "MachineHealthCheck",
 					},
-					Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Spec: machinev1.MachineHealthCheckSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"foo": "bar",
 							},
 						},
-						UnhealthyConditions: []mapiv1beta1.UnhealthyCondition{
+						UnhealthyConditions: []machinev1.UnhealthyCondition{
 							{
 								Type:    "Ready",
 								Status:  "Unknown",
@@ -1639,7 +1640,7 @@ func TestNeedsRemediation(t *testing.T) {
 							},
 						},
 					},
-					Status: mapiv1beta1.MachineHealthCheckStatus{},
+					Status: machinev1.MachineHealthCheckStatus{},
 				},
 			},
 			timeoutForMachineToHaveNode: defaultNodeStartupTimeout,
@@ -1650,7 +1651,7 @@ func TestNeedsRemediation(t *testing.T) {
 		{
 			testCase: "unhealthy: nodeRef nil longer than timeout",
 			target: &target{
-				Machine: mapiv1beta1.Machine{
+				Machine: machinev1.Machine{
 					TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations:     make(map[string]string),
@@ -1659,13 +1660,13 @@ func TestNeedsRemediation(t *testing.T) {
 						Labels:          map[string]string{"foo": "bar"},
 						OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
 					},
-					Spec: mapiv1beta1.MachineSpec{},
-					Status: mapiv1beta1.MachineStatus{
+					Spec: machinev1.MachineSpec{},
+					Status: machinev1.MachineStatus{
 						LastUpdated: &metav1.Time{Time: time.Now().Add(-defaultNodeStartupTimeout - 1*time.Second)},
 					},
 				},
 				Node: nil,
-				MHC: mapiv1beta1.MachineHealthCheck{
+				MHC: machinev1.MachineHealthCheck{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test",
 						Namespace: namespace,
@@ -1673,13 +1674,13 @@ func TestNeedsRemediation(t *testing.T) {
 					TypeMeta: metav1.TypeMeta{
 						Kind: "MachineHealthCheck",
 					},
-					Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Spec: machinev1.MachineHealthCheckSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"foo": "bar",
 							},
 						},
-						UnhealthyConditions: []mapiv1beta1.UnhealthyCondition{
+						UnhealthyConditions: []machinev1.UnhealthyCondition{
 							{
 								Type:    "Ready",
 								Status:  "Unknown",
@@ -1692,7 +1693,7 @@ func TestNeedsRemediation(t *testing.T) {
 							},
 						},
 					},
-					Status: mapiv1beta1.MachineHealthCheckStatus{},
+					Status: machinev1.MachineHealthCheckStatus{},
 				},
 			},
 			timeoutForMachineToHaveNode: defaultNodeStartupTimeout,
@@ -1703,7 +1704,7 @@ func TestNeedsRemediation(t *testing.T) {
 		{
 			testCase: "unhealthy: nodeRef nil, timeout disabled",
 			target: &target{
-				Machine: mapiv1beta1.Machine{
+				Machine: machinev1.Machine{
 					TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations:     make(map[string]string),
@@ -1712,13 +1713,13 @@ func TestNeedsRemediation(t *testing.T) {
 						Labels:          map[string]string{"foo": "bar"},
 						OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
 					},
-					Spec: mapiv1beta1.MachineSpec{},
-					Status: mapiv1beta1.MachineStatus{
+					Spec: machinev1.MachineSpec{},
+					Status: machinev1.MachineStatus{
 						LastUpdated: &metav1.Time{Time: time.Now().Add(time.Duration(-defaultNodeStartupTimeout) - 1*time.Second)},
 					},
 				},
 				Node: nil,
-				MHC: mapiv1beta1.MachineHealthCheck{
+				MHC: machinev1.MachineHealthCheck{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test",
 						Namespace: namespace,
@@ -1726,13 +1727,13 @@ func TestNeedsRemediation(t *testing.T) {
 					TypeMeta: metav1.TypeMeta{
 						Kind: "MachineHealthCheck",
 					},
-					Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Spec: machinev1.MachineHealthCheckSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"foo": "bar",
 							},
 						},
-						UnhealthyConditions: []mapiv1beta1.UnhealthyCondition{
+						UnhealthyConditions: []machinev1.UnhealthyCondition{
 							{
 								Type:    "Ready",
 								Status:  "Unknown",
@@ -1745,7 +1746,7 @@ func TestNeedsRemediation(t *testing.T) {
 							},
 						},
 					},
-					Status: mapiv1beta1.MachineHealthCheckStatus{},
+					Status: machinev1.MachineHealthCheckStatus{},
 				},
 			},
 			timeoutForMachineToHaveNode: time.Duration(0),
@@ -1756,7 +1757,7 @@ func TestNeedsRemediation(t *testing.T) {
 		{
 			testCase: "unhealthy: meet conditions criteria",
 			target: &target{
-				Machine: mapiv1beta1.Machine{
+				Machine: machinev1.Machine{
 					TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations:     make(map[string]string),
@@ -1765,8 +1766,8 @@ func TestNeedsRemediation(t *testing.T) {
 						Labels:          map[string]string{"foo": "bar"},
 						OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
 					},
-					Spec: mapiv1beta1.MachineSpec{},
-					Status: mapiv1beta1.MachineStatus{
+					Spec: machinev1.MachineSpec{},
+					Status: machinev1.MachineStatus{
 						LastUpdated: &metav1.Time{Time: time.Now().Add(-defaultNodeStartupTimeout - 1*time.Second)},
 					},
 				},
@@ -1793,7 +1794,7 @@ func TestNeedsRemediation(t *testing.T) {
 						},
 					},
 				},
-				MHC: mapiv1beta1.MachineHealthCheck{
+				MHC: machinev1.MachineHealthCheck{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test",
 						Namespace: namespace,
@@ -1801,13 +1802,13 @@ func TestNeedsRemediation(t *testing.T) {
 					TypeMeta: metav1.TypeMeta{
 						Kind: "MachineHealthCheck",
 					},
-					Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Spec: machinev1.MachineHealthCheckSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"foo": "bar",
 							},
 						},
-						UnhealthyConditions: []mapiv1beta1.UnhealthyCondition{
+						UnhealthyConditions: []machinev1.UnhealthyCondition{
 							{
 								Type:    "Ready",
 								Status:  "Unknown",
@@ -1820,7 +1821,7 @@ func TestNeedsRemediation(t *testing.T) {
 							},
 						},
 					},
-					Status: mapiv1beta1.MachineHealthCheckStatus{},
+					Status: machinev1.MachineHealthCheckStatus{},
 				},
 			},
 			timeoutForMachineToHaveNode: defaultNodeStartupTimeout,
@@ -1831,7 +1832,7 @@ func TestNeedsRemediation(t *testing.T) {
 		{
 			testCase: "unhealthy: machine phase failed",
 			target: &target{
-				Machine: mapiv1beta1.Machine{
+				Machine: machinev1.Machine{
 					TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations:     make(map[string]string),
@@ -1840,13 +1841,13 @@ func TestNeedsRemediation(t *testing.T) {
 						Labels:          map[string]string{"foo": "bar"},
 						OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
 					},
-					Spec: mapiv1beta1.MachineSpec{},
-					Status: mapiv1beta1.MachineStatus{
+					Spec: machinev1.MachineSpec{},
+					Status: machinev1.MachineStatus{
 						Phase: &machineFailed,
 					},
 				},
 				Node: nil,
-				MHC: mapiv1beta1.MachineHealthCheck{
+				MHC: machinev1.MachineHealthCheck{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test",
 						Namespace: namespace,
@@ -1854,13 +1855,13 @@ func TestNeedsRemediation(t *testing.T) {
 					TypeMeta: metav1.TypeMeta{
 						Kind: "MachineHealthCheck",
 					},
-					Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Spec: machinev1.MachineHealthCheckSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"foo": "bar",
 							},
 						},
-						UnhealthyConditions: []mapiv1beta1.UnhealthyCondition{
+						UnhealthyConditions: []machinev1.UnhealthyCondition{
 							{
 								Type:    "Ready",
 								Status:  "Unknown",
@@ -1873,7 +1874,7 @@ func TestNeedsRemediation(t *testing.T) {
 							},
 						},
 					},
-					Status: mapiv1beta1.MachineHealthCheckStatus{},
+					Status: machinev1.MachineHealthCheckStatus{},
 				},
 			},
 			timeoutForMachineToHaveNode: defaultNodeStartupTimeout,
@@ -1884,7 +1885,7 @@ func TestNeedsRemediation(t *testing.T) {
 		{
 			testCase: "healthy: meet conditions criteria but timeout",
 			target: &target{
-				Machine: mapiv1beta1.Machine{
+				Machine: machinev1.Machine{
 					TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations:     make(map[string]string),
@@ -1893,8 +1894,8 @@ func TestNeedsRemediation(t *testing.T) {
 						Labels:          map[string]string{"foo": "bar"},
 						OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
 					},
-					Spec: mapiv1beta1.MachineSpec{},
-					Status: mapiv1beta1.MachineStatus{
+					Spec: machinev1.MachineSpec{},
+					Status: machinev1.MachineStatus{
 						LastUpdated: &metav1.Time{Time: time.Now().Add(-defaultNodeStartupTimeout - 1*time.Second)},
 					},
 				},
@@ -1921,7 +1922,7 @@ func TestNeedsRemediation(t *testing.T) {
 						},
 					},
 				},
-				MHC: mapiv1beta1.MachineHealthCheck{
+				MHC: machinev1.MachineHealthCheck{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      "test",
 						Namespace: namespace,
@@ -1929,13 +1930,13 @@ func TestNeedsRemediation(t *testing.T) {
 					TypeMeta: metav1.TypeMeta{
 						Kind: "MachineHealthCheck",
 					},
-					Spec: mapiv1beta1.MachineHealthCheckSpec{
+					Spec: machinev1.MachineHealthCheckSpec{
 						Selector: metav1.LabelSelector{
 							MatchLabels: map[string]string{
 								"foo": "bar",
 							},
 						},
-						UnhealthyConditions: []mapiv1beta1.UnhealthyCondition{
+						UnhealthyConditions: []machinev1.UnhealthyCondition{
 							{
 								Type:    "Ready",
 								Status:  "Unknown",
@@ -1948,7 +1949,7 @@ func TestNeedsRemediation(t *testing.T) {
 							},
 						},
 					},
-					Status: mapiv1beta1.MachineHealthCheckStatus{},
+					Status: machinev1.MachineHealthCheckStatus{},
 				},
 			},
 			timeoutForMachineToHaveNode: defaultNodeStartupTimeout,
@@ -2046,7 +2047,7 @@ func TestRemediate(t *testing.T) {
 		{
 			testCase: "no master",
 			target: &target{
-				Machine: mapiv1beta1.Machine{
+				Machine: machinev1.Machine{
 					TypeMeta: metav1.TypeMeta{
 						Kind:       "Machine",
 						APIVersion: "machine.openshift.io/v1beta1",
@@ -2063,8 +2064,8 @@ func TestRemediate(t *testing.T) {
 							},
 						},
 					},
-					Spec:   mapiv1beta1.MachineSpec{},
-					Status: mapiv1beta1.MachineStatus{},
+					Spec:   machinev1.MachineSpec{},
+					Status: machinev1.MachineStatus{},
 				},
 				Node: &corev1.Node{
 					ObjectMeta: metav1.ObjectMeta{
@@ -2080,7 +2081,7 @@ func TestRemediate(t *testing.T) {
 					},
 					Status: corev1.NodeStatus{},
 				},
-				MHC: mapiv1beta1.MachineHealthCheck{},
+				MHC: machinev1.MachineHealthCheck{},
 			},
 			deletion:       true,
 			expectedError:  false,
@@ -2089,7 +2090,7 @@ func TestRemediate(t *testing.T) {
 		{
 			testCase: "node master",
 			target: &target{
-				Machine: mapiv1beta1.Machine{
+				Machine: machinev1.Machine{
 					TypeMeta: metav1.TypeMeta{
 						Kind:       "Machine",
 						APIVersion: "machine.openshift.io/v1beta1",
@@ -2107,8 +2108,8 @@ func TestRemediate(t *testing.T) {
 						},
 						UID: "uid",
 					},
-					//Spec:   mapiv1beta1.MachineSpec{},
-					//Status: mapiv1beta1.MachineStatus{},
+					//Spec:   machinev1.MachineSpec{},
+					//Status: machinev1.MachineStatus{},
 				},
 				Node: &corev1.Node{
 					ObjectMeta: metav1.ObjectMeta{
@@ -2126,7 +2127,7 @@ func TestRemediate(t *testing.T) {
 					},
 					Status: corev1.NodeStatus{},
 				},
-				MHC: mapiv1beta1.MachineHealthCheck{},
+				MHC: machinev1.MachineHealthCheck{},
 			},
 			deletion:       true,
 			expectedError:  false,
@@ -2135,7 +2136,7 @@ func TestRemediate(t *testing.T) {
 		{
 			testCase: "machine master",
 			target: &target{
-				Machine: mapiv1beta1.Machine{
+				Machine: machinev1.Machine{
 					TypeMeta: metav1.TypeMeta{
 						Kind:       "Machine",
 						APIVersion: "machine.openshift.io/v1beta1",
@@ -2154,11 +2155,11 @@ func TestRemediate(t *testing.T) {
 							},
 						},
 					},
-					Spec:   mapiv1beta1.MachineSpec{},
-					Status: mapiv1beta1.MachineStatus{},
+					Spec:   machinev1.MachineSpec{},
+					Status: machinev1.MachineStatus{},
 				},
 				Node: &corev1.Node{},
-				MHC:  mapiv1beta1.MachineHealthCheck{},
+				MHC:  machinev1.MachineHealthCheck{},
 			},
 			deletion:       true,
 			expectedError:  false,
@@ -2176,7 +2177,7 @@ func TestRemediate(t *testing.T) {
 				t.Errorf("Case: %v. Got: %v, expected error: %v", tc.testCase, err, tc.expectedError)
 			}
 			assertEvents(t, tc.testCase, tc.expectedEvents, recorder.Events)
-			machine := &mapiv1beta1.Machine{}
+			machine := &machinev1.Machine{}
 			err := r.client.Get(context.TODO(), namespacedName(&tc.target.Machine), machine)
 			if tc.deletion {
 				if err != nil {
@@ -2199,14 +2200,14 @@ func TestRemediate(t *testing.T) {
 func TestReconcileStatus(t *testing.T) {
 	testCases := []struct {
 		testCase            string
-		mhc                 *mapiv1beta1.MachineHealthCheck
+		mhc                 *machinev1.MachineHealthCheck
 		totalTargets        int
 		currentHealthy      int
 		remediationsAllowed int32
 	}{
 		{
 			testCase: "status gets new values",
-			mhc: &mapiv1beta1.MachineHealthCheck{
+			mhc: &machinev1.MachineHealthCheck{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test",
 					Namespace: namespace,
@@ -2214,10 +2215,10 @@ func TestReconcileStatus(t *testing.T) {
 				TypeMeta: metav1.TypeMeta{
 					Kind: "MachineHealthCheck",
 				},
-				Spec: mapiv1beta1.MachineHealthCheckSpec{
+				Spec: machinev1.MachineHealthCheckSpec{
 					Selector: metav1.LabelSelector{},
 				},
-				Status: mapiv1beta1.MachineHealthCheckStatus{},
+				Status: machinev1.MachineHealthCheckStatus{},
 			},
 			totalTargets:        10,
 			currentHealthy:      5,
@@ -2225,7 +2226,7 @@ func TestReconcileStatus(t *testing.T) {
 		},
 		{
 			testCase: "when the unhealthy machines exceed maxUnhealthy",
-			mhc: &mapiv1beta1.MachineHealthCheck{
+			mhc: &machinev1.MachineHealthCheck{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test",
 					Namespace: namespace,
@@ -2233,11 +2234,11 @@ func TestReconcileStatus(t *testing.T) {
 				TypeMeta: metav1.TypeMeta{
 					Kind: "MachineHealthCheck",
 				},
-				Spec: mapiv1beta1.MachineHealthCheckSpec{
+				Spec: machinev1.MachineHealthCheckSpec{
 					Selector:     metav1.LabelSelector{},
 					MaxUnhealthy: &intstr.IntOrString{Type: intstr.String, StrVal: "40%"},
 				},
-				Status: mapiv1beta1.MachineHealthCheckStatus{},
+				Status: machinev1.MachineHealthCheckStatus{},
 			},
 			totalTargets:        10,
 			currentHealthy:      5,
@@ -2245,7 +2246,7 @@ func TestReconcileStatus(t *testing.T) {
 		},
 		{
 			testCase: "when the unhealthy machines does not exceed maxUnhealthy",
-			mhc: &mapiv1beta1.MachineHealthCheck{
+			mhc: &machinev1.MachineHealthCheck{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test",
 					Namespace: namespace,
@@ -2253,11 +2254,11 @@ func TestReconcileStatus(t *testing.T) {
 				TypeMeta: metav1.TypeMeta{
 					Kind: "MachineHealthCheck",
 				},
-				Spec: mapiv1beta1.MachineHealthCheckSpec{
+				Spec: machinev1.MachineHealthCheckSpec{
 					Selector:     metav1.LabelSelector{},
 					MaxUnhealthy: &intstr.IntOrString{Type: intstr.String, StrVal: "40%"},
 				},
-				Status: mapiv1beta1.MachineHealthCheckStatus{},
+				Status: machinev1.MachineHealthCheckStatus{},
 			},
 			totalTargets:        10,
 			currentHealthy:      7,
@@ -2278,7 +2279,7 @@ func TestReconcileStatus(t *testing.T) {
 			if err := r.reconcileStatus(mergeBase, tc.mhc); err != nil {
 				t.Fatalf("Unexpected error: %v", err)
 			}
-			mhc := &mapiv1beta1.MachineHealthCheck{}
+			mhc := &machinev1.MachineHealthCheck{}
 			if err := r.client.Get(context.TODO(), namespacedName(tc.mhc), mhc); err != nil {
 				t.Fatalf("Unexpected error: %v", err)
 			}
@@ -2310,7 +2311,7 @@ func TestHealthCheckTargets(t *testing.T) {
 			testCase: "one healthy, one unhealthy",
 			targets: []target{
 				{
-					Machine: mapiv1beta1.Machine{
+					Machine: machinev1.Machine{
 						TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 						ObjectMeta: metav1.ObjectMeta{
 							Annotations:     make(map[string]string),
@@ -2319,8 +2320,8 @@ func TestHealthCheckTargets(t *testing.T) {
 							Labels:          map[string]string{"foo": "bar"},
 							OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
 						},
-						Spec:   mapiv1beta1.MachineSpec{},
-						Status: mapiv1beta1.MachineStatus{},
+						Spec:   machinev1.MachineSpec{},
+						Status: machinev1.MachineStatus{},
 					},
 					Node: &corev1.Node{
 						ObjectMeta: metav1.ObjectMeta{
@@ -2345,7 +2346,7 @@ func TestHealthCheckTargets(t *testing.T) {
 							},
 						},
 					},
-					MHC: mapiv1beta1.MachineHealthCheck{
+					MHC: machinev1.MachineHealthCheck{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "test",
 							Namespace: namespace,
@@ -2353,13 +2354,13 @@ func TestHealthCheckTargets(t *testing.T) {
 						TypeMeta: metav1.TypeMeta{
 							Kind: "MachineHealthCheck",
 						},
-						Spec: mapiv1beta1.MachineHealthCheckSpec{
+						Spec: machinev1.MachineHealthCheckSpec{
 							Selector: metav1.LabelSelector{
 								MatchLabels: map[string]string{
 									"foo": "bar",
 								},
 							},
-							UnhealthyConditions: []mapiv1beta1.UnhealthyCondition{
+							UnhealthyConditions: []machinev1.UnhealthyCondition{
 								{
 									Type:    "Ready",
 									Status:  "Unknown",
@@ -2372,11 +2373,11 @@ func TestHealthCheckTargets(t *testing.T) {
 								},
 							},
 						},
-						Status: mapiv1beta1.MachineHealthCheckStatus{},
+						Status: machinev1.MachineHealthCheckStatus{},
 					},
 				},
 				{
-					Machine: mapiv1beta1.Machine{
+					Machine: machinev1.Machine{
 						TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 						ObjectMeta: metav1.ObjectMeta{
 							Annotations:     make(map[string]string),
@@ -2385,8 +2386,8 @@ func TestHealthCheckTargets(t *testing.T) {
 							Labels:          map[string]string{"foo": "bar"},
 							OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
 						},
-						Spec:   mapiv1beta1.MachineSpec{},
-						Status: mapiv1beta1.MachineStatus{},
+						Spec:   machinev1.MachineSpec{},
+						Status: machinev1.MachineStatus{},
 					},
 					Node: &corev1.Node{
 						ObjectMeta: metav1.ObjectMeta{
@@ -2411,7 +2412,7 @@ func TestHealthCheckTargets(t *testing.T) {
 							},
 						},
 					},
-					MHC: mapiv1beta1.MachineHealthCheck{
+					MHC: machinev1.MachineHealthCheck{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "test",
 							Namespace: namespace,
@@ -2419,13 +2420,13 @@ func TestHealthCheckTargets(t *testing.T) {
 						TypeMeta: metav1.TypeMeta{
 							Kind: "MachineHealthCheck",
 						},
-						Spec: mapiv1beta1.MachineHealthCheckSpec{
+						Spec: machinev1.MachineHealthCheckSpec{
 							Selector: metav1.LabelSelector{
 								MatchLabels: map[string]string{
 									"foo": "bar",
 								},
 							},
-							UnhealthyConditions: []mapiv1beta1.UnhealthyCondition{
+							UnhealthyConditions: []machinev1.UnhealthyCondition{
 								{
 									Type:    "Ready",
 									Status:  "Unknown",
@@ -2438,7 +2439,7 @@ func TestHealthCheckTargets(t *testing.T) {
 								},
 							},
 						},
-						Status: mapiv1beta1.MachineHealthCheckStatus{},
+						Status: machinev1.MachineHealthCheckStatus{},
 					},
 				},
 			},
@@ -2446,7 +2447,7 @@ func TestHealthCheckTargets(t *testing.T) {
 			currentHealthy:              1,
 			needRemediationTargets: []target{
 				{
-					Machine: mapiv1beta1.Machine{
+					Machine: machinev1.Machine{
 						TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 						ObjectMeta: metav1.ObjectMeta{
 							Annotations:     make(map[string]string),
@@ -2455,8 +2456,8 @@ func TestHealthCheckTargets(t *testing.T) {
 							Labels:          map[string]string{"foo": "bar"},
 							OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
 						},
-						Spec:   mapiv1beta1.MachineSpec{},
-						Status: mapiv1beta1.MachineStatus{},
+						Spec:   machinev1.MachineSpec{},
+						Status: machinev1.MachineStatus{},
 					},
 					Node: &corev1.Node{
 						ObjectMeta: metav1.ObjectMeta{
@@ -2481,7 +2482,7 @@ func TestHealthCheckTargets(t *testing.T) {
 							},
 						},
 					},
-					MHC: mapiv1beta1.MachineHealthCheck{
+					MHC: machinev1.MachineHealthCheck{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "test",
 							Namespace: namespace,
@@ -2489,13 +2490,13 @@ func TestHealthCheckTargets(t *testing.T) {
 						TypeMeta: metav1.TypeMeta{
 							Kind: "MachineHealthCheck",
 						},
-						Spec: mapiv1beta1.MachineHealthCheckSpec{
+						Spec: machinev1.MachineHealthCheckSpec{
 							Selector: metav1.LabelSelector{
 								MatchLabels: map[string]string{
 									"foo": "bar",
 								},
 							},
-							UnhealthyConditions: []mapiv1beta1.UnhealthyCondition{
+							UnhealthyConditions: []machinev1.UnhealthyCondition{
 								{
 									Type:    "Ready",
 									Status:  "Unknown",
@@ -2508,7 +2509,7 @@ func TestHealthCheckTargets(t *testing.T) {
 								},
 							},
 						},
-						Status: mapiv1beta1.MachineHealthCheckStatus{},
+						Status: machinev1.MachineHealthCheckStatus{},
 					},
 				},
 			},
@@ -2519,7 +2520,7 @@ func TestHealthCheckTargets(t *testing.T) {
 			testCase: "two checkTimes",
 			targets: []target{
 				{
-					Machine: mapiv1beta1.Machine{
+					Machine: machinev1.Machine{
 						TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 						ObjectMeta: metav1.ObjectMeta{
 							Annotations:     make(map[string]string),
@@ -2528,13 +2529,13 @@ func TestHealthCheckTargets(t *testing.T) {
 							Labels:          map[string]string{"foo": "bar"},
 							OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
 						},
-						Spec: mapiv1beta1.MachineSpec{},
-						Status: mapiv1beta1.MachineStatus{
+						Spec: machinev1.MachineSpec{},
+						Status: machinev1.MachineStatus{
 							LastUpdated: &metav1.Time{Time: now.Add(-defaultNodeStartupTimeout + 1*time.Minute)},
 						},
 					},
 					Node: nil,
-					MHC: mapiv1beta1.MachineHealthCheck{
+					MHC: machinev1.MachineHealthCheck{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "test",
 							Namespace: namespace,
@@ -2542,13 +2543,13 @@ func TestHealthCheckTargets(t *testing.T) {
 						TypeMeta: metav1.TypeMeta{
 							Kind: "MachineHealthCheck",
 						},
-						Spec: mapiv1beta1.MachineHealthCheckSpec{
+						Spec: machinev1.MachineHealthCheckSpec{
 							Selector: metav1.LabelSelector{
 								MatchLabels: map[string]string{
 									"foo": "bar",
 								},
 							},
-							UnhealthyConditions: []mapiv1beta1.UnhealthyCondition{
+							UnhealthyConditions: []machinev1.UnhealthyCondition{
 								{
 									Type:    "Ready",
 									Status:  "Unknown",
@@ -2561,11 +2562,11 @@ func TestHealthCheckTargets(t *testing.T) {
 								},
 							},
 						},
-						Status: mapiv1beta1.MachineHealthCheckStatus{},
+						Status: machinev1.MachineHealthCheckStatus{},
 					},
 				},
 				{
-					Machine: mapiv1beta1.Machine{
+					Machine: machinev1.Machine{
 						TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 						ObjectMeta: metav1.ObjectMeta{
 							Annotations:     make(map[string]string),
@@ -2574,8 +2575,8 @@ func TestHealthCheckTargets(t *testing.T) {
 							Labels:          map[string]string{"foo": "bar"},
 							OwnerReferences: []metav1.OwnerReference{{Kind: "MachineSet"}},
 						},
-						Spec:   mapiv1beta1.MachineSpec{},
-						Status: mapiv1beta1.MachineStatus{},
+						Spec:   machinev1.MachineSpec{},
+						Status: machinev1.MachineStatus{},
 					},
 					Node: &corev1.Node{
 						ObjectMeta: metav1.ObjectMeta{
@@ -2600,7 +2601,7 @@ func TestHealthCheckTargets(t *testing.T) {
 							},
 						},
 					},
-					MHC: mapiv1beta1.MachineHealthCheck{
+					MHC: machinev1.MachineHealthCheck{
 						ObjectMeta: metav1.ObjectMeta{
 							Name:      "test",
 							Namespace: namespace,
@@ -2608,13 +2609,13 @@ func TestHealthCheckTargets(t *testing.T) {
 						TypeMeta: metav1.TypeMeta{
 							Kind: "MachineHealthCheck",
 						},
-						Spec: mapiv1beta1.MachineHealthCheckSpec{
+						Spec: machinev1.MachineHealthCheckSpec{
 							Selector: metav1.LabelSelector{
 								MatchLabels: map[string]string{
 									"foo": "bar",
 								},
 							},
-							UnhealthyConditions: []mapiv1beta1.UnhealthyCondition{
+							UnhealthyConditions: []machinev1.UnhealthyCondition{
 								{
 									Type:    "Ready",
 									Status:  "Unknown",
@@ -2627,7 +2628,7 @@ func TestHealthCheckTargets(t *testing.T) {
 								},
 							},
 						},
-						Status: mapiv1beta1.MachineHealthCheckStatus{},
+						Status: machinev1.MachineHealthCheckStatus{},
 					},
 				},
 			},
@@ -2668,12 +2669,12 @@ func TestIsAllowedRemediation(t *testing.T) {
 
 	testCases := []struct {
 		testCase string
-		mhc      *mapiv1beta1.MachineHealthCheck
+		mhc      *machinev1.MachineHealthCheck
 		expected bool
 	}{
 		{
 			testCase: "not above maxUnhealthy",
-			mhc: &mapiv1beta1.MachineHealthCheck{
+			mhc: &machinev1.MachineHealthCheck{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test",
 					Namespace: namespace,
@@ -2681,11 +2682,11 @@ func TestIsAllowedRemediation(t *testing.T) {
 				TypeMeta: metav1.TypeMeta{
 					Kind: "MachineHealthCheck",
 				},
-				Spec: mapiv1beta1.MachineHealthCheckSpec{
+				Spec: machinev1.MachineHealthCheckSpec{
 					Selector:     metav1.LabelSelector{},
 					MaxUnhealthy: &maxUnhealthyInt,
 				},
-				Status: mapiv1beta1.MachineHealthCheckStatus{
+				Status: machinev1.MachineHealthCheckStatus{
 					ExpectedMachines: IntPtr(5),
 					CurrentHealthy:   IntPtr(3),
 				},
@@ -2694,7 +2695,7 @@ func TestIsAllowedRemediation(t *testing.T) {
 		},
 		{
 			testCase: "above maxUnhealthy",
-			mhc: &mapiv1beta1.MachineHealthCheck{
+			mhc: &machinev1.MachineHealthCheck{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test",
 					Namespace: namespace,
@@ -2702,11 +2703,11 @@ func TestIsAllowedRemediation(t *testing.T) {
 				TypeMeta: metav1.TypeMeta{
 					Kind: "MachineHealthCheck",
 				},
-				Spec: mapiv1beta1.MachineHealthCheckSpec{
+				Spec: machinev1.MachineHealthCheckSpec{
 					Selector:     metav1.LabelSelector{},
 					MaxUnhealthy: &maxUnhealthyInt,
 				},
-				Status: mapiv1beta1.MachineHealthCheckStatus{
+				Status: machinev1.MachineHealthCheckStatus{
 					ExpectedMachines: IntPtr(5),
 					CurrentHealthy:   IntPtr(2),
 				},
@@ -2715,7 +2716,7 @@ func TestIsAllowedRemediation(t *testing.T) {
 		},
 		{
 			testCase: "maxUnhealthy is negative",
-			mhc: &mapiv1beta1.MachineHealthCheck{
+			mhc: &machinev1.MachineHealthCheck{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test",
 					Namespace: namespace,
@@ -2723,11 +2724,11 @@ func TestIsAllowedRemediation(t *testing.T) {
 				TypeMeta: metav1.TypeMeta{
 					Kind: "MachineHealthCheck",
 				},
-				Spec: mapiv1beta1.MachineHealthCheckSpec{
+				Spec: machinev1.MachineHealthCheckSpec{
 					Selector:     metav1.LabelSelector{},
 					MaxUnhealthy: &maxUnhealthyNegative,
 				},
-				Status: mapiv1beta1.MachineHealthCheckStatus{
+				Status: machinev1.MachineHealthCheckStatus{
 					ExpectedMachines: IntPtr(5),
 					CurrentHealthy:   IntPtr(2),
 				},
@@ -2736,7 +2737,7 @@ func TestIsAllowedRemediation(t *testing.T) {
 		},
 		{
 			testCase: "not above maxUnhealthy (percentange)",
-			mhc: &mapiv1beta1.MachineHealthCheck{
+			mhc: &machinev1.MachineHealthCheck{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test",
 					Namespace: namespace,
@@ -2744,11 +2745,11 @@ func TestIsAllowedRemediation(t *testing.T) {
 				TypeMeta: metav1.TypeMeta{
 					Kind: "MachineHealthCheck",
 				},
-				Spec: mapiv1beta1.MachineHealthCheckSpec{
+				Spec: machinev1.MachineHealthCheckSpec{
 					Selector:     metav1.LabelSelector{},
 					MaxUnhealthy: &maxUnhealthyString,
 				},
-				Status: mapiv1beta1.MachineHealthCheckStatus{
+				Status: machinev1.MachineHealthCheckStatus{
 					ExpectedMachines: IntPtr(5),
 					CurrentHealthy:   IntPtr(3),
 				},
@@ -2757,7 +2758,7 @@ func TestIsAllowedRemediation(t *testing.T) {
 		},
 		{
 			testCase: "above maxUnhealthy (percentange)",
-			mhc: &mapiv1beta1.MachineHealthCheck{
+			mhc: &machinev1.MachineHealthCheck{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test",
 					Namespace: namespace,
@@ -2765,11 +2766,11 @@ func TestIsAllowedRemediation(t *testing.T) {
 				TypeMeta: metav1.TypeMeta{
 					Kind: "MachineHealthCheck",
 				},
-				Spec: mapiv1beta1.MachineHealthCheckSpec{
+				Spec: machinev1.MachineHealthCheckSpec{
 					Selector:     metav1.LabelSelector{},
 					MaxUnhealthy: &maxUnhealthyString,
 				},
-				Status: mapiv1beta1.MachineHealthCheckStatus{
+				Status: machinev1.MachineHealthCheckStatus{
 					ExpectedMachines: IntPtr(5),
 					CurrentHealthy:   IntPtr(2),
 				},
@@ -2778,7 +2779,7 @@ func TestIsAllowedRemediation(t *testing.T) {
 		},
 		{
 			testCase: "not above maxUnhealthy (int in string)",
-			mhc: &mapiv1beta1.MachineHealthCheck{
+			mhc: &machinev1.MachineHealthCheck{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test",
 					Namespace: namespace,
@@ -2786,11 +2787,11 @@ func TestIsAllowedRemediation(t *testing.T) {
 				TypeMeta: metav1.TypeMeta{
 					Kind: "MachineHealthCheck",
 				},
-				Spec: mapiv1beta1.MachineHealthCheckSpec{
+				Spec: machinev1.MachineHealthCheckSpec{
 					Selector:     metav1.LabelSelector{},
 					MaxUnhealthy: &maxUnhealthyIntInString,
 				},
-				Status: mapiv1beta1.MachineHealthCheckStatus{
+				Status: machinev1.MachineHealthCheckStatus{
 					ExpectedMachines: IntPtr(5),
 					CurrentHealthy:   IntPtr(3),
 				},
@@ -2799,7 +2800,7 @@ func TestIsAllowedRemediation(t *testing.T) {
 		},
 		{
 			testCase: "above maxUnhealthy (int in string)",
-			mhc: &mapiv1beta1.MachineHealthCheck{
+			mhc: &machinev1.MachineHealthCheck{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test",
 					Namespace: namespace,
@@ -2807,11 +2808,11 @@ func TestIsAllowedRemediation(t *testing.T) {
 				TypeMeta: metav1.TypeMeta{
 					Kind: "MachineHealthCheck",
 				},
-				Spec: mapiv1beta1.MachineHealthCheckSpec{
+				Spec: machinev1.MachineHealthCheckSpec{
 					Selector:     metav1.LabelSelector{},
 					MaxUnhealthy: &maxUnhealthyIntInString,
 				},
-				Status: mapiv1beta1.MachineHealthCheckStatus{
+				Status: machinev1.MachineHealthCheckStatus{
 					ExpectedMachines: IntPtr(5),
 					CurrentHealthy:   IntPtr(2),
 				},
@@ -2820,7 +2821,7 @@ func TestIsAllowedRemediation(t *testing.T) {
 		},
 		{
 			testCase: "nil values",
-			mhc: &mapiv1beta1.MachineHealthCheck{
+			mhc: &machinev1.MachineHealthCheck{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test",
 					Namespace: namespace,
@@ -2828,11 +2829,11 @@ func TestIsAllowedRemediation(t *testing.T) {
 				TypeMeta: metav1.TypeMeta{
 					Kind: "MachineHealthCheck",
 				},
-				Spec: mapiv1beta1.MachineHealthCheckSpec{
+				Spec: machinev1.MachineHealthCheckSpec{
 					Selector:     metav1.LabelSelector{},
 					MaxUnhealthy: &maxUnhealthyString,
 				},
-				Status: mapiv1beta1.MachineHealthCheckStatus{
+				Status: machinev1.MachineHealthCheckStatus{
 					ExpectedMachines: nil,
 					CurrentHealthy:   nil,
 				},
@@ -2841,7 +2842,7 @@ func TestIsAllowedRemediation(t *testing.T) {
 		},
 		{
 			testCase: "invalid string value",
-			mhc: &mapiv1beta1.MachineHealthCheck{
+			mhc: &machinev1.MachineHealthCheck{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test",
 					Namespace: namespace,
@@ -2849,11 +2850,11 @@ func TestIsAllowedRemediation(t *testing.T) {
 				TypeMeta: metav1.TypeMeta{
 					Kind: "MachineHealthCheck",
 				},
-				Spec: mapiv1beta1.MachineHealthCheckSpec{
+				Spec: machinev1.MachineHealthCheckSpec{
 					Selector:     metav1.LabelSelector{},
 					MaxUnhealthy: &maxUnhealthyMixedString,
 				},
-				Status: mapiv1beta1.MachineHealthCheckStatus{
+				Status: machinev1.MachineHealthCheckStatus{
 					ExpectedMachines: nil,
 					CurrentHealthy:   nil,
 				},
@@ -2920,11 +2921,11 @@ func TestGetMaxUnhealthy(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			mhc := &mapiv1beta1.MachineHealthCheck{
-				Spec: mapiv1beta1.MachineHealthCheckSpec{
+			mhc := &machinev1.MachineHealthCheck{
+				Spec: machinev1.MachineHealthCheckSpec{
 					MaxUnhealthy: tc.maxUnhealthy,
 				},
-				Status: mapiv1beta1.MachineHealthCheckStatus{
+				Status: machinev1.MachineHealthCheckStatus{
 					ExpectedMachines: &tc.expectedMachines,
 				},
 			}
@@ -3092,7 +3093,7 @@ func assertBaseReconcile(t *testing.T, tc testCase, ctx context.Context, r *Reco
 	}
 	g := NewWithT(t)
 	if tc.expectedStatus != nil {
-		mhc := &mapiv1beta1.MachineHealthCheck{}
+		mhc := &machinev1.MachineHealthCheck{}
 		g.Expect(r.client.Get(ctx, request.NamespacedName, mhc)).To(Succeed())
 		g.Expect(tc.expectedStatus).To(MatchMachineHealthCheckStatus(&mhc.Status))
 	}
@@ -3113,7 +3114,7 @@ func assertExternalRemediation(t *testing.T, tc testCase, ctx context.Context, r
 	}
 }
 
-func newMachineHealthCheckWithRemediationTemplate(infraRemediationTmpl *unstructured.Unstructured) *mapiv1beta1.MachineHealthCheck {
+func newMachineHealthCheckWithRemediationTemplate(infraRemediationTmpl *unstructured.Unstructured) *machinev1.MachineHealthCheck {
 
 	mhc := maotesting.NewMachineHealthCheck("machineHealthCheck")
 	remediationTemplateObjRef := &corev1.ObjectReference{

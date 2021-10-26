@@ -2,15 +2,19 @@ package vsphere
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 
 	"gopkg.in/gcfg.v1"
+	"gopkg.in/yaml.v2"
 
 	configv1 "github.com/openshift/api/config/v1"
-	vspherev1 "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/klog/v2"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -107,7 +111,7 @@ func getVSphereConfig(c runtimeclient.Reader) (*vSphereConfig, error) {
 	return &vcfg, nil
 }
 
-func setVSphereMachineProviderConditions(condition vspherev1.VSphereMachineProviderCondition, conditions []vspherev1.VSphereMachineProviderCondition) []vspherev1.VSphereMachineProviderCondition {
+func setVSphereMachineProviderConditions(condition machinev1.VSphereMachineProviderCondition, conditions []machinev1.VSphereMachineProviderCondition) []machinev1.VSphereMachineProviderCondition {
 	now := metav1.Now()
 
 	if existingCondition := findProviderCondition(conditions, condition.Type); existingCondition == nil {
@@ -121,7 +125,7 @@ func setVSphereMachineProviderConditions(condition vspherev1.VSphereMachineProvi
 	return conditions
 }
 
-func findProviderCondition(conditions []vspherev1.VSphereMachineProviderCondition, conditionType vspherev1.VSphereMachineProviderConditionType) *vspherev1.VSphereMachineProviderCondition {
+func findProviderCondition(conditions []machinev1.VSphereMachineProviderCondition, conditionType machinev1.ConditionType) *machinev1.VSphereMachineProviderCondition {
 	for i := range conditions {
 		if conditions[i].Type == conditionType {
 			return &conditions[i]
@@ -130,7 +134,7 @@ func findProviderCondition(conditions []vspherev1.VSphereMachineProviderConditio
 	return nil
 }
 
-func updateExistingCondition(newCondition, existingCondition *vspherev1.VSphereMachineProviderCondition) {
+func updateExistingCondition(newCondition, existingCondition *machinev1.VSphereMachineProviderCondition) {
 	if !shouldUpdateCondition(newCondition, existingCondition) {
 		return
 	}
@@ -144,24 +148,24 @@ func updateExistingCondition(newCondition, existingCondition *vspherev1.VSphereM
 	existingCondition.LastProbeTime = newCondition.LastProbeTime
 }
 
-func shouldUpdateCondition(newCondition, existingCondition *vspherev1.VSphereMachineProviderCondition) bool {
+func shouldUpdateCondition(newCondition, existingCondition *machinev1.VSphereMachineProviderCondition) bool {
 	return newCondition.Reason != existingCondition.Reason || newCondition.Message != existingCondition.Message
 }
 
-func conditionSuccess() vspherev1.VSphereMachineProviderCondition {
-	return vspherev1.VSphereMachineProviderCondition{
-		Type:    vspherev1.MachineCreation,
+func conditionSuccess() machinev1.VSphereMachineProviderCondition {
+	return machinev1.VSphereMachineProviderCondition{
+		Type:    machinev1.MachineCreation,
 		Status:  corev1.ConditionTrue,
-		Reason:  vspherev1.MachineCreationSucceeded,
+		Reason:  machinev1.MachineCreationSucceededConditionReason,
 		Message: "Machine successfully created",
 	}
 }
 
-func conditionFailed() vspherev1.VSphereMachineProviderCondition {
-	return vspherev1.VSphereMachineProviderCondition{
-		Type:   vspherev1.MachineCreation,
+func conditionFailed() machinev1.VSphereMachineProviderCondition {
+	return machinev1.VSphereMachineProviderCondition{
+		Type:   machinev1.MachineCreation,
 		Status: corev1.ConditionFalse,
-		Reason: vspherev1.MachineCreationFailed,
+		Reason: machinev1.MachineCreationSucceededConditionReason,
 	}
 }
 
@@ -178,4 +182,68 @@ func getInsecureFlagFromConfig(config *vSphereConfig) bool {
 		return true
 	}
 	return false
+}
+
+// RawExtensionFromProviderSpec marshals the machine provider spec.
+func RawExtensionFromProviderSpec(spec *machinev1.VSphereMachineProviderSpec) (*runtime.RawExtension, error) {
+	if spec == nil {
+		return &runtime.RawExtension{}, nil
+	}
+
+	var rawBytes []byte
+	var err error
+	if rawBytes, err = json.Marshal(spec); err != nil {
+		return nil, fmt.Errorf("error marshalling providerSpec: %v", err)
+	}
+
+	return &runtime.RawExtension{
+		Raw: rawBytes,
+	}, nil
+}
+
+// RawExtensionFromProviderStatus marshals the provider status
+func RawExtensionFromProviderStatus(status *machinev1.VSphereMachineProviderStatus) (*runtime.RawExtension, error) {
+	if status == nil {
+		return &runtime.RawExtension{}, nil
+	}
+
+	var rawBytes []byte
+	var err error
+	if rawBytes, err = json.Marshal(status); err != nil {
+		return nil, fmt.Errorf("error marshalling providerStatus: %v", err)
+	}
+
+	return &runtime.RawExtension{
+		Raw: rawBytes,
+	}, nil
+}
+
+// ProviderSpecFromRawExtension unmarshals the JSON-encoded spec
+func ProviderSpecFromRawExtension(rawExtension *runtime.RawExtension) (*machinev1.VSphereMachineProviderSpec, error) {
+	if rawExtension == nil {
+		return &machinev1.VSphereMachineProviderSpec{}, nil
+	}
+
+	spec := new(machinev1.VSphereMachineProviderSpec)
+	if err := yaml.Unmarshal(rawExtension.Raw, &spec); err != nil {
+		return nil, fmt.Errorf("error unmarshalling providerSpec: %v", err)
+	}
+
+	klog.V(5).Infof("Got provider spec from raw extension: %+v", spec)
+	return spec, nil
+}
+
+// ProviderStatusFromRawExtension unmarshals a raw extension into a VSphereMachineProviderStatus type
+func ProviderStatusFromRawExtension(rawExtension *runtime.RawExtension) (*machinev1.VSphereMachineProviderStatus, error) {
+	if rawExtension == nil {
+		return &machinev1.VSphereMachineProviderStatus{}, nil
+	}
+
+	providerStatus := new(machinev1.VSphereMachineProviderStatus)
+	if err := yaml.Unmarshal(rawExtension.Raw, providerStatus); err != nil {
+		return nil, fmt.Errorf("error unmarshalling providerStatus: %v", err)
+	}
+
+	klog.V(5).Infof("Got provider Status from raw extension: %+v", providerStatus)
+	return providerStatus, nil
 }

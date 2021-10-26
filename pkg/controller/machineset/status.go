@@ -21,7 +21,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -34,7 +34,7 @@ const (
 	statusUpdateRetries = 1
 )
 
-func (c *ReconcileMachineSet) calculateStatus(ms *v1beta1.MachineSet, filteredMachines []*v1beta1.Machine) v1beta1.MachineSetStatus {
+func (c *ReconcileMachineSet) calculateStatus(ms *machinev1.MachineSet, filteredMachines []*machinev1.Machine) machinev1.MachineSetStatus {
 	newStatus := ms.Status
 	// Count the number of machines that have labels matching the labels of the machine
 	// template of the replica set, the matching machines may have more
@@ -70,7 +70,7 @@ func (c *ReconcileMachineSet) calculateStatus(ms *v1beta1.MachineSet, filteredMa
 }
 
 // updateMachineSetStatus attempts to update the Status.Replicas of the given MachineSet, with a single GET/PUT retry.
-func updateMachineSetStatus(c client.Client, ms *v1beta1.MachineSet, newStatus v1beta1.MachineSetStatus) (*v1beta1.MachineSet, error) {
+func updateMachineSetStatus(c client.Client, ms *machinev1.MachineSet, newStatus machinev1.MachineSetStatus) (*machinev1.MachineSet, error) {
 	// This is the steady state. It happens when the MachineSet doesn't have any expectations, since
 	// we do a periodic relist every 30s. If the generations differ but the replicas are
 	// the same, a caller might've resized to the same replica count.
@@ -121,7 +121,7 @@ func updateMachineSetStatus(c client.Client, ms *v1beta1.MachineSet, newStatus v
 	return nil, updateErr
 }
 
-func (c *ReconcileMachineSet) getMachineNode(machine *v1beta1.Machine) (*corev1.Node, error) {
+func (c *ReconcileMachineSet) getMachineNode(machine *machinev1.Machine) (*corev1.Node, error) {
 	nodeRef := machine.Status.NodeRef
 	if nodeRef == nil {
 		return nil, errors.New("machine has no node ref")

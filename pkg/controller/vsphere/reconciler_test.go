@@ -26,8 +26,7 @@ import (
 
 	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
-	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
-	vsphereapi "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
 	"github.com/vmware/govmomi/object"
@@ -146,16 +145,16 @@ func TestClone(t *testing.T) {
 		cloneVM               bool
 		expectedError         error
 		setupFailureCondition func() error
-		providerSpec          vsphereapi.VSphereMachineProviderSpec
+		providerSpec          machinev1.VSphereMachineProviderSpec
 		machineName           string
 	}{
 		{
 			testCase: "clone machine from default values",
-			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+			providerSpec: machinev1.VSphereMachineProviderSpec{
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: "test",
 				},
-				Workspace: &vsphereapi.Workspace{
+				Workspace: &machinev1.Workspace{
 					Server: server.URL.Host,
 				},
 				DiskGiB:  defaultSizeGiB,
@@ -169,11 +168,11 @@ func TestClone(t *testing.T) {
 		},
 		{
 			testCase: "clone machine in specific folder",
-			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+			providerSpec: machinev1.VSphereMachineProviderSpec{
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: "test",
 				},
-				Workspace: &vsphereapi.Workspace{
+				Workspace: &machinev1.Workspace{
 					Server: server.URL.Host,
 					Folder: "custom-folder",
 				},
@@ -188,11 +187,11 @@ func TestClone(t *testing.T) {
 		},
 		{
 			testCase: "clone machine and increase disk",
-			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+			providerSpec: machinev1.VSphereMachineProviderSpec{
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: "test",
 				},
-				Workspace: &vsphereapi.Workspace{
+				Workspace: &machinev1.Workspace{
 					Server: server.URL.Host,
 				},
 				DiskGiB:  defaultSizeGiB + 1,
@@ -206,11 +205,11 @@ func TestClone(t *testing.T) {
 		},
 		{
 			testCase: "fail on disc resize down",
-			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+			providerSpec: machinev1.VSphereMachineProviderSpec{
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: "test",
 				},
-				Workspace: &vsphereapi.Workspace{
+				Workspace: &machinev1.Workspace{
 					Server: server.URL.Host,
 				},
 				DiskGiB:  defaultSizeGiB - 1,
@@ -223,11 +222,11 @@ func TestClone(t *testing.T) {
 		},
 		{
 			testCase: "fail on invalid resource pool",
-			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+			providerSpec: machinev1.VSphereMachineProviderSpec{
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: "test",
 				},
-				Workspace: &vsphereapi.Workspace{
+				Workspace: &machinev1.Workspace{
 					Server:       server.URL.Host,
 					ResourcePool: "invalid",
 				},
@@ -240,11 +239,11 @@ func TestClone(t *testing.T) {
 		},
 		{
 			testCase: "fail on multiple resource pools",
-			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+			providerSpec: machinev1.VSphereMachineProviderSpec{
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: "test",
 				},
-				Workspace: &vsphereapi.Workspace{
+				Workspace: &machinev1.Workspace{
 					Server:       server.URL.Host,
 					ResourcePool: "/DC0/host/DC0_C0/Resources/...",
 				},
@@ -275,11 +274,11 @@ func TestClone(t *testing.T) {
 		{
 			testCase:      "fail on invalid folder",
 			expectedError: errors.New("folder not found, specify valid value"),
-			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+			providerSpec: machinev1.VSphereMachineProviderSpec{
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: "test",
 				},
-				Workspace: &vsphereapi.Workspace{
+				Workspace: &machinev1.Workspace{
 					Server: server.URL.Host,
 					Folder: "invalid",
 				},
@@ -291,11 +290,11 @@ func TestClone(t *testing.T) {
 		},
 		{
 			testCase: "fail on multiple folders",
-			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+			providerSpec: machinev1.VSphereMachineProviderSpec{
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: "test",
 				},
-				Workspace: &vsphereapi.Workspace{
+				Workspace: &machinev1.Workspace{
 					Server: server.URL.Host,
 					Folder: "/DC0/vm/...",
 				},
@@ -324,11 +323,11 @@ func TestClone(t *testing.T) {
 		},
 		{
 			testCase: "fail on invalid datastore",
-			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+			providerSpec: machinev1.VSphereMachineProviderSpec{
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: "test",
 				},
-				Workspace: &vsphereapi.Workspace{
+				Workspace: &machinev1.Workspace{
 					Server:    server.URL.Host,
 					Datastore: "invalid",
 				},
@@ -341,11 +340,11 @@ func TestClone(t *testing.T) {
 		},
 		{
 			testCase: "fail on multiple datastores",
-			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+			providerSpec: machinev1.VSphereMachineProviderSpec{
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: "test",
 				},
-				Workspace: &vsphereapi.Workspace{
+				Workspace: &machinev1.Workspace{
 					Server:    server.URL.Host,
 					Datastore: "/DC0/...",
 				},
@@ -382,7 +381,7 @@ func TestClone(t *testing.T) {
 		},
 		{
 			testCase: "fail on invalid template",
-			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+			providerSpec: machinev1.VSphereMachineProviderSpec{
 				Template: "invalid",
 				UserDataSecret: &corev1.LocalObjectReference{
 					Name: userDataSecretName,
@@ -413,7 +412,7 @@ func TestClone(t *testing.T) {
 				},
 				providerSpec:   &tc.providerSpec,
 				session:        session,
-				providerStatus: &vsphereapi.VSphereMachineProviderStatus{},
+				providerStatus: &machinev1.VSphereMachineProviderStatus{},
 				client:         fake.NewFakeClientWithScheme(scheme.Scheme, &credentialsSecret, &userDataSecret),
 			}
 
@@ -627,12 +626,12 @@ func TestGetNetworkDevices(t *testing.T) {
 
 	testCases := []struct {
 		testCase     string
-		providerSpec *vsphereapi.VSphereMachineProviderSpec
+		providerSpec *machinev1.VSphereMachineProviderSpec
 		expected     func(gotDevices []types.BaseVirtualDeviceConfigSpec) bool
 	}{
 		{
 			testCase:     "no Network",
-			providerSpec: &vsphereapi.VSphereMachineProviderSpec{},
+			providerSpec: &machinev1.VSphereMachineProviderSpec{},
 			expected: func(gotDevices []types.BaseVirtualDeviceConfigSpec) bool {
 				if len(gotDevices) != 1 {
 					return false
@@ -645,9 +644,9 @@ func TestGetNetworkDevices(t *testing.T) {
 		},
 		{
 			testCase: "one Network",
-			providerSpec: &vsphereapi.VSphereMachineProviderSpec{
-				Network: vsphereapi.NetworkSpec{
-					Devices: []vsphereapi.NetworkDeviceSpec{
+			providerSpec: &machinev1.VSphereMachineProviderSpec{
+				Network: machinev1.NetworkSpec{
+					Devices: []machinev1.NetworkDeviceSpec{
 						{
 							NetworkName: "VM Network",
 						},
@@ -749,7 +748,7 @@ func TestGetDiskSpec(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			machineScope := &machineScope{
 				Context: context.TODO(),
-				providerSpec: &vsphereapi.VSphereMachineProviderSpec{
+				providerSpec: &machinev1.VSphereMachineProviderSpec{
 					DiskGiB: tc.diskSize,
 				},
 				session: session,
@@ -868,9 +867,9 @@ func TestReconcileNetwork(t *testing.T) {
 			machine: &machinev1.Machine{
 				Status: machinev1.MachineStatus{},
 			},
-			providerSpec: &vsphereapi.VSphereMachineProviderSpec{
-				Network: vsphereapi.NetworkSpec{
-					Devices: []vsphereapi.NetworkDeviceSpec{
+			providerSpec: &machinev1.VSphereMachineProviderSpec{
+				Network: machinev1.NetworkSpec{
+					Devices: []machinev1.NetworkDeviceSpec{
 						{
 							NetworkName: "dummy",
 						},
@@ -1262,15 +1261,15 @@ func TestDelete(t *testing.T) {
 	nodeName := "somenodename"
 
 	getMachineWithStatus := func(t *testing.T, status machinev1.MachineStatus) *machinev1.Machine {
-		providerSpec := vsphereapi.VSphereMachineProviderSpec{
+		providerSpec := machinev1.VSphereMachineProviderSpec{
 			CredentialsSecret: &corev1.LocalObjectReference{
 				Name: "test",
 			},
-			Workspace: &vsphereapi.Workspace{
+			Workspace: &machinev1.Workspace{
 				Server: host,
 			},
 		}
-		raw, err := vsphereapi.RawExtensionFromProviderSpec(&providerSpec)
+		raw, err := RawExtensionFromProviderSpec(&providerSpec)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -1488,15 +1487,15 @@ func TestCreate(t *testing.T) {
 	cases := []struct {
 		name                  string
 		expectedError         error
-		providerSpec          vsphereapi.VSphereMachineProviderSpec
+		providerSpec          machinev1.VSphereMachineProviderSpec
 		labels                map[string]string
 		notConnectedToVCenter bool
 	}{
 		{
 			name: "Successfully create machine",
-			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+			providerSpec: machinev1.VSphereMachineProviderSpec{
 				Template: vmName,
-				Workspace: &vsphereapi.Workspace{
+				Workspace: &machinev1.Workspace{
 					Server: host,
 				},
 				CredentialsSecret: &corev1.LocalObjectReference{
@@ -1513,9 +1512,9 @@ func TestCreate(t *testing.T) {
 			labels: map[string]string{
 				machinev1.MachineClusterIDLabel: "",
 			},
-			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+			providerSpec: machinev1.VSphereMachineProviderSpec{
 				Template: vmName,
-				Workspace: &vsphereapi.Workspace{
+				Workspace: &machinev1.Workspace{
 					Server: host,
 				},
 				CredentialsSecret: &corev1.LocalObjectReference{
@@ -1526,9 +1525,9 @@ func TestCreate(t *testing.T) {
 		},
 		{
 			name: "Fail on not connected to vCenter",
-			providerSpec: vsphereapi.VSphereMachineProviderSpec{
+			providerSpec: machinev1.VSphereMachineProviderSpec{
 				Template: vmName,
-				Workspace: &vsphereapi.Workspace{
+				Workspace: &machinev1.Workspace{
 					Server: host,
 				},
 				CredentialsSecret: &corev1.LocalObjectReference{
@@ -1560,7 +1559,7 @@ func TestCreate(t *testing.T) {
 				infra,
 				userDataSecret)
 
-			rawProviderSpec, err := vsphereapi.RawExtensionFromProviderSpec(&tc.providerSpec)
+			rawProviderSpec, err := RawExtensionFromProviderSpec(&tc.providerSpec)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1663,21 +1662,21 @@ func TestUpdate(t *testing.T) {
 	cases := []struct {
 		name          string
 		expectedError error
-		providerSpec  vsphereapi.VSphereMachineProviderSpec
+		providerSpec  machinev1.VSphereMachineProviderSpec
 		labels        map[string]string
 	}{
 		{
 			name: "Successfully update machine",
-			providerSpec: vsphereapi.VSphereMachineProviderSpec{
-				Workspace: &vsphereapi.Workspace{
+			providerSpec: machinev1.VSphereMachineProviderSpec{
+				Workspace: &machinev1.Workspace{
 					Server: host,
 				},
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: "test",
 				},
 				Template: vm.Name,
-				Network: vsphereapi.NetworkSpec{
-					Devices: []vsphereapi.NetworkDeviceSpec{
+				Network: machinev1.NetworkSpec{
+					Devices: []machinev1.NetworkDeviceSpec{
 						{
 							NetworkName: "test",
 						},
@@ -1690,16 +1689,16 @@ func TestUpdate(t *testing.T) {
 			labels: map[string]string{
 				machinev1.MachineClusterIDLabel: "",
 			},
-			providerSpec: vsphereapi.VSphereMachineProviderSpec{
-				Workspace: &vsphereapi.Workspace{
+			providerSpec: machinev1.VSphereMachineProviderSpec{
+				Workspace: &machinev1.Workspace{
 					Server: host,
 				},
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: "test",
 				},
 				Template: vm.Name,
-				Network: vsphereapi.NetworkSpec{
-					Devices: []vsphereapi.NetworkDeviceSpec{
+				Network: machinev1.NetworkSpec{
+					Devices: []machinev1.NetworkDeviceSpec{
 						{
 							NetworkName: "test",
 						},
@@ -1725,7 +1724,7 @@ func TestUpdate(t *testing.T) {
 				configMap,
 				infra)
 
-			rawProviderSpec, err := vsphereapi.RawExtensionFromProviderSpec(&tc.providerSpec)
+			rawProviderSpec, err := RawExtensionFromProviderSpec(&tc.providerSpec)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1829,11 +1828,11 @@ func TestExists(t *testing.T) {
 						},
 					},
 				},
-				providerSpec: &vsphereapi.VSphereMachineProviderSpec{
+				providerSpec: &machinev1.VSphereMachineProviderSpec{
 					Template: vm.Name,
 				},
 				session: session,
-				providerStatus: &vsphereapi.VSphereMachineProviderStatus{
+				providerStatus: &machinev1.VSphereMachineProviderStatus{
 					TaskRef: task.Reference().Value,
 				},
 				client: fake.NewFakeClientWithScheme(scheme.Scheme, &credentialsSecret),
@@ -1904,10 +1903,10 @@ func TestReconcileMachineWithCloudState(t *testing.T) {
 				},
 			},
 		},
-		providerSpec: &vsphereapi.VSphereMachineProviderSpec{
+		providerSpec: &machinev1.VSphereMachineProviderSpec{
 			Template: vm.Name,
-			Network: vsphereapi.NetworkSpec{
-				Devices: []vsphereapi.NetworkDeviceSpec{
+			Network: machinev1.NetworkSpec{
+				Devices: []machinev1.NetworkDeviceSpec{
 					{
 						NetworkName: "test",
 					},
@@ -1915,7 +1914,7 @@ func TestReconcileMachineWithCloudState(t *testing.T) {
 			},
 		},
 		session: session,
-		providerStatus: &vsphereapi.VSphereMachineProviderStatus{
+		providerStatus: &machinev1.VSphereMachineProviderStatus{
 			TaskRef: task.Reference().Value,
 		},
 		vSphereConfig: &vSphereConfig{

@@ -21,7 +21,7 @@ import (
 	"math"
 	"sort"
 
-	"github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -42,10 +42,10 @@ const (
 	secondsPerTenDays float64 = 864000
 )
 
-type deletePriorityFunc func(machine *v1beta1.Machine) deletePriority
+type deletePriorityFunc func(machine *machinev1.Machine) deletePriority
 
 // maps the creation timestamp onto the 0-100 priority range
-func oldestDeletePriority(machine *v1beta1.Machine) deletePriority {
+func oldestDeletePriority(machine *machinev1.Machine) deletePriority {
 	if machine.DeletionTimestamp != nil && !machine.DeletionTimestamp.IsZero() {
 		return mustDelete
 	}
@@ -65,7 +65,7 @@ func oldestDeletePriority(machine *v1beta1.Machine) deletePriority {
 	return deletePriority(float64(mustDelete) * (1.0 - math.Exp(-d.Seconds()/secondsPerTenDays)))
 }
 
-func newestDeletePriority(machine *v1beta1.Machine) deletePriority {
+func newestDeletePriority(machine *machinev1.Machine) deletePriority {
 	if machine.DeletionTimestamp != nil && !machine.DeletionTimestamp.IsZero() {
 		return mustDelete
 	}
@@ -78,7 +78,7 @@ func newestDeletePriority(machine *v1beta1.Machine) deletePriority {
 	return mustDelete - oldestDeletePriority(machine)
 }
 
-func randomDeletePolicy(machine *v1beta1.Machine) deletePriority {
+func randomDeletePolicy(machine *machinev1.Machine) deletePriority {
 	if machine.DeletionTimestamp != nil && !machine.DeletionTimestamp.IsZero() {
 		return mustDelete
 	}
@@ -96,7 +96,7 @@ func randomDeletePolicy(machine *v1beta1.Machine) deletePriority {
 }
 
 type sortableMachines struct {
-	machines []*v1beta1.Machine
+	machines []*machinev1.Machine
 	priority deletePriorityFunc
 }
 
@@ -106,11 +106,11 @@ func (m sortableMachines) Less(i, j int) bool {
 	return m.priority(m.machines[j]) < m.priority(m.machines[i]) // high to low
 }
 
-func getMachinesToDeletePrioritized(filteredMachines []*v1beta1.Machine, diff int, fun deletePriorityFunc) []*v1beta1.Machine {
+func getMachinesToDeletePrioritized(filteredMachines []*machinev1.Machine, diff int, fun deletePriorityFunc) []*machinev1.Machine {
 	if diff >= len(filteredMachines) {
 		return filteredMachines
 	} else if diff <= 0 {
-		return []*v1beta1.Machine{}
+		return []*machinev1.Machine{}
 	}
 
 	sortable := sortableMachines{
@@ -122,14 +122,14 @@ func getMachinesToDeletePrioritized(filteredMachines []*v1beta1.Machine, diff in
 	return sortable.machines[:diff]
 }
 
-func getDeletePriorityFunc(ms *v1beta1.MachineSet) (deletePriorityFunc, error) {
+func getDeletePriorityFunc(ms *machinev1.MachineSet) (deletePriorityFunc, error) {
 	// Map the Spec.DeletePolicy value to the appropriate delete priority function
-	switch msdp := v1beta1.MachineSetDeletePolicy(ms.Spec.DeletePolicy); msdp {
-	case v1beta1.RandomMachineSetDeletePolicy:
+	switch msdp := machinev1.MachineSetDeletePolicy(ms.Spec.DeletePolicy); msdp {
+	case machinev1.RandomMachineSetDeletePolicy:
 		return randomDeletePolicy, nil
-	case v1beta1.NewestMachineSetDeletePolicy:
+	case machinev1.NewestMachineSetDeletePolicy:
 		return newestDeletePriority, nil
-	case v1beta1.OldestMachineSetDeletePolicy:
+	case machinev1.OldestMachineSetDeletePolicy:
 		return oldestDeletePriority, nil
 	case "":
 		return randomDeletePolicy, nil

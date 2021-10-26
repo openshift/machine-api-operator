@@ -3,8 +3,13 @@ package annotations
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
 
-	"github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+const (
+	// PausedAnnotation is an annotation that can be applied to MachineHealthCheck objects to prevent the MHC controller
+	// from processing it.
+	// TODO: move this annotation to the openshift/api package
+	PausedAnnotation = "cluster.x-k8s.io/paused"
 )
 
 // IsPaused returns true if the Cluster is paused or the object has the `paused` annotation.
@@ -14,7 +19,7 @@ func IsPaused(o metav1.Object) bool {
 
 // HasPausedAnnotation returns true if the object has the `paused` annotation.
 func HasPausedAnnotation(o metav1.Object) bool {
-	return hasAnnotation(o, v1beta1.PausedAnnotation)
+	return hasAnnotation(o, PausedAnnotation)
 }
 
 // hasAnnotation returns true if the object has the specified annotation.
