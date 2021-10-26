@@ -10,7 +10,7 @@ require (
 	github.com/onsi/ginkgo v1.16.4
 	github.com/onsi/gomega v1.14.0
 	github.com/openshift/api v0.0.0-20211025104849-a11323ccb6ea
-	github.com/openshift/client-go v0.0.0-20210730113412-1811c1b3fc0e
+	github.com/openshift/client-go v0.0.0-20211025111749-96ca2abfc56c
 	github.com/openshift/library-go v0.0.0-20210811133500-5e31383de2a7
 	github.com/operator-framework/operator-sdk v0.5.1-0.20190301204940-c2efe6f74e7b
 	github.com/prometheus/client_golang v1.11.0
@@ -21,10 +21,11 @@ require (
 	golang.org/x/net v0.0.0-20210520170846-37e1c6afe023
 	gopkg.in/gcfg.v1 v1.2.3
 	gopkg.in/warnings.v0 v0.1.2 // indirect
+	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/api v0.22.1
 	k8s.io/apimachinery v0.22.1
 	k8s.io/apiserver v0.22.0
-	k8s.io/client-go v0.22.0
+	k8s.io/client-go v0.22.1
 	k8s.io/code-generator v0.22.1
 	k8s.io/klog/v2 v2.9.0
 	k8s.io/kubectl v0.22.0
