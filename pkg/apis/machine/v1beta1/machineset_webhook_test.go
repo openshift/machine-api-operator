@@ -7,16 +7,13 @@ import (
 
 	. "github.com/onsi/gomega"
 	osconfigv1 "github.com/openshift/api/config/v1"
-	gcp "github.com/openshift/cluster-api-provider-gcp/pkg/apis/gcpprovider/v1beta1"
-	vsphere "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/pointer"
-	aws "sigs.k8s.io/cluster-api-provider-aws/pkg/apis/awsprovider/v1beta1"
-	azure "sigs.k8s.io/cluster-api-provider-azure/pkg/apis/azureprovider/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -99,7 +96,7 @@ func TestMachineSetCreation(t *testing.T) {
 			platformType: osconfigv1.AWSPlatformType,
 			clusterID:    "aws-cluster",
 			providerSpecValue: &runtime.RawExtension{
-				Object: &aws.AWSMachineProviderConfig{},
+				Object: &machinev1.AWSMachineProviderConfig{},
 			},
 			expectedError: "providerSpec.ami: Required value: expected providerSpec.ami.id to be populated",
 		},
@@ -108,8 +105,8 @@ func TestMachineSetCreation(t *testing.T) {
 			platformType: osconfigv1.AWSPlatformType,
 			clusterID:    "aws-cluster",
 			providerSpecValue: &runtime.RawExtension{
-				Object: &aws.AWSMachineProviderConfig{
-					AMI: aws.AWSResourceReference{
+				Object: &machinev1.AWSMachineProviderConfig{
+					AMI: machinev1.AWSResourceReference{
 						ID: pointer.StringPtr("ami"),
 					},
 				},
@@ -128,7 +125,7 @@ func TestMachineSetCreation(t *testing.T) {
 			platformType: osconfigv1.AzurePlatformType,
 			clusterID:    "azure-cluster",
 			providerSpecValue: &runtime.RawExtension{
-				Object: &azure.AzureMachineProviderSpec{},
+				Object: &machinev1.AzureMachineProviderSpec{},
 			},
 			expectedError: "providerSpec.osDisk.diskSizeGB: Invalid value: 0: diskSizeGB must be greater than zero and less than 32768",
 		},
@@ -137,9 +134,9 @@ func TestMachineSetCreation(t *testing.T) {
 			platformType: osconfigv1.AzurePlatformType,
 			clusterID:    "azure-cluster",
 			providerSpecValue: &runtime.RawExtension{
-				Object: &azure.AzureMachineProviderSpec{
+				Object: &machinev1.AzureMachineProviderSpec{
 					Location: "location",
-					OSDisk: azure.OSDisk{
+					OSDisk: machinev1.OSDisk{
 						DiskSizeGB: 128,
 					},
 				},
@@ -151,8 +148,8 @@ func TestMachineSetCreation(t *testing.T) {
 			platformType: osconfigv1.AzurePlatformType,
 			clusterID:    "azure-cluster",
 			providerSpecValue: &runtime.RawExtension{
-				Object: &azure.AzureMachineProviderSpec{
-					OSDisk: azure.OSDisk{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
 						DiskSizeGB: 128,
 					},
 					PublicIP: true,
@@ -166,8 +163,8 @@ func TestMachineSetCreation(t *testing.T) {
 			platformType: osconfigv1.AzurePlatformType,
 			clusterID:    "azure-cluster",
 			providerSpecValue: &runtime.RawExtension{
-				Object: &azure.AzureMachineProviderSpec{
-					OSDisk: azure.OSDisk{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
 						DiskSizeGB: 128,
 					},
 				},
@@ -186,7 +183,7 @@ func TestMachineSetCreation(t *testing.T) {
 			platformType: osconfigv1.GCPPlatformType,
 			clusterID:    "gcp-cluster",
 			providerSpecValue: &runtime.RawExtension{
-				Object: &gcp.GCPMachineProviderSpec{},
+				Object: &machinev1.GCPMachineProviderSpec{},
 			},
 			expectedError: "providerSpec.region: Required value: region is required",
 		},
@@ -195,7 +192,7 @@ func TestMachineSetCreation(t *testing.T) {
 			platformType: osconfigv1.GCPPlatformType,
 			clusterID:    "gcp-cluster",
 			providerSpecValue: &runtime.RawExtension{
-				Object: &gcp.GCPMachineProviderSpec{
+				Object: &machinev1.GCPMachineProviderSpec{
 					Region: "region",
 					Zone:   "region-zone",
 				},
@@ -214,7 +211,7 @@ func TestMachineSetCreation(t *testing.T) {
 			platformType: osconfigv1.VSpherePlatformType,
 			clusterID:    "vsphere-cluster",
 			providerSpecValue: &runtime.RawExtension{
-				Object: &vsphere.VSphereMachineProviderSpec{},
+				Object: &machinev1.VSphereMachineProviderSpec{},
 			},
 			expectedError: "[providerSpec.template: Required value: template must be provided, providerSpec.workspace: Required value: workspace must be provided, providerSpec.network.devices: Required value: at least 1 network device must be provided]",
 		},
@@ -223,14 +220,14 @@ func TestMachineSetCreation(t *testing.T) {
 			platformType: osconfigv1.VSpherePlatformType,
 			clusterID:    "vsphere-cluster",
 			providerSpecValue: &runtime.RawExtension{
-				Object: &vsphere.VSphereMachineProviderSpec{
+				Object: &machinev1.VSphereMachineProviderSpec{
 					Template: "template",
-					Workspace: &vsphere.Workspace{
+					Workspace: &machinev1.Workspace{
 						Datacenter: "datacenter",
 						Server:     "server",
 					},
-					Network: vsphere.NetworkSpec{
-						Devices: []vsphere.NetworkDeviceSpec{
+					Network: machinev1.NetworkSpec{
+						Devices: []machinev1.NetworkDeviceSpec{
 							{
 								NetworkName: "networkName",
 							},
@@ -331,26 +328,26 @@ func TestMachineSetCreation(t *testing.T) {
 func TestMachineSetUpdate(t *testing.T) {
 	awsClusterID := "aws-cluster"
 	awsRegion := "region"
-	defaultAWSProviderSpec := &aws.AWSMachineProviderConfig{
-		AMI: aws.AWSResourceReference{
+	defaultAWSProviderSpec := &machinev1.AWSMachineProviderConfig{
+		AMI: machinev1.AWSResourceReference{
 			ID: pointer.StringPtr("ami"),
 		},
 		InstanceType:      defaultAWSX86InstanceType,
 		UserDataSecret:    &corev1.LocalObjectReference{Name: defaultUserDataSecret},
 		CredentialsSecret: &corev1.LocalObjectReference{Name: defaultAWSCredentialsSecret},
-		Placement: aws.Placement{
+		Placement: machinev1.Placement{
 			Region: awsRegion,
 		},
 	}
 
 	azureClusterID := "azure-cluster"
-	defaultAzureProviderSpec := &azure.AzureMachineProviderSpec{
+	defaultAzureProviderSpec := &machinev1.AzureMachineProviderSpec{
 		Location:             "location",
 		VMSize:               defaultAzureVMSize,
 		Vnet:                 defaultAzureVnet(azureClusterID),
 		Subnet:               defaultAzureSubnet(azureClusterID),
 		NetworkResourceGroup: defaultAzureNetworkResourceGroup(azureClusterID),
-		Image: azure.Image{
+		Image: machinev1.Image{
 			ResourceID: defaultAzureImageResourceID(azureClusterID),
 		},
 		ManagedIdentity: defaultAzureManagedIdentiy(azureClusterID),
@@ -363,31 +360,31 @@ func TestMachineSetUpdate(t *testing.T) {
 			Name:      defaultAzureCredentialsSecret,
 			Namespace: defaultSecretNamespace,
 		},
-		OSDisk: azure.OSDisk{
+		OSDisk: machinev1.OSDisk{
 			DiskSizeGB: 128,
 			OSType:     defaultAzureOSDiskOSType,
-			ManagedDisk: azure.ManagedDiskParameters{
+			ManagedDisk: machinev1.ManagedDiskParameters{
 				StorageAccountType: defaultAzureOSDiskStorageType,
 			},
 		},
 	}
 
 	gcpClusterID := "gcp-cluster"
-	defaultGCPProviderSpec := &gcp.GCPMachineProviderSpec{
+	defaultGCPProviderSpec := &machinev1.GCPMachineProviderSpec{
 		Region:      "region",
 		Zone:        "region-zone",
 		MachineType: defaultGCPMachineType,
-		NetworkInterfaces: []*gcp.GCPNetworkInterface{
+		NetworkInterfaces: []*machinev1.GCPNetworkInterface{
 			{
 				Network:    defaultGCPNetwork(gcpClusterID),
 				Subnetwork: defaultGCPSubnetwork(gcpClusterID),
 			},
 		},
-		Disks: []*gcp.GCPDisk{
+		Disks: []*machinev1.GCPDisk{
 			{
 				AutoDelete: true,
 				Boot:       true,
-				SizeGb:     defaultGCPDiskSizeGb,
+				SizeGB:     defaultGCPDiskSizeGb,
 				Type:       defaultGCPDiskType,
 				Image:      defaultGCPDiskImage,
 			},
@@ -402,14 +399,14 @@ func TestMachineSetUpdate(t *testing.T) {
 	}
 
 	vsphereClusterID := "vsphere-cluster"
-	defaultVSphereProviderSpec := &vsphere.VSphereMachineProviderSpec{
+	defaultVSphereProviderSpec := &machinev1.VSphereMachineProviderSpec{
 		Template: "template",
-		Workspace: &vsphere.Workspace{
+		Workspace: &machinev1.Workspace{
 			Datacenter: "datacenter",
 			Server:     "server",
 		},
-		Network: vsphere.NetworkSpec{
-			Devices: []vsphere.NetworkDeviceSpec{
+		Network: machinev1.NetworkSpec{
+			Devices: []machinev1.NetworkDeviceSpec{
 				{
 					NetworkName: "networkName",
 				},
@@ -743,7 +740,7 @@ func TestMachineSetUpdate(t *testing.T) {
 			},
 			updatedProviderSpecValue: func() *runtime.RawExtension {
 				object := defaultVSphereProviderSpec.DeepCopy()
-				object.Network = vsphere.NetworkSpec{}
+				object.Network = machinev1.NetworkSpec{}
 				return &runtime.RawExtension{
 					Object: object,
 				}

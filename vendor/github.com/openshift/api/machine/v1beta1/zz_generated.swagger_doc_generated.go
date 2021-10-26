@@ -152,6 +152,241 @@ func (TagSpecification) SwaggerDoc() map[string]string {
 	return map_TagSpecification
 }
 
+var map_AzureMachineProviderCondition = map[string]string{
+	"":                   "AzureMachineProviderCondition is a condition in a AzureMachineProviderStatus",
+	"type":               "Type is the type of the condition.",
+	"status":             "Status is the status of the condition.",
+	"lastProbeTime":      "LastProbeTime is the last time we probed the condition.",
+	"lastTransitionTime": "LastTransitionTime is the last time the condition transitioned from one status to another.",
+	"reason":             "Reason is a unique, one-word, CamelCase reason for the condition's last transition.",
+	"message":            "Message is a human-readable message indicating details about last transition.",
+}
+
+func (AzureMachineProviderCondition) SwaggerDoc() map[string]string {
+	return map_AzureMachineProviderCondition
+}
+
+var map_AzureMachineProviderSpec = map[string]string{
+	"":                          "AzureMachineProviderSpec is the type that will be embedded in a Machine.Spec.ProviderSpec field for an Azure virtual machine. It is used by the Azure machine actuator to create a single Machine. Required parameters such as location that are not specified by this configuration, will be defaulted by the actuator. Compatibility level 2: Stable within a major release for a minimum of 9 months or 3 minor releases (whichever is longer).",
+	"userDataSecret":            "UserDataSecret contains a local reference to a secret that contains the UserData to apply to the instance",
+	"credentialsSecret":         "CredentialsSecret is a reference to the secret with Azure credentials.",
+	"location":                  "Location is the region to use to create the instance",
+	"vmSize":                    "VMSize is the size of the VM to create.",
+	"image":                     "Image is the OS image to use to create the instance.",
+	"osDisk":                    "OSDisk represents the parameters for creating the OS disk.",
+	"sshPublicKey":              "SSHPublicKey is the public key to use to SSH to the virtual machine.",
+	"publicIP":                  "PublicIP if true a public IP will be used",
+	"tags":                      "Tags is a list of tags to apply to the machine.",
+	"securityGroup":             "Network Security Group that needs to be attached to the machine's interface. No security group will be attached if empty.",
+	"applicationSecurityGroups": "Application Security Groups that need to be attached to the machine's interface. No application security groups will be attached if zero-length.",
+	"subnet":                    "Subnet to use for this instance",
+	"publicLoadBalancer":        "PublicLoadBalancer to use for this instance",
+	"internalLoadBalancer":      "InternalLoadBalancerName to use for this instance",
+	"natRule":                   "NatRule to set inbound NAT rule of the load balancer",
+	"managedIdentity":           "ManagedIdentity to set managed identity name",
+	"vnet":                      "Vnet to set virtual network name",
+	"zone":                      "Availability Zone for the virtual machine. If nil, the virtual machine should be deployed to no zone",
+	"networkResourceGroup":      "NetworkResourceGroup is the resource group for the virtual machine's network",
+	"resourceGroup":             "ResourceGroup is the resource group for the virtual machine",
+	"spotVMOptions":             "SpotVMOptions allows the ability to specify the Machine should use a Spot VM",
+	"securityProfile":           "SecurityProfile specifies the Security profile settings for a virtual machine.",
+	"acceleratedNetworking":     "AcceleratedNetworking enables or disables Azure accelerated networking feature. Set to false by default. If true, then this will depend on whether the requested VMSize is supported. If set to true with an unsupported VMSize, Azure will return an error.",
+	"availabilitySet":           "AvailabilitySet specifies the availability set to use for this instance. Availability set should be precreated, before using this field.",
+}
+
+func (AzureMachineProviderSpec) SwaggerDoc() map[string]string {
+	return map_AzureMachineProviderSpec
+}
+
+var map_AzureMachineProviderStatus = map[string]string{
+	"":           "AzureMachineProviderStatus is the type that will be embedded in a Machine.Status.ProviderStatus field. It contains Azure-specific status information. Compatibility level 2: Stable within a major release for a minimum of 9 months or 3 minor releases (whichever is longer).",
+	"vmId":       "VMID is the ID of the virtual machine created in Azure.",
+	"vmState":    "VMState is the provisioning state of the Azure virtual machine.",
+	"conditions": "Conditions is a set of conditions associated with the Machine to indicate errors or other status.",
+}
+
+func (AzureMachineProviderStatus) SwaggerDoc() map[string]string {
+	return map_AzureMachineProviderStatus
+}
+
+var map_DiskEncryptionSetParameters = map[string]string{
+	"":   "DiskEncryptionSetParameters is the disk encryption set properties",
+	"id": "ID is the disk encryption set ID",
+}
+
+func (DiskEncryptionSetParameters) SwaggerDoc() map[string]string {
+	return map_DiskEncryptionSetParameters
+}
+
+var map_Image = map[string]string{
+	"":           "Image is a mirror of azure sdk compute.ImageReference",
+	"publisher":  "Publisher is the name of the organization that created the image",
+	"offer":      "Offer specifies the name of a group of related images created by the publisher. For example, UbuntuServer, WindowsServer",
+	"sku":        "SKU specifies an instance of an offer, such as a major release of a distribution. For example, 18.04-LTS, 2019-Datacenter",
+	"version":    "Version specifies the version of an image sku. The allowed formats are Major.Minor.Build or 'latest'. Major, Minor, and Build are decimal numbers. Specify 'latest' to use the latest version of an image available at deploy time. Even if you use 'latest', the VM image will not automatically update after deploy time even if a new version becomes available.",
+	"resourceID": "ResourceID specifies an image to use by ID",
+}
+
+func (Image) SwaggerDoc() map[string]string {
+	return map_Image
+}
+
+var map_ManagedDiskParameters = map[string]string{
+	"":                   "ManagedDiskParameters is the parameters of a managed disk.",
+	"storageAccountType": "StorageAccountType is the storage account type to use. Possible values include \"Standard_LRS\" and \"Premium_LRS\".",
+	"diskEncryptionSet":  "DiskEncryptionSet is the disk encryption set properties",
+}
+
+func (ManagedDiskParameters) SwaggerDoc() map[string]string {
+	return map_ManagedDiskParameters
+}
+
+var map_OSDisk = map[string]string{
+	"osType":      "OSType is the operating system type of the OS disk. Possible values include \"Linux\" and \"Windows\".",
+	"managedDisk": "ManagedDisk specifies the Managed Disk parameters for the OS disk.",
+	"diskSizeGB":  "DiskSizeGB is the size in GB to assign to the data disk.",
+}
+
+func (OSDisk) SwaggerDoc() map[string]string {
+	return map_OSDisk
+}
+
+var map_SecurityProfile = map[string]string{
+	"":                 "SecurityProfile specifies the Security profile settings for a virtual machine or virtual machine scale set.",
+	"encryptionAtHost": "This field indicates whether Host Encryption should be enabled or disabled for a virtual machine or virtual machine scale set. Default is disabled.",
+}
+
+func (SecurityProfile) SwaggerDoc() map[string]string {
+	return map_SecurityProfile
+}
+
+var map_SpotVMOptions = map[string]string{
+	"":         "SpotVMOptions defines the options relevant to running the Machine on Spot VMs",
+	"maxPrice": "MaxPrice defines the maximum price the user is willing to pay for Spot VM instances",
+}
+
+func (SpotVMOptions) SwaggerDoc() map[string]string {
+	return map_SpotVMOptions
+}
+
+var map_GCPDisk = map[string]string{
+	"":              "GCPDisk describes disks for GCP.",
+	"autoDelete":    "AutoDelete indicates if the disk will be auto-deleted when the instance is deleted (default false).",
+	"boot":          "Boot indicates if this is a boot disk (default false).",
+	"sizeGb":        "SizeGB is the size of the disk (in GB).",
+	"type":          "Type is the type of the disk (eg: pd-standard).",
+	"image":         "Image is the source image to create this disk.",
+	"labels":        "Labels list of labels to apply to the disk.",
+	"encryptionKey": "EncryptionKey is the customer-supplied encryption key of the disk.",
+}
+
+func (GCPDisk) SwaggerDoc() map[string]string {
+	return map_GCPDisk
+}
+
+var map_GCPEncryptionKeyReference = map[string]string{
+	"":                     "GCPEncryptionKeyReference describes the encryptionKey to use for a disk's encryption.",
+	"kmsKey":               "KMSKeyName is the reference KMS key, in the format",
+	"kmsKeyServiceAccount": "KMSKeyServiceAccount is the service account being used for the encryption request for the given KMS key. If absent, the Compute Engine default service account is used. See https://cloud.google.com/compute/docs/access/service-accounts#compute_engine_service_account for details on the default service account.",
+}
+
+func (GCPEncryptionKeyReference) SwaggerDoc() map[string]string {
+	return map_GCPEncryptionKeyReference
+}
+
+var map_GCPKMSKeyReference = map[string]string{
+	"":          "GCPKMSKeyReference gathers required fields for looking up a GCP KMS Key",
+	"name":      "Name is the name of the customer managed encryption key to be used for the disk encryption.",
+	"keyRing":   "KeyRing is the name of the KMS Key Ring which the KMS Key belongs to.",
+	"projectID": "ProjectID is the ID of the Project in which the KMS Key Ring exists. Defaults to the VM ProjectID if not set.",
+	"location":  "Location is the GCP location in which the Key Ring exists.",
+}
+
+func (GCPKMSKeyReference) SwaggerDoc() map[string]string {
+	return map_GCPKMSKeyReference
+}
+
+var map_GCPMachineProviderCondition = map[string]string{
+	"":                   "GCPMachineProviderCondition is a condition in a GCPMachineProviderStatus",
+	"type":               "Type is the type of the condition.",
+	"status":             "Status is the status of the condition.",
+	"lastProbeTime":      "LastProbeTime is the last time we probed the condition.",
+	"lastTransitionTime": "LastTransitionTime is the last time the condition transitioned from one status to another.",
+	"reason":             "Reason is a unique, one-word, CamelCase reason for the condition's last transition.",
+	"message":            "Message is a human-readable message indicating details about last transition.",
+}
+
+func (GCPMachineProviderCondition) SwaggerDoc() map[string]string {
+	return map_GCPMachineProviderCondition
+}
+
+var map_GCPMachineProviderSpec = map[string]string{
+	"":                   "GCPMachineProviderSpec is the type that will be embedded in a Machine.Spec.ProviderSpec field for an GCP virtual machine. It is used by the GCP machine actuator to create a single Machine. Compatibility level 2: Stable within a major release for a minimum of 9 months or 3 minor releases (whichever is longer).",
+	"userDataSecret":     "UserDataSecret contains a local reference to a secret that contains the UserData to apply to the instance",
+	"credentialsSecret":  "CredentialsSecret is a reference to the secret with GCP credentials.",
+	"canIPForward":       "CanIPForward Allows this instance to send and receive packets with non-matching destination or source IPs. This is required if you plan to use this instance to forward routes.",
+	"deletionProtection": "DeletionProtection whether the resource should be protected against deletion.",
+	"disks":              "Disks is a list of disks to be attached to the VM.",
+	"labels":             "Labels list of labels to apply to the VM.",
+	"gcpMetadata":        "Metadata key/value pairs to apply to the VM.",
+	"networkInterfaces":  "NetworkInterfaces is a list of network interfaces to be attached to the VM.",
+	"serviceAccounts":    "ServiceAccounts is a list of GCP service accounts to be used by the VM.",
+	"tags":               "Tags list of tags to apply to the VM.",
+	"targetPools":        "TargetPools are used for network TCP/UDP load balancing. A target pool references member instances, an associated legacy HttpHealthCheck resource, and, optionally, a backup target pool",
+	"machineType":        "MachineType is the machine type to use for the VM.",
+	"region":             "Region is the region in which the GCP machine provider will create the VM.",
+	"zone":               "Zone is the zone in which the GCP machine provider will create the VM.",
+	"projectID":          "ProjectID is the project in which the GCP machine provider will create the VM.",
+	"preemptible":        "Preemptible indicates if created instance is preemptible",
+}
+
+func (GCPMachineProviderSpec) SwaggerDoc() map[string]string {
+	return map_GCPMachineProviderSpec
+}
+
+var map_GCPMachineProviderStatus = map[string]string{
+	"":              "GCPMachineProviderStatus is the type that will be embedded in a Machine.Status.ProviderStatus field. It contains GCP-specific status information. Compatibility level 2: Stable within a major release for a minimum of 9 months or 3 minor releases (whichever is longer).",
+	"instanceId":    "InstanceID is the ID of the instance in GCP",
+	"instanceState": "InstanceState is the provisioning state of the GCP Instance.",
+	"conditions":    "Conditions is a set of conditions associated with the Machine to indicate errors or other status",
+}
+
+func (GCPMachineProviderStatus) SwaggerDoc() map[string]string {
+	return map_GCPMachineProviderStatus
+}
+
+var map_GCPMetadata = map[string]string{
+	"":      "GCPMetadata describes metadata for GCP.",
+	"key":   "Key is the metadata key.",
+	"value": "Value is the metadata value.",
+}
+
+func (GCPMetadata) SwaggerDoc() map[string]string {
+	return map_GCPMetadata
+}
+
+var map_GCPNetworkInterface = map[string]string{
+	"":           "GCPNetworkInterface describes network interfaces for GCP",
+	"publicIP":   "PublicIP indicates if true a public IP will be used",
+	"network":    "Network is the network name.",
+	"projectID":  "ProjectID is the project in which the GCP machine provider will create the VM.",
+	"subnetwork": "Subnetwork is the subnetwork name.",
+}
+
+func (GCPNetworkInterface) SwaggerDoc() map[string]string {
+	return map_GCPNetworkInterface
+}
+
+var map_GCPServiceAccount = map[string]string{
+	"":       "GCPServiceAccount describes service accounts for GCP.",
+	"email":  "Email is the service account email.",
+	"scopes": "Scopes list of scopes to be assigned to the service account.",
+}
+
+func (GCPServiceAccount) SwaggerDoc() map[string]string {
+	return map_GCPServiceAccount
+}
+
 var map_LastOperation = map[string]string{
 	"":            "LastOperation represents the detail of the last performed operation on the MachineObject.",
 	"description": "Description is the human-readable description of the last operation.",
@@ -209,6 +444,111 @@ func (MachineStatus) SwaggerDoc() map[string]string {
 	return map_MachineStatus
 }
 
+var map_MachineHealthCheck = map[string]string{
+	"":       "MachineHealthCheck is the Schema for the machinehealthchecks API Compatibility level 2: Stable within a major release for a minimum of 9 months or 3 minor releases (whichever is longer).",
+	"spec":   "Specification of machine health check policy",
+	"status": "Most recently observed status of MachineHealthCheck resource",
+}
+
+func (MachineHealthCheck) SwaggerDoc() map[string]string {
+	return map_MachineHealthCheck
+}
+
+var map_MachineHealthCheckList = map[string]string{
+	"": "MachineHealthCheckList contains a list of MachineHealthCheck Compatibility level 2: Stable within a major release for a minimum of 9 months or 3 minor releases (whichever is longer).",
+}
+
+func (MachineHealthCheckList) SwaggerDoc() map[string]string {
+	return map_MachineHealthCheckList
+}
+
+var map_MachineHealthCheckSpec = map[string]string{
+	"":                    "MachineHealthCheckSpec defines the desired state of MachineHealthCheck",
+	"selector":            "Label selector to match machines whose health will be exercised. Note: An empty selector will match all machines.",
+	"unhealthyConditions": "UnhealthyConditions contains a list of the conditions that determine whether a node is considered unhealthy.  The conditions are combined in a logical OR, i.e. if any of the conditions is met, the node is unhealthy.",
+	"maxUnhealthy":        "Any farther remediation is only allowed if at most \"MaxUnhealthy\" machines selected by \"selector\" are not healthy. Expects either a postive integer value or a percentage value. Percentage values must be positive whole numbers and are capped at 100%. Both 0 and 0% are valid and will block all remediation.",
+	"nodeStartupTimeout":  "Machines older than this duration without a node will be considered to have failed and will be remediated. To prevent Machines without Nodes from being removed, disable startup checks by setting this value explicitly to \"0\". Expects an unsigned duration string of decimal numbers each with optional fraction and a unit suffix, eg \"300ms\", \"1.5h\" or \"2h45m\". Valid time units are \"ns\", \"us\" (or \"µs\"), \"ms\", \"s\", \"m\", \"h\".",
+	"remediationTemplate": "RemediationTemplate is a reference to a remediation template provided by an infrastructure provider.\n\nThis field is completely optional, when filled, the MachineHealthCheck controller creates a new object from the template referenced and hands off remediation of the machine to a controller that lives outside of Machine API Operator.",
+}
+
+func (MachineHealthCheckSpec) SwaggerDoc() map[string]string {
+	return map_MachineHealthCheckSpec
+}
+
+var map_MachineHealthCheckStatus = map[string]string{
+	"":                    "MachineHealthCheckStatus defines the observed state of MachineHealthCheck",
+	"expectedMachines":    "total number of machines counted by this machine health check",
+	"currentHealthy":      "total number of machines counted by this machine health check",
+	"remediationsAllowed": "RemediationsAllowed is the number of further remediations allowed by this machine health check before maxUnhealthy short circuiting will be applied",
+	"conditions":          "Conditions defines the current state of the MachineHealthCheck",
+}
+
+func (MachineHealthCheckStatus) SwaggerDoc() map[string]string {
+	return map_MachineHealthCheckStatus
+}
+
+var map_UnhealthyCondition = map[string]string{
+	"":        "UnhealthyCondition represents a Node condition type and value with a timeout specified as a duration.  When the named condition has been in the given status for at least the timeout value, a node is considered unhealthy.",
+	"timeout": "Expects an unsigned duration string of decimal numbers each with optional fraction and a unit suffix, eg \"300ms\", \"1.5h\" or \"2h45m\". Valid time units are \"ns\", \"us\" (or \"µs\"), \"ms\", \"s\", \"m\", \"h\".",
+}
+
+func (UnhealthyCondition) SwaggerDoc() map[string]string {
+	return map_UnhealthyCondition
+}
+
+var map_MachineSet = map[string]string{
+	"": "MachineSet ensures that a specified number of machines replicas are running at any given time. Compatibility level 2: Stable within a major release for a minimum of 9 months or 3 minor releases (whichever is longer).",
+}
+
+func (MachineSet) SwaggerDoc() map[string]string {
+	return map_MachineSet
+}
+
+var map_MachineSetList = map[string]string{
+	"": "MachineSetList contains a list of MachineSet Compatibility level 2: Stable within a major release for a minimum of 9 months or 3 minor releases (whichever is longer).",
+}
+
+func (MachineSetList) SwaggerDoc() map[string]string {
+	return map_MachineSetList
+}
+
+var map_MachineSetSpec = map[string]string{
+	"":                "MachineSetSpec defines the desired state of MachineSet",
+	"replicas":        "Replicas is the number of desired replicas. This is a pointer to distinguish between explicit zero and unspecified. Defaults to 1.",
+	"minReadySeconds": "MinReadySeconds is the minimum number of seconds for which a newly created machine should be ready. Defaults to 0 (machine will be considered available as soon as it is ready)",
+	"deletePolicy":    "DeletePolicy defines the policy used to identify nodes to delete when downscaling. Defaults to \"Random\".  Valid values are \"Random, \"Newest\", \"Oldest\"",
+	"selector":        "Selector is a label query over machines that should match the replica count. Label keys and values that must match in order to be controlled by this MachineSet. It must match the machine template's labels. More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#label-selectors",
+	"template":        "Template is the object that describes the machine that will be created if insufficient replicas are detected.",
+}
+
+func (MachineSetSpec) SwaggerDoc() map[string]string {
+	return map_MachineSetSpec
+}
+
+var map_MachineSetStatus = map[string]string{
+	"":                     "MachineSetStatus defines the observed state of MachineSet",
+	"replicas":             "Replicas is the most recently observed number of replicas.",
+	"fullyLabeledReplicas": "The number of replicas that have labels matching the labels of the machine template of the MachineSet.",
+	"readyReplicas":        "The number of ready replicas for this MachineSet. A machine is considered ready when the node has been created and is \"Ready\".",
+	"availableReplicas":    "The number of available replicas (ready for at least minReadySeconds) for this MachineSet.",
+	"observedGeneration":   "ObservedGeneration reflects the generation of the most recently observed MachineSet.",
+	"errorReason":          "In the event that there is a terminal problem reconciling the replicas, both ErrorReason and ErrorMessage will be set. ErrorReason will be populated with a succinct value suitable for machine interpretation, while ErrorMessage will contain a more verbose string suitable for logging and human consumption.\n\nThese fields should not be set for transitive errors that a controller faces that are expected to be fixed automatically over time (like service outages), but instead indicate that something is fundamentally wrong with the MachineTemplate's spec or the configuration of the machine controller, and that manual intervention is required. Examples of terminal errors would be invalid combinations of settings in the spec, values that are unsupported by the machine controller, or the responsible machine controller itself being critically misconfigured.\n\nAny transient errors that occur during the reconciliation of Machines can be added as events to the MachineSet object and/or logged in the controller's output.",
+}
+
+func (MachineSetStatus) SwaggerDoc() map[string]string {
+	return map_MachineSetStatus
+}
+
+var map_MachineTemplateSpec = map[string]string{
+	"":         "MachineTemplateSpec describes the data needed to create a Machine from a template",
+	"metadata": "Standard object's metadata. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
+	"spec":     "Specification of the desired behavior of the machine. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#spec-and-status",
+}
+
+func (MachineTemplateSpec) SwaggerDoc() map[string]string {
+	return map_MachineTemplateSpec
+}
+
 var map_Condition = map[string]string{
 	"":                   "Condition defines an observation of a Machine API resource operational state.",
 	"type":               "Type of condition in CamelCase or in foo.example.com/CamelCase. Many .condition.type values are consistent across resources like Available, but because arbitrary conditions can be useful (see .node.status.conditions), the ability to deconflict is important.",
@@ -244,6 +584,82 @@ var map_ProviderSpec = map[string]string{
 
 func (ProviderSpec) SwaggerDoc() map[string]string {
 	return map_ProviderSpec
+}
+
+var map_NetworkDeviceSpec = map[string]string{
+	"":            "NetworkDeviceSpec defines the network configuration for a virtual machine's network device.",
+	"networkName": "NetworkName is the name of the vSphere network to which the device will be connected.",
+}
+
+func (NetworkDeviceSpec) SwaggerDoc() map[string]string {
+	return map_NetworkDeviceSpec
+}
+
+var map_NetworkSpec = map[string]string{
+	"":        "NetworkSpec defines the virtual machine's network configuration.",
+	"devices": "Devices defines the virtual machine's network interfaces.",
+}
+
+func (NetworkSpec) SwaggerDoc() map[string]string {
+	return map_NetworkSpec
+}
+
+var map_VSphereMachineProviderCondition = map[string]string{
+	"":                   "VSphereMachineProviderCondition is a condition in a VSphereMachineProviderStatus.",
+	"type":               "Type is the type of the condition.",
+	"status":             "Status is the status of the condition.",
+	"lastProbeTime":      "LastProbeTime is the last time we probed the condition.",
+	"lastTransitionTime": "LastTransitionTime is the last time the condition transitioned from one status to another.",
+	"reason":             "Reason is a unique, one-word, CamelCase reason for the condition's last transition.",
+	"message":            "Message is a human-readable message indicating details about last transition.",
+}
+
+func (VSphereMachineProviderCondition) SwaggerDoc() map[string]string {
+	return map_VSphereMachineProviderCondition
+}
+
+var map_VSphereMachineProviderSpec = map[string]string{
+	"":                  "VSphereMachineProviderSpec is the type that will be embedded in a Machine.Spec.ProviderSpec field for an VSphere virtual machine. It is used by the vSphere machine actuator to create a single Machine. Compatibility level 2: Stable within a major release for a minimum of 9 months or 3 minor releases (whichever is longer).",
+	"userDataSecret":    "UserDataSecret contains a local reference to a secret that contains the UserData to apply to the instance",
+	"credentialsSecret": "CredentialsSecret is a reference to the secret with vSphere credentials.",
+	"template":          "Template is the name, inventory path, or instance UUID of the template used to clone new machines.",
+	"workspace":         "Workspace describes the workspace to use for the machine.",
+	"network":           "Network is the network configuration for this machine's VM.",
+	"numCPUs":           "NumCPUs is the number of virtual processors in a virtual machine. Defaults to the analogue property value in the template from which this machine is cloned.",
+	"numCoresPerSocket": "NumCPUs is the number of cores among which to distribute CPUs in this virtual machine. Defaults to the analogue property value in the template from which this machine is cloned.",
+	"memoryMiB":         "MemoryMiB is the size of a virtual machine's memory, in MiB. Defaults to the analogue property value in the template from which this machine is cloned.",
+	"diskGiB":           "DiskGiB is the size of a virtual machine's disk, in GiB. Defaults to the analogue property value in the template from which this machine is cloned.",
+	"snapshot":          "Snapshot is the name of the snapshot from which the VM was cloned",
+	"cloneMode":         "CloneMode specifies the type of clone operation. The LinkedClone mode is only support for templates that have at least one snapshot. If the template has no snapshots, then CloneMode defaults to FullClone. When LinkedClone mode is enabled the DiskGiB field is ignored as it is not possible to expand disks of linked clones. Defaults to LinkedClone, but fails gracefully to FullClone if the source of the clone operation has no snapshots.",
+}
+
+func (VSphereMachineProviderSpec) SwaggerDoc() map[string]string {
+	return map_VSphereMachineProviderSpec
+}
+
+var map_VSphereMachineProviderStatus = map[string]string{
+	"":              "VSphereMachineProviderStatus is the type that will be embedded in a Machine.Status.ProviderStatus field. It contains VSphere-specific status information. Compatibility level 2: Stable within a major release for a minimum of 9 months or 3 minor releases (whichever is longer).",
+	"instanceId":    "InstanceID is the ID of the instance in VSphere",
+	"instanceState": "InstanceState is the provisioning state of the VSphere Instance.",
+	"conditions":    "Conditions is a set of conditions associated with the Machine to indicate errors or other status",
+	"taskRef":       "TaskRef is a managed object reference to a Task related to the machine. This value is set automatically at runtime and should not be set or modified by users.",
+}
+
+func (VSphereMachineProviderStatus) SwaggerDoc() map[string]string {
+	return map_VSphereMachineProviderStatus
+}
+
+var map_Workspace = map[string]string{
+	"":             "WorkspaceConfig defines a workspace configuration for the vSphere cloud provider.",
+	"server":       "Server is the IP address or FQDN of the vSphere endpoint.",
+	"datacenter":   "Datacenter is the datacenter in which VMs are created/located.",
+	"folder":       "Folder is the folder in which VMs are created/located.",
+	"datastore":    "Datastore is the datastore in which VMs are created/located.",
+	"resourcePool": "ResourcePool is the resource pool in which VMs are created/located.",
+}
+
+func (Workspace) SwaggerDoc() map[string]string {
+	return map_Workspace
 }
 
 // AUTO-GENERATED FUNCTIONS END HERE
