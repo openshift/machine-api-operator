@@ -7,8 +7,7 @@ import (
 	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
-	"github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
-	vsphereapis "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	capimachine "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	machine "github.com/openshift/machine-api-operator/pkg/controller/vsphere"
 	machinesetcontroller "github.com/openshift/machine-api-operator/pkg/controller/vsphere/machineset"
@@ -114,11 +113,11 @@ func main() {
 		klog.Fatal(err)
 	}
 
-	if err := vsphereapis.AddToScheme(mgr.GetScheme()); err != nil {
+	if err := machinev1.AddToScheme(mgr.GetScheme()); err != nil {
 		klog.Fatal(err)
 	}
 
-	if err := v1beta1.AddToScheme(mgr.GetScheme()); err != nil {
+	if err := machinev1.AddToScheme(mgr.GetScheme()); err != nil {
 		klog.Fatal(err)
 	}
 

@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
-	mapiclientset "github.com/openshift/machine-api-operator/pkg/generated/clientset/versioned"
+	mapiclientset "github.com/openshift/client-go/machine/clientset/versioned"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"

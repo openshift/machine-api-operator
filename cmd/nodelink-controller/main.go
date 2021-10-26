@@ -4,7 +4,7 @@ import (
 	"flag"
 	"runtime"
 
-	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/controller"
 	"github.com/openshift/machine-api-operator/pkg/controller/nodelink"
 	"github.com/openshift/machine-api-operator/pkg/util"
@@ -81,7 +81,7 @@ func main() {
 	klog.Infof("Registering Components.")
 
 	// Setup Scheme for all resources
-	if err := mapiv1.AddToScheme(mgr.GetScheme()); err != nil {
+	if err := machinev1.AddToScheme(mgr.GetScheme()); err != nil {
 		klog.Fatal(err)
 	}
 
