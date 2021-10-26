@@ -23,30 +23,30 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/format"
 	"github.com/onsi/gomega/types"
-	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 )
 
 var (
-	nil1          *mapiv1.Condition
+	nil1          *machinev1.Condition
 	true1         = TrueCondition("true1")
 	unknown1      = UnknownCondition("unknown1", "reason unknown1", "message unknown1")
-	falseInfo1    = FalseCondition("falseInfo1", "reason falseInfo1", mapiv1.ConditionSeverityInfo, "message falseInfo1")
-	falseWarning1 = FalseCondition("falseWarning1", "reason falseWarning1", mapiv1.ConditionSeverityWarning, "message falseWarning1")
-	falseError1   = FalseCondition("falseError1", "reason falseError1", mapiv1.ConditionSeverityError, "message falseError1")
+	falseInfo1    = FalseCondition("falseInfo1", "reason falseInfo1", machinev1.ConditionSeverityInfo, "message falseInfo1")
+	falseWarning1 = FalseCondition("falseWarning1", "reason falseWarning1", machinev1.ConditionSeverityWarning, "message falseWarning1")
+	falseError1   = FalseCondition("falseError1", "reason falseError1", machinev1.ConditionSeverityError, "message falseError1")
 )
 
 func TestGet(t *testing.T) {
 	g := NewWithT(t)
 
-	mhc := &mapiv1.MachineHealthCheck{}
+	mhc := &machinev1.MachineHealthCheck{}
 	g.Expect(Get(mhc, "conditionBaz")).To(BeNil())
 
-	mhc.SetConditions(conditionList(TrueCondition("conditionBaz")))
+	mhc.Status.Conditions = conditionList(TrueCondition("conditionBaz"))
 	g.Expect(Get(mhc, "conditionBaz")).To(haveSameStateOf(TrueCondition("conditionBaz")))
 }
 
-func conditionList(conditions ...*mapiv1.Condition) mapiv1.Conditions {
-	cs := mapiv1.Conditions{}
+func conditionList(conditions ...*machinev1.Condition) machinev1.Conditions {
+	cs := machinev1.Conditions{}
 	for _, x := range conditions {
 		if x != nil {
 			cs = append(cs, *x)
@@ -55,18 +55,18 @@ func conditionList(conditions ...*mapiv1.Condition) mapiv1.Conditions {
 	return cs
 }
 
-func haveSameStateOf(expected *mapiv1.Condition) types.GomegaMatcher {
+func haveSameStateOf(expected *machinev1.Condition) types.GomegaMatcher {
 	return &ConditionMatcher{
 		Expected: expected,
 	}
 }
 
 type ConditionMatcher struct {
-	Expected *mapiv1.Condition
+	Expected *machinev1.Condition
 }
 
 func (matcher *ConditionMatcher) Match(actual interface{}) (success bool, err error) {
-	actualCondition, ok := actual.(*mapiv1.Condition)
+	actualCondition, ok := actual.(*machinev1.Condition)
 	if !ok {
 		return false, errors.New("Value should be a condition")
 	}

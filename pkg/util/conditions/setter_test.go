@@ -24,7 +24,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/format"
 	"github.com/onsi/gomega/types"
-	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -51,7 +51,7 @@ func TestHasSameState(t *testing.T) {
 	g.Expect(hasSameState(falseInfo1, falseInfo2)).To(BeFalse())
 
 	falseInfo2 = falseInfo1.DeepCopy()
-	falseInfo2.Severity = mapiv1.ConditionSeverityWarning
+	falseInfo2.Severity = machinev1.ConditionSeverityWarning
 	g.Expect(hasSameState(falseInfo1, falseInfo2)).To(BeFalse())
 
 	falseInfo2 = falseInfo1.DeepCopy()
@@ -83,8 +83,8 @@ func TestSet(t *testing.T) {
 	tests := []struct {
 		name      string
 		to        Setter
-		condition *mapiv1.Condition
-		want      mapiv1.Conditions
+		condition *machinev1.Condition
+		want      machinev1.Conditions
 	}{
 		{
 			name:      "Set adds a condition",
@@ -126,15 +126,15 @@ func TestSet(t *testing.T) {
 func TestSetLastTransitionTime(t *testing.T) {
 	x := metav1.Date(2012, time.January, 1, 12, 15, 30, 5e8, time.UTC)
 
-	foo := FalseCondition("foo", "reason foo", mapiv1.ConditionSeverityInfo, "message foo")
-	fooWithLastTransitionTime := FalseCondition("foo", "reason foo", mapiv1.ConditionSeverityInfo, "message foo")
+	foo := FalseCondition("foo", "reason foo", machinev1.ConditionSeverityInfo, "message foo")
+	fooWithLastTransitionTime := FalseCondition("foo", "reason foo", machinev1.ConditionSeverityInfo, "message foo")
 	fooWithLastTransitionTime.LastTransitionTime = x
 	fooWithAnotherState := TrueCondition("foo")
 
 	tests := []struct {
 		name                    string
 		to                      Setter
-		new                     *mapiv1.Condition
+		new                     *machinev1.Condition
 		LastTransitionTimeCheck func(*WithT, metav1.Time)
 	}{
 		{
@@ -182,24 +182,25 @@ func TestSetLastTransitionTime(t *testing.T) {
 	}
 }
 
-func setterWithConditions(conditions ...*mapiv1.Condition) Setter {
-	obj := &mapiv1.MachineHealthCheck{}
+func setterWithConditions(conditions ...*machinev1.Condition) Setter {
+	obj := &MachineHealthCheckWrapper{&machinev1.MachineHealthCheck{}}
+
 	obj.SetConditions(conditionList(conditions...))
 	return obj
 }
 
-func haveSameConditionsOf(expected mapiv1.Conditions) types.GomegaMatcher {
+func haveSameConditionsOf(expected machinev1.Conditions) types.GomegaMatcher {
 	return &ConditionsMatcher{
 		Expected: expected,
 	}
 }
 
 type ConditionsMatcher struct {
-	Expected mapiv1.Conditions
+	Expected machinev1.Conditions
 }
 
 func (matcher *ConditionsMatcher) Match(actual interface{}) (success bool, err error) {
-	actualConditions, ok := actual.(mapiv1.Conditions)
+	actualConditions, ok := actual.(machinev1.Conditions)
 	if !ok {
 		return false, errors.New("Value should be a conditions list")
 	}

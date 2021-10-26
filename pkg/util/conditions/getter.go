@@ -17,7 +17,7 @@ limitations under the License.
 package conditions
 
 import (
-	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 )
@@ -29,13 +29,14 @@ type Getter interface {
 	metav1.Object
 
 	// GetConditions returns the list of conditions for a cluster API object.
-	GetConditions() mapiv1.Conditions
+	GetConditions() machinev1.Conditions
 }
 
 // Get returns the condition with the given type, if the condition does not exists,
 // it returns nil.
-func Get(from Getter, t mapiv1.ConditionType) *mapiv1.Condition {
-	conditions := from.GetConditions()
+func Get(from interface{}, t machinev1.ConditionType) *machinev1.Condition {
+	obj := getGetterObject(from)
+	conditions := obj.GetConditions()
 	if conditions == nil {
 		return nil
 	}
@@ -46,4 +47,15 @@ func Get(from Getter, t mapiv1.ConditionType) *mapiv1.Condition {
 		}
 	}
 	return nil
+}
+
+func getGetterObject(from interface{}) Getter {
+	switch obj := from.(type) {
+	case machinev1.Machine:
+		return &MachineWrapper{&obj}
+	case machinev1.MachineHealthCheck:
+		return &MachineHealthCheckWrapper{&obj}
+	default:
+		panic("type is not supported as conditions getter")
+	}
 }
