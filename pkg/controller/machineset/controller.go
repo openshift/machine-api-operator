@@ -172,7 +172,7 @@ func (r *ReconcileMachineSet) Reconcile(ctx context.Context, request reconcile.R
 
 func (r *ReconcileMachineSet) reconcile(ctx context.Context, machineSet *machinev1beta1.MachineSet) (reconcile.Result, error) {
 	klog.V(4).Infof("Reconcile machineset %v", machineSet.Name)
-	if errList := machineSet.Validate(); len(errList) > 0 {
+	if errList := validateMachineset(machineSet); len(errList) > 0 {
 		err := fmt.Errorf("%q machineset validation failed: %v", machineSet.Name, errList.ToAggregate().Error())
 		klog.Error(err)
 		return reconcile.Result{}, err
@@ -431,4 +431,26 @@ func (r *ReconcileMachineSet) waitForMachineDeletion(machineList []*machinev1bet
 		}
 	}
 	return nil
+}
+
+func validateMachineset(m *machinev1.MachineSet) field.ErrorList {
+	errors := field.ErrorList{}
+
+	// validate spec.selector and spec.template.labels
+	fldPath := field.NewPath("spec")
+	errors = append(errors, metav1validation.ValidateLabelSelector(&m.Spec.Selector, fldPath.Child("selector"))...)
+	if len(m.Spec.Selector.MatchLabels)+len(m.Spec.Selector.MatchExpressions) == 0 {
+		errors = append(errors, field.Invalid(fldPath.Child("selector"), m.Spec.Selector, "empty selector is not valid for MachineSet."))
+	}
+	selector, err := metav1.LabelSelectorAsSelector(&m.Spec.Selector)
+	if err != nil {
+		errors = append(errors, field.Invalid(fldPath.Child("selector"), m.Spec.Selector, "invalid label selector."))
+	} else {
+		labels := labels.Set(m.Spec.Template.Labels)
+		if !selector.Matches(labels) {
+			errors = append(errors, field.Invalid(fldPath.Child("template", "metadata", "labels"), m.Spec.Template.Labels, "`selector` does not match template `labels`"))
+		}
+	}
+
+	return errors
 }

@@ -177,7 +177,7 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 	// This must be a copy otherwise the referenced slice will be modified by later machine conditions changes.
 	originalConditions := m.GetConditions().DeepCopy()
 
-	if errList := m.Validate(); len(errList) > 0 {
+	if errList := validateMachine(m); len(errList) > 0 {
 		err := fmt.Errorf("%v: machine validation failed: %v", machineName, errList.ToAggregate().Error())
 		klog.Error(err)
 		r.eventRecorder.Eventf(m, corev1.EventTypeWarning, "FailedValidate", err.Error())
@@ -600,6 +600,23 @@ func (r *ReconcileMachine) overrideFailedMachineProviderStatusState(machine *mac
 	}
 
 	return nil
+}
+
+func validateMachine(m *machinev1.Machine) field.ErrorList {
+	errors := field.ErrorList{}
+
+	// validate spec.labels
+	fldPath := field.NewPath("spec")
+	if m.Labels[machinev1.MachineClusterIDLabel] == "" {
+		errors = append(errors, field.Invalid(fldPath.Child("labels"), m.Labels, fmt.Sprintf("missing %v label.", machinev1.MachineClusterIDLabel)))
+	}
+
+	// validate provider config is set
+	if m.Spec.ProviderSpec.Value == nil {
+		errors = append(errors, field.Invalid(fldPath.Child("spec").Child("providerspec"), m.Spec.ProviderSpec, "value field must be set"))
+	}
+
+	return errors
 }
 
 // now is used to get the current time. If the reconciler nowFunc is no nil this will be used instead of time.Now().
