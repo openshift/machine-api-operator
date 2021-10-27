@@ -109,22 +109,20 @@ func UnknownCondition(t machinev1.ConditionType, reason string, messageFormat st
 
 // MarkTrue sets Status=True for the condition with the given type.
 func MarkTrue(to interface{}, t machinev1.ConditionType) {
-	obj := getSetterObject(to)
-	Set(obj, TrueCondition(t))
+	Set(to, TrueCondition(t))
 }
 
 // MarkFalse sets Status=False for the condition with the given type.
 func MarkFalse(to interface{}, t machinev1.ConditionType, reason string, severity machinev1.ConditionSeverity, messageFormat string, messageArgs ...interface{}) {
-	obj := getSetterObject(to)
-	Set(obj, FalseCondition(t, reason, severity, messageFormat, messageArgs...))
+	Set(to, FalseCondition(t, reason, severity, messageFormat, messageArgs...))
 }
 
 func getSetterObject(from interface{}) Setter {
 	switch obj := from.(type) {
-	case machinev1.Machine:
-		return &MachineWrapper{&obj}
-	case machinev1.MachineHealthCheck:
-		return &MachineHealthCheckWrapper{&obj}
+	case *machinev1.Machine:
+		return &MachineWrapper{obj}
+	case *machinev1.MachineHealthCheck:
+		return &MachineHealthCheckWrapper{obj}
 	default:
 		panic("type is not supported as conditions getter")
 	}

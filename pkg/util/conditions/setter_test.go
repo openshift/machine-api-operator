@@ -82,7 +82,7 @@ func TestSet(t *testing.T) {
 
 	tests := []struct {
 		name      string
-		to        Setter
+		to        *machinev1.MachineHealthCheck
 		condition *machinev1.Condition
 		want      machinev1.Conditions
 	}{
@@ -118,7 +118,7 @@ func TestSet(t *testing.T) {
 
 			Set(tt.to, tt.condition)
 
-			g.Expect(tt.to.GetConditions()).To(haveSameConditionsOf(tt.want))
+			g.Expect(tt.to.Status.Conditions).To(haveSameConditionsOf(tt.want))
 		})
 	}
 }
@@ -133,7 +133,7 @@ func TestSetLastTransitionTime(t *testing.T) {
 
 	tests := []struct {
 		name                    string
-		to                      Setter
+		to                      *machinev1.MachineHealthCheck
 		new                     *machinev1.Condition
 		LastTransitionTimeCheck func(*WithT, metav1.Time)
 	}{
@@ -182,10 +182,9 @@ func TestSetLastTransitionTime(t *testing.T) {
 	}
 }
 
-func setterWithConditions(conditions ...*machinev1.Condition) Setter {
-	obj := &MachineHealthCheckWrapper{&machinev1.MachineHealthCheck{}}
-
-	obj.SetConditions(conditionList(conditions...))
+func setterWithConditions(conditions ...*machinev1.Condition) *machinev1.MachineHealthCheck {
+	obj := &machinev1.MachineHealthCheck{}
+	obj.Status.Conditions = conditionList(conditions...)
 	return obj
 }
 

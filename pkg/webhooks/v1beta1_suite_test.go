@@ -56,7 +56,7 @@ var (
 func TestMain(m *testing.M) {
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
-			filepath.Join("..", "..", "..", "..", "install"),
+			filepath.Join("..", "..", "install"),
 			filepath.Join("..", "..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1"),
 		},
 		WebhookInstallOptions: envtest.WebhookInstallOptions{

@@ -51,10 +51,10 @@ func Get(from interface{}, t machinev1.ConditionType) *machinev1.Condition {
 
 func getGetterObject(from interface{}) Getter {
 	switch obj := from.(type) {
-	case machinev1.Machine:
-		return &MachineWrapper{&obj}
-	case machinev1.MachineHealthCheck:
-		return &MachineHealthCheckWrapper{&obj}
+	case *machinev1.Machine:
+		return &MachineWrapper{obj}
+	case *machinev1.MachineHealthCheck:
+		return &MachineHealthCheckWrapper{obj}
 	default:
 		panic("type is not supported as conditions getter")
 	}

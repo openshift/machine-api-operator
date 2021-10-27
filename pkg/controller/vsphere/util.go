@@ -7,7 +7,6 @@ import (
 	"fmt"
 
 	"gopkg.in/gcfg.v1"
-	"gopkg.in/yaml.v2"
 
 	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
@@ -225,7 +224,7 @@ func ProviderSpecFromRawExtension(rawExtension *runtime.RawExtension) (*machinev
 	}
 
 	spec := new(machinev1.VSphereMachineProviderSpec)
-	if err := yaml.Unmarshal(rawExtension.Raw, &spec); err != nil {
+	if err := json.Unmarshal(rawExtension.Raw, &spec); err != nil {
 		return nil, fmt.Errorf("error unmarshalling providerSpec: %v", err)
 	}
 
@@ -240,7 +239,7 @@ func ProviderStatusFromRawExtension(rawExtension *runtime.RawExtension) (*machin
 	}
 
 	providerStatus := new(machinev1.VSphereMachineProviderStatus)
-	if err := yaml.Unmarshal(rawExtension.Raw, providerStatus); err != nil {
+	if err := json.Unmarshal(rawExtension.Raw, providerStatus); err != nil {
 		return nil, fmt.Errorf("error unmarshalling providerStatus: %v", err)
 	}
 
