@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -103,8 +104,8 @@ func NewNode(name string, ready bool) *corev1.Node {
 }
 
 // NewMachine returns new machine object that can be used for testing
-func NewMachine(name string, nodeName string) *mapiv1.Machine {
-	m := &mapiv1.Machine{
+func NewMachine(name string, nodeName string) *machinev1.Machine {
+	m := &machinev1.Machine{
 		TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: make(map[string]string),
@@ -121,10 +122,10 @@ func NewMachine(name string, nodeName string) *mapiv1.Machine {
 			// the following line is to account for a change in the fake client, see https://github.com/kubernetes-sigs/controller-runtime/pull/1306
 			ResourceVersion: "999",
 		},
-		Spec: mapiv1.MachineSpec{},
+		Spec: machinev1.MachineSpec{},
 	}
 	if nodeName != "" {
-		m.Status = mapiv1.MachineStatus{
+		m.Status = machinev1.MachineStatus{
 			NodeRef: &corev1.ObjectReference{
 				Name:      nodeName,
 				Namespace: metav1.NamespaceNone,
@@ -135,8 +136,8 @@ func NewMachine(name string, nodeName string) *mapiv1.Machine {
 }
 
 // NewMachineHealthCheck returns new MachineHealthCheck object that can be used for testing
-func NewMachineHealthCheck(name string) *mapiv1.MachineHealthCheck {
-	return &mapiv1.MachineHealthCheck{
+func NewMachineHealthCheck(name string) *machinev1.MachineHealthCheck {
+	return &machinev1.MachineHealthCheck{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: Namespace,
@@ -146,9 +147,9 @@ func NewMachineHealthCheck(name string) *mapiv1.MachineHealthCheck {
 		TypeMeta: metav1.TypeMeta{
 			Kind: "MachineHealthCheck",
 		},
-		Spec: mapiv1.MachineHealthCheckSpec{
+		Spec: machinev1.MachineHealthCheckSpec{
 			Selector: *NewSelectorFooBar(),
-			UnhealthyConditions: []mapiv1.UnhealthyCondition{
+			UnhealthyConditions: []machinev1.UnhealthyCondition{
 				{
 					Type:    "Ready",
 					Status:  "Unknown",
@@ -161,6 +162,6 @@ func NewMachineHealthCheck(name string) *mapiv1.MachineHealthCheck {
 				},
 			},
 		},
-		Status: mapiv1.MachineHealthCheckStatus{},
+		Status: machinev1.MachineHealthCheckStatus{},
 	}
 }

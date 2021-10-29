@@ -21,11 +21,12 @@ import (
 	"log"
 	"time"
 
-	"github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/controller"
 	"github.com/openshift/machine-api-operator/pkg/controller/machineset"
 	"github.com/openshift/machine-api-operator/pkg/metrics"
 	"github.com/openshift/machine-api-operator/pkg/util"
+	mapiwebhooks "github.com/openshift/machine-api-operator/pkg/webhooks"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -113,22 +114,22 @@ func main() {
 	}
 
 	// Enable defaulting and validating webhooks
-	machineDefaulter, err := v1beta1.NewMachineDefaulter()
+	machineDefaulter, err := mapiwebhooks.NewMachineDefaulter()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	machineValidator, err := v1beta1.NewMachineValidator(mgr.GetClient())
+	machineValidator, err := mapiwebhooks.NewMachineValidator(mgr.GetClient())
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	machineSetDefaulter, err := v1beta1.NewMachineSetDefaulter()
+	machineSetDefaulter, err := mapiwebhooks.NewMachineSetDefaulter()
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	machineSetValidator, err := v1beta1.NewMachineSetValidator(mgr.GetClient())
+	machineSetValidator, err := mapiwebhooks.NewMachineSetValidator(mgr.GetClient())
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -136,16 +137,16 @@ func main() {
 	if *webhookEnabled {
 		mgr.GetWebhookServer().Port = *webhookPort
 		mgr.GetWebhookServer().CertDir = *webhookCertdir
-		mgr.GetWebhookServer().Register(v1beta1.DefaultMachineMutatingHookPath, &webhook.Admission{Handler: machineDefaulter})
-		mgr.GetWebhookServer().Register(v1beta1.DefaultMachineValidatingHookPath, &webhook.Admission{Handler: machineValidator})
-		mgr.GetWebhookServer().Register(v1beta1.DefaultMachineSetMutatingHookPath, &webhook.Admission{Handler: machineSetDefaulter})
-		mgr.GetWebhookServer().Register(v1beta1.DefaultMachineSetValidatingHookPath, &webhook.Admission{Handler: machineSetValidator})
+		mgr.GetWebhookServer().Register(mapiwebhooks.DefaultMachineMutatingHookPath, &webhook.Admission{Handler: machineDefaulter})
+		mgr.GetWebhookServer().Register(mapiwebhooks.DefaultMachineValidatingHookPath, &webhook.Admission{Handler: machineValidator})
+		mgr.GetWebhookServer().Register(mapiwebhooks.DefaultMachineSetMutatingHookPath, &webhook.Admission{Handler: machineSetDefaulter})
+		mgr.GetWebhookServer().Register(mapiwebhooks.DefaultMachineSetValidatingHookPath, &webhook.Admission{Handler: machineSetValidator})
 	}
 
 	log.Printf("Registering Components.")
 
 	// Setup Scheme for all resources
-	if err := v1beta1.AddToScheme(mgr.GetScheme()); err != nil {
+	if err := machinev1.AddToScheme(mgr.GetScheme()); err != nil {
 		log.Fatal(err)
 	}
 

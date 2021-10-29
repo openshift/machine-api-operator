@@ -10,8 +10,7 @@ import (
 	apimachineryutilerrors "k8s.io/apimachinery/pkg/util/errors"
 
 	"github.com/google/uuid"
-	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
-	vspherev1 "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	machineapierros "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
@@ -554,7 +553,7 @@ func clone(s *machineScope) (string, error) {
 	// If a linked clone is requested then a MoRef for a snapshot must be
 	// found with which to perform the linked clone.
 	// Empty clone mode is linked clone
-	if s.providerSpec.CloneMode == "" || s.providerSpec.CloneMode == vspherev1.LinkedClone {
+	if s.providerSpec.CloneMode == "" || s.providerSpec.CloneMode == machinev1.LinkedClone {
 		if s.providerSpec.Snapshot == "" {
 			klog.V(3).Infof("%v: no snapshot name provided, getting snapshot using template", s.machine.GetName())
 			var vm mo.VirtualMachine
@@ -788,7 +787,7 @@ func taskIsFinished(task *mo.Task) (bool, error) {
 	}
 }
 
-func setProviderStatus(taskRef string, condition vspherev1.VSphereMachineProviderCondition, scope *machineScope, vm *virtualMachine) error {
+func setProviderStatus(taskRef string, condition machinev1.VSphereMachineProviderCondition, scope *machineScope, vm *virtualMachine) error {
 	klog.Infof("%s: Updating provider status", scope.machine.Name)
 
 	if vm != nil {

@@ -21,7 +21,7 @@ import (
 	"time"
 
 	. "github.com/onsi/gomega"
-	machinev1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"golang.org/x/net/context"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
@@ -35,16 +35,16 @@ var c client.Client
 const timeout = time.Second * 5
 
 func TestReconcile(t *testing.T) {
-	instance := &machinev1beta1.Machine{
+	instance := &machinev1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "foo",
 			Namespace: "default",
 			Labels: map[string]string{
-				machinev1beta1.MachineClusterIDLabel: "foo",
+				machinev1.MachineClusterIDLabel: "foo",
 			},
 		},
-		Spec: machinev1beta1.MachineSpec{
-			ProviderSpec: machinev1beta1.ProviderSpec{
+		Spec: machinev1.MachineSpec{
+			ProviderSpec: machinev1.ProviderSpec{
 				Value: &runtime.RawExtension{
 					Raw: []byte("{}"),
 				},
@@ -80,15 +80,15 @@ func TestReconcile(t *testing.T) {
 	}
 	defer c.Delete(context.TODO(), instance)
 	g := NewWithT(t)
-	g.Eventually(func() (machinev1beta1.MachineStatus, error) {
-		machine := &machinev1beta1.Machine{}
+	g.Eventually(func() (machinev1.MachineStatus, error) {
+		machine := &machinev1.Machine{}
 		namespacedName := client.ObjectKey{Namespace: instance.Namespace, Name: instance.Name}
 		err := c.Get(ctx, namespacedName, machine)
 		if err != nil {
-			return machinev1beta1.MachineStatus{}, err
+			return machinev1.MachineStatus{}, err
 		}
 		return machine.Status, nil
-	}, timeout).ShouldNot(Equal(machinev1beta1.MachineStatus{}))
+	}, timeout).ShouldNot(Equal(machinev1.MachineStatus{}))
 
 	// TODO: Verify that the actuator is called correctly on Create
 }

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"reflect"
 
-	mapiv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,7 +37,7 @@ type ReconcileNodeLink struct {
 	// This is useful for unit testing so we can mock cache IndexField
 	// and emulate Client.List.MatchingField behaviour
 	listNodesByFieldFunc    func(key, value string) ([]corev1.Node, error)
-	listMachinesByFieldFunc func(key, value string) ([]mapiv1beta1.Machine, error)
+	listMachinesByFieldFunc func(key, value string) ([]machinev1.Machine, error)
 	nodeReadinessCache      map[string]bool
 }
 
@@ -64,7 +64,7 @@ func indexNodeByProviderID(object client.Object) []string {
 }
 
 func indexMachineByProvider(object client.Object) []string {
-	if machine, ok := object.(*mapiv1beta1.Machine); ok {
+	if machine, ok := object.(*machinev1.Machine); ok {
 		if machine.Spec.ProviderID != nil {
 			if *machine.Spec.ProviderID != "" {
 				klog.V(3).Infof("Adding providerID %q for machine %q to indexer", *machine.Spec.ProviderID, machine.GetName())
@@ -96,7 +96,7 @@ func indexNodeByInternalIP(object client.Object) []string {
 }
 
 func indexMachineByInternalIP(object client.Object) []string {
-	machine, ok := object.(*mapiv1beta1.Machine)
+	machine, ok := object.(*machinev1.Machine)
 	if !ok {
 		klog.Warningf("Expected a machine for indexing field, got: %T", object)
 		return nil
@@ -125,7 +125,7 @@ func newReconciler(mgr manager.Manager) (*ReconcileNodeLink, error) {
 	}
 
 	if err := mgr.GetCache().IndexField(context.TODO(),
-		&mapiv1beta1.Machine{},
+		&machinev1.Machine{},
 		machineProviderIDIndex,
 		indexMachineByProvider,
 	); err != nil {
@@ -141,7 +141,7 @@ func newReconciler(mgr manager.Manager) (*ReconcileNodeLink, error) {
 	}
 
 	if err := mgr.GetCache().IndexField(context.TODO(),
-		&mapiv1beta1.Machine{},
+		&machinev1.Machine{},
 		machineInternalIPIndex,
 		indexMachineByInternalIP,
 	); err != nil {
@@ -175,7 +175,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler, mapFn handler.MapFunc) err
 	}
 
 	// Watch for changes to Machines and enqueue if it exists the backed node
-	err = c.Watch(&source.Kind{Type: &mapiv1beta1.Machine{}}, handler.EnqueueRequestsFromMapFunc(mapFn))
+	err = c.Watch(&source.Kind{Type: &machinev1.Machine{}}, handler.EnqueueRequestsFromMapFunc(mapFn))
 	if err != nil {
 		return err
 	}
@@ -253,7 +253,7 @@ func (r *ReconcileNodeLink) Reconcile(ctx context.Context, request reconcile.Req
 }
 
 // updateNodeRef set the given node as nodeRef in the machine status
-func (r *ReconcileNodeLink) updateNodeRef(machine *mapiv1beta1.Machine, node *corev1.Node) error {
+func (r *ReconcileNodeLink) updateNodeRef(machine *machinev1.Machine, node *corev1.Node) error {
 	now := metav1.Now()
 	machine.Status.LastUpdated = &now
 
@@ -289,7 +289,7 @@ func (r *ReconcileNodeLink) updateNodeRef(machine *mapiv1beta1.Machine, node *co
 func (r *ReconcileNodeLink) nodeRequestFromMachine(o client.Object) []reconcile.Request {
 	klog.V(3).Infof("Watched machine event, finding node to reconcile.Request")
 	// get machine
-	machine := &mapiv1beta1.Machine{}
+	machine := &machinev1.Machine{}
 	if err := r.client.Get(
 		context.Background(),
 		client.ObjectKey{
@@ -329,7 +329,7 @@ func (r *ReconcileNodeLink) nodeRequestFromMachine(o client.Object) []reconcile.
 }
 
 // findNodeFromMachine find a node from by providerID and fallback to find by IP
-func (r *ReconcileNodeLink) findNodeFromMachine(machine *mapiv1beta1.Machine) (*corev1.Node, error) {
+func (r *ReconcileNodeLink) findNodeFromMachine(machine *machinev1.Machine) (*corev1.Node, error) {
 	klog.V(3).Infof("Finding node from machine %q", machine.GetName())
 	node, err := r.findNodeFromMachineByProviderID(machine)
 	if err != nil {
@@ -346,7 +346,7 @@ func (r *ReconcileNodeLink) findNodeFromMachine(machine *mapiv1beta1.Machine) (*
 	return node, nil
 }
 
-func (r *ReconcileNodeLink) findNodeFromMachineByProviderID(machine *mapiv1beta1.Machine) (*corev1.Node, error) {
+func (r *ReconcileNodeLink) findNodeFromMachineByProviderID(machine *machinev1.Machine) (*corev1.Node, error) {
 	klog.V(3).Infof("Finding node from machine %q by providerID", machine.GetName())
 	if machine.Spec.ProviderID == nil {
 		klog.Warningf("Machine %q has no providerID", machine.GetName())
@@ -370,7 +370,7 @@ func (r *ReconcileNodeLink) findNodeFromMachineByProviderID(machine *mapiv1beta1
 	return nil, nil
 }
 
-func (r *ReconcileNodeLink) findNodeFromMachineByIP(machine *mapiv1beta1.Machine) (*corev1.Node, error) {
+func (r *ReconcileNodeLink) findNodeFromMachineByIP(machine *machinev1.Machine) (*corev1.Node, error) {
 	klog.V(3).Infof("Finding node from machine %q by IP", machine.GetName())
 	var machineInternalAddress string
 	for _, a := range machine.Status.Addresses {
@@ -404,7 +404,7 @@ func (r *ReconcileNodeLink) findNodeFromMachineByIP(machine *mapiv1beta1.Machine
 	return nil, nil
 }
 
-func (r *ReconcileNodeLink) findMachineFromNode(node *corev1.Node) (*mapiv1beta1.Machine, error) {
+func (r *ReconcileNodeLink) findMachineFromNode(node *corev1.Node) (*machinev1.Machine, error) {
 	klog.V(3).Infof("Finding machine from node %q", node.GetName())
 	machine, err := r.findMachineFromNodeByProviderID(node)
 	if err != nil {
@@ -421,7 +421,7 @@ func (r *ReconcileNodeLink) findMachineFromNode(node *corev1.Node) (*mapiv1beta1
 	return machine, nil
 }
 
-func (r *ReconcileNodeLink) findMachineFromNodeByProviderID(node *corev1.Node) (*mapiv1beta1.Machine, error) {
+func (r *ReconcileNodeLink) findMachineFromNodeByProviderID(node *corev1.Node) (*machinev1.Machine, error) {
 	klog.V(3).Infof("Finding machine from node %q by ProviderID", node.GetName())
 	if node.Spec.ProviderID == "" {
 		klog.Warningf("Node %q has no providerID", node.GetName())
@@ -444,7 +444,7 @@ func (r *ReconcileNodeLink) findMachineFromNodeByProviderID(node *corev1.Node) (
 	return nil, nil
 }
 
-func (r *ReconcileNodeLink) findMachineFromNodeByIP(node *corev1.Node) (*mapiv1beta1.Machine, error) {
+func (r *ReconcileNodeLink) findMachineFromNodeByIP(node *corev1.Node) (*machinev1.Machine, error) {
 	klog.V(3).Infof("Finding machine from node %q by IP", node.GetName())
 	var nodeInternalAddress string
 	for _, a := range node.Status.Addresses {
@@ -481,7 +481,7 @@ func (r *ReconcileNodeLink) findMachineFromNodeByIP(node *corev1.Node) (*mapiv1b
 // addTaintsToNode adds taints from machine object to the node object
 // Taints are to be an authoritative list on the machine spec per cluster-api comments.
 // However, we believe many components can directly taint a node and there is no direct source of truth that should enforce a single writer of taints
-func addTaintsToNode(node *corev1.Node, machine *mapiv1beta1.Machine) {
+func addTaintsToNode(node *corev1.Node, machine *machinev1.Machine) {
 	for _, mTaint := range machine.Spec.Taints {
 		klog.V(4).Infof("Adding taint %v from machine %q to node %q", mTaint, machine.GetName(), node.GetName())
 		alreadyPresent := false
@@ -510,8 +510,8 @@ func (r *ReconcileNodeLink) listNodesByField(key, value string) ([]corev1.Node, 
 	return nodeList.Items, nil
 }
 
-func (r *ReconcileNodeLink) listMachinesByField(key, value string) ([]mapiv1beta1.Machine, error) {
-	machineList := &mapiv1beta1.MachineList{}
+func (r *ReconcileNodeLink) listMachinesByField(key, value string) ([]machinev1.Machine, error) {
+	machineList := &machinev1.MachineList{}
 	if err := r.client.List(
 		context.TODO(),
 		machineList,

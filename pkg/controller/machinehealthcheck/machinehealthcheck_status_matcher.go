@@ -21,23 +21,23 @@ import (
 
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/types"
-	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
 )
 
-// MatchMachineHealthCheckStatus returns a custom matcher to check equality of mapiv1.MachineHealthCheckStatus
-func MatchMachineHealthCheckStatus(expected *mapiv1.MachineHealthCheckStatus) types.GomegaMatcher {
+// MatchMachineHealthCheckStatus returns a custom matcher to check equality of machinev1..MachineHealthCheckStatus
+func MatchMachineHealthCheckStatus(expected *machinev1.MachineHealthCheckStatus) types.GomegaMatcher {
 	return &machineHealthCheckStatusMatcher{
 		expected: expected,
 	}
 }
 
 type machineHealthCheckStatusMatcher struct {
-	expected *mapiv1.MachineHealthCheckStatus
+	expected *machinev1.MachineHealthCheckStatus
 }
 
 func (m machineHealthCheckStatusMatcher) Match(actual interface{}) (success bool, err error) {
-	actualStatus, ok := actual.(*mapiv1.MachineHealthCheckStatus)
+	actualStatus, ok := actual.(*machinev1.MachineHealthCheckStatus)
 	if !ok {
 		return false, fmt.Errorf("actual should be of type MachineHealthCheckStatus")
 	}

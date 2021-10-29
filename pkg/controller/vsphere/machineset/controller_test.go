@@ -24,8 +24,7 @@ import (
 	. "github.com/onsi/ginkgo/extensions/table"
 	. "github.com/onsi/gomega"
 	gtypes "github.com/onsi/gomega/types"
-	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
-	providerconfigv1 "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -212,7 +211,7 @@ func newTestMachineSet(namespace string, vmNumCPUs int32, vmMemoryMiB int64, exi
 		annotations[k] = v
 	}
 
-	machineProviderSpec := &providerconfigv1.VSphereMachineProviderSpec{
+	machineProviderSpec := &machinev1.VSphereMachineProviderSpec{
 		NumCPUs:   vmNumCPUs,
 		MemoryMiB: vmMemoryMiB,
 	}
@@ -237,7 +236,7 @@ func newTestMachineSet(namespace string, vmNumCPUs int32, vmMemoryMiB int64, exi
 	}, nil
 }
 
-func providerSpecFromMachine(in *providerconfigv1.VSphereMachineProviderSpec) (machinev1.ProviderSpec, error) {
+func providerSpecFromMachine(in *machinev1.VSphereMachineProviderSpec) (machinev1.ProviderSpec, error) {
 	bytes, err := json.Marshal(in)
 	if err != nil {
 		return machinev1.ProviderSpec{}, err

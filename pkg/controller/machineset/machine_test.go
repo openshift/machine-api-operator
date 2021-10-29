@@ -19,19 +19,19 @@ package machineset
 import (
 	"testing"
 
-	"github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestHasMatchingLabels(t *testing.T) {
 	testCases := []struct {
-		machineSet v1beta1.MachineSet
-		machine    v1beta1.Machine
+		machineSet machinev1.MachineSet
+		machine    machinev1.Machine
 		expected   bool
 	}{
 		{
-			machineSet: v1beta1.MachineSet{
-				Spec: v1beta1.MachineSetSpec{
+			machineSet: machinev1.MachineSet{
+				Spec: machinev1.MachineSetSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{
 							"foo": "bar",
@@ -39,7 +39,7 @@ func TestHasMatchingLabels(t *testing.T) {
 					},
 				},
 			},
-			machine: v1beta1.Machine{
+			machine: machinev1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "matchSelector",
 					Labels: map[string]string{
@@ -50,8 +50,8 @@ func TestHasMatchingLabels(t *testing.T) {
 			expected: true,
 		},
 		{
-			machineSet: v1beta1.MachineSet{
-				Spec: v1beta1.MachineSetSpec{
+			machineSet: machinev1.MachineSet{
+				Spec: machinev1.MachineSetSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{
 							"foo": "bar",
@@ -59,7 +59,7 @@ func TestHasMatchingLabels(t *testing.T) {
 					},
 				},
 			},
-			machine: v1beta1.Machine{
+			machine: machinev1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "doesNotMatchSelector",
 					Labels: map[string]string{
