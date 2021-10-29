@@ -27,7 +27,3 @@ func (m *MachineHealthCheckWrapper) GetConditions() machinev1.Conditions {
 func (m *MachineHealthCheckWrapper) SetConditions(conditions machinev1.Conditions) {
 	m.Status.Conditions = conditions
 }
-
-func WrapMachineHealthCheck(mhc *machinev1.MachineHealthCheck) *MachineHealthCheckWrapper {
-	return &MachineHealthCheckWrapper{MachineHealthCheck: mhc}
-}

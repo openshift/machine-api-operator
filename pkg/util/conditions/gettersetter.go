@@ -1,19 +1,3 @@
-/*
-Copyright 2020 The Kubernetes Authors.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
-
 package conditions
 
 import (
@@ -24,13 +8,35 @@ import (
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 )
 
-// Setter interface defines methods that a Machine API object should implement in order to
-// use the conditions package for setting conditions.
-type Setter interface {
-	Getter
+type GetterSetter interface {
+	runtime.Object
+	metav1.Object
+
+	// GetConditions returns the list of conditions for a machine API object.
+	GetConditions() machinev1.Conditions
+
+	// SetConditions sets the list of conditions for a machine API object.
 	SetConditions(machinev1.Conditions)
+}
+
+// Get returns the condition with the given type, if the condition does not exists,
+// it returns nil.
+func Get(from interface{}, t machinev1.ConditionType) *machinev1.Condition {
+	obj := getWrapperObject(from)
+	conditions := obj.GetConditions()
+	if conditions == nil {
+		return nil
+	}
+
+	for _, condition := range conditions {
+		if condition.Type == t {
+			return &condition
+		}
+	}
+	return nil
 }
 
 // Set sets the given condition.
@@ -42,7 +48,7 @@ func Set(to interface{}, condition *machinev1.Condition) {
 		return
 	}
 
-	obj := getSetterObject(to)
+	obj := getWrapperObject(to)
 
 	// Check if the new conditions already exists, and change it only if there is a status
 	// transition (otherwise we should preserve the current last transition time)-
@@ -117,17 +123,6 @@ func MarkFalse(to interface{}, t machinev1.ConditionType, reason string, severit
 	Set(to, FalseCondition(t, reason, severity, messageFormat, messageArgs...))
 }
 
-func getSetterObject(from interface{}) Setter {
-	switch obj := from.(type) {
-	case *machinev1.Machine:
-		return &MachineWrapper{obj}
-	case *machinev1.MachineHealthCheck:
-		return &MachineHealthCheckWrapper{obj}
-	default:
-		panic("type is not supported as conditions getter")
-	}
-}
-
 // lexicographicLess returns true if a condition is less than another with regards to the
 // to order of conditions designed for convenience of the consumer, i.e. kubectl.
 func lexicographicLess(i, j *machinev1.Condition) bool {
@@ -142,4 +137,15 @@ func hasSameState(i, j *machinev1.Condition) bool {
 		i.Reason == j.Reason &&
 		i.Severity == j.Severity &&
 		i.Message == j.Message
+}
+
+func getWrapperObject(from interface{}) GetterSetter {
+	switch obj := from.(type) {
+	case *machinev1.Machine:
+		return &MachineWrapper{obj}
+	case *machinev1.MachineHealthCheck:
+		return &MachineHealthCheckWrapper{obj}
+	default:
+		panic("type is not supported as conditions getter or setter")
+	}
 }
