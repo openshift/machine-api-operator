@@ -482,6 +482,7 @@ func TestMachineSetUpdate(t *testing.T) {
 		expectedError            string
 		baseProviderSpecValue    *runtime.RawExtension
 		updatedProviderSpecValue func() *runtime.RawExtension
+		updateMachineSet         func(ms *machinev1.MachineSet)
 	}{
 		{
 			name:         "with a valid AWS ProviderSpec",
@@ -747,6 +748,18 @@ func TestMachineSetUpdate(t *testing.T) {
 			},
 			expectedError: "providerSpec.network.devices: Required value: at least 1 network device must be provided",
 		},
+		{
+			name:         "with a modification to the selector",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    vsphereClusterID,
+			baseProviderSpecValue: &runtime.RawExtension{
+				Object: defaultAWSProviderSpec.DeepCopy(),
+			},
+			updateMachineSet: func(ms *machinev1.MachineSet) {
+				ms.Spec.Selector.MatchLabels["foo"] = "bar"
+			},
+			expectedError: "spec.selector: Forbidden: selector is immutable",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -801,6 +814,11 @@ func TestMachineSetUpdate(t *testing.T) {
 					Namespace:    namespace.Name,
 				},
 				Spec: machinev1.MachineSetSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							"machineset-name": "machineset-update-abcd",
+						},
+					},
 					Template: machinev1.MachineTemplateSpec{
 						Spec: machinev1.MachineSpec{
 							ProviderSpec: machinev1.ProviderSpec{
@@ -816,7 +834,12 @@ func TestMachineSetUpdate(t *testing.T) {
 				gs.Expect(c.Delete(ctx, ms)).To(Succeed())
 			}()
 
-			ms.Spec.Template.Spec.ProviderSpec.Value = tc.updatedProviderSpecValue()
+			if tc.updatedProviderSpecValue != nil {
+				ms.Spec.Template.Spec.ProviderSpec.Value = tc.updatedProviderSpecValue()
+			}
+			if tc.updateMachineSet != nil {
+				tc.updateMachineSet(ms)
+			}
 			err = c.Update(ctx, ms)
 			if tc.expectedError != "" {
 				gs.Expect(err).ToNot(BeNil())
