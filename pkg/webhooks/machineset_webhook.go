@@ -3,12 +3,14 @@ package webhooks
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"reflect"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
@@ -171,5 +173,14 @@ func validateMachineSetSpec(ms, oldMS *machinev1.MachineSet) []error {
 	if oldMS != nil && !reflect.DeepEqual(ms.Spec.Selector, oldMS.Spec.Selector) {
 		errs = append(errs, field.Forbidden(field.NewPath("spec", "selector"), "selector is immutable"))
 	}
+
+	selector, err := metav1.LabelSelectorAsSelector(&ms.Spec.Selector)
+	if err != nil {
+		errs = append(errs, field.Invalid(field.NewPath("spec", "selector"), ms.Spec.Selector, fmt.Sprintf("could not convert label selector to selector: %v", err)))
+	}
+	if selector != nil && !selector.Matches(labels.Set(ms.Spec.Template.Labels)) {
+		errs = append(errs, field.Invalid(field.NewPath("spec", "template", "metadata", "labels"), ms.Spec.Template.Labels, "`selector` does not match template `labels`"))
+	}
+
 	return errs
 }

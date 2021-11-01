@@ -758,7 +758,21 @@ func TestMachineSetUpdate(t *testing.T) {
 			updateMachineSet: func(ms *machinev1.MachineSet) {
 				ms.Spec.Selector.MatchLabels["foo"] = "bar"
 			},
-			expectedError: "spec.selector: Forbidden: selector is immutable",
+			expectedError: "[spec.selector: Forbidden: selector is immutable, spec.template.metadata.labels: Invalid value: map[string]string{\"machineset-name\":\"machineset-update-abcd\"}: `selector` does not match template `labels`]",
+		},
+		{
+			name:         "with an incompatible template labels",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    vsphereClusterID,
+			baseProviderSpecValue: &runtime.RawExtension{
+				Object: defaultAWSProviderSpec.DeepCopy(),
+			},
+			updateMachineSet: func(ms *machinev1.MachineSet) {
+				ms.Spec.Template.ObjectMeta.Labels = map[string]string{
+					"foo": "bar",
+				}
+			},
+			expectedError: "spec.template.metadata.labels: Invalid value: map[string]string{\"foo\":\"bar\"}: `selector` does not match template `labels`",
 		},
 	}
 
@@ -808,6 +822,9 @@ func TestMachineSetUpdate(t *testing.T) {
 				return resp.StatusCode == 404, nil
 			}).Should(BeTrue())
 
+			msLabel := "machineset-name"
+			msLabelValue := "machineset-update-abcd"
+
 			ms := &machinev1.MachineSet{
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "machineset-update-",
@@ -816,10 +833,15 @@ func TestMachineSetUpdate(t *testing.T) {
 				Spec: machinev1.MachineSetSpec{
 					Selector: metav1.LabelSelector{
 						MatchLabels: map[string]string{
-							"machineset-name": "machineset-update-abcd",
+							msLabel: msLabelValue,
 						},
 					},
 					Template: machinev1.MachineTemplateSpec{
+						ObjectMeta: machinev1.ObjectMeta{
+							Labels: map[string]string{
+								msLabel: msLabelValue,
+							},
+						},
 						Spec: machinev1.MachineSpec{
 							ProviderSpec: machinev1.ProviderSpec{
 								Value: tc.baseProviderSpecValue,
