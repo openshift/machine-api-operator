@@ -3,12 +3,16 @@ package webhooks
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"reflect"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -85,9 +89,20 @@ func (h *machineSetValidatorHandler) Handle(ctx context.Context, req admission.R
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
+	var oldMS *machinev1.MachineSet
+	if len(req.OldObject.Raw) > 0 {
+		// oldMS must only be initialised if there is an old object (ie on UPDATE or DELETE).
+		// It should be nil otherwise to allow skipping certain validations that rely on
+		// the presence of the old object.
+		oldMS = &machinev1.MachineSet{}
+		if err := h.decoder.DecodeRaw(req.OldObject, oldMS); err != nil {
+			return admission.Errored(http.StatusBadRequest, err)
+		}
+	}
+
 	klog.V(3).Infof("Validate webhook called for MachineSet: %s", ms.GetName())
 
-	ok, warnings, errs := h.validateMachineSet(ms)
+	ok, warnings, errs := h.validateMachineSet(ms, oldMS)
 	if !ok {
 		return admission.Denied(errs.Error()).WithWarnings(warnings...)
 	}
@@ -117,8 +132,8 @@ func (h *machineSetDefaulterHandler) Handle(ctx context.Context, req admission.R
 	return admission.PatchResponseFromRaw(req.Object.Raw, marshaledMachineSet).WithWarnings(warnings...)
 }
 
-func (h *machineSetValidatorHandler) validateMachineSet(ms *machinev1.MachineSet) (bool, []string, utilerrors.Aggregate) {
-	var errs []error
+func (h *machineSetValidatorHandler) validateMachineSet(ms, oldMS *machinev1.MachineSet) (bool, []string, utilerrors.Aggregate) {
+	errs := validateMachineSetSpec(ms, oldMS)
 
 	// Create a Machine from the MachineSet and validate the Machine template
 	m := &machinev1.Machine{
@@ -149,4 +164,23 @@ func (h *machineSetDefaulterHandler) defaultMachineSet(ms *machinev1.MachineSet)
 	// Restore the defaulted template
 	ms.Spec.Template.Spec = m.Spec
 	return true, warnings, nil
+}
+
+// validateMachineSetSpec is used to validate any changes to the MachineSet spec outside of
+// the providerSpec. Eg it can be used to verify changes to the selector.
+func validateMachineSetSpec(ms, oldMS *machinev1.MachineSet) []error {
+	var errs []error
+	if oldMS != nil && !reflect.DeepEqual(ms.Spec.Selector, oldMS.Spec.Selector) {
+		errs = append(errs, field.Forbidden(field.NewPath("spec", "selector"), "selector is immutable"))
+	}
+
+	selector, err := metav1.LabelSelectorAsSelector(&ms.Spec.Selector)
+	if err != nil {
+		errs = append(errs, field.Invalid(field.NewPath("spec", "selector"), ms.Spec.Selector, fmt.Sprintf("could not convert label selector to selector: %v", err)))
+	}
+	if selector != nil && !selector.Matches(labels.Set(ms.Spec.Template.Labels)) {
+		errs = append(errs, field.Invalid(field.NewPath("spec", "template", "metadata", "labels"), ms.Spec.Template.Labels, "`selector` does not match template `labels`"))
+	}
+
+	return errs
 }

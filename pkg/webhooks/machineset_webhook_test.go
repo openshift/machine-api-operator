@@ -482,6 +482,7 @@ func TestMachineSetUpdate(t *testing.T) {
 		expectedError            string
 		baseProviderSpecValue    *runtime.RawExtension
 		updatedProviderSpecValue func() *runtime.RawExtension
+		updateMachineSet         func(ms *machinev1.MachineSet)
 	}{
 		{
 			name:         "with a valid AWS ProviderSpec",
@@ -747,6 +748,32 @@ func TestMachineSetUpdate(t *testing.T) {
 			},
 			expectedError: "providerSpec.network.devices: Required value: at least 1 network device must be provided",
 		},
+		{
+			name:         "with a modification to the selector",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    vsphereClusterID,
+			baseProviderSpecValue: &runtime.RawExtension{
+				Object: defaultAWSProviderSpec.DeepCopy(),
+			},
+			updateMachineSet: func(ms *machinev1.MachineSet) {
+				ms.Spec.Selector.MatchLabels["foo"] = "bar"
+			},
+			expectedError: "[spec.selector: Forbidden: selector is immutable, spec.template.metadata.labels: Invalid value: map[string]string{\"machineset-name\":\"machineset-update-abcd\"}: `selector` does not match template `labels`]",
+		},
+		{
+			name:         "with an incompatible template labels",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    vsphereClusterID,
+			baseProviderSpecValue: &runtime.RawExtension{
+				Object: defaultAWSProviderSpec.DeepCopy(),
+			},
+			updateMachineSet: func(ms *machinev1.MachineSet) {
+				ms.Spec.Template.ObjectMeta.Labels = map[string]string{
+					"foo": "bar",
+				}
+			},
+			expectedError: "spec.template.metadata.labels: Invalid value: map[string]string{\"foo\":\"bar\"}: `selector` does not match template `labels`",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -795,13 +822,26 @@ func TestMachineSetUpdate(t *testing.T) {
 				return resp.StatusCode == 404, nil
 			}).Should(BeTrue())
 
+			msLabel := "machineset-name"
+			msLabelValue := "machineset-update-abcd"
+
 			ms := &machinev1.MachineSet{
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "machineset-update-",
 					Namespace:    namespace.Name,
 				},
 				Spec: machinev1.MachineSetSpec{
+					Selector: metav1.LabelSelector{
+						MatchLabels: map[string]string{
+							msLabel: msLabelValue,
+						},
+					},
 					Template: machinev1.MachineTemplateSpec{
+						ObjectMeta: machinev1.ObjectMeta{
+							Labels: map[string]string{
+								msLabel: msLabelValue,
+							},
+						},
 						Spec: machinev1.MachineSpec{
 							ProviderSpec: machinev1.ProviderSpec{
 								Value: tc.baseProviderSpecValue,
@@ -816,7 +856,12 @@ func TestMachineSetUpdate(t *testing.T) {
 				gs.Expect(c.Delete(ctx, ms)).To(Succeed())
 			}()
 
-			ms.Spec.Template.Spec.ProviderSpec.Value = tc.updatedProviderSpecValue()
+			if tc.updatedProviderSpecValue != nil {
+				ms.Spec.Template.Spec.ProviderSpec.Value = tc.updatedProviderSpecValue()
+			}
+			if tc.updateMachineSet != nil {
+				tc.updateMachineSet(ms)
+			}
 			err = c.Update(ctx, ms)
 			if tc.expectedError != "" {
 				gs.Expect(err).ToNot(BeNil())
