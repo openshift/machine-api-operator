@@ -232,8 +232,15 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 
 			if err := r.drainNode(ctx, m); err != nil {
 				klog.Errorf("%v: failed to drain node for machine: %v", machineName, err)
+				conditions.Set(m, conditions.FalseCondition(
+					machinev1.MachineDrained,
+					machinev1.MachineDrainError,
+					machinev1.ConditionSeverityWarning,
+					"could not drain machine: %v", err,
+				))
 				return delayIfRequeueAfterError(err)
 			}
+			conditions.Set(m, conditions.TrueCondition(machinev1.MachineDrained))
 		}
 
 		// pre-term.delete lifecycle hook
@@ -497,6 +504,9 @@ func (r *ReconcileMachine) updateStatus(ctx context.Context, machine *machinev1.
 		klog.V(3).Infof("%v: going into phase %q", machine.GetName(), phase)
 	}
 
+	// Ensure the lifecycle hook conditions are accurate whenever the status is updated
+	setLifecycleHookConditions(machine)
+
 	// Conditions need to be deep copied as they are set outside of this function.
 	// They will be restored after any updates to the base (done by patching annotations).
 	conditions := machine.Status.Conditions.DeepCopy()
@@ -632,6 +642,30 @@ func validateMachine(m *machinev1.Machine) field.ErrorList {
 	}
 
 	return errors
+}
+
+func setLifecycleHookConditions(m *machinev1.Machine) {
+	if len(m.Spec.LifecycleHooks.PreDrain) > 0 {
+		conditions.Set(m, conditions.FalseCondition(
+			machinev1.MachineDrainable,
+			machinev1.MachineHookPresent,
+			machinev1.ConditionSeverityWarning,
+			"Drain operation currently blocked by: %+v", m.Spec.LifecycleHooks.PreDrain,
+		))
+	} else {
+		conditions.MarkTrue(m, machinev1.MachineDrainable)
+	}
+
+	if len(m.Spec.LifecycleHooks.PreTerminate) > 0 {
+		conditions.Set(m, conditions.FalseCondition(
+			machinev1.MachineTerminable,
+			machinev1.MachineHookPresent,
+			machinev1.ConditionSeverityWarning,
+			"Terminate operation currently blocked by: %+v", m.Spec.LifecycleHooks.PreTerminate,
+		))
+	} else {
+		conditions.MarkTrue(m, machinev1.MachineTerminable)
+	}
 }
 
 // now is used to get the current time. If the reconciler nowFunc is no nil this will be used instead of time.Now().
