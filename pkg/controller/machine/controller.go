@@ -223,10 +223,24 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 		// by cloud controller manager. In that case some machines would never get
 		// deleted without a manual intervention.
 		if _, exists := m.ObjectMeta.Annotations[ExcludeNodeDrainingAnnotation]; !exists && m.Status.NodeRef != nil {
+			// pre-drain.delete lifecycle hook
+			// Return early without error, will requeue if/when the hook owner removes the annotation.
+			if len(m.Spec.LifecycleHooks.PreDrain) > 0 {
+				klog.Infof("%v: not draining machine: lifecycle blocked by pre-drain hook", machineName)
+				return reconcile.Result{}, nil
+			}
+
 			if err := r.drainNode(ctx, m); err != nil {
 				klog.Errorf("%v: failed to drain node for machine: %v", machineName, err)
 				return delayIfRequeueAfterError(err)
 			}
+		}
+
+		// pre-term.delete lifecycle hook
+		// Return early without error, will requeue if/when the hook owner removes the annotation.
+		if len(m.Spec.LifecycleHooks.PreTerminate) > 0 {
+			klog.Infof("%v: not deleting machine: lifecycle blocked by pre-terminate hook", machineName)
+			return reconcile.Result{}, nil
 		}
 
 		if err := r.actuator.Delete(ctx, m); err != nil {
