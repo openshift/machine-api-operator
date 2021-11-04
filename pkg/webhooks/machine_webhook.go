@@ -11,6 +11,7 @@ import (
 	osconfigv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
+	"github.com/openshift/machine-api-operator/pkg/util/lifecyclehooks"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -478,6 +479,20 @@ func MachineSetMutatingWebhook() admissionregistrationv1.MutatingWebhook {
 	}
 }
 
+func (h *machineValidatorHandler) validateMachine(m, oldM *machinev1.Machine) (bool, []string, utilerrors.Aggregate) {
+	errs := validateMachineLifecycleHooks(m, oldM)
+
+	ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
+	if !ok {
+		errs = append(errs, err.Errors()...)
+	}
+
+	if len(errs) > 0 {
+		return false, warnings, utilerrors.NewAggregate(errs)
+	}
+	return true, warnings, nil
+}
+
 // Handle handles HTTP requests for admission webhook servers.
 func (h *machineValidatorHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
 	m := &machinev1.Machine{}
@@ -486,9 +501,20 @@ func (h *machineValidatorHandler) Handle(ctx context.Context, req admission.Requ
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
+	var oldM *machinev1.Machine
+	if len(req.OldObject.Raw) > 0 {
+		// oldM must only be initialised if there is an old object (ie on UPDATE or DELETE).
+		// It should be nil otherwise to allow skipping certain validations that rely on
+		// the presence of the old object.
+		oldM = &machinev1.Machine{}
+		if err := h.decoder.DecodeRaw(req.OldObject, oldM); err != nil {
+			return admission.Errored(http.StatusBadRequest, err)
+		}
+	}
+
 	klog.V(3).Infof("Validate webhook called for Machine: %s", m.GetName())
 
-	ok, warnings, errs := h.webhookOperations(m, h.admissionConfig)
+	ok, warnings, errs := h.validateMachine(m, oldM)
 	if !ok {
 		return admission.Denied(errs.Error()).WithWarnings(warnings...)
 	}
@@ -1202,4 +1228,27 @@ func validateVSphereNetwork(network machinev1.NetworkSpec, parentPath *field.Pat
 func isAzureGovCloud(platformStatus *osconfigv1.PlatformStatus) bool {
 	return platformStatus != nil && platformStatus.Azure != nil &&
 		platformStatus.Azure.CloudName != osconfigv1.AzurePublicCloud
+}
+
+func validateMachineLifecycleHooks(m, oldM *machinev1.Machine) []error {
+	var errs []error
+	if !isDeleting(m) || oldM == nil {
+		return errs
+	}
+
+	changedPreDrain := lifecyclehooks.GetChangedLifecycleHooks(oldM.Spec.LifecycleHooks.PreDrain, m.Spec.LifecycleHooks.PreDrain)
+	if len(changedPreDrain) > 0 {
+		errs = append(errs, field.Forbidden(field.NewPath("spec", "lifecycleHooks", "preDrain"), fmt.Sprintf("pre-drain hooks are immutable when machine is marked for deletion: the following hooks are new or changed: %+v", changedPreDrain)))
+	}
+
+	changedPreTerminate := lifecyclehooks.GetChangedLifecycleHooks(oldM.Spec.LifecycleHooks.PreTerminate, m.Spec.LifecycleHooks.PreTerminate)
+	if len(changedPreTerminate) > 0 {
+		errs = append(errs, field.Forbidden(field.NewPath("spec", "lifecycleHooks", "preTerminate"), fmt.Sprintf("pre-terminate hooks are immutable when machine is marked for deletion: the following hooks are new or changed: %+v", changedPreTerminate)))
+	}
+
+	return errs
+}
+
+func isDeleting(obj metav1.Object) bool {
+	return obj.GetDeletionTimestamp() != nil
 }

@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/pointer"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -497,13 +498,21 @@ func TestMachineUpdate(t *testing.T) {
 		g.Expect(c.Delete(ctx, azureSecret)).To(Succeed())
 	}()
 
+	preDrainHook := machinev1.LifecycleHook{
+		Name:  "pre-drain",
+		Owner: "pre-drain-owner",
+	}
+
 	testCases := []struct {
-		name                     string
-		platformType             osconfigv1.PlatformType
-		clusterID                string
-		expectedError            string
-		baseProviderSpecValue    *kruntime.RawExtension
-		updatedProviderSpecValue func() *kruntime.RawExtension
+		name                      string
+		platformType              osconfigv1.PlatformType
+		clusterID                 string
+		expectedError             string
+		baseMachineLifecycleHooks machinev1.LifecycleHooks
+		baseProviderSpecValue     *kruntime.RawExtension
+		updatedProviderSpecValue  func() *kruntime.RawExtension
+		updateAfterDelete         bool
+		updateMachine             func(m *machinev1.Machine)
 	}{
 		{
 			name:         "with a valid AWS ProviderSpec",
@@ -769,6 +778,45 @@ func TestMachineUpdate(t *testing.T) {
 			},
 			expectedError: "providerSpec.network.devices: Required value: at least 1 network device must be provided",
 		},
+		{
+			name:         "when adding a lifecycle hook",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    awsClusterID,
+			baseProviderSpecValue: &kruntime.RawExtension{
+				Object: defaultAWSProviderSpec.DeepCopy(),
+			},
+			updateMachine: func(m *machinev1.Machine) {
+				m.Spec.LifecycleHooks.PreDrain = []machinev1.LifecycleHook{preDrainHook}
+			},
+		},
+		{
+			name:         "when adding a lifecycle hook after the machine has been deleted",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    awsClusterID,
+			baseProviderSpecValue: &kruntime.RawExtension{
+				Object: defaultAWSProviderSpec.DeepCopy(),
+			},
+			updateAfterDelete: true,
+			updateMachine: func(m *machinev1.Machine) {
+				m.Spec.LifecycleHooks.PreDrain = []machinev1.LifecycleHook{preDrainHook}
+			},
+			expectedError: "spec.lifecycleHooks.preDrain: Forbidden: pre-drain hooks are immutable when machine is marked for deletion: the following hooks are new or changed: [{Name:pre-drain Owner:pre-drain-owner}]",
+		},
+		{
+			name:         "when removing a lifecycle hook after the machine has been deleted",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    awsClusterID,
+			baseProviderSpecValue: &kruntime.RawExtension{
+				Object: defaultAWSProviderSpec.DeepCopy(),
+			},
+			baseMachineLifecycleHooks: machinev1.LifecycleHooks{
+				PreDrain: []machinev1.LifecycleHook{preDrainHook},
+			},
+			updateAfterDelete: true,
+			updateMachine: func(m *machinev1.Machine) {
+				m.Spec.LifecycleHooks = machinev1.LifecycleHooks{}
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -823,8 +871,12 @@ func TestMachineUpdate(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					GenerateName: "machine-creation-",
 					Namespace:    namespace.Name,
+					Finalizers: []string{
+						"machine-test",
+					},
 				},
 				Spec: machinev1.MachineSpec{
+					LifecycleHooks: tc.baseMachineLifecycleHooks,
 					ProviderSpec: machinev1.ProviderSpec{
 						Value: tc.baseProviderSpecValue,
 					},
@@ -832,11 +884,29 @@ func TestMachineUpdate(t *testing.T) {
 			}
 			err = c.Create(ctx, m)
 			gs.Expect(err).ToNot(HaveOccurred())
-			defer func() {
+			if tc.updateAfterDelete {
 				gs.Expect(c.Delete(ctx, m)).To(Succeed())
+			} else {
+				defer func() {
+					gs.Expect(c.Delete(ctx, m)).To(Succeed())
+				}()
+			}
+
+			key := client.ObjectKey{Namespace: m.Namespace, Name: m.Name}
+			defer func() {
+				mc := &machinev1.Machine{}
+				gs.Expect(c.Get(ctx, key, mc)).To(Succeed())
+				mc.Finalizers = []string{}
+				gs.Expect(c.Update(ctx, mc)).To(Succeed())
 			}()
 
-			m.Spec.ProviderSpec.Value = tc.updatedProviderSpecValue()
+			gs.Expect(c.Get(ctx, key, m)).To(Succeed())
+			if tc.updatedProviderSpecValue != nil {
+				m.Spec.ProviderSpec.Value = tc.updatedProviderSpecValue()
+			}
+			if tc.updateMachine != nil {
+				tc.updateMachine(m)
+			}
 			err = c.Update(ctx, m)
 			if tc.expectedError != "" {
 				gs.Expect(err).ToNot(BeNil())
