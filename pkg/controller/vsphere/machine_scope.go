@@ -5,8 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
-	apivsphere "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	machineapierros "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
@@ -41,8 +40,8 @@ type machineScope struct {
 	vSphereConfig *vSphereConfig
 	// machine resource
 	machine            *machinev1.Machine
-	providerSpec       *apivsphere.VSphereMachineProviderSpec
-	providerStatus     *apivsphere.VSphereMachineProviderStatus
+	providerSpec       *machinev1.VSphereMachineProviderSpec
+	providerStatus     *machinev1.VSphereMachineProviderStatus
 	machineToBePatched runtimeclient.Patch
 }
 
@@ -58,12 +57,12 @@ func newMachineScope(params machineScopeParams) (*machineScope, error) {
 		klog.Errorf("Failed to fetch vSphere config: %v", err)
 	}
 
-	providerSpec, err := apivsphere.ProviderSpecFromRawExtension(params.machine.Spec.ProviderSpec.Value)
+	providerSpec, err := ProviderSpecFromRawExtension(params.machine.Spec.ProviderSpec.Value)
 	if err != nil {
 		return nil, machineapierros.InvalidMachineConfiguration("failed to get machine config: %v", err)
 	}
 
-	providerStatus, err := apivsphere.ProviderStatusFromRawExtension(params.machine.Status.ProviderStatus)
+	providerStatus, err := ProviderStatusFromRawExtension(params.machine.Status.ProviderStatus)
 	if err != nil {
 		return nil, machineapierros.InvalidMachineConfiguration("failed to get machine provider status: %v", err.Error())
 	}
@@ -101,7 +100,7 @@ func newMachineScope(params machineScopeParams) (*machineScope, error) {
 func (s *machineScope) PatchMachine() error {
 	klog.V(3).Infof("%v: patching machine", s.machine.GetName())
 
-	providerStatus, err := apivsphere.RawExtensionFromProviderStatus(s.providerStatus)
+	providerStatus, err := RawExtensionFromProviderStatus(s.providerStatus)
 	if err != nil {
 		return machineapierros.InvalidMachineConfiguration("failed to get machine provider status: %v", err.Error())
 	}
@@ -213,7 +212,7 @@ func (s *machineScope) GetUserData() ([]byte, error) {
 //data:
 //  vcsa.vmware.devcluster.openshift.com.username: base64 string
 //  vcsa.vmware.devcluster.openshift.com.password: base64 string
-func getCredentialsSecret(client runtimeclient.Client, namespace string, spec apivsphere.VSphereMachineProviderSpec) (string, string, error) {
+func getCredentialsSecret(client runtimeclient.Client, namespace string, spec machinev1.VSphereMachineProviderSpec) (string, string, error) {
 	if spec.CredentialsSecret == nil {
 		return "", "", nil
 	}

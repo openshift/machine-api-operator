@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
-	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -29,32 +29,32 @@ func TestMatchConditions(t *testing.T) {
 	testCases := []struct {
 		name        string
 		actual      interface{}
-		expected    mapiv1.Conditions
+		expected    machinev1.Conditions
 		expectMatch bool
 	}{
 		{
 			name:        "with an empty conditions",
-			actual:      mapiv1.Conditions{},
-			expected:    mapiv1.Conditions{},
+			actual:      machinev1.Conditions{},
+			expected:    machinev1.Conditions{},
 			expectMatch: true,
 		},
 		{
 			name: "with matching conditions",
-			actual: mapiv1.Conditions{
+			actual: machinev1.Conditions{
 				{
-					Type:               mapiv1.ConditionType("type"),
+					Type:               machinev1.ConditionType("type"),
 					Status:             corev1.ConditionTrue,
-					Severity:           mapiv1.ConditionSeverityNone,
+					Severity:           machinev1.ConditionSeverityNone,
 					LastTransitionTime: metav1.Now(),
 					Reason:             "reason",
 					Message:            "message",
 				},
 			},
-			expected: mapiv1.Conditions{
+			expected: machinev1.Conditions{
 				{
-					Type:               mapiv1.ConditionType("type"),
+					Type:               machinev1.ConditionType("type"),
 					Status:             corev1.ConditionTrue,
-					Severity:           mapiv1.ConditionSeverityNone,
+					Severity:           machinev1.ConditionSeverityNone,
 					LastTransitionTime: metav1.Now(),
 					Reason:             "reason",
 					Message:            "message",
@@ -64,37 +64,37 @@ func TestMatchConditions(t *testing.T) {
 		},
 		{
 			name: "with non-matching conditions",
-			actual: mapiv1.Conditions{
+			actual: machinev1.Conditions{
 				{
-					Type:               mapiv1.ConditionType("type"),
+					Type:               machinev1.ConditionType("type"),
 					Status:             corev1.ConditionTrue,
-					Severity:           mapiv1.ConditionSeverityNone,
+					Severity:           machinev1.ConditionSeverityNone,
 					LastTransitionTime: metav1.Now(),
 					Reason:             "reason",
 					Message:            "message",
 				},
 				{
-					Type:               mapiv1.ConditionType("type"),
+					Type:               machinev1.ConditionType("type"),
 					Status:             corev1.ConditionTrue,
-					Severity:           mapiv1.ConditionSeverityNone,
+					Severity:           machinev1.ConditionSeverityNone,
 					LastTransitionTime: metav1.Now(),
 					Reason:             "reason",
 					Message:            "message",
 				},
 			},
-			expected: mapiv1.Conditions{
+			expected: machinev1.Conditions{
 				{
-					Type:               mapiv1.ConditionType("type"),
+					Type:               machinev1.ConditionType("type"),
 					Status:             corev1.ConditionTrue,
-					Severity:           mapiv1.ConditionSeverityNone,
+					Severity:           machinev1.ConditionSeverityNone,
 					LastTransitionTime: metav1.Now(),
 					Reason:             "reason",
 					Message:            "message",
 				},
 				{
-					Type:               mapiv1.ConditionType("different"),
+					Type:               machinev1.ConditionType("different"),
 					Status:             corev1.ConditionTrue,
-					Severity:           mapiv1.ConditionSeverityNone,
+					Severity:           machinev1.ConditionSeverityNone,
 					LastTransitionTime: metav1.Now(),
 					Reason:             "different",
 					Message:            "different",
@@ -104,29 +104,29 @@ func TestMatchConditions(t *testing.T) {
 		},
 		{
 			name: "with a different number of conditions",
-			actual: mapiv1.Conditions{
+			actual: machinev1.Conditions{
 				{
-					Type:               mapiv1.ConditionType("type"),
+					Type:               machinev1.ConditionType("type"),
 					Status:             corev1.ConditionTrue,
-					Severity:           mapiv1.ConditionSeverityNone,
+					Severity:           machinev1.ConditionSeverityNone,
 					LastTransitionTime: metav1.Now(),
 					Reason:             "reason",
 					Message:            "message",
 				},
 				{
-					Type:               mapiv1.ConditionType("type"),
+					Type:               machinev1.ConditionType("type"),
 					Status:             corev1.ConditionTrue,
-					Severity:           mapiv1.ConditionSeverityNone,
+					Severity:           machinev1.ConditionSeverityNone,
 					LastTransitionTime: metav1.Now(),
 					Reason:             "reason",
 					Message:            "message",
 				},
 			},
-			expected: mapiv1.Conditions{
+			expected: machinev1.Conditions{
 				{
-					Type:               mapiv1.ConditionType("type"),
+					Type:               machinev1.ConditionType("type"),
 					Status:             corev1.ConditionTrue,
-					Severity:           mapiv1.ConditionSeverityNone,
+					Severity:           machinev1.ConditionSeverityNone,
 					LastTransitionTime: metav1.Now(),
 					Reason:             "reason",
 					Message:            "message",
@@ -152,29 +152,29 @@ func TestMatchCondition(t *testing.T) {
 	testCases := []struct {
 		name        string
 		actual      interface{}
-		expected    mapiv1.Condition
+		expected    machinev1.Condition
 		expectMatch bool
 	}{
 		{
 			name:        "with an empty condition",
-			actual:      mapiv1.Condition{},
-			expected:    mapiv1.Condition{},
+			actual:      machinev1.Condition{},
+			expected:    machinev1.Condition{},
 			expectMatch: true,
 		},
 		{
 			name: "with a matching condition",
-			actual: mapiv1.Condition{
-				Type:               mapiv1.ConditionType("type"),
+			actual: machinev1.Condition{
+				Type:               machinev1.ConditionType("type"),
 				Status:             corev1.ConditionTrue,
-				Severity:           mapiv1.ConditionSeverityNone,
+				Severity:           machinev1.ConditionSeverityNone,
 				LastTransitionTime: metav1.Now(),
 				Reason:             "reason",
 				Message:            "message",
 			},
-			expected: mapiv1.Condition{
-				Type:               mapiv1.ConditionType("type"),
+			expected: machinev1.Condition{
+				Type:               machinev1.ConditionType("type"),
 				Status:             corev1.ConditionTrue,
-				Severity:           mapiv1.ConditionSeverityNone,
+				Severity:           machinev1.ConditionSeverityNone,
 				LastTransitionTime: metav1.Now(),
 				Reason:             "reason",
 				Message:            "message",
@@ -183,18 +183,18 @@ func TestMatchCondition(t *testing.T) {
 		},
 		{
 			name: "with a different time",
-			actual: mapiv1.Condition{
-				Type:               mapiv1.ConditionType("type"),
+			actual: machinev1.Condition{
+				Type:               machinev1.ConditionType("type"),
 				Status:             corev1.ConditionTrue,
-				Severity:           mapiv1.ConditionSeverityNone,
+				Severity:           machinev1.ConditionSeverityNone,
 				LastTransitionTime: metav1.Now(),
 				Reason:             "reason",
 				Message:            "message",
 			},
-			expected: mapiv1.Condition{
-				Type:               mapiv1.ConditionType("type"),
+			expected: machinev1.Condition{
+				Type:               machinev1.ConditionType("type"),
 				Status:             corev1.ConditionTrue,
-				Severity:           mapiv1.ConditionSeverityNone,
+				Severity:           machinev1.ConditionSeverityNone,
 				LastTransitionTime: metav1.Time{},
 				Reason:             "reason",
 				Message:            "message",
@@ -203,18 +203,18 @@ func TestMatchCondition(t *testing.T) {
 		},
 		{
 			name: "with a different type",
-			actual: mapiv1.Condition{
-				Type:               mapiv1.ConditionType("type"),
+			actual: machinev1.Condition{
+				Type:               machinev1.ConditionType("type"),
 				Status:             corev1.ConditionTrue,
-				Severity:           mapiv1.ConditionSeverityNone,
+				Severity:           machinev1.ConditionSeverityNone,
 				LastTransitionTime: metav1.Now(),
 				Reason:             "reason",
 				Message:            "message",
 			},
-			expected: mapiv1.Condition{
-				Type:               mapiv1.ConditionType("different"),
+			expected: machinev1.Condition{
+				Type:               machinev1.ConditionType("different"),
 				Status:             corev1.ConditionTrue,
-				Severity:           mapiv1.ConditionSeverityNone,
+				Severity:           machinev1.ConditionSeverityNone,
 				LastTransitionTime: metav1.Now(),
 				Reason:             "reason",
 				Message:            "message",
@@ -223,18 +223,18 @@ func TestMatchCondition(t *testing.T) {
 		},
 		{
 			name: "with a different status",
-			actual: mapiv1.Condition{
-				Type:               mapiv1.ConditionType("type"),
+			actual: machinev1.Condition{
+				Type:               machinev1.ConditionType("type"),
 				Status:             corev1.ConditionTrue,
-				Severity:           mapiv1.ConditionSeverityNone,
+				Severity:           machinev1.ConditionSeverityNone,
 				LastTransitionTime: metav1.Now(),
 				Reason:             "reason",
 				Message:            "message",
 			},
-			expected: mapiv1.Condition{
-				Type:               mapiv1.ConditionType("type"),
+			expected: machinev1.Condition{
+				Type:               machinev1.ConditionType("type"),
 				Status:             corev1.ConditionFalse,
-				Severity:           mapiv1.ConditionSeverityNone,
+				Severity:           machinev1.ConditionSeverityNone,
 				LastTransitionTime: metav1.Now(),
 				Reason:             "reason",
 				Message:            "message",
@@ -243,18 +243,18 @@ func TestMatchCondition(t *testing.T) {
 		},
 		{
 			name: "with a different severity",
-			actual: mapiv1.Condition{
-				Type:               mapiv1.ConditionType("type"),
+			actual: machinev1.Condition{
+				Type:               machinev1.ConditionType("type"),
 				Status:             corev1.ConditionTrue,
-				Severity:           mapiv1.ConditionSeverityNone,
+				Severity:           machinev1.ConditionSeverityNone,
 				LastTransitionTime: metav1.Now(),
 				Reason:             "reason",
 				Message:            "message",
 			},
-			expected: mapiv1.Condition{
-				Type:               mapiv1.ConditionType("type"),
+			expected: machinev1.Condition{
+				Type:               machinev1.ConditionType("type"),
 				Status:             corev1.ConditionTrue,
-				Severity:           mapiv1.ConditionSeverityInfo,
+				Severity:           machinev1.ConditionSeverityInfo,
 				LastTransitionTime: metav1.Now(),
 				Reason:             "reason",
 				Message:            "message",
@@ -263,18 +263,18 @@ func TestMatchCondition(t *testing.T) {
 		},
 		{
 			name: "with a different reason",
-			actual: mapiv1.Condition{
-				Type:               mapiv1.ConditionType("type"),
+			actual: machinev1.Condition{
+				Type:               machinev1.ConditionType("type"),
 				Status:             corev1.ConditionTrue,
-				Severity:           mapiv1.ConditionSeverityNone,
+				Severity:           machinev1.ConditionSeverityNone,
 				LastTransitionTime: metav1.Now(),
 				Reason:             "reason",
 				Message:            "message",
 			},
-			expected: mapiv1.Condition{
-				Type:               mapiv1.ConditionType("type"),
+			expected: machinev1.Condition{
+				Type:               machinev1.ConditionType("type"),
 				Status:             corev1.ConditionTrue,
-				Severity:           mapiv1.ConditionSeverityNone,
+				Severity:           machinev1.ConditionSeverityNone,
 				LastTransitionTime: metav1.Now(),
 				Reason:             "different",
 				Message:            "message",
@@ -283,18 +283,18 @@ func TestMatchCondition(t *testing.T) {
 		},
 		{
 			name: "with a different message",
-			actual: mapiv1.Condition{
-				Type:               mapiv1.ConditionType("type"),
+			actual: machinev1.Condition{
+				Type:               machinev1.ConditionType("type"),
 				Status:             corev1.ConditionTrue,
-				Severity:           mapiv1.ConditionSeverityNone,
+				Severity:           machinev1.ConditionSeverityNone,
 				LastTransitionTime: metav1.Now(),
 				Reason:             "reason",
 				Message:            "message",
 			},
-			expected: mapiv1.Condition{
-				Type:               mapiv1.ConditionType("type"),
+			expected: machinev1.Condition{
+				Type:               machinev1.ConditionType("type"),
 				Status:             corev1.ConditionTrue,
-				Severity:           mapiv1.ConditionSeverityNone,
+				Severity:           machinev1.ConditionSeverityNone,
 				LastTransitionTime: metav1.Now(),
 				Reason:             "reason",
 				Message:            "different",

@@ -63,10 +63,15 @@ func GetOrCreate(
 
 	sessionKey := server + username + datacenter
 	if session, ok := sessionCache[sessionKey]; ok {
-		if ok, _ := session.SessionManager.SessionIsActive(ctx); ok {
+		sessionActive, err := session.SessionManager.SessionIsActive(ctx)
+		if err != nil {
+			klog.Errorf("Error performing session check request to vSphere: %v", err)
+		}
+		if sessionActive {
 			return &session, nil
 		}
 	}
+	klog.Infof("No existing vCenter session found, creating new session")
 
 	soapURL, err := soap.ParseURL(server)
 	if err != nil {
@@ -76,11 +81,18 @@ func GetOrCreate(
 		return nil, fmt.Errorf("error parsing vSphere URL %q", server)
 	}
 
-	soapURL.User = url.UserPassword(username, password)
-
+	// Set user to nil there for prevent login during client creation.
+	// See https://github.com/vmware/govmomi/blob/master/client.go#L91
+	soapURL.User = nil
 	client, err := govmomi.NewClient(ctx, soapURL, insecure)
 	if err != nil {
 		return nil, fmt.Errorf("error setting up new vSphere SOAP client: %w", err)
+	}
+
+	// Set up user agent before login for being able to track mapi component in vcenter sessions list
+	client.UserAgent = "machineAPIvSphereProvider"
+	if err := client.Login(ctx, url.UserPassword(username, password)); err != nil {
+		return nil, fmt.Errorf("unable to login to vCenter: %w", err)
 	}
 
 	session := Session{
@@ -89,7 +101,6 @@ func GetOrCreate(
 		password: password,
 	}
 
-	session.UserAgent = "machineAPIvSphereProvider"
 	session.Finder = find.NewFinder(session.Client.Client, false)
 
 	dc, err := session.Finder.DatacenterOrDefault(ctx, datacenter)

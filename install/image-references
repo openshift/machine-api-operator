@@ -30,30 +30,18 @@ spec:
     from:
       kind: DockerImage
       name: registry.svc.ci.openshift.org/openshift:gcp-machine-controllers
+  - name: ibmcloud-machine-controllers
+    from:
+      kind: DockerImage
+      name: registry.svc.ci.openshift.org/openshift:ibmcloud-machine-controllers
+  - name: powervs-machine-controllers
+    from:
+      kind: DockerImage
+      name: registry.svc.ci.openshift.org/openshift:powervs-machine-controllers
   - name: baremetal-operator
     from:
       kind: DockerImage
       name: registry.svc.ci.openshift.org/openshift:baremetal-operator
-  - name: ironic
-    from:
-      kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:ironic
-  - name: ironic-inspector
-    from:
-      kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:ironic-inspector
-  - name: ironic-ipa-downloader
-    from:
-      kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:ironic-ipa-downloader
-  - name: ironic-machine-os-downloader
-    from:
-      kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:ironic-machine-os-downloader
-  - name: ironic-static-ip-manager
-    from:
-      kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:ironic-static-ip-manager
   - name: kube-rbac-proxy
     from:
       kind: DockerImage
@@ -62,7 +50,3 @@ spec:
     from:
       kind: DockerImage
       name: registry.svc.ci.openshift.org/openshift:ovirt-machine-controllers
-  - name: kubevirt-machine-controllers
-    from:
-      kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:kubevirt-machine-controllers

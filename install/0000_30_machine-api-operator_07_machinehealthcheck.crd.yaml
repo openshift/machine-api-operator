@@ -75,7 +75,6 @@ spec:
                   must be positive whole numbers and are capped at 100%. Both 0 and
                   0% are valid and will block all remediation.
                 pattern: ^((100|[0-9]{1,2})%|[0-9]+)$
-                type: string
                 x-kubernetes-int-or-string: true
               nodeStartupTimeout:
                 default: 10m

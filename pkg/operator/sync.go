@@ -9,10 +9,10 @@ import (
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 	"github.com/openshift/library-go/pkg/operator/resource/resourcehash"
 	"github.com/openshift/library-go/pkg/operator/resource/resourcemerge"
-	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/metrics"
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
+	mapiwebhooks "github.com/openshift/machine-api-operator/pkg/webhooks"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -43,6 +43,7 @@ const (
 	externalTrustBundleConfigMapName    = "mao-trusted-ca"
 	hostKubeConfigPath                  = "/var/lib/kubelet/kubeconfig"
 	hostKubePKIPath                     = "/var/lib/kubelet/pki"
+	operatorStatusNoOpMessage           = "Cluster Machine API Operator is in NoOp mode"
 )
 
 var (
@@ -63,7 +64,7 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 
 	if config.Controllers.Provider == clusterAPIControllerNoOp {
 		klog.V(3).Info("Provider is NoOp, skipping synchronisation")
-		if err := optr.statusAvailable(); err != nil {
+		if err := optr.statusAvailable(operatorStatusNoOpMessage); err != nil {
 			klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
 			return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
 		}
@@ -110,7 +111,8 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 
 	klog.V(3).Info("Synced up all machine API webhook configurations")
 
-	if err := optr.statusAvailable(); err != nil {
+	message := fmt.Sprintf("Cluster Machine API Operator is available at %s", optr.printOperandVersions())
+	if err := optr.statusAvailable(message); err != nil {
 		klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
 		return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
 	}
@@ -181,10 +183,10 @@ func (optr *Operator) syncWebhookConfiguration() error {
 }
 
 func (optr *Operator) syncValidatingWebhook() error {
-	expectedGeneration := resourcemerge.ExpectedValidatingWebhooksConfiguration(mapiv1.NewValidatingWebhookConfiguration().Name, optr.generations)
+	expectedGeneration := resourcemerge.ExpectedValidatingWebhooksConfiguration(mapiwebhooks.NewValidatingWebhookConfiguration().Name, optr.generations)
 	validatingWebhook, updated, err := resourceapply.ApplyValidatingWebhookConfiguration(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
 		events.NewLoggingEventRecorder(optr.name),
-		mapiv1.NewValidatingWebhookConfiguration(), expectedGeneration)
+		mapiwebhooks.NewValidatingWebhookConfiguration(), expectedGeneration)
 	if err != nil {
 		return err
 	}
@@ -196,10 +198,10 @@ func (optr *Operator) syncValidatingWebhook() error {
 }
 
 func (optr *Operator) syncMutatingWebhook() error {
-	expectedGeneration := resourcemerge.ExpectedMutatingWebhooksConfiguration(mapiv1.NewMutatingWebhookConfiguration().Name, optr.generations)
+	expectedGeneration := resourcemerge.ExpectedMutatingWebhooksConfiguration(mapiwebhooks.NewMutatingWebhookConfiguration().Name, optr.generations)
 	validatingWebhook, updated, err := resourceapply.ApplyMutatingWebhookConfiguration(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
 		events.NewLoggingEventRecorder(optr.name),
-		mapiv1.NewMutatingWebhookConfiguration(), expectedGeneration)
+		mapiwebhooks.NewMutatingWebhookConfiguration(), expectedGeneration)
 	if err != nil {
 		return err
 	}

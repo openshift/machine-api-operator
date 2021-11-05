@@ -90,8 +90,9 @@ func newFakeOperator(kubeObjects []runtime.Object, osObjects []runtime.Object, s
 // for platforms that are no-ops.
 func TestOperatorSync_NoOp(t *testing.T) {
 	cases := []struct {
-		platform     openshiftv1.PlatformType
-		expectedNoop bool
+		platform        openshiftv1.PlatformType
+		expectedNoop    bool
+		expectedMessage string
 	}{
 		{
 			platform:     openshiftv1.AWSPlatformType,
@@ -130,12 +131,18 @@ func TestOperatorSync_NoOp(t *testing.T) {
 			expectedNoop: false,
 		},
 		{
-			platform:     openshiftv1.NonePlatformType,
-			expectedNoop: true,
+			platform:     openshiftv1.PowerVSPlatformType,
+			expectedNoop: false,
 		},
 		{
-			platform:     "bad-platform",
-			expectedNoop: true,
+			platform:        openshiftv1.NonePlatformType,
+			expectedNoop:    true,
+			expectedMessage: operatorStatusNoOpMessage,
+		},
+		{
+			platform:        "bad-platform",
+			expectedNoop:    true,
+			expectedMessage: operatorStatusNoOpMessage,
 		},
 	}
 
@@ -207,6 +214,10 @@ func TestOperatorSync_NoOp(t *testing.T) {
 			}
 
 			for _, c := range o.Status.Conditions {
+				// if expecting a Noop and the operator is available, then check to ensure that the proper message is displayed
+				if tc.expectedNoop && c.Type == openshiftv1.OperatorAvailable && c.Status == openshiftv1.ConditionTrue {
+					assert.Equal(t, tc.expectedMessage, c.Message)
+				}
 				assert.Equal(t, expectedConditions[c.Type], c.Status, fmt.Sprintf("unexpected clusteroperator condition %s status", c.Type))
 			}
 		})

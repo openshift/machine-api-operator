@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	mapiv1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -20,7 +20,7 @@ import (
 )
 
 func init() {
-	if err := mapiv1beta1.AddToScheme(scheme.Scheme); err != nil {
+	if err := machinev1.AddToScheme(scheme.Scheme); err != nil {
 		klog.Fatal(err)
 	}
 }
@@ -69,8 +69,8 @@ func node(name, providerID string, addresses []corev1.NodeAddress, taints []core
 	return node
 }
 
-func machine(name, providerID string, addresses []corev1.NodeAddress, taints []corev1.Taint, nodeRef *corev1.ObjectReference) *mapiv1beta1.Machine {
-	machine := &mapiv1beta1.Machine{
+func machine(name, providerID string, addresses []corev1.NodeAddress, taints []corev1.Taint, nodeRef *corev1.ObjectReference) *machinev1.Machine {
+	machine := &machinev1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: namespace,
@@ -89,7 +89,7 @@ func machine(name, providerID string, addresses []corev1.NodeAddress, taints []c
 		TypeMeta: metav1.TypeMeta{
 			Kind: "Machine",
 		},
-		Spec: mapiv1beta1.MachineSpec{},
+		Spec: machinev1.MachineSpec{},
 	}
 
 	if providerID != "" {
@@ -111,16 +111,16 @@ func machine(name, providerID string, addresses []corev1.NodeAddress, taints []c
 type fakeReconciler struct {
 	ReconcileNodeLink
 	fakeNodeIndexer    map[string]corev1.Node
-	fakeMachineIndexer map[string]mapiv1beta1.Machine
+	fakeMachineIndexer map[string]machinev1.Machine
 }
 
-func newFakeReconciler(client client.Client, machine *mapiv1beta1.Machine, node *corev1.Node) fakeReconciler {
+func newFakeReconciler(client client.Client, machine *machinev1.Machine, node *corev1.Node) fakeReconciler {
 	r := fakeReconciler{
 		ReconcileNodeLink: ReconcileNodeLink{
 			client: client,
 		},
 		fakeNodeIndexer:    make(map[string]corev1.Node),
-		fakeMachineIndexer: make(map[string]mapiv1beta1.Machine),
+		fakeMachineIndexer: make(map[string]machinev1.Machine),
 	}
 	r.listNodesByFieldFunc = func(_, value string) ([]corev1.Node, error) {
 		_, ok := r.fakeNodeIndexer[value]
@@ -129,10 +129,10 @@ func newFakeReconciler(client client.Client, machine *mapiv1beta1.Machine, node 
 		}
 		return nil, nil
 	}
-	r.listMachinesByFieldFunc = func(_, value string) ([]mapiv1beta1.Machine, error) {
+	r.listMachinesByFieldFunc = func(_, value string) ([]machinev1.Machine, error) {
 		_, ok := r.fakeMachineIndexer[value]
 		if ok {
-			return []mapiv1beta1.Machine{r.fakeMachineIndexer[value]}, nil
+			return []machinev1.Machine{r.fakeMachineIndexer[value]}, nil
 		}
 		return nil, nil
 	}
@@ -154,7 +154,7 @@ func (r *fakeReconciler) buildFakeNodeIndexer(nodes ...corev1.Node) {
 	}
 }
 
-func (r *fakeReconciler) buildFakeMachineIndexer(machines ...mapiv1beta1.Machine) {
+func (r *fakeReconciler) buildFakeMachineIndexer(machines ...machinev1.Machine) {
 	for i := range machines {
 		if machines[i].Spec.ProviderID != nil {
 			r.fakeMachineIndexer[*machines[i].Spec.ProviderID] = machines[i]
@@ -167,9 +167,9 @@ func (r *fakeReconciler) buildFakeMachineIndexer(machines ...mapiv1beta1.Machine
 
 func TestFindMachineFromNodeByProviderID(t *testing.T) {
 	testCases := []struct {
-		machine  *mapiv1beta1.Machine
+		machine  *machinev1.Machine
 		node     *corev1.Node
-		expected *mapiv1beta1.Machine
+		expected *machinev1.Machine
 	}{
 		{
 			machine:  machine("noProviderID", "", nil, nil, nil),
@@ -203,9 +203,9 @@ func TestFindMachineFromNodeByProviderID(t *testing.T) {
 
 func TestFindMachineFromNodeByIP(t *testing.T) {
 	testCases := []struct {
-		machine  *mapiv1beta1.Machine
+		machine  *machinev1.Machine
 		node     *corev1.Node
-		expected *mapiv1beta1.Machine
+		expected *machinev1.Machine
 	}{
 		{
 			machine:  machine("noInternalIP", "", nil, nil, nil),
@@ -263,7 +263,7 @@ func TestFindMachineFromNodeByIP(t *testing.T) {
 
 func TestFindNodeFromMachineByProviderID(t *testing.T) {
 	testCases := []struct {
-		machine  *mapiv1beta1.Machine
+		machine  *machinev1.Machine
 		node     *corev1.Node
 		expected *corev1.Node
 	}{
@@ -299,7 +299,7 @@ func TestFindNodeFromMachineByProviderID(t *testing.T) {
 
 func TestFindNodeFromMachineByIP(t *testing.T) {
 	testCases := []struct {
-		machine  *mapiv1beta1.Machine
+		machine  *machinev1.Machine
 		node     *corev1.Node
 		expected *corev1.Node
 	}{
@@ -408,7 +408,7 @@ func TestAddTaintsToNode(t *testing.T) {
 
 func TestNodeRequestFromMachine(t *testing.T) {
 	testCases := []struct {
-		machine  *mapiv1beta1.Machine
+		machine  *machinev1.Machine
 		node     *corev1.Node
 		expected []reconcile.Request
 	}{
@@ -490,7 +490,7 @@ func TestNodeRequestFromMachine(t *testing.T) {
 
 func TestReconcile(t *testing.T) {
 	testCases := []struct {
-		machine            *mapiv1beta1.Machine
+		machine            *machinev1.Machine
 		node               *corev1.Node
 		expected           reconcile.Result
 		expectedError      bool
@@ -714,7 +714,7 @@ func TestIndexMachineByInternalIP(t *testing.T) {
 
 func TestUpdateNodeRef(t *testing.T) {
 	testCases := []struct {
-		machine            *mapiv1beta1.Machine
+		machine            *machinev1.Machine
 		node               *corev1.Node
 		nodeRef            *corev1.ObjectReference
 		nodeReadinessCache map[string]bool
@@ -772,7 +772,7 @@ func TestUpdateNodeRef(t *testing.T) {
 			t.Errorf("unexpected error: %v", err)
 		}
 
-		got := &mapiv1beta1.Machine{}
+		got := &machinev1.Machine{}
 		if err := r.client.Get(
 			context.TODO(),
 			client.ObjectKey{
@@ -813,7 +813,7 @@ func TestFindMachineFromNodeDoesNotPanicBZ1747246(t *testing.T) {
 
 	// Intercept to force a known failure.
 	errmsg := "BZ#1747246"
-	r.listMachinesByFieldFunc = func(key, value string) ([]mapiv1beta1.Machine, error) {
+	r.listMachinesByFieldFunc = func(key, value string) ([]machinev1.Machine, error) {
 		return nil, errors.New(errmsg)
 	}
 

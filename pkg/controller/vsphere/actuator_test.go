@@ -10,8 +10,7 @@ import (
 
 	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
-	machinev1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
-	vsphereapi "github.com/openshift/machine-api-operator/pkg/apis/vsphereprovider/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/vmware/govmomi/simulator"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
@@ -249,9 +248,9 @@ func TestMachineEvents(t *testing.T) {
 			timeout := 10 * time.Second
 			gs := NewWithT(t)
 
-			providerSpec, err := vsphereapi.RawExtensionFromProviderSpec(&vsphereapi.VSphereMachineProviderSpec{
+			providerSpec, err := RawExtensionFromProviderSpec(&machinev1.VSphereMachineProviderSpec{
 				Template: vm.Name,
-				Workspace: &vsphereapi.Workspace{
+				Workspace: &machinev1.Workspace{
 					Server: host,
 				},
 				CredentialsSecret: &corev1.LocalObjectReference{

@@ -19,27 +19,27 @@ package machineset
 import (
 	"context"
 
-	"github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func (c *ReconcileMachineSet) getMachineSetsForMachine(m *v1beta1.Machine) []*v1beta1.MachineSet {
+func (c *ReconcileMachineSet) getMachineSetsForMachine(m *machinev1.Machine) []*machinev1.MachineSet {
 	if len(m.Labels) == 0 {
 		klog.Warningf("No machine sets found for Machine %v because it has no labels", m.Name)
 		return nil
 	}
 
-	msList := &v1beta1.MachineSetList{}
+	msList := &machinev1.MachineSetList{}
 	err := c.Client.List(context.Background(), msList, client.InNamespace(m.Namespace))
 	if err != nil {
 		klog.Errorf("Failed to list machine sets, %v", err)
 		return nil
 	}
 
-	var mss []*v1beta1.MachineSet
+	var mss []*machinev1.MachineSet
 	for idx := range msList.Items {
 		ms := &msList.Items[idx]
 		if hasMatchingLabels(ms, m) {
@@ -50,7 +50,7 @@ func (c *ReconcileMachineSet) getMachineSetsForMachine(m *v1beta1.Machine) []*v1
 	return mss
 }
 
-func hasMatchingLabels(machineSet *v1beta1.MachineSet, machine *v1beta1.Machine) bool {
+func hasMatchingLabels(machineSet *machinev1.MachineSet, machine *machinev1.Machine) bool {
 	selector, err := metav1.LabelSelectorAsSelector(&machineSet.Spec.Selector)
 	if err != nil {
 		klog.Warningf("unable to convert selector: %v", err)

@@ -25,13 +25,15 @@ import (
 	"sync"
 	"time"
 
-	machinev1beta1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/util"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1validation "k8s.io/apimachinery/pkg/apis/meta/v1/validation"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -43,7 +45,7 @@ import (
 )
 
 var (
-	controllerKind = machinev1beta1.SchemeGroupVersion.WithKind("MachineSet")
+	controllerKind = machinev1.SchemeGroupVersion.WithKind("MachineSet")
 
 	// stateConfirmationTimeout is the amount of time allowed to wait for desired state.
 	stateConfirmationTimeout = 10 * time.Second
@@ -78,7 +80,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler, mapFn handler.MapFunc) err
 
 	// Watch for changes to MachineSet.
 	err = c.Watch(
-		&source.Kind{Type: &machinev1beta1.MachineSet{}},
+		&source.Kind{Type: &machinev1.MachineSet{}},
 		&handler.EnqueueRequestForObject{},
 	)
 	if err != nil {
@@ -87,8 +89,8 @@ func add(mgr manager.Manager, r reconcile.Reconciler, mapFn handler.MapFunc) err
 
 	// Map Machine changes to MachineSets using ControllerRef.
 	err = c.Watch(
-		&source.Kind{Type: &machinev1beta1.Machine{}},
-		&handler.EnqueueRequestForOwner{IsController: true, OwnerType: &machinev1beta1.MachineSet{}},
+		&source.Kind{Type: &machinev1.Machine{}},
+		&handler.EnqueueRequestForOwner{IsController: true, OwnerType: &machinev1.MachineSet{}},
 	)
 	if err != nil {
 		return err
@@ -96,7 +98,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler, mapFn handler.MapFunc) err
 
 	// Map Machine changes to MachineSets by machining labels.
 	return c.Watch(
-		&source.Kind{Type: &machinev1beta1.Machine{}},
+		&source.Kind{Type: &machinev1.Machine{}},
 		handler.EnqueueRequestsFromMapFunc(mapFn),
 	)
 }
@@ -110,7 +112,7 @@ type ReconcileMachineSet struct {
 
 func (r *ReconcileMachineSet) MachineToMachineSets(o client.Object) []reconcile.Request {
 	result := []reconcile.Request{}
-	m := &machinev1beta1.Machine{}
+	m := &machinev1.Machine{}
 	key := client.ObjectKey{Namespace: o.GetNamespace(), Name: o.GetName()}
 	err := r.Client.Get(context.Background(), key, m)
 	if err != nil {
@@ -145,7 +147,7 @@ func (r *ReconcileMachineSet) MachineToMachineSets(o client.Object) []reconcile.
 // +kubebuilder:rbac:groups=machine.openshift.io,resources=machines,verbs=get;list;watch;create;update;patch;delete
 func (r *ReconcileMachineSet) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
 	// Fetch the MachineSet instance
-	machineSet := &machinev1beta1.MachineSet{}
+	machineSet := &machinev1.MachineSet{}
 	if err := r.Get(ctx, request.NamespacedName, machineSet); err != nil {
 		if apierrors.IsNotFound(err) {
 			// Object not found, return.  Created objects are automatically garbage collected.
@@ -170,15 +172,15 @@ func (r *ReconcileMachineSet) Reconcile(ctx context.Context, request reconcile.R
 	return result, err
 }
 
-func (r *ReconcileMachineSet) reconcile(ctx context.Context, machineSet *machinev1beta1.MachineSet) (reconcile.Result, error) {
+func (r *ReconcileMachineSet) reconcile(ctx context.Context, machineSet *machinev1.MachineSet) (reconcile.Result, error) {
 	klog.V(4).Infof("Reconcile machineset %v", machineSet.Name)
-	if errList := machineSet.Validate(); len(errList) > 0 {
+	if errList := validateMachineset(machineSet); len(errList) > 0 {
 		err := fmt.Errorf("%q machineset validation failed: %v", machineSet.Name, errList.ToAggregate().Error())
 		klog.Error(err)
 		return reconcile.Result{}, err
 	}
 
-	allMachines := &machinev1beta1.MachineList{}
+	allMachines := &machinev1.MachineList{}
 
 	if err := r.Client.List(context.Background(), allMachines, client.InNamespace(machineSet.Namespace)); err != nil {
 		return reconcile.Result{}, fmt.Errorf("failed to list machines: %w", err)
@@ -197,7 +199,7 @@ func (r *ReconcileMachineSet) reconcile(ctx context.Context, machineSet *machine
 
 	// Filter out irrelevant machines (deleting/mismatch labels) and claim orphaned machines.
 	var machineNames []string
-	machineSetMachines := make(map[string]*machinev1beta1.Machine)
+	machineSetMachines := make(map[string]*machinev1.Machine)
 	for idx := range allMachines.Items {
 		machine := &allMachines.Items[idx]
 		if shouldExcludeMachine(machineSet, machine) {
@@ -217,7 +219,7 @@ func (r *ReconcileMachineSet) reconcile(ctx context.Context, machineSet *machine
 	// sort the filteredMachines from the oldest to the youngest
 	sort.Strings(machineNames)
 
-	var filteredMachines []*machinev1beta1.Machine
+	var filteredMachines []*machinev1.Machine
 	for _, machineName := range machineNames {
 		filteredMachines = append(filteredMachines, machineSetMachines[machineName])
 	}
@@ -263,7 +265,7 @@ func (r *ReconcileMachineSet) reconcile(ctx context.Context, machineSet *machine
 }
 
 // syncReplicas essentially scales machine resources up and down.
-func (r *ReconcileMachineSet) syncReplicas(ms *machinev1beta1.MachineSet, machines []*machinev1beta1.Machine) error {
+func (r *ReconcileMachineSet) syncReplicas(ms *machinev1.MachineSet, machines []*machinev1.Machine) error {
 	if ms.Spec.Replicas == nil {
 		return fmt.Errorf("the Replicas field in Spec for machineset %v is nil, this should not be allowed", ms.Name)
 	}
@@ -275,7 +277,7 @@ func (r *ReconcileMachineSet) syncReplicas(ms *machinev1beta1.MachineSet, machin
 		klog.Infof("Too few replicas for %v %s/%s, need %d, creating %d",
 			controllerKind, ms.Namespace, ms.Name, *(ms.Spec.Replicas), diff)
 
-		var machineList []*machinev1beta1.Machine
+		var machineList []*machinev1.Machine
 		var errstrings []string
 		for i := 0; i < diff; i++ {
 			klog.Infof("Creating machine %d of %d, ( spec.replicas(%d) > currentMachineCount(%d) )",
@@ -313,7 +315,7 @@ func (r *ReconcileMachineSet) syncReplicas(ms *machinev1beta1.MachineSet, machin
 		var wg sync.WaitGroup
 		wg.Add(diff)
 		for _, machine := range machinesToDelete {
-			go func(targetMachine *machinev1beta1.Machine) {
+			go func(targetMachine *machinev1.Machine) {
 				defer wg.Done()
 				err := r.Client.Delete(context.Background(), targetMachine)
 				if err != nil {
@@ -341,9 +343,9 @@ func (r *ReconcileMachineSet) syncReplicas(ms *machinev1beta1.MachineSet, machin
 
 // createMachine creates a machine resource.
 // the name of the newly created resource is going to be created by the API server, we set the generateName field
-func (r *ReconcileMachineSet) createMachine(machineSet *machinev1beta1.MachineSet) *machinev1beta1.Machine {
-	gv := machinev1beta1.SchemeGroupVersion
-	machine := &machinev1beta1.Machine{
+func (r *ReconcileMachineSet) createMachine(machineSet *machinev1.MachineSet) *machinev1.Machine {
+	gv := machinev1.SchemeGroupVersion
+	machine := &machinev1.Machine{
 		TypeMeta: metav1.TypeMeta{
 			Kind:       gv.WithKind("Machine").Kind,
 			APIVersion: gv.String(),
@@ -362,7 +364,7 @@ func (r *ReconcileMachineSet) createMachine(machineSet *machinev1beta1.MachineSe
 }
 
 // shouldExcludeMachine returns true if the machine should be filtered out, false otherwise.
-func shouldExcludeMachine(machineSet *machinev1beta1.MachineSet, machine *machinev1beta1.Machine) bool {
+func shouldExcludeMachine(machineSet *machinev1.MachineSet, machine *machinev1.Machine) bool {
 	// Ignore inactive machines.
 	if metav1.GetControllerOf(machine) != nil && !metav1.IsControlledBy(machine, machineSet) {
 		klog.V(4).Infof("%s not controlled by %v", machine.Name, machineSet.Name)
@@ -380,18 +382,18 @@ func shouldExcludeMachine(machineSet *machinev1beta1.MachineSet, machine *machin
 	return false
 }
 
-func (r *ReconcileMachineSet) adoptOrphan(machineSet *machinev1beta1.MachineSet, machine *machinev1beta1.Machine) error {
+func (r *ReconcileMachineSet) adoptOrphan(machineSet *machinev1.MachineSet, machine *machinev1.Machine) error {
 	newRef := *metav1.NewControllerRef(machineSet, controllerKind)
 	machine.OwnerReferences = append(machine.OwnerReferences, newRef)
 	return r.Client.Update(context.Background(), machine)
 }
 
-func (r *ReconcileMachineSet) waitForMachineCreation(machineList []*machinev1beta1.Machine) error {
+func (r *ReconcileMachineSet) waitForMachineCreation(machineList []*machinev1.Machine) error {
 	for _, machine := range machineList {
 		pollErr := util.PollImmediate(stateConfirmationInterval, stateConfirmationTimeout, func() (bool, error) {
 			key := client.ObjectKey{Namespace: machine.Namespace, Name: machine.Name}
 
-			if err := r.Client.Get(context.Background(), key, &machinev1beta1.Machine{}); err != nil {
+			if err := r.Client.Get(context.Background(), key, &machinev1.Machine{}); err != nil {
 				if apierrors.IsNotFound(err) {
 					return false, nil
 				}
@@ -411,10 +413,10 @@ func (r *ReconcileMachineSet) waitForMachineCreation(machineList []*machinev1bet
 	return nil
 }
 
-func (r *ReconcileMachineSet) waitForMachineDeletion(machineList []*machinev1beta1.Machine) error {
+func (r *ReconcileMachineSet) waitForMachineDeletion(machineList []*machinev1.Machine) error {
 	for _, machine := range machineList {
 		pollErr := util.PollImmediate(stateConfirmationInterval, stateConfirmationTimeout, func() (bool, error) {
-			m := &machinev1beta1.Machine{}
+			m := &machinev1.Machine{}
 			key := client.ObjectKey{Namespace: machine.Namespace, Name: machine.Name}
 
 			err := r.Client.Get(context.Background(), key, m)
@@ -431,4 +433,26 @@ func (r *ReconcileMachineSet) waitForMachineDeletion(machineList []*machinev1bet
 		}
 	}
 	return nil
+}
+
+func validateMachineset(m *machinev1.MachineSet) field.ErrorList {
+	errors := field.ErrorList{}
+
+	// validate spec.selector and spec.template.labels
+	fldPath := field.NewPath("spec")
+	errors = append(errors, metav1validation.ValidateLabelSelector(&m.Spec.Selector, fldPath.Child("selector"))...)
+	if len(m.Spec.Selector.MatchLabels)+len(m.Spec.Selector.MatchExpressions) == 0 {
+		errors = append(errors, field.Invalid(fldPath.Child("selector"), m.Spec.Selector, "empty selector is not valid for MachineSet."))
+	}
+	selector, err := metav1.LabelSelectorAsSelector(&m.Spec.Selector)
+	if err != nil {
+		errors = append(errors, field.Invalid(fldPath.Child("selector"), m.Spec.Selector, "invalid label selector."))
+	} else {
+		labels := labels.Set(m.Spec.Template.Labels)
+		if !selector.Matches(labels) {
+			errors = append(errors, field.Invalid(fldPath.Child("template", "metadata", "labels"), m.Spec.Template.Labels, "`selector` does not match template `labels`"))
+		}
+	}
+
+	return errors
 }

@@ -49,7 +49,7 @@ vendor:
 	$(DOCKER_CMD) ./hack/go-mod.sh
 
 .PHONY: check
-check: lint fmt vet verify-codegen test ## Run code validations
+check: lint fmt vet test ## Run code validations
 
 .PHONY: build
 build: machine-api-operator nodelink-controller machine-healthcheck machineset vsphere ## Build binaries
@@ -73,26 +73,6 @@ vsphere:
 .PHONY: machineset
 machineset:
 	$(DOCKER_CMD) ./hack/go-build.sh machineset
-
-.PHONY: generate
-generate: gen-crd gogen update-codegen goimports
-	./hack/verify-diff.sh
-
-.PHONY: gogen
-gogen:
-	$(DOCKER_CMD) ./hack/go-gen.sh
-
-.PHONY: gen-crd
-gen-crd:
-	$(DOCKER_CMD) ./hack/gen-crd.sh
-
-.PHONY: update-codegen
-update-codegen:
-	$(DOCKER_CMD) ./hack/update-codegen.sh
-
-.PHONY: verify-codegen
-verify-codegen:
-	$(DOCKER_CMD) ./hack/verify-codegen.sh
 
 .PHONY: test-e2e
 test-e2e: ## Run openshift specific e2e tests

@@ -81,10 +81,9 @@ func (optr *Operator) statusProgressing() error {
 
 // statusAvailable sets the Available condition to True, with the given reason
 // and message, and sets both the Progressing and Degraded conditions to False.
-func (optr *Operator) statusAvailable() error {
+func (optr *Operator) statusAvailable(message string) error {
 	conds := []osconfigv1.ClusterOperatorStatusCondition{
-		newClusterOperatorStatusCondition(osconfigv1.OperatorAvailable, osconfigv1.ConditionTrue, string(ReasonAsExpected),
-			fmt.Sprintf("Cluster Machine API Operator is available at %s", optr.printOperandVersions())),
+		newClusterOperatorStatusCondition(osconfigv1.OperatorAvailable, osconfigv1.ConditionTrue, string(ReasonAsExpected), message),
 		newClusterOperatorStatusCondition(osconfigv1.OperatorProgressing, osconfigv1.ConditionFalse, string(ReasonAsExpected), ""),
 		newClusterOperatorStatusCondition(osconfigv1.OperatorDegraded, osconfigv1.ConditionFalse, string(ReasonAsExpected), ""),
 		operatorUpgradeable,

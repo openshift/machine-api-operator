@@ -8,6 +8,7 @@
   "clusterAPIControllerGCP": "quay.io/openshift/origin-gcp-machine-controllers:v4.0.0",
   "clusterAPIControllerOvirt": "quay.io/openshift/origin-ovirt-machine-controllers",
   "clusterAPIControllerVSphere": "docker.io/openshift/origin-machine-api-operator:v4.0.0",
-  "clusterAPIControllerKubevirt": "quay.io/openshift/origin-kubevirt-machine-controllers",
+  "clusterAPIControllerIBMCloud": "quay.io/openshift/origin-ibmcloud-machine-controllers:v4.0.0",
+  "clusterAPIControllerPowerVS": "quay.io/openshift/origin-powervs-machine-controllers:v4.0.0",
   "kubeRBACProxy": "docker.io/openshift/origin-kube-rbac-proxy:v4.0.0"
 }

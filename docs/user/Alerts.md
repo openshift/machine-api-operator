@@ -4,7 +4,7 @@ persisted for 10 minutes or longer.
 
 ### Query
 ```
-# for: 10m
+# for: 60m
 (mapi_machine_created_timestamp_seconds unless on(node) kube_node_info) > 0
 ```
 
@@ -21,7 +21,7 @@ Machine did not reach the “Running” Phase.  Running phase is when the machin
 
 ### Query
 ```
-# for: 10m
+# for: 60m
 (mapi_machine_created_timestamp_seconds{phase!="Running|Deleting"}) > 0
 ```
 
@@ -39,7 +39,7 @@ Machine has been in the "Deleting" phase for a long time. Deleting phase is adde
 ### Query
 ```
 # for: 360m
-(mapi_machine_created_timestamp_seconds{phase="Deleting"}) > 0
+sum by (name, namespace) (avg_over_time(mapi_machine_created_timestamp_seconds{phase="Deleting"}[15m])) > 0
 ```
 
 ### Possible Causes

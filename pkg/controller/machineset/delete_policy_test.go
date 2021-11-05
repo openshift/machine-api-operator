@@ -20,7 +20,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -28,45 +28,45 @@ import (
 func TestMachineToDelete(t *testing.T) {
 	msg := "something wrong with the machine"
 	now := metav1.Now()
-	mustDeleteMachine := &v1beta1.Machine{ObjectMeta: metav1.ObjectMeta{DeletionTimestamp: &now}}
-	betterDeleteMachine := &v1beta1.Machine{Status: v1beta1.MachineStatus{ErrorMessage: &msg}}
-	deleteMeMachine := &v1beta1.Machine{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{DeleteNodeAnnotation: "yes"}}}
-	runningMachine := &v1beta1.Machine{Status: v1beta1.MachineStatus{NodeRef: &corev1.ObjectReference{}}}
-	notYetRunningMachine := &v1beta1.Machine{}
+	mustDeleteMachine := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{DeletionTimestamp: &now}}
+	betterDeleteMachine := &machinev1.Machine{Status: machinev1.MachineStatus{ErrorMessage: &msg}}
+	deleteMeMachine := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{DeleteNodeAnnotation: "yes"}}}
+	runningMachine := &machinev1.Machine{Status: machinev1.MachineStatus{NodeRef: &corev1.ObjectReference{}}}
+	notYetRunningMachine := &machinev1.Machine{}
 
 	tests := []struct {
 		desc     string
-		machines []*v1beta1.Machine
+		machines []*machinev1.Machine
 		diff     int
-		expect   []*v1beta1.Machine
+		expect   []*machinev1.Machine
 	}{
 		{
 			desc: "func=randomDeletePolicy, diff=0",
 			diff: 0,
-			machines: []*v1beta1.Machine{
+			machines: []*machinev1.Machine{
 				runningMachine,
 			},
-			expect: []*v1beta1.Machine{},
+			expect: []*machinev1.Machine{},
 		},
 		{
 			desc: "func=randomDeletePolicy, diff>len(machines)",
 			diff: 2,
-			machines: []*v1beta1.Machine{
+			machines: []*machinev1.Machine{
 				runningMachine,
 			},
-			expect: []*v1beta1.Machine{
+			expect: []*machinev1.Machine{
 				runningMachine,
 			},
 		},
 		{
 			desc: "func=randomDeletePolicy, diff>betterDelete",
 			diff: 2,
-			machines: []*v1beta1.Machine{
+			machines: []*machinev1.Machine{
 				runningMachine,
 				betterDeleteMachine,
 				runningMachine,
 			},
-			expect: []*v1beta1.Machine{
+			expect: []*machinev1.Machine{
 				betterDeleteMachine,
 				runningMachine,
 			},
@@ -74,13 +74,13 @@ func TestMachineToDelete(t *testing.T) {
 		{
 			desc: "func=randomDeletePolicy, diff<betterDelete",
 			diff: 2,
-			machines: []*v1beta1.Machine{
+			machines: []*machinev1.Machine{
 				runningMachine,
 				betterDeleteMachine,
 				betterDeleteMachine,
 				betterDeleteMachine,
 			},
-			expect: []*v1beta1.Machine{
+			expect: []*machinev1.Machine{
 				betterDeleteMachine,
 				betterDeleteMachine,
 			},
@@ -88,13 +88,13 @@ func TestMachineToDelete(t *testing.T) {
 		{
 			desc: "func=randomDeletePolicy, diff<=mustDelete",
 			diff: 2,
-			machines: []*v1beta1.Machine{
+			machines: []*machinev1.Machine{
 				runningMachine,
 				mustDeleteMachine,
 				betterDeleteMachine,
 				mustDeleteMachine,
 			},
-			expect: []*v1beta1.Machine{
+			expect: []*machinev1.Machine{
 				mustDeleteMachine,
 				mustDeleteMachine,
 			},
@@ -102,13 +102,13 @@ func TestMachineToDelete(t *testing.T) {
 		{
 			desc: "func=randomDeletePolicy, diff<=mustDelete+betterDelete",
 			diff: 2,
-			machines: []*v1beta1.Machine{
+			machines: []*machinev1.Machine{
 				runningMachine,
 				mustDeleteMachine,
 				runningMachine,
 				betterDeleteMachine,
 			},
-			expect: []*v1beta1.Machine{
+			expect: []*machinev1.Machine{
 				mustDeleteMachine,
 				betterDeleteMachine,
 			},
@@ -116,12 +116,12 @@ func TestMachineToDelete(t *testing.T) {
 		{
 			desc: "func=randomDeletePolicy, diff<=mustDelete+betterDelete+couldDelete",
 			diff: 2,
-			machines: []*v1beta1.Machine{
+			machines: []*machinev1.Machine{
 				runningMachine,
 				mustDeleteMachine,
 				runningMachine,
 			},
-			expect: []*v1beta1.Machine{
+			expect: []*machinev1.Machine{
 				mustDeleteMachine,
 				runningMachine,
 			},
@@ -129,12 +129,12 @@ func TestMachineToDelete(t *testing.T) {
 		{
 			desc: "func=randomDeletePolicy, diff>betterDelete",
 			diff: 2,
-			machines: []*v1beta1.Machine{
+			machines: []*machinev1.Machine{
 				runningMachine,
 				betterDeleteMachine,
 				runningMachine,
 			},
-			expect: []*v1beta1.Machine{
+			expect: []*machinev1.Machine{
 				betterDeleteMachine,
 				runningMachine,
 			},
@@ -142,25 +142,25 @@ func TestMachineToDelete(t *testing.T) {
 		{
 			desc: "func=randomDeletePolicy, annotated, diff=1",
 			diff: 1,
-			machines: []*v1beta1.Machine{
+			machines: []*machinev1.Machine{
 				runningMachine,
 				deleteMeMachine,
 				runningMachine,
 			},
-			expect: []*v1beta1.Machine{
+			expect: []*machinev1.Machine{
 				deleteMeMachine,
 			},
 		},
 		{
 			desc: "func=randomDeletePolicy, delete non-running hosts first",
 			diff: 3,
-			machines: []*v1beta1.Machine{
+			machines: []*machinev1.Machine{
 				runningMachine,
 				notYetRunningMachine,
 				deleteMeMachine,
 				betterDeleteMachine,
 			},
-			expect: []*v1beta1.Machine{
+			expect: []*machinev1.Machine{
 				deleteMeMachine,
 				betterDeleteMachine,
 				notYetRunningMachine,
@@ -179,60 +179,60 @@ func TestMachineToDelete(t *testing.T) {
 func TestMachineNewestDelete(t *testing.T) {
 
 	currentTime := metav1.Now()
-	statusError := v1beta1.MachineStatusError("I'm unhealthy!")
-	mustDeleteMachine := &v1beta1.Machine{ObjectMeta: metav1.ObjectMeta{DeletionTimestamp: &currentTime}}
-	newest := &v1beta1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -1))}}
-	new := &v1beta1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -5))}}
-	old := &v1beta1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -10))}}
-	oldest := &v1beta1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -10))}}
-	annotatedMachine := &v1beta1.Machine{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{DeleteNodeAnnotation: "yes"}, CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -10))}}
-	unhealthyMachine := &v1beta1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -10))}, Status: v1beta1.MachineStatus{ErrorReason: &statusError}}
+	statusError := machinev1.MachineStatusError("I'm unhealthy!")
+	mustDeleteMachine := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{DeletionTimestamp: &currentTime}}
+	newest := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -1))}}
+	new := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -5))}}
+	old := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -10))}}
+	oldest := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -10))}}
+	annotatedMachine := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{DeleteNodeAnnotation: "yes"}, CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -10))}}
+	unhealthyMachine := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -10))}, Status: machinev1.MachineStatus{ErrorReason: &statusError}}
 
 	tests := []struct {
 		desc     string
-		machines []*v1beta1.Machine
+		machines []*machinev1.Machine
 		diff     int
-		expect   []*v1beta1.Machine
+		expect   []*machinev1.Machine
 	}{
 		{
 			desc: "func=newestDeletePriority, diff=1",
 			diff: 1,
-			machines: []*v1beta1.Machine{
+			machines: []*machinev1.Machine{
 				new, oldest, old, mustDeleteMachine, newest,
 			},
-			expect: []*v1beta1.Machine{mustDeleteMachine},
+			expect: []*machinev1.Machine{mustDeleteMachine},
 		},
 		{
 			desc: "func=newestDeletePriority, diff=2",
 			diff: 2,
-			machines: []*v1beta1.Machine{
+			machines: []*machinev1.Machine{
 				new, oldest, mustDeleteMachine, old, newest,
 			},
-			expect: []*v1beta1.Machine{mustDeleteMachine, newest},
+			expect: []*machinev1.Machine{mustDeleteMachine, newest},
 		},
 		{
 			desc: "func=newestDeletePriority, diff=3",
 			diff: 3,
-			machines: []*v1beta1.Machine{
+			machines: []*machinev1.Machine{
 				new, mustDeleteMachine, oldest, old, newest,
 			},
-			expect: []*v1beta1.Machine{mustDeleteMachine, newest, new},
+			expect: []*machinev1.Machine{mustDeleteMachine, newest, new},
 		},
 		{
 			desc: "func=newestDeletePriority, diff=1 (annotated)",
 			diff: 1,
-			machines: []*v1beta1.Machine{
+			machines: []*machinev1.Machine{
 				new, oldest, old, newest, annotatedMachine,
 			},
-			expect: []*v1beta1.Machine{annotatedMachine},
+			expect: []*machinev1.Machine{annotatedMachine},
 		},
 		{
 			desc: "func=newestDeletePriority, diff=1 (unhealthy)",
 			diff: 1,
-			machines: []*v1beta1.Machine{
+			machines: []*machinev1.Machine{
 				new, oldest, old, newest, unhealthyMachine,
 			},
-			expect: []*v1beta1.Machine{unhealthyMachine},
+			expect: []*machinev1.Machine{unhealthyMachine},
 		},
 	}
 
@@ -247,68 +247,68 @@ func TestMachineNewestDelete(t *testing.T) {
 func TestMachineOldestDelete(t *testing.T) {
 
 	currentTime := metav1.Now()
-	statusError := v1beta1.MachineStatusError("I'm unhealthy!")
-	empty := &v1beta1.Machine{}
-	newest := &v1beta1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -1))}}
-	new := &v1beta1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -5))}}
-	old := &v1beta1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -10))}}
-	oldest := &v1beta1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -10))}}
-	annotatedMachine := &v1beta1.Machine{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{DeleteNodeAnnotation: "yes"}, CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -10))}}
-	unhealthyMachine := &v1beta1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -10))}, Status: v1beta1.MachineStatus{ErrorReason: &statusError}}
+	statusError := machinev1.MachineStatusError("I'm unhealthy!")
+	empty := &machinev1.Machine{}
+	newest := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -1))}}
+	new := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -5))}}
+	old := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -10))}}
+	oldest := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -10))}}
+	annotatedMachine := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{DeleteNodeAnnotation: "yes"}, CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -10))}}
+	unhealthyMachine := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -10))}, Status: machinev1.MachineStatus{ErrorReason: &statusError}}
 
 	tests := []struct {
 		desc     string
-		machines []*v1beta1.Machine
+		machines []*machinev1.Machine
 		diff     int
-		expect   []*v1beta1.Machine
+		expect   []*machinev1.Machine
 	}{
 		{
 			desc: "func=oldestDeletePriority, diff=1",
 			diff: 1,
-			machines: []*v1beta1.Machine{
+			machines: []*machinev1.Machine{
 				empty, new, oldest, old, newest,
 			},
-			expect: []*v1beta1.Machine{oldest},
+			expect: []*machinev1.Machine{oldest},
 		},
 		{
 			desc: "func=oldestDeletePriority, diff=2",
 			diff: 2,
-			machines: []*v1beta1.Machine{
+			machines: []*machinev1.Machine{
 				new, oldest, old, newest, empty,
 			},
-			expect: []*v1beta1.Machine{oldest, old},
+			expect: []*machinev1.Machine{oldest, old},
 		},
 		{
 			desc: "func=oldestDeletePriority, diff=3",
 			diff: 3,
-			machines: []*v1beta1.Machine{
+			machines: []*machinev1.Machine{
 				new, oldest, old, newest, empty,
 			},
-			expect: []*v1beta1.Machine{oldest, old, new},
+			expect: []*machinev1.Machine{oldest, old, new},
 		},
 		{
 			desc: "func=oldestDeletePriority, diff=4",
 			diff: 4,
-			machines: []*v1beta1.Machine{
+			machines: []*machinev1.Machine{
 				new, oldest, old, newest, empty,
 			},
-			expect: []*v1beta1.Machine{oldest, old, new, newest},
+			expect: []*machinev1.Machine{oldest, old, new, newest},
 		},
 		{
 			desc: "func=oldestDeletePriority, diff=1 (annotated)",
 			diff: 1,
-			machines: []*v1beta1.Machine{
+			machines: []*machinev1.Machine{
 				empty, new, oldest, old, newest, annotatedMachine,
 			},
-			expect: []*v1beta1.Machine{annotatedMachine},
+			expect: []*machinev1.Machine{annotatedMachine},
 		},
 		{
 			desc: "func=oldestDeletePriority, diff=1 (unhealthy)",
 			diff: 1,
-			machines: []*v1beta1.Machine{
+			machines: []*machinev1.Machine{
 				empty, new, oldest, old, newest, unhealthyMachine,
 			},
-			expect: []*v1beta1.Machine{unhealthyMachine},
+			expect: []*machinev1.Machine{unhealthyMachine},
 		},
 	}
 

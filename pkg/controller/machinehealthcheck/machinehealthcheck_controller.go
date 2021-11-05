@@ -9,6 +9,11 @@ import (
 	"strings"
 	"time"
 
+	machinev1 "github.com/openshift/api/machine/v1beta1"
+	"github.com/openshift/machine-api-operator/pkg/metrics"
+	"github.com/openshift/machine-api-operator/pkg/util/annotations"
+	"github.com/openshift/machine-api-operator/pkg/util/conditions"
+	"github.com/openshift/machine-api-operator/pkg/util/external"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimachineryerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -28,12 +33,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
-
-	mapiv1 "github.com/openshift/machine-api-operator/pkg/apis/machine/v1beta1"
-	"github.com/openshift/machine-api-operator/pkg/metrics"
-	"github.com/openshift/machine-api-operator/pkg/util/annotations"
-	"github.com/openshift/machine-api-operator/pkg/util/conditions"
-	"github.com/openshift/machine-api-operator/pkg/util/external"
 )
 
 const (
@@ -44,7 +43,7 @@ const (
 	machineMasterRole             = "master"
 	machinePhaseFailed            = "Failed"
 	remediationStrategyAnnotation = "machine.openshift.io/remediation-strategy"
-	remediationStrategyExternal   = mapiv1.RemediationStrategyType("external-baremetal")
+	remediationStrategyExternal   = machinev1.RemediationStrategyType("external-baremetal")
 	defaultNodeStartupTimeout     = 10 * time.Minute
 	machineNodeNameIndex          = "machineNodeNameIndex"
 	controllerName                = "machinehealthcheck-controller"
@@ -71,6 +70,10 @@ const (
 	// EventExternalAnnotationAdded is emitted when external annotation was
 	// successfully added to a Node object
 	EventExternalAnnotationAdded string = "ExternalAnnotationAdded"
+	// PausedAnnotation is an annotation that can be applied to MachineHealthCheck objects to prevent the MHC controller
+	// from processing it.
+	// TODO: move this annotation to the openshift/api package
+	PausedAnnotation = "cluster.x-k8s.io/paused"
 )
 
 var (
@@ -91,7 +94,7 @@ func Add(mgr manager.Manager, opts manager.Options) error {
 // newReconciler returns a new reconcile.Reconciler
 func newReconciler(mgr manager.Manager, opts manager.Options) (*ReconcileMachineHealthCheck, error) {
 	if err := mgr.GetCache().IndexField(context.TODO(),
-		&mapiv1.Machine{},
+		&machinev1.Machine{},
 		machineNodeNameIndex,
 		indexMachineByNodeName,
 	); err != nil {
@@ -107,7 +110,7 @@ func newReconciler(mgr manager.Manager, opts manager.Options) (*ReconcileMachine
 }
 
 func indexMachineByNodeName(object client.Object) []string {
-	machine, ok := object.(*mapiv1.Machine)
+	machine, ok := object.(*machinev1.Machine)
 	if !ok {
 		klog.Warningf("Expected a machine for indexing field, got: %T", object)
 		return nil
@@ -127,12 +130,12 @@ func add(mgr manager.Manager, r reconcile.Reconciler, mapMachineToMHC, mapNodeTo
 		return err
 	}
 
-	err = c.Watch(&source.Kind{Type: &mapiv1.MachineHealthCheck{}}, &handler.EnqueueRequestForObject{})
+	err = c.Watch(&source.Kind{Type: &machinev1.MachineHealthCheck{}}, &handler.EnqueueRequestForObject{})
 	if err != nil {
 		return err
 	}
 
-	err = c.Watch(&source.Kind{Type: &mapiv1.Machine{}}, handler.EnqueueRequestsFromMapFunc(mapMachineToMHC))
+	err = c.Watch(&source.Kind{Type: &machinev1.Machine{}}, handler.EnqueueRequestsFromMapFunc(mapMachineToMHC))
 	if err != nil {
 		return err
 	}
@@ -153,16 +156,16 @@ type ReconcileMachineHealthCheck struct {
 }
 
 type target struct {
-	Machine mapiv1.Machine
+	Machine machinev1.Machine
 	Node    *corev1.Node
-	MHC     mapiv1.MachineHealthCheck
+	MHC     machinev1.MachineHealthCheck
 }
 
 // Reconcile fetch all targets for a MachineHealthCheck request and does health checking for each of them
 func (r *ReconcileMachineHealthCheck) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
 	klog.Infof("Reconciling %s", request.String())
 
-	mhc := &mapiv1.MachineHealthCheck{}
+	mhc := &machinev1.MachineHealthCheck{}
 	if err := r.client.Get(context.TODO(), request.NamespacedName, mhc); err != nil {
 		if apimachineryerrors.IsNotFound(err) {
 			// Request object not found, could have been deleted after reconcile request.
@@ -222,11 +225,11 @@ func (r *ReconcileMachineHealthCheck) Reconcile(ctx context.Context, request rec
 
 		// Remediation not allowed, the number of not started or unhealthy machines exceeds maxUnhealthy
 		mhc.Status.RemediationsAllowed = 0
-		conditions.Set(mhc, &mapiv1.Condition{
-			Type:     mapiv1.RemediationAllowedCondition,
+		conditions.Set(mhc, &machinev1.Condition{
+			Type:     machinev1.RemediationAllowedCondition,
 			Status:   corev1.ConditionFalse,
-			Severity: mapiv1.ConditionSeverityWarning,
-			Reason:   mapiv1.TooManyUnhealthyReason,
+			Severity: machinev1.ConditionSeverityWarning,
+			Reason:   machinev1.TooManyUnhealthyReason,
 			Message:  message,
 		})
 
@@ -255,7 +258,7 @@ func (r *ReconcileMachineHealthCheck) Reconcile(ctx context.Context, request rec
 	)
 	metrics.ObserveMachineHealthCheckShortCircuitDisabled(mhc.Name, mhc.Namespace)
 
-	conditions.MarkTrue(mhc, mapiv1.RemediationAllowedCondition)
+	conditions.MarkTrue(mhc, machinev1.RemediationAllowedCondition)
 	if err := r.reconcileStatus(mergeBase, mhc); err != nil {
 		klog.Errorf("Reconciling %s: error patching status: %v", request.String(), err)
 		return reconcile.Result{}, err
@@ -279,7 +282,7 @@ func (r *ReconcileMachineHealthCheck) Reconcile(ctx context.Context, request rec
 	return reconcile.Result{}, nil
 }
 
-func (r *ReconcileMachineHealthCheck) remediate(ctx context.Context, needRemediationTargets []target, m *mapiv1.MachineHealthCheck) []error {
+func (r *ReconcileMachineHealthCheck) remediate(ctx context.Context, needRemediationTargets []target, m *machinev1.MachineHealthCheck) []error {
 	var errList []error
 	// remediate unhealthy
 	for _, t := range needRemediationTargets {
@@ -300,7 +303,7 @@ func (r *ReconcileMachineHealthCheck) remediate(ctx context.Context, needRemedia
 }
 
 // deletes EMR (External Machine Remediation) for healthy machines
-func (r *ReconcileMachineHealthCheck) cleanEMR(ctx context.Context, currentHealthy []target, m *mapiv1.MachineHealthCheck) {
+func (r *ReconcileMachineHealthCheck) cleanEMR(ctx context.Context, currentHealthy []target, m *machinev1.MachineHealthCheck) {
 	if m.Spec.RemediationTemplate == nil {
 		return
 	}
@@ -325,7 +328,7 @@ func (r *ReconcileMachineHealthCheck) cleanEMR(ctx context.Context, currentHealt
 	}
 }
 
-func (r *ReconcileMachineHealthCheck) externalRemediation(ctx context.Context, m *mapiv1.MachineHealthCheck, t target) error {
+func (r *ReconcileMachineHealthCheck) externalRemediation(ctx context.Context, m *machinev1.MachineHealthCheck, t target) error {
 	klog.V(3).Infof(" %s: start external remediation logic", t.string())
 	re, err := r.externalRemediationRequestExists(ctx, m, t.Machine.Name)
 	if err != nil {
@@ -338,14 +341,14 @@ func (r *ReconcileMachineHealthCheck) externalRemediation(ctx context.Context, m
 	}
 
 	cloneOwnerRef := &metav1.OwnerReference{
-		APIVersion: mapiv1.SchemeGroupVersion.String(),
+		APIVersion: machinev1.SchemeGroupVersion.String(),
 		Kind:       "Machine",
 		Name:       t.Machine.Name,
 		UID:        t.Machine.UID,
 	}
 	from, err := external.Get(ctx, r.client, m.Spec.RemediationTemplate, t.Machine.Namespace)
 	if err != nil {
-		conditions.MarkFalse(m, mapiv1.ExternalRemediationTemplateAvailable, mapiv1.ExternalRemediationTemplateNotFound, mapiv1.ConditionSeverityError, err.Error())
+		conditions.MarkFalse(m, machinev1.ExternalRemediationTemplateAvailable, machinev1.ExternalRemediationTemplateNotFound, machinev1.ConditionSeverityError, err.Error())
 		return fmt.Errorf("error retrieving remediation template %v %q for machine %q in namespace %q: %v", m.Spec.RemediationTemplate.GroupVersionKind(), m.Spec.RemediationTemplate.Name, t.Machine.Name, t.Machine.Namespace, err)
 	}
 
@@ -371,14 +374,14 @@ func (r *ReconcileMachineHealthCheck) externalRemediation(ctx context.Context, m
 	klog.V(3).Infof("Target has failed health check, creating an external remediation request", "remediation request name", to.GetName(), "target", t.string())
 	// Create the external clone.
 	if err := r.client.Create(ctx, to); err != nil {
-		conditions.MarkFalse(m, mapiv1.ExternalRemediationRequestAvailable, mapiv1.ExternalRemediationRequestCreationFailed, mapiv1.ConditionSeverityError, err.Error())
+		conditions.MarkFalse(m, machinev1.ExternalRemediationRequestAvailable, machinev1.ExternalRemediationRequestCreationFailed, machinev1.ConditionSeverityError, err.Error())
 		return fmt.Errorf("error creating remediation request for machine %q in namespace %q: %v", t.Machine.Name, t.Machine.Namespace, err)
 	}
 	return nil
 }
 
 // getExternalRemediationRequest gets reference to External Remediation Request, unstructured object.
-func (r *ReconcileMachineHealthCheck) getExternalRemediationRequest(ctx context.Context, m *mapiv1.MachineHealthCheck, machineName string) (*unstructured.Unstructured, error) {
+func (r *ReconcileMachineHealthCheck) getExternalRemediationRequest(ctx context.Context, m *machinev1.MachineHealthCheck, machineName string) (*unstructured.Unstructured, error) {
 	remediationRef := &corev1.ObjectReference{
 		APIVersion: m.Spec.RemediationTemplate.APIVersion,
 		Kind:       strings.TrimSuffix(m.Spec.RemediationTemplate.Kind, external.TemplateSuffix),
@@ -389,7 +392,7 @@ func (r *ReconcileMachineHealthCheck) getExternalRemediationRequest(ctx context.
 
 // externalRemediationRequestExists checks if the External Remediation Request is created
 // for the machine.
-func (r *ReconcileMachineHealthCheck) externalRemediationRequestExists(ctx context.Context, m *mapiv1.MachineHealthCheck, machineName string) (bool, error) {
+func (r *ReconcileMachineHealthCheck) externalRemediationRequestExists(ctx context.Context, m *machinev1.MachineHealthCheck, machineName string) (bool, error) {
 	remediationReq, err := r.getExternalRemediationRequest(ctx, m, machineName)
 	if err != nil && !apierrors.IsNotFound(err) {
 		return false, err
@@ -397,7 +400,7 @@ func (r *ReconcileMachineHealthCheck) externalRemediationRequestExists(ctx conte
 	return remediationReq != nil, nil
 }
 
-func isAllowedRemediation(mhc *mapiv1.MachineHealthCheck) bool {
+func isAllowedRemediation(mhc *machinev1.MachineHealthCheck) bool {
 	maxUnhealthy, err := getMaxUnhealthy(mhc)
 	if err != nil {
 		return false
@@ -407,7 +410,7 @@ func isAllowedRemediation(mhc *mapiv1.MachineHealthCheck) bool {
 	return unhealthyMachineCount(mhc) <= maxUnhealthy
 }
 
-func getMaxUnhealthy(mhc *mapiv1.MachineHealthCheck) (int, error) {
+func getMaxUnhealthy(mhc *machinev1.MachineHealthCheck) (int, error) {
 	if mhc.Spec.MaxUnhealthy == nil {
 		// This value should be defaulted, but if not, 100% is the default
 		return derefInt(mhc.Status.ExpectedMachines), nil
@@ -427,7 +430,7 @@ func getMaxUnhealthy(mhc *mapiv1.MachineHealthCheck) (int, error) {
 
 // unhealthyMachineCount calculates the number of presently unhealthy or missing machines
 // ie the delta between the expected number of machines and the current number deemed healthy
-func unhealthyMachineCount(mhc *mapiv1.MachineHealthCheck) int {
+func unhealthyMachineCount(mhc *machinev1.MachineHealthCheck) int {
 	return derefInt(mhc.Status.ExpectedMachines) - derefInt(mhc.Status.CurrentHealthy)
 }
 
@@ -438,7 +441,7 @@ func derefInt(i *int) int {
 	return 0
 }
 
-func (r *ReconcileMachineHealthCheck) reconcileStatus(baseToPatch client.Patch, mhc *mapiv1.MachineHealthCheck) error {
+func (r *ReconcileMachineHealthCheck) reconcileStatus(baseToPatch client.Patch, mhc *machinev1.MachineHealthCheck) error {
 	maxUnhealthy, err := getMaxUnhealthy(mhc)
 	if err != nil {
 		return fmt.Errorf("failed to get value for maxUnhealthy: %v", err)
@@ -498,7 +501,7 @@ func (r *ReconcileMachineHealthCheck) healthCheckTargets(targets []target, timeo
 	return currentHealthy, needRemediationTargets, nextCheckTimes, errList
 }
 
-func (r *ReconcileMachineHealthCheck) getTargetsFromMHC(mhc mapiv1.MachineHealthCheck) ([]target, error) {
+func (r *ReconcileMachineHealthCheck) getTargetsFromMHC(mhc machinev1.MachineHealthCheck) ([]target, error) {
 	machines, err := r.getMachinesFromMHC(mhc)
 	if err != nil {
 		return nil, fmt.Errorf("error getting machines from MHC: %v", err)
@@ -528,7 +531,7 @@ func (r *ReconcileMachineHealthCheck) getTargetsFromMHC(mhc mapiv1.MachineHealth
 	return targets, nil
 }
 
-func (r *ReconcileMachineHealthCheck) getMachinesFromMHC(mhc mapiv1.MachineHealthCheck) ([]mapiv1.Machine, error) {
+func (r *ReconcileMachineHealthCheck) getMachinesFromMHC(mhc machinev1.MachineHealthCheck) ([]machinev1.Machine, error) {
 	selector, err := metav1.LabelSelectorAsSelector(&mhc.Spec.Selector)
 	if err != nil {
 		return nil, fmt.Errorf("failed to build selector")
@@ -538,15 +541,15 @@ func (r *ReconcileMachineHealthCheck) getMachinesFromMHC(mhc mapiv1.MachineHealt
 		LabelSelector: selector,
 		Namespace:     mhc.GetNamespace(),
 	}
-	machineList := &mapiv1.MachineList{}
+	machineList := &machinev1.MachineList{}
 	if err := r.client.List(context.Background(), machineList, &options); err != nil {
 		return nil, fmt.Errorf("failed to list machines: %v", err)
 	}
 	return machineList.Items, nil
 }
 
-func (r *ReconcileMachineHealthCheck) getMachineFromNode(nodeName string) (*mapiv1.Machine, error) {
-	machineList := &mapiv1.MachineList{}
+func (r *ReconcileMachineHealthCheck) getMachineFromNode(nodeName string) (*machinev1.Machine, error) {
+	machineList := &machinev1.MachineList{}
 	if err := r.client.List(
 		context.TODO(),
 		machineList,
@@ -578,7 +581,7 @@ func (r *ReconcileMachineHealthCheck) mhcRequestsFromNode(o client.Object) []rec
 		return nil
 	}
 
-	mhcList := &mapiv1.MachineHealthCheckList{}
+	mhcList := &machinev1.MachineHealthCheckList{}
 	if err := r.client.List(context.Background(), mhcList); err != nil {
 		klog.Errorf("No-op: Unable to list mhc: %v", err)
 		return nil
@@ -596,7 +599,7 @@ func (r *ReconcileMachineHealthCheck) mhcRequestsFromNode(o client.Object) []rec
 
 func (r *ReconcileMachineHealthCheck) mhcRequestsFromMachine(o client.Object) []reconcile.Request {
 	klog.V(4).Infof("Getting MHC requests from machine %q", namespacedName(o).String())
-	machine := &mapiv1.Machine{}
+	machine := &machinev1.Machine{}
 	if err := r.client.Get(context.Background(),
 		client.ObjectKey{
 			Namespace: o.GetNamespace(),
@@ -608,7 +611,7 @@ func (r *ReconcileMachineHealthCheck) mhcRequestsFromMachine(o client.Object) []
 		return nil
 	}
 
-	mhcList := &mapiv1.MachineHealthCheckList{}
+	mhcList := &machinev1.MachineHealthCheckList{}
 	if err := r.client.List(context.Background(), mhcList); err != nil {
 		klog.Errorf("No-op: Unable to list mhc: %v", err)
 		return nil
@@ -627,7 +630,7 @@ func (r *ReconcileMachineHealthCheck) internalRemediation(t target) error {
 	klog.Infof(" %s: start remediation logic", t.string())
 	if derefStringPointer(t.Machine.Status.Phase) != machinePhaseFailed {
 		if remediationStrategy, ok := t.MHC.Annotations[remediationStrategyAnnotation]; ok {
-			if mapiv1.RemediationStrategyType(remediationStrategy) == remediationStrategyExternal {
+			if machinev1.RemediationStrategyType(remediationStrategy) == remediationStrategyExternal {
 				return t.remediationStrategyExternal(r)
 			}
 		}
@@ -646,7 +649,7 @@ func (r *ReconcileMachineHealthCheck) internalRemediation(t target) error {
 	}
 
 	key := client.ObjectKey{Namespace: t.Machine.Namespace, Name: t.Machine.Name}
-	machine := &mapiv1.Machine{}
+	machine := &machinev1.Machine{}
 	if err := r.client.Get(context.TODO(), key, machine); err != nil {
 		if apimachineryerrors.IsNotFound(err) {
 			// Machine has already been deleted
@@ -717,7 +720,7 @@ func (t *target) remediationStrategyExternal(r *ReconcileMachineHealthCheck) err
 	return nil
 }
 
-func externalRemediationAnnotationExists(machine *mapiv1.Machine) bool {
+func externalRemediationAnnotationExists(machine *machinev1.Machine) bool {
 	if machine.Annotations == nil {
 		return false
 	}
@@ -725,7 +728,7 @@ func externalRemediationAnnotationExists(machine *mapiv1.Machine) bool {
 	return externalRemediation
 }
 
-func (r *ReconcileMachineHealthCheck) getNodeFromMachine(machine mapiv1.Machine) (*corev1.Node, error) {
+func (r *ReconcileMachineHealthCheck) getNodeFromMachine(machine machinev1.Machine) (*corev1.Node, error) {
 	if machine.Status.NodeRef == nil {
 		return nil, nil
 	}
@@ -857,7 +860,7 @@ func namespacedName(obj metav1.Object) types.NamespacedName {
 	}
 }
 
-func hasMatchingLabels(machineHealthCheck *mapiv1.MachineHealthCheck, machine *mapiv1.Machine) bool {
+func hasMatchingLabels(machineHealthCheck *machinev1.MachineHealthCheck, machine *machinev1.Machine) bool {
 	selector, err := metav1.LabelSelectorAsSelector(&machineHealthCheck.Spec.Selector)
 	if err != nil {
 		klog.Warningf("unable to convert selector: %v", err)
