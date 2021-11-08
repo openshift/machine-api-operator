@@ -23,6 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 const (
@@ -56,19 +57,19 @@ var (
 	}
 )
 
-func (optr *Operator) syncAll(config *OperatorConfig) error {
+func (optr *Operator) syncAll(config *OperatorConfig) (reconcile.Result, error) {
 	if err := optr.statusProgressing(); err != nil {
 		klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
-		return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
+		return reconcile.Result{}, fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
 	}
 
 	if config.Controllers.Provider == clusterAPIControllerNoOp {
 		klog.V(3).Info("Provider is NoOp, skipping synchronisation")
 		if err := optr.statusAvailable(operatorStatusNoOpMessage); err != nil {
 			klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
-			return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
+			return reconcile.Result{}, fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
 		}
-		return nil
+		return reconcile.Result{}, nil
 	}
 
 	errors := []error{}
@@ -96,7 +97,7 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 			klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
 		}
 		klog.Errorf("Error syncing machine controller components: %v", err)
-		return err
+		return reconcile.Result{}, err
 	}
 
 	if err := optr.waitForRollout(config); err != nil {
@@ -106,7 +107,7 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 			klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
 		}
 		klog.Errorf("Error waiting for resource to sync: %v", err)
-		return err
+		return reconcile.Result{}, err
 	}
 
 	klog.V(3).Info("Synced up all machine API webhook configurations")
@@ -114,9 +115,9 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 	message := fmt.Sprintf("Cluster Machine API Operator is available at %s", optr.printOperandVersions())
 	if err := optr.statusAvailable(message); err != nil {
 		klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
-		return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
+		return reconcile.Result{}, fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
 	}
-	return nil
+	return reconcile.Result{}, nil
 }
 
 func (optr *Operator) waitForRollout(config *OperatorConfig) error {

@@ -25,6 +25,7 @@ import (
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 const (
@@ -49,7 +50,7 @@ type Operator struct {
 	dynamicClient dynamic.Interface
 	eventRecorder record.EventRecorder
 
-	syncHandler func(ic string) error
+	syncHandler func(ic string) (reconcile.Result, error)
 
 	deployLister       appslisterv1.DeploymentLister
 	deployListerSynced cache.InformerSynced
@@ -284,30 +285,39 @@ func (optr *Operator) processNextWorkItem() bool {
 	defer optr.queue.Done(key)
 
 	klog.V(4).Infof("Processing key %s", key)
-	err := optr.syncHandler(key.(string))
-	optr.handleErr(err, key)
+	result, err := optr.syncHandler(key.(string))
+	optr.handleSyncResult(result, err, key)
 
 	return true
 }
 
-func (optr *Operator) handleErr(err error, key interface{}) {
-	if err == nil {
-		optr.queue.Forget(key)
-		return
-	}
-
-	if optr.queue.NumRequeues(key) < maxRetries {
+func (optr *Operator) handleSyncResult(result reconcile.Result, err error, key interface{}) {
+	switch {
+	case err != nil && optr.queue.NumRequeues(key) < maxRetries:
 		klog.V(1).Infof("Error syncing operator %v: %v", key, err)
 		optr.queue.AddRateLimited(key)
-		return
+	case err != nil:
+		// We've gone over max retries, don't try again
+		utilruntime.HandleError(err)
+		klog.V(1).Infof("Dropping operator %q out of the queue: %v", key, err)
+		optr.queue.Forget(key)
+	case result.RequeueAfter > 0:
+		// The result.RequeueAfter request will be lost, if it is returned
+		// along with a non-nil error. But this is intended as
+		// We need to drive to stable reconcile loops before queuing due
+		// to result.RequestAfter
+		optr.queue.Forget(key)
+		optr.queue.AddAfter(key, result.RequeueAfter)
+	case result.Requeue:
+		optr.queue.AddRateLimited(key)
+	default:
+		// Finally, if no error occurs we Forget this item so it does not
+		// get queued again until another change happens.
+		optr.queue.Forget(key)
 	}
-
-	utilruntime.HandleError(err)
-	klog.V(1).Infof("Dropping operator %q out of the queue: %v", key, err)
-	optr.queue.Forget(key)
 }
 
-func (optr *Operator) sync(key string) error {
+func (optr *Operator) sync(key string) (reconcile.Result, error) {
 	startTime := time.Now()
 	klog.V(4).Infof("Started syncing operator %q (%v)", key, startTime)
 	defer func() {
@@ -317,7 +327,7 @@ func (optr *Operator) sync(key string) error {
 	operatorConfig, err := optr.maoConfigFromInfrastructure()
 	if err != nil {
 		klog.Errorf("Failed getting operator config: %v", err)
-		return err
+		return reconcile.Result{}, err
 	}
 	return optr.syncAll(operatorConfig)
 }
