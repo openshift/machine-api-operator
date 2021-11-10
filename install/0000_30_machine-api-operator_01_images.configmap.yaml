@@ -20,5 +20,6 @@ data:
       "clusterAPIControllerGCP": "registry.svc.ci.openshift.org/openshift:gcp-machine-controllers",
       "clusterAPIControllerIBMCloud": "registry.svc.ci.openshift.org/openshift:ibmcloud-machine-controllers",
       "clusterAPIControllerOvirt": "registry.svc.ci.openshift.org/openshift:ovirt-machine-controllers",
+      "clusterAPIControllerPowerVS": "registry.svc.ci.openshift.org/openshift:powervs-machine-controllers",
       "clusterAPIControllerVSphere": "registry.svc.ci.openshift.org/openshift:machine-api-operator"
     }
