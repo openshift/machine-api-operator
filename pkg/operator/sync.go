@@ -20,17 +20,14 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 const (
-	deploymentRolloutPollInterval       = time.Second
-	deploymentRolloutTimeout            = 5 * time.Minute
+	checkStatusRequeuePeriod            = 5 * time.Second
 	deploymentMinimumAvailabilityTime   = 3 * time.Minute
-	daemonsetRolloutPollInterval        = time.Second
-	daemonsetRolloutTimeout             = 5 * time.Minute
 	machineAPITerminationHandler        = "machine-api-termination-handler"
 	machineExposeMetricsPort            = 8441
 	machineSetExposeMetricsPort         = 8442
@@ -56,19 +53,19 @@ var (
 	}
 )
 
-func (optr *Operator) syncAll(config *OperatorConfig) error {
+func (optr *Operator) syncAll(config *OperatorConfig) (reconcile.Result, error) {
 	if err := optr.statusProgressing(); err != nil {
 		klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
-		return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
+		return reconcile.Result{}, fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
 	}
 
 	if config.Controllers.Provider == clusterAPIControllerNoOp {
 		klog.V(3).Info("Provider is NoOp, skipping synchronisation")
 		if err := optr.statusAvailable(operatorStatusNoOpMessage); err != nil {
 			klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
-			return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
+			return reconcile.Result{}, fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
 		}
-		return nil
+		return reconcile.Result{}, nil
 	}
 
 	errors := []error{}
@@ -96,42 +93,56 @@ func (optr *Operator) syncAll(config *OperatorConfig) error {
 			klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
 		}
 		klog.Errorf("Error syncing machine controller components: %v", err)
-		return err
+		return reconcile.Result{}, err
 	}
 
-	if err := optr.waitForRollout(config); err != nil {
+	result, err := optr.checkRolloutStatus(config)
+	if err != nil {
 		if err := optr.statusDegraded(err.Error()); err != nil {
 			// Just log the error here.  We still want to
 			// return the outer error.
 			klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
 		}
 		klog.Errorf("Error waiting for resource to sync: %v", err)
-		return err
+		return reconcile.Result{}, err
+	}
+	if result.Requeue || result.RequeueAfter > 0 {
+		// The deployment is not yet rolled out, do not set the status to available yet
+		return result, nil
 	}
 
-	klog.V(3).Info("Synced up all machine API webhook configurations")
+	klog.V(3).Info("Synced up all machine API configurations")
 
 	message := fmt.Sprintf("Cluster Machine API Operator is available at %s", optr.printOperandVersions())
 	if err := optr.statusAvailable(message); err != nil {
 		klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
-		return fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
+		return reconcile.Result{}, fmt.Errorf("error syncing ClusterOperatorStatus: %v", err)
 	}
-	return nil
+	return reconcile.Result{}, nil
 }
 
-func (optr *Operator) waitForRollout(config *OperatorConfig) error {
-	// Wait for machine-controllers deployment
-	if err := optr.waitForDeploymentRollout(newDeployment(config, nil), deploymentRolloutPollInterval, deploymentRolloutTimeout); err != nil {
-		return err
+func (optr *Operator) checkRolloutStatus(config *OperatorConfig) (reconcile.Result, error) {
+	// Check for machine-controllers deployment
+	result, err := optr.checkDeploymentRolloutStatus(newDeployment(config, nil))
+	if err != nil {
+		return reconcile.Result{}, err
 	}
+	if result.Requeue || result.RequeueAfter > 0 {
+		return result, nil
+	}
+
 	if config.Controllers.TerminationHandler != clusterAPIControllerNoOp {
-		// Wait for termination handler
-		if err := optr.waitForDaemonSetRollout(newTerminationDaemonSet(config)); err != nil {
-			return err
+		// Check for termination handler
+		result, err := optr.checkDaemonSetRolloutStatus(newTerminationDaemonSet(config))
+		if err != nil {
+			return reconcile.Result{}, err
+		}
+		if result.Requeue || result.RequeueAfter > 0 {
+			return result, nil
 		}
 	}
 
-	return nil
+	return reconcile.Result{}, nil
 }
 
 func (optr *Operator) syncClusterAPIController(config *OperatorConfig) error {
@@ -212,92 +223,64 @@ func (optr *Operator) syncMutatingWebhook() error {
 	return nil
 }
 
-func (optr *Operator) waitForDeploymentRollout(resource *appsv1.Deployment, pollInterval, rolloutTimeout time.Duration) error {
-	var lastError error
-	err := wait.Poll(pollInterval, rolloutTimeout, func() (bool, error) {
-		d, err := optr.deployLister.Deployments(resource.Namespace).Get(resource.Name)
-		if apierrors.IsNotFound(err) {
-			lastError = fmt.Errorf("deployment %s is not found", resource.Name)
-			klog.Error(lastError)
-			return false, nil
-		}
-		if err != nil {
-			// Do not return error here, as we could be updating the API Server itself, in which case we
-			// want to continue waiting.
-			lastError = fmt.Errorf("getting Deployment %s during rollout: %v", resource.Name, err)
-			klog.Error(lastError)
-			return false, nil
-		}
-
-		if d.DeletionTimestamp != nil {
-			lastError = nil
-			return false, fmt.Errorf("deployment %s is being deleted", resource.Name)
-		}
-
-		if d.Generation <= d.Status.ObservedGeneration && d.Status.UpdatedReplicas == d.Status.Replicas && d.Status.UnavailableReplicas == 0 {
-			c := conditions.GetDeploymentCondition(d, appsv1.DeploymentAvailable)
-			if c == nil {
-				lastError = fmt.Errorf("deployment %s is not reporting available yet", resource.Name)
-				klog.V(4).Info(lastError)
-				return false, nil
-			}
-			if c.Status == corev1.ConditionFalse {
-				lastError = fmt.Errorf("deployment %s is reporting available=false", resource.Name)
-				klog.V(4).Info(lastError)
-				return false, nil
-			}
-			if c.LastTransitionTime.Time.Add(deploymentMinimumAvailabilityTime).After(time.Now()) {
-				lastError = fmt.Errorf("deployment %s has been available for less than 3 min", resource.Name)
-				klog.V(4).Info(lastError)
-				return false, nil
-			}
-
-			lastError = nil
-			return true, nil
-		}
-
-		lastError = fmt.Errorf("deployment %s is not ready. status: (replicas: %d, updated: %d, ready: %d, unavailable: %d)", d.Name, d.Status.Replicas, d.Status.UpdatedReplicas, d.Status.ReadyReplicas, d.Status.UnavailableReplicas)
-		klog.V(4).Info(lastError)
-		return false, nil
-	})
-	if lastError != nil {
-		return lastError
+func (optr *Operator) checkDeploymentRolloutStatus(resource *appsv1.Deployment) (reconcile.Result, error) {
+	d, err := optr.kubeClient.AppsV1().Deployments(resource.Namespace).Get(context.Background(), resource.Name, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return reconcile.Result{}, fmt.Errorf("deployment %s is not found", resource.Name)
 	}
-	return err
+	if err != nil {
+		return reconcile.Result{}, fmt.Errorf("getting Deployment %s during rollout: %v", resource.Name, err)
+	}
+
+	if d.DeletionTimestamp != nil {
+		return reconcile.Result{}, fmt.Errorf("deployment %s is being deleted", resource.Name)
+	}
+
+	if d.Generation > d.Status.ObservedGeneration || d.Status.UpdatedReplicas != d.Status.Replicas || d.Status.UnavailableReplicas > 0 {
+		klog.V(3).Infof("deployment %s is not ready. status: (replicas: %d, updated: %d, ready: %d, unavailable: %d)", d.Name, d.Status.Replicas, d.Status.UpdatedReplicas, d.Status.ReadyReplicas, d.Status.UnavailableReplicas)
+		return reconcile.Result{Requeue: true, RequeueAfter: checkStatusRequeuePeriod}, nil
+	}
+
+	c := conditions.GetDeploymentCondition(d, appsv1.DeploymentAvailable)
+	if c == nil {
+		klog.V(3).Infof("deployment %s is not reporting available yet", resource.Name)
+		return reconcile.Result{Requeue: true, RequeueAfter: checkStatusRequeuePeriod}, nil
+	}
+
+	if c.Status == corev1.ConditionFalse {
+		klog.V(3).Infof("deployment %s is reporting available=false", resource.Name)
+		return reconcile.Result{Requeue: true, RequeueAfter: checkStatusRequeuePeriod}, nil
+	}
+
+	if c.LastTransitionTime.Time.Add(deploymentMinimumAvailabilityTime).After(time.Now()) {
+		klog.V(3).Infof("deployment %s has been available for less than %s", resource.Name, deploymentMinimumAvailabilityTime)
+		// Requeue at the deploymentMinimumAvailabilityTime mark so we don't spam retries
+		nextCheck := c.LastTransitionTime.Time.Add(deploymentMinimumAvailabilityTime).Sub(time.Now())
+		return reconcile.Result{Requeue: true, RequeueAfter: nextCheck}, nil
+	}
+
+	return reconcile.Result{}, nil
 }
 
-func (optr *Operator) waitForDaemonSetRollout(resource *appsv1.DaemonSet) error {
-	var lastError error
-	err := wait.Poll(daemonsetRolloutPollInterval, daemonsetRolloutTimeout, func() (bool, error) {
-		d, err := optr.daemonsetLister.DaemonSets(resource.Namespace).Get(resource.Name)
-		if apierrors.IsNotFound(err) {
-			return false, nil
-		}
-		if err != nil {
-			// Do not return error here, as we could be updating the API Server itself, in which case we
-			// want to continue waiting.
-			lastError = fmt.Errorf("getting DaemonSet %s during rollout: %v", resource.Name, err)
-			klog.Error(lastError)
-			return false, nil
-		}
-
-		if d.DeletionTimestamp != nil {
-			lastError = nil
-			return false, fmt.Errorf("daemonset %s is being deleted", resource.Name)
-		}
-
-		if d.Generation <= d.Status.ObservedGeneration && d.Status.UpdatedNumberScheduled == d.Status.DesiredNumberScheduled && d.Status.NumberUnavailable == 0 {
-			lastError = nil
-			return true, nil
-		}
-		lastError = fmt.Errorf("daemonset %s is not ready. status: (desired: %d, updated: %d, available: %d, unavailable: %d)", d.Name, d.Status.DesiredNumberScheduled, d.Status.UpdatedNumberScheduled, d.Status.NumberAvailable, d.Status.NumberUnavailable)
-		klog.V(4).Info(lastError)
-		return false, nil
-	})
-	if lastError != nil {
-		return lastError
+func (optr *Operator) checkDaemonSetRolloutStatus(resource *appsv1.DaemonSet) (reconcile.Result, error) {
+	d, err := optr.kubeClient.AppsV1().DaemonSets(resource.Namespace).Get(context.Background(), resource.Name, metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return reconcile.Result{}, fmt.Errorf("daemonset %s is not found", resource.Name)
 	}
-	return err
+	if err != nil {
+		return reconcile.Result{}, fmt.Errorf("getting DaemonSet %s during rollout: %v", resource.Name, err)
+	}
+
+	if d.DeletionTimestamp != nil {
+		return reconcile.Result{}, fmt.Errorf("daemonset %s is being deleted", resource.Name)
+	}
+
+	if d.Generation > d.Status.ObservedGeneration || d.Status.UpdatedNumberScheduled != d.Status.DesiredNumberScheduled || d.Status.NumberUnavailable > 0 {
+		klog.V(3).Infof("daemonset %s is not ready. status: (desired: %d, updated: %d, available: %d, unavailable: %d)", d.Name, d.Status.DesiredNumberScheduled, d.Status.UpdatedNumberScheduled, d.Status.NumberAvailable, d.Status.NumberUnavailable)
+		return reconcile.Result{Requeue: true, RequeueAfter: checkStatusRequeuePeriod}, nil
+	}
+
+	return reconcile.Result{}, nil
 }
 
 func newDeployment(config *OperatorConfig, features map[string]bool) *appsv1.Deployment {

@@ -1,7 +1,6 @@
 package operator
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -13,11 +12,13 @@ import (
 	"k8s.io/apimachinery/pkg/util/diff"
 )
 
-func TestWaitForDeploymentRollout(t *testing.T) {
+func TestCheckDeploymentRolloutStatus(t *testing.T) {
 	testCases := []struct {
-		name       string
-		deployment *appsv1.Deployment
-		expected   error
+		name                 string
+		deployment           *appsv1.Deployment
+		expectedError        error
+		expectedRequeue      bool
+		expectedRequeueAfter time.Duration
 	}{
 		{
 			name: "Deployment is available for more than deploymentMinimumAvailabilityTime min",
@@ -45,7 +46,9 @@ func TestWaitForDeploymentRollout(t *testing.T) {
 					},
 				},
 			},
-			expected: nil,
+			expectedError:        nil,
+			expectedRequeue:      false,
+			expectedRequeueAfter: 0,
 		},
 		{
 			name: "Deployment is available for less than deploymentMinimumAvailabilityTime min",
@@ -73,7 +76,9 @@ func TestWaitForDeploymentRollout(t *testing.T) {
 					},
 				},
 			},
-			expected: fmt.Errorf("deployment test has been available for less than 3 min"),
+			expectedError:        nil,
+			expectedRequeue:      true,
+			expectedRequeueAfter: 170 * time.Second,
 		},
 		{
 			name: "Deployment has unavailable replicas",
@@ -101,7 +106,9 @@ func TestWaitForDeploymentRollout(t *testing.T) {
 					},
 				},
 			},
-			expected: fmt.Errorf("deployment test is not ready. status: (replicas: 1, updated: 1, ready: 1, unavailable: 1)"),
+			expectedError:        nil,
+			expectedRequeue:      true,
+			expectedRequeueAfter: 5 * time.Second,
 		},
 	}
 
@@ -109,13 +116,20 @@ func TestWaitForDeploymentRollout(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			optr := newFakeOperator([]runtime.Object{tc.deployment}, nil, make(<-chan struct{}))
 
-			got := optr.waitForDeploymentRollout(tc.deployment, 1*time.Second, 3*time.Second)
-			if tc.expected != nil {
-				if tc.expected.Error() != got.Error() {
-					t.Errorf("Got: %v, expected: %v", got, tc.expected)
+			result, gotErr := optr.checkDeploymentRolloutStatus(tc.deployment)
+			if tc.expectedError != nil && gotErr != nil {
+				if tc.expectedError.Error() != gotErr.Error() {
+					t.Errorf("Got error: %v, expected: %v", gotErr, tc.expectedError)
 				}
-			} else if tc.expected != got {
-				t.Errorf("Got: %v, expected: %v", got, tc.expected)
+			} else if tc.expectedError != gotErr {
+				t.Errorf("Got error: %v, expected: %v", gotErr, tc.expectedError)
+			}
+
+			if tc.expectedRequeue != result.Requeue {
+				t.Errorf("Got requeue: %v, expected: %v", result.Requeue, tc.expectedRequeue)
+			}
+			if tc.expectedRequeueAfter != result.RequeueAfter.Round(time.Second) {
+				t.Errorf("Got requeueAfter: %v, expected: %v", result.RequeueAfter.Round(time.Second), tc.expectedRequeueAfter)
 			}
 		})
 	}
