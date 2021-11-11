@@ -3,7 +3,7 @@ DBG         ?= 0
 VERSION     ?= $(shell git describe --always --abbrev=7)
 MUTABLE_TAG ?= latest
 IMAGE        = $(REGISTRY)machine-api-operator
-BUILD_IMAGE ?= openshift/origin-release:golang-1.16
+BUILD_IMAGE ?= registry.ci.openshift.org/openshift/release:golang-1.17
 
 # Enable go modules and vendoring
 # https://github.com/golang/go/wiki/Modules#how-to-install-and-activate-module-support
