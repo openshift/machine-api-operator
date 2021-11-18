@@ -87,12 +87,6 @@ test-e2e-tech-preview: ## Run openshift specific e2e tech preview tests
 test-sec:
 	$(DOCKER_CMD) hack/gosec.sh ./...
 
-.PHONY: deploy-kubemark
-deploy-kubemark:
-	kustomize build config | kubectl apply -f -
-	kustomize build | kubectl apply -f -
-	kubectl apply -f config/kubemark-config-infra.yaml
-
 .PHONY: test
 test: ## Run tests
 	@echo -e "\033[32mTesting...\033[0m"
