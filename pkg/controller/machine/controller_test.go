@@ -136,6 +136,98 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 	}
+	machineDeletingPreDrainHook := machinev1.Machine{
+		TypeMeta: metav1.TypeMeta{
+			Kind: "Machine",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "delete-predrain",
+			Namespace:         "default",
+			Finalizers:        []string{machinev1.MachineFinalizer, metav1.FinalizerDeleteDependents},
+			DeletionTimestamp: &time,
+			Labels: map[string]string{
+				machinev1.MachineClusterIDLabel: "testcluster",
+			},
+		},
+		Spec: machinev1.MachineSpec{
+			LifecycleHooks: machinev1.LifecycleHooks{
+				PreDrain: []machinev1.LifecycleHook{
+					{
+						Name:  "protect-from-drain",
+						Owner: "machine-api-tests",
+					},
+				},
+			},
+			ProviderSpec: machinev1.ProviderSpec{
+				Value: &runtime.RawExtension{
+					Raw: []byte("{}"),
+				},
+			},
+		},
+		Status: machinev1.MachineStatus{
+			NodeRef: &corev1.ObjectReference{
+				Name: "a node",
+			},
+		},
+	}
+	machineDeletingPreDrainHookWithoutNode := machinev1.Machine{
+		TypeMeta: metav1.TypeMeta{
+			Kind: "Machine",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "delete-predrain-without-node",
+			Namespace:         "default",
+			Finalizers:        []string{machinev1.MachineFinalizer, metav1.FinalizerDeleteDependents},
+			DeletionTimestamp: &time,
+			Labels: map[string]string{
+				machinev1.MachineClusterIDLabel: "testcluster",
+			},
+		},
+		Spec: machinev1.MachineSpec{
+			LifecycleHooks: machinev1.LifecycleHooks{
+				PreDrain: []machinev1.LifecycleHook{
+					{
+						Name:  "protect-from-drain",
+						Owner: "machine-api-tests",
+					},
+				},
+			},
+			ProviderSpec: machinev1.ProviderSpec{
+				Value: &runtime.RawExtension{
+					Raw: []byte("{}"),
+				},
+			},
+		},
+	}
+	machineDeletingPreTerminateHook := machinev1.Machine{
+		TypeMeta: metav1.TypeMeta{
+			Kind: "Machine",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "delete-preterminate",
+			Namespace:         "default",
+			Finalizers:        []string{machinev1.MachineFinalizer, metav1.FinalizerDeleteDependents},
+			DeletionTimestamp: &time,
+			Labels: map[string]string{
+				machinev1.MachineClusterIDLabel: "testcluster",
+			},
+		},
+		Spec: machinev1.MachineSpec{
+			LifecycleHooks: machinev1.LifecycleHooks{
+				PreTerminate: []machinev1.LifecycleHook{
+					{
+						Name:  "protect-from-terminate",
+						Owner: "machine-api-tests",
+					},
+				},
+			},
+			ProviderSpec: machinev1.ProviderSpec{
+				Value: &runtime.RawExtension{
+					Raw: []byte("{}"),
+				},
+			},
+		},
+	}
 	machineFailed := machinev1.Machine{
 		TypeMeta: metav1.TypeMeta{
 			Kind: "Machine",
@@ -278,6 +370,45 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		{
+			request:     reconcile.Request{NamespacedName: types.NamespacedName{Name: machineDeletingPreDrainHook.Name, Namespace: machineDeletingPreDrainHook.Namespace}},
+			existsValue: true,
+			expected: expected{
+				createCallCount: 0,
+				existCallCount:  0,
+				updateCallCount: 0,
+				deleteCallCount: 0,
+				result:          reconcile.Result{},
+				error:           false,
+				phase:           phaseDeleting,
+			},
+		},
+		{
+			request:     reconcile.Request{NamespacedName: types.NamespacedName{Name: machineDeletingPreDrainHookWithoutNode.Name, Namespace: machineDeletingPreDrainHookWithoutNode.Namespace}},
+			existsValue: true,
+			expected: expected{
+				createCallCount: 0,
+				existCallCount:  1,
+				updateCallCount: 0,
+				deleteCallCount: 1,
+				result:          reconcile.Result{RequeueAfter: requeueAfter},
+				error:           false,
+				phase:           phaseDeleting,
+			},
+		},
+		{
+			request:     reconcile.Request{NamespacedName: types.NamespacedName{Name: machineDeletingPreTerminateHook.Name, Namespace: machineDeletingPreTerminateHook.Namespace}},
+			existsValue: true,
+			expected: expected{
+				createCallCount: 0,
+				existCallCount:  0,
+				updateCallCount: 0,
+				deleteCallCount: 0,
+				result:          reconcile.Result{},
+				error:           false,
+				phase:           phaseDeleting,
+			},
+		},
+		{
 			request:     reconcile.Request{NamespacedName: types.NamespacedName{Name: machineFailed.Name, Namespace: machineFailed.Namespace}},
 			existsValue: false,
 			expected: expected{
@@ -316,6 +447,9 @@ func TestReconcileRequest(t *testing.T) {
 					&machineProvisioning,
 					&machineProvisioned,
 					&machineDeleting,
+					&machineDeletingPreDrainHook,
+					&machineDeletingPreDrainHookWithoutNode,
+					&machineDeletingPreTerminateHook,
 					&machineFailed,
 					&machineRunning,
 				),

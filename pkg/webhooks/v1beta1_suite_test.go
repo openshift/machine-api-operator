@@ -20,6 +20,7 @@ import (
 	"context"
 	"crypto/tls"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -39,6 +40,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 )
 
+const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+
 var (
 	cfg                *rest.Config
 	c                  client.Client
@@ -51,6 +54,7 @@ var (
 			},
 		},
 	}
+	seededRand *rand.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
 )
 
 func TestMain(m *testing.M) {
@@ -124,6 +128,15 @@ func machineFuzzerFuncs(codecs runtimeserializer.CodecFactory) []interface{} {
 			}
 			if len(j.ObjectMeta.Annotations) == 0 {
 				j.ObjectMeta.Annotations = nil
+			}
+
+			// Fuzz LifecycleHooks using custom fuzzer
+			c.Fuzz(&j.LifecycleHooks)
+			if len(j.LifecycleHooks.PreDrain) == 0 {
+				j.LifecycleHooks.PreDrain = nil
+			}
+			if len(j.LifecycleHooks.PreTerminate) == 0 {
+				j.LifecycleHooks.PreTerminate = nil
 			}
 
 			// Ensure slices are nil if they are empty
@@ -218,5 +231,26 @@ func machineFuzzerFuncs(codecs runtimeserializer.CodecFactory) []interface{} {
 			// Fuzz the Spec
 			c.Fuzz(&j.Spec)
 		},
+		// Fuzzer for LifecycleHook to ensure field patterns are adhered to
+		func(j *machinev1.LifecycleHook, c fuzz.Continue) {
+			c.FuzzNoCustom(j)
+
+			j.Name = randString()
+			j.Owner = randString()
+		},
 	}
+}
+
+func randString() string {
+	// Generate a random string with length [3,20]
+	// Note a zero length string is not allowed.
+	return stringWithCharset(seededRand.Intn(18)+3, alphabet)
+}
+
+func stringWithCharset(length int, charset string) string {
+	b := make([]byte, length)
+	for i := range b {
+		b[i] = charset[seededRand.Intn(len(charset))]
+	}
+	return string(b)
 }
