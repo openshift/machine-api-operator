@@ -1,11 +1,3 @@
-
-#
-# Directories.
-#
-BIN_DIR := bin
-TOOLS_DIR := hack/tools
-TOOLS_BIN_DIR := $(TOOLS_DIR)/$(BIN_DIR)
-
 #
 # Build.
 #
@@ -63,10 +55,10 @@ export KUBEBUILDER_CONTROLPLANE_STOP_TIMEOUT ?= 60s
 #
 # Binaries.
 #
-SETUP_ENVTEST := $(abspath $(TOOLS_BIN_DIR)/setup-envtest)
+SETUP_ENVTEST := setup-envtest
 
-$(SETUP_ENVTEST): $(TOOLS_DIR)/go.mod # Build setup-envtest from tools folder.
-	cd $(TOOLS_DIR); go build -tags=tools -mod=readonly -o $(BIN_DIR)/setup-envtest sigs.k8s.io/controller-runtime/tools/setup-envtest
+$(SETUP_ENVTEST):
+	go install -mod=readonly sigs.k8s.io/controller-runtime/tools/setup-envtest@latest
 
 # race tests need CGO_ENABLED, everything else should have it disabled
 CGO_ENABLED = 0
