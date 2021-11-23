@@ -2323,6 +2323,15 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 			expectedOk:       true,
 			expectedWarnings: []string{"providerSpec.diskGiB: 0 is missing or less than the recommended minimum (120): nodes may fail to start if disk size is too low"},
 		},
+		{
+			testCase: "linked clone mode and disk size warning",
+			modifySpec: func(p *machinev1.VSphereMachineProviderSpec) {
+				p.DiskGiB = 100500
+				p.CloneMode = machinev1.LinkedClone
+			},
+			expectedOk:       true,
+			expectedWarnings: []string{"linkedClone clone mode is set. DiskGiB parameter will be ignored, disk size from template will be used."},
+		},
 	}
 
 	secret := &corev1.Secret{

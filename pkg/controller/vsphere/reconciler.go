@@ -548,12 +548,18 @@ func clone(s *machineScope) (string, error) {
 		return "", handleVSphereError(multipleFoundMsg, notFoundMsg, defaultError, err)
 	}
 
+	// Default clone type is FullClone, having snapshot on clonee template will cause incorrect disk sizing.
+	diskMoveType := fullCloneDiskMoveType
 	var snapshotRef *types.ManagedObjectReference
 
 	// If a linked clone is requested then a MoRef for a snapshot must be
 	// found with which to perform the linked clone.
-	// Empty clone mode is linked clone
-	if s.providerSpec.CloneMode == "" || s.providerSpec.CloneMode == machinev1.LinkedClone {
+	// Empty clone mode is a full clone,
+	// because otherwise disk size from provider spec will not be respected.
+	if s.providerSpec.CloneMode == machinev1.LinkedClone {
+		if s.providerSpec.DiskGiB > 0 {
+			klog.Warningf("LinkedClone mode is set. Disk size parameter from ProviderSpec will be ignored")
+		}
 		if s.providerSpec.Snapshot == "" {
 			klog.V(3).Infof("%v: no snapshot name provided, getting snapshot using template", s.machine.GetName())
 			var vm mo.VirtualMachine
@@ -569,17 +575,14 @@ func clone(s *machineScope) (string, error) {
 			var err error
 			snapshotRef, err = vmTemplate.FindSnapshot(s.Context, s.providerSpec.Snapshot)
 			if err != nil {
-				klog.V(3).Infof("%v: failed to find snapshot %s", s.machine.GetName(), s.providerSpec.Snapshot)
+				// Maybe return an error there?
+				klog.V(3).Infof("%v: failed to find snapshot %s, fallback to FullClone", s.machine.GetName(), s.providerSpec.Snapshot)
 			}
 		}
-	}
 
-	// The type of clone operation depends on whether or not there is a snapshot
-	// from which to do a linked clone.
-	diskMoveType := fullCloneDiskMoveType
-	if snapshotRef != nil {
-		// TODO: write clone mode to status
-		diskMoveType = linkCloneDiskMoveType
+		if snapshotRef != nil {
+			diskMoveType = linkCloneDiskMoveType
+		}
 	}
 
 	var folderPath, datastorePath, resourcepoolPath string
