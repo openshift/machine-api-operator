@@ -1400,17 +1400,32 @@ func TestDelete(t *testing.T) {
 				t.Errorf("expected error on the first call to delete")
 			}
 
-			moTask, err := reconciler.session.GetTask(reconciler.Context, reconciler.providerStatus.TaskRef)
+			powerOffTask, err := reconciler.session.GetTask(reconciler.Context, reconciler.providerStatus.TaskRef)
 			if err != nil {
 				if !isRetrieveMONotFound(reconciler.providerStatus.TaskRef, err) {
 					t.Fatal(err)
 				}
 			}
-			if moTask.Info.DescriptionId != "VirtualMachine.destroy" {
-				t.Errorf("task description expected: VirtualMachine.destroy, got: %v", moTask.Info.DescriptionId)
+			// first run should schedule power off
+			if powerOffTask.Info.DescriptionId != "VirtualMachine.powerOff" {
+				t.Errorf("task description expected: VirtualMachine.powerOff, got: %v", powerOffTask.Info.DescriptionId)
 			}
 
-			// expect the second call to not find the vm and succeed
+			if err := reconciler.delete(); err == nil {
+				t.Errorf("expected error on the second call to delete")
+			}
+			destroyTask, err := reconciler.session.GetTask(reconciler.Context, reconciler.providerStatus.TaskRef)
+			if err != nil {
+				if !isRetrieveMONotFound(reconciler.providerStatus.TaskRef, err) {
+					t.Fatal(err)
+				}
+			}
+			// second run should destroy vm
+			if destroyTask.Info.DescriptionId != "VirtualMachine.destroy" {
+				t.Errorf("task description expected: VirtualMachine.destroy, got: %v", destroyTask.Info.DescriptionId)
+			}
+
+			// expect the third call to not find the vm and succeed
 			if err := reconciler.delete(); err != nil {
 				t.Errorf("unexpected error: %v", err)
 			}
