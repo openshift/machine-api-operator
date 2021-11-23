@@ -1,3 +1,14 @@
+
+#
+# Directories.
+#
+BIN_DIR := bin
+TOOLS_DIR := hack/tools
+TOOLS_BIN_DIR := $(TOOLS_DIR)/$(BIN_DIR)
+
+#
+# Build.
+#
 DBG         ?= 0
 #REGISTRY    ?= quay.io/openshift/
 VERSION     ?= $(shell git describe --always --abbrev=7)
@@ -16,9 +27,6 @@ export GOFLAGS
 ifeq ($(DBG),1)
 GOGCFLAGS ?= -gcflags=all="-N -l"
 endif
-
-.PHONY: all
-all: check build test
 
 NO_DOCKER ?= 0
 
@@ -44,6 +52,28 @@ else
   # DOCKER_CMD := $(ENGINE) run --env GO111MODULE=$(GO111MODULE) --env GOFLAGS=$(GOFLAGS) --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z -w /go/src/github.com/openshift/machine-api-operator registry.ci.openshift.org/ocp/builder:rhel-8-golang-1.17-openshift-4.10
   IMAGE_BUILD_CMD = $(ENGINE) build
 endif
+
+#
+# Kubebuilder.
+#
+export KUBEBUILDER_ENVTEST_KUBERNETES_VERSION ?= 1.22.0
+export KUBEBUILDER_CONTROLPLANE_START_TIMEOUT ?= 60s
+export KUBEBUILDER_CONTROLPLANE_STOP_TIMEOUT ?= 60s
+
+#
+# Binaries.
+#
+SETUP_ENVTEST := $(abspath $(TOOLS_BIN_DIR)/setup-envtest)
+
+$(SETUP_ENVTEST): $(TOOLS_DIR)/go.mod # Build setup-envtest from tools folder.
+	cd $(TOOLS_DIR); go build -tags=tools -mod=readonly -o $(BIN_DIR)/setup-envtest sigs.k8s.io/controller-runtime/tools/setup-envtest
+
+# race tests need CGO_ENABLED, everything else should have it disabled
+CGO_ENABLED = 0
+unit : CGO_ENABLED = 1
+
+.PHONY: all
+all: check build test
 
 .PHONY: vendor
 vendor:
@@ -98,8 +128,10 @@ test: ## Run tests
 	@echo -e "\033[32mTesting...\033[0m"
 	$(DOCKER_CMD) hack/ci-test.sh
 
-unit:
-	$(DOCKER_CMD) go test ./pkg/... ./cmd/...
+KUBEBUILDER_ASSETS ?= $(shell $(SETUP_ENVTEST) use --use-env -p path $(KUBEBUILDER_ENVTEST_KUBERNETES_VERSION))
+
+unit: $(SETUP_ENVTEST) # Run unit test
+	KUBEBUILDER_ASSETS="$(KUBEBUILDER_ASSETS)" $(DOCKER_CMD) go test -race -cover ./cmd/... ./pkg/... $(TEST_ARGS)
 
 .PHONY: image
 image: ## Build docker image

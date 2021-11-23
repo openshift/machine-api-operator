@@ -18,6 +18,12 @@ set -o errexit
 set -o nounset
 set -o pipefail
 
+# Ensure that some home var is set and that it's not the root
+export HOME=${HOME:=/tmp/kubebuilder-testing}
+if [ $HOME == "/" ]; then
+  export HOME=/tmp/kubebuilder-testing
+fi
+
 REPO_ROOT=$(dirname "${BASH_SOURCE}")/..
 
 OPENSHIFT_CI=${OPENSHIFT_CI:-""}
@@ -29,7 +35,7 @@ function runTestsCI() {
     JUNIT_LOCATION="$ARTIFACT_DIR"/junit_machine_api_operator.xml
     echo "jUnit location: $JUNIT_LOCATION"
     go install -mod= github.com/jstemmer/go-junit-report@latest
-    go test -v ./pkg/... ./cmd/... | tee >(go-junit-report > "$JUNIT_LOCATION")
+    TEST_ARGS=-v make unit | tee >(go-junit-report > "$JUNIT_LOCATION")
   else
     echo "\$ARTIFACT_DIR not set or does not exists, no jUnit will be published"
     make unit
@@ -38,9 +44,6 @@ function runTestsCI() {
 
 
 cd $REPO_ROOT && \
-  source ./hack/fetch_ext_bins.sh && \
-  fetch_tools && \
-  setup_envs && \
 if [ "$OPENSHIFT_CI" == "true" ]; then # detect ci environment there
   runTestsCI
 else
