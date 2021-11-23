@@ -624,6 +624,11 @@ func TestGetNetworkDevices(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	resourcePool, err := session.Finder.DefaultResourcePool(context.TODO())
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	testCases := []struct {
 		testCase     string
 		providerSpec *machinev1.VSphereMachineProviderSpec
@@ -676,7 +681,7 @@ func TestGetNetworkDevices(t *testing.T) {
 				providerSpec: tc.providerSpec,
 				session:      session,
 			}
-			networkDevices, err := getNetworkDevices(machineScope, devices)
+			networkDevices, err := getNetworkDevices(machineScope, resourcePool, devices)
 			if err != nil {
 				t.Fatal(err)
 			}
