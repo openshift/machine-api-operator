@@ -48,7 +48,9 @@ const (
 
 // vSphere tasks description IDs, for determinate task types (clone, delete, etc)
 const (
-	cloneVmTaskDescriptionId = "VirtualMachine.clone"
+	cloneVmTaskDescriptionId    = "VirtualMachine.clone"
+	destroyVmTaskDescriptionId  = "VirtualMachine.destroy"
+	powerOffVmTaskDescriptionId = "VirtualMachine.powerOff"
 )
 
 // Reconciler runs the logic to reconciles a machine resource towards its desired state

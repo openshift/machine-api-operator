@@ -1407,8 +1407,8 @@ func TestDelete(t *testing.T) {
 				}
 			}
 			// first run should schedule power off
-			if powerOffTask.Info.DescriptionId != "VirtualMachine.powerOff" {
-				t.Errorf("task description expected: VirtualMachine.powerOff, got: %v", powerOffTask.Info.DescriptionId)
+			if powerOffTask.Info.DescriptionId != powerOffVmTaskDescriptionId {
+				t.Errorf("task description expected: %v, got: %v", powerOffVmTaskDescriptionId, powerOffTask.Info.DescriptionId)
 			}
 
 			if err := reconciler.delete(); err == nil {
@@ -1421,8 +1421,8 @@ func TestDelete(t *testing.T) {
 				}
 			}
 			// second run should destroy vm
-			if destroyTask.Info.DescriptionId != "VirtualMachine.destroy" {
-				t.Errorf("task description expected: VirtualMachine.destroy, got: %v", destroyTask.Info.DescriptionId)
+			if destroyTask.Info.DescriptionId != destroyVmTaskDescriptionId {
+				t.Errorf("task description expected: %v, got: %v", destroyVmTaskDescriptionId, destroyTask.Info.DescriptionId)
 			}
 
 			// expect the third call to not find the vm and succeed
