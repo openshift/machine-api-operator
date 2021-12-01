@@ -21,9 +21,11 @@ Have a question? See our [Frequently Asked Questions](FAQ.md) for common inquiri
 
 - MachineSet Controller
 
-Ensure presence of expected number of replicas and a given provider config for a set of machines.
+  Ensure presence of expected number of replicas and a given provider config for a set of machines.
 
 - Machine Controller
+
+  Ensure that a provider instance is created for a Machine object in a given provider.
 
   - [cluster-api-provider-aws](https://github.com/openshift/cluster-api-provider-aws)
 
@@ -39,17 +41,14 @@ Ensure presence of expected number of replicas and a given provider config for a
 
   - [cluster-api-provider-ovirt](https://github.com/openshift/cluster-api-provider-ovirt)
 
-Ensure that a provider instance is created for a Machine object in a given provider.
-
 - Node link Controller
 
-Ensure machines have a nodeRef based on IPs or providerID matching.
-Annotate nodes with a label containing the machine name.
-
+  Ensure machines have a nodeRef based on IPs or providerID matching.
+  Annotate nodes with a label containing the machine name.
 
 - Machine healthcheck controller
 
-Ensure machines targeted by MachineHealthCheck objects satisfy a healthiness criteria or are remediated otherwise.
+  Ensure machines targeted by MachineHealthCheck objects satisfy a healthiness criteria or are remediated otherwise.
 
 ## Creating machines
 
