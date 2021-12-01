@@ -737,13 +737,21 @@ func getNetworkDevices(s *machineScope, resourcepool *object.ResourcePool, devic
 		}
 
 		for _, netRef := range ccrMo.Network {
-			netObj := object.NewNetwork(s.GetSession().Client.Client, netRef)
-			networkName, err := netObj.ObjectName(s.Context)
+			// Use generic network object to get name
+			genericNetwork := object.NewNetwork(s.GetSession().Client.Client, netRef)
+			networkName, err := genericNetwork.ObjectName(s.Context)
 			if err != nil {
 				return nil, fmt.Errorf("unable to get network name: %w", err)
 			}
 			if netSpec.NetworkName == networkName {
-				backing, err = netObj.EthernetCardBackingInfo(s.Context)
+				// Use more specific network reference to get Ethernet info
+				ref := object.NewReference(s.GetSession().Client.Client, netRef)
+				networkObject, ok := ref.(object.NetworkReference)
+				if !ok {
+					return nil, fmt.Errorf("unable to create new ethernet card backing info for network %q: network type failure: %s", netSpec.NetworkName, ref.Reference().Type)
+				}
+
+				backing, err = networkObject.EthernetCardBackingInfo(s.Context)
 				if err != nil {
 					return nil, fmt.Errorf("unable to create new ethernet card backing info for network %q: %w", netSpec.NetworkName, err)
 				}
