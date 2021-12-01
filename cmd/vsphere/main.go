@@ -15,6 +15,7 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/metrics"
 	"github.com/openshift/machine-api-operator/pkg/util"
 	"github.com/openshift/machine-api-operator/pkg/version"
+	mapiwebhooks "github.com/openshift/machine-api-operator/pkg/webhooks"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
@@ -23,6 +24,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+)
+
+const (
+	defaultWebhookPort    = 8443
+	defaultWebhookCertdir = "/etc/machine-api-operator/tls"
 )
 
 func main() {
@@ -73,6 +79,16 @@ func main() {
 		":9440",
 		"The address for health checking.",
 	)
+
+	webhookEnabled := flag.Bool("webhook-enabled", true,
+		"Webhook server, enabled by default. When enabled, the manager will run a webhook server.")
+
+	webhookPort := flag.Int("webhook-port", defaultWebhookPort,
+		"Webhook Server port, only used when webhook-enabled is true.")
+
+	webhookCertdir := flag.String("webhook-cert-dir", defaultWebhookCertdir,
+		"Webhook cert dir, only used when webhook-enabled is true.")
+
 	flag.Parse()
 
 	if printVersion {
@@ -109,6 +125,18 @@ func main() {
 	mgr, err := manager.New(cfg, opts)
 	if err != nil {
 		klog.Fatalf("Failed to set up overall controller manager: %v", err)
+	}
+
+	if *webhookEnabled {
+		if err := mapiwebhooks.RegisterWebhooks(&mapiwebhooks.MAPIWebhookConfig{
+			Mgr:          mgr,
+			Port:         *webhookPort,
+			CertDir:      *webhookCertdir,
+			DefaultingFn: machine.DefaultVSphere,
+			ValidatingFn: machine.ValidateVSphere,
+		}); err != nil {
+			klog.Fatalf("Failed to register webhooks: %v", err)
+		}
 	}
 
 	// Create a taskIDCache for create task IDs in case they are lost due to

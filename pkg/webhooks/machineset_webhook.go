@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"reflect"
 
-	osconfigv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -33,50 +32,21 @@ type machineSetDefaulterHandler struct {
 	*admissionHandler
 }
 
-// NewMachineSetValidator returns a new machineSetValidatorHandler.
-func NewMachineSetValidator(client client.Client) (*machineSetValidatorHandler, error) {
-	infra, err := getInfra()
-	if err != nil {
-		return nil, err
-	}
-
-	dns, err := getDNS()
-	if err != nil {
-		return nil, err
-	}
-
-	return createMachineSetValidator(infra, client, dns), nil
-}
-
-func createMachineSetValidator(infra *osconfigv1.Infrastructure, client client.Client, dns *osconfigv1.DNS) *machineSetValidatorHandler {
-	admissionConfig := &admissionConfig{
-		dnsDisconnected: dns.Spec.PublicZone == nil,
-		clusterID:       infra.Status.InfrastructureName,
-		client:          client,
-	}
+func NewMachineSetValidator(client client.Client, admissionFn MachineAdmissionFn) *machineSetValidatorHandler {
 	return &machineSetValidatorHandler{
 		admissionHandler: &admissionHandler{
-			admissionConfig:   admissionConfig,
-			webhookOperations: getMachineValidatorOperation(infra.Status.PlatformStatus.Type),
+			client:            client,
+			webhookOperations: admissionFn,
 		},
 	}
 }
 
-// NewMachineSetDefaulter returns a new machineSetDefaulterHandler.
-func NewMachineSetDefaulter() (*machineSetDefaulterHandler, error) {
-	infra, err := getInfra()
-	if err != nil {
-		return nil, err
-	}
-
-	return createMachineSetDefaulter(infra.Status.PlatformStatus, infra.Status.InfrastructureName), nil
-}
-
-func createMachineSetDefaulter(platformStatus *osconfigv1.PlatformStatus, clusterID string) *machineSetDefaulterHandler {
+// NewMachineDefaulter returns a new machineDefaulterHandler.
+func NewMachineSetDefaulter(client client.Client, admissionFn MachineAdmissionFn) *machineSetDefaulterHandler {
 	return &machineSetDefaulterHandler{
 		admissionHandler: &admissionHandler{
-			admissionConfig:   &admissionConfig{clusterID: clusterID},
-			webhookOperations: getMachineDefaulterOperation(platformStatus),
+			client:            client,
+			webhookOperations: admissionFn,
 		},
 	}
 }
@@ -142,7 +112,7 @@ func (h *machineSetValidatorHandler) validateMachineSet(ms, oldMS *machinev1.Mac
 		},
 		Spec: ms.Spec.Template.Spec,
 	}
-	ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
+	ok, warnings, err := h.webhookOperations(m, h.client)
 	if !ok {
 		errs = append(errs, err.Errors()...)
 	}
@@ -156,7 +126,7 @@ func (h *machineSetValidatorHandler) validateMachineSet(ms, oldMS *machinev1.Mac
 func (h *machineSetDefaulterHandler) defaultMachineSet(ms *machinev1.MachineSet) (bool, []string, utilerrors.Aggregate) {
 	// Create a Machine from the MachineSet and default the Machine template
 	m := &machinev1.Machine{Spec: ms.Spec.Template.Spec}
-	ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
+	ok, warnings, err := h.webhookOperations(m, h.client)
 	if !ok {
 		return false, warnings, utilerrors.NewAggregate(err.Errors())
 	}

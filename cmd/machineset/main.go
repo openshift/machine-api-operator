@@ -29,7 +29,6 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/controller/machineset"
 	"github.com/openshift/machine-api-operator/pkg/metrics"
 	"github.com/openshift/machine-api-operator/pkg/util"
-	mapiwebhooks "github.com/openshift/machine-api-operator/pkg/webhooks"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/klog/v2"
@@ -37,12 +36,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
-	"sigs.k8s.io/controller-runtime/pkg/webhook"
-)
-
-const (
-	defaultWebhookPort    = 8443
-	defaultWebhookCertdir = "/etc/machine-api-operator/tls"
 )
 
 func main() {
@@ -57,15 +50,6 @@ func main() {
 	watchNamespace := flag.String("namespace", "",
 		"Namespace that the controller watches to reconcile cluster-api objects. If unspecified, the controller watches for cluster-api objects across all namespaces.")
 	metricsAddress := flag.String("metrics-bind-address", metrics.DefaultMachineSetMetricsAddress, "Address for hosting metrics")
-
-	webhookEnabled := flag.Bool("webhook-enabled", true,
-		"Webhook server, enabled by default. When enabled, the manager will run a webhook server.")
-
-	webhookPort := flag.Int("webhook-port", defaultWebhookPort,
-		"Webhook Server port, only used when webhook-enabled is true.")
-
-	webhookCertdir := flag.String("webhook-cert-dir", defaultWebhookCertdir,
-		"Webhook cert dir, only used when webhook-enabled is true.")
 
 	healthAddr := flag.String(
 		"health-addr",
@@ -127,36 +111,6 @@ func main() {
 	mgr, err := manager.New(cfg, opts)
 	if err != nil {
 		log.Fatal(err)
-	}
-
-	// Enable defaulting and validating webhooks
-	machineDefaulter, err := mapiwebhooks.NewMachineDefaulter()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	machineValidator, err := mapiwebhooks.NewMachineValidator(mgr.GetClient())
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	machineSetDefaulter, err := mapiwebhooks.NewMachineSetDefaulter()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	machineSetValidator, err := mapiwebhooks.NewMachineSetValidator(mgr.GetClient())
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	if *webhookEnabled {
-		mgr.GetWebhookServer().Port = *webhookPort
-		mgr.GetWebhookServer().CertDir = *webhookCertdir
-		mgr.GetWebhookServer().Register(mapiwebhooks.DefaultMachineMutatingHookPath, &webhook.Admission{Handler: machineDefaulter})
-		mgr.GetWebhookServer().Register(mapiwebhooks.DefaultMachineValidatingHookPath, &webhook.Admission{Handler: machineValidator})
-		mgr.GetWebhookServer().Register(mapiwebhooks.DefaultMachineSetMutatingHookPath, &webhook.Admission{Handler: machineSetDefaulter})
-		mgr.GetWebhookServer().Register(mapiwebhooks.DefaultMachineSetValidatingHookPath, &webhook.Admission{Handler: machineSetValidator})
 	}
 
 	log.Printf("Registering Components.")
