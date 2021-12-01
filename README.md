@@ -41,12 +41,12 @@ Have a question? See our [Frequently Asked Questions](FAQ.md) for common inquiri
 
   - [cluster-api-provider-ovirt](https://github.com/openshift/cluster-api-provider-ovirt)
 
-- Node link Controller
+- Nodelink Controller
 
   Ensure machines have a nodeRef based on IPs or providerID matching.
   Annotate nodes with a label containing the machine name.
 
-- Machine healthcheck controller
+- MachineHealthCheck Controller
 
   Ensure machines targeted by MachineHealthCheck objects satisfy a healthiness criteria or are remediated otherwise.
 
