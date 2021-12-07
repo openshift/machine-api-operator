@@ -338,6 +338,11 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 		return nil, err
 	}
 
+	featureGate, err := optr.osClient.ConfigV1().FeatureGates().Get(context.Background(), "cluster", metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+
 	provider, err := getProviderFromInfrastructure(infra)
 	if err != nil {
 		return nil, err
@@ -348,7 +353,7 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 		return nil, err
 	}
 
-	providerControllerImage, err := getProviderControllerFromImages(provider, *images)
+	providerControllerImage, err := getProviderControllerFromImages(provider, featureGate, *images)
 	if err != nil {
 		return nil, err
 	}
