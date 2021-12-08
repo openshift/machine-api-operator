@@ -95,6 +95,7 @@ const (
 	// https://releases-art-rhcos.svc.ci.openshift.org/art/storage/releases/rhcos-4.8/48.83.202103122318-0/x86_64/meta.json
 	// https://github.com/openshift/installer/blob/796a99049d3b7489b6c08ec5bd7c7983731afbcf/data/data/rhcos.json#L90-L94
 	defaultGCPDiskImage = "projects/rhcos-cloud/global/images/rhcos-48-83-202103221318-0-gcp-x86-64"
+	defaultGCPGPUCount  = 1
 
 	// vSphere Defaults
 	defaultVSphereCredentialsSecret = "vsphere-cloud-credentials"
@@ -922,6 +923,13 @@ func defaultGCP(m *machinev1.Machine, config *admissionConfig) (bool, []string, 
 
 	providerSpec.Disks = defaultGCPDisks(providerSpec.Disks, config.clusterID)
 
+	if len(providerSpec.GPUs) != 0 {
+		// In case Count was not set it should default to 1, since there is no valid reason for it to be purposely set to 0.
+		if providerSpec.GPUs[0].Count == 0 {
+			providerSpec.GPUs[0].Count = defaultGCPGPUCount
+		}
+	}
+
 	if len(providerSpec.Tags) == 0 {
 		providerSpec.Tags = defaultGCPTags(config.clusterID)
 	}
@@ -996,8 +1004,23 @@ func validateGCP(m *machinev1.Machine, config *admissionConfig) (bool, []string,
 		errs = append(errs, field.Required(field.NewPath("providerSpec", "machineType"), "machineType should be set to one of the supported GCP machine types"))
 	}
 
+	if providerSpec.OnHostMaintenance != "" && providerSpec.OnHostMaintenance != machinev1.MigrateHostMaintenanceType && providerSpec.OnHostMaintenance != machinev1.TerminateHostMaintenanceType {
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "onHostMaintenance"), providerSpec.OnHostMaintenance, fmt.Sprintf("onHostMaintenance must be either %s or %s.", machinev1.MigrateHostMaintenanceType, machinev1.TerminateHostMaintenanceType)))
+	}
+
+	if providerSpec.RestartPolicy != "" && providerSpec.RestartPolicy != machinev1.RestartPolicyAlways && providerSpec.RestartPolicy != machinev1.RestartPolicyNever {
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "restartPolicy"), providerSpec.RestartPolicy, fmt.Sprintf("restartPolicy must be either %s or %s.", machinev1.RestartPolicyNever, machinev1.RestartPolicyAlways)))
+	}
+
+	if len(providerSpec.GPUs) != 0 || strings.HasPrefix(providerSpec.MachineType, "a2-") {
+		if providerSpec.OnHostMaintenance == machinev1.MigrateHostMaintenanceType {
+			errs = append(errs, field.Forbidden(field.NewPath("providerSpec", "onHostMaintenance"), fmt.Sprintf("When GPUs are specified or using machineType with pre-attached GPUs(A2 machine family), onHostMaintenance must be set to %s.", machinev1.TerminateHostMaintenanceType)))
+		}
+	}
+
 	errs = append(errs, validateGCPNetworkInterfaces(providerSpec.NetworkInterfaces, field.NewPath("providerSpec", "networkInterfaces"))...)
 	errs = append(errs, validateGCPDisks(providerSpec.Disks, field.NewPath("providerSpec", "disks"))...)
+	errs = append(errs, validateGCPGPUs(providerSpec.GPUs, field.NewPath("providerSpec", "gpus"), providerSpec.MachineType)...)
 
 	if len(providerSpec.ServiceAccounts) == 0 {
 		warnings = append(warnings, "providerSpec.serviceAccounts: no service account provided: nodes may be unable to join the cluster")
@@ -1075,6 +1098,27 @@ func validateGCPDisks(disks []*machinev1.GCPDisk, parentPath *field.Path) []erro
 		}
 	}
 
+	return errs
+}
+
+func validateGCPGPUs(guestAccelerators []machinev1.GCPGPUConfig, parentPath *field.Path, machineType string) []error {
+	var errs []error
+	if len(guestAccelerators) > 1 {
+		errs = append(errs, field.TooMany(parentPath, len(guestAccelerators), 1))
+	} else if len(guestAccelerators) == 1 {
+		accelerator := guestAccelerators[0]
+		if accelerator.Type == "" {
+			errs = append(errs, field.Required(parentPath.Child("Type"), "Type is required"))
+		}
+
+		if accelerator.Type == "nvidia-tesla-a100" {
+			errs = append(errs, field.Invalid(parentPath.Child("Type"), accelerator.Type, " nvidia-tesla-a100 gpus, are only attached to the A2 machine types"))
+		}
+
+		if strings.HasPrefix(machineType, "a2-") {
+			errs = append(errs, field.Invalid(parentPath, accelerator.Type, "A2 machine types have already attached gpus, additional gpus cannot be specified"))
+		}
+	}
 	return errs
 }
 

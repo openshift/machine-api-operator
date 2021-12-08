@@ -1936,6 +1936,95 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 			expectedOk:    true,
 			expectedError: "",
 		},
+		{
+			testCase: "with no Type",
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
+				p.GPUs = []machinev1.GCPGPUConfig{
+					{
+						Type: "",
+					},
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.gpus.Type: Required value: Type is required",
+		},
+		{
+			testCase: "with nvidia-tesla-A100 Type",
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
+				p.GPUs = []machinev1.GCPGPUConfig{
+					{
+						Type: "nvidia-tesla-a100",
+					},
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.gpus.Type: Invalid value: \"nvidia-tesla-a100\":  nvidia-tesla-a100 gpus, are only attached to the A2 machine types",
+		},
+		{
+			testCase: "with a2 machine family type",
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
+				p.MachineType = "a2-highgpu-1g"
+				p.GPUs = []machinev1.GCPGPUConfig{
+					{
+						Type: "any-gpu",
+					},
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.gpus: Invalid value: \"any-gpu\": A2 machine types have already attached gpus, additional gpus cannot be specified",
+		},
+		{
+			testCase: "with more than one gpu type",
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
+				p.GPUs = []machinev1.GCPGPUConfig{
+					{
+						Type: "any-gpu",
+					},
+					{
+						Type: "any-gpu",
+					},
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.gpus: Too many: 2: must have at most 1 items",
+		},
+		{
+			testCase: "with no gpus",
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
+				p.GPUs = nil
+			},
+			expectedOk:    true,
+			expectedError: "",
+		},
+		{
+			testCase: "with invalid onHostMaintenance",
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
+				p.OnHostMaintenance = "invalid-value"
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.onHostMaintenance: Invalid value: \"invalid-value\": onHostMaintenance must be either Migrate or Terminate.",
+		},
+		{
+			testCase: "with invalid restartPolicy",
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
+				p.RestartPolicy = "invalid-value"
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.restartPolicy: Invalid value: \"invalid-value\": restartPolicy must be either Never or Always.",
+		},
+		{
+			testCase: "with GPUs and Migrate onHostMaintenance",
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
+				p.OnHostMaintenance = machinev1.MigrateHostMaintenanceType
+				p.GPUs = []machinev1.GCPGPUConfig{
+					{
+						Type: "any-gpu",
+					},
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.onHostMaintenance: Forbidden: When GPUs are specified or using machineType with pre-attached GPUs(A2 machine family), onHostMaintenance must be set to Terminate.",
+		},
 	}
 
 	secret := &corev1.Secret{
@@ -1952,10 +2041,11 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 
 	for _, tc := range testCases {
 		providerSpec := &machinev1.GCPMachineProviderSpec{
-			Region:      "region",
-			Zone:        "region-zone",
-			ProjectID:   "projectID",
-			MachineType: "machineType",
+			Region:            "region",
+			Zone:              "region-zone",
+			ProjectID:         "projectID",
+			MachineType:       "machineType",
+			OnHostMaintenance: machinev1.TerminateHostMaintenanceType,
 			NetworkInterfaces: []*machinev1.GCPNetworkInterface{
 				{
 					Network:    "network",
@@ -1965,6 +2055,11 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 			Disks: []*machinev1.GCPDisk{
 				{
 					SizeGB: 16,
+				},
+			},
+			GPUs: []machinev1.GCPGPUConfig{
+				{
+					Type: "type",
 				},
 			},
 			ServiceAccounts: []machinev1.GCPServiceAccount{
@@ -2055,6 +2150,26 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 						SizeGB:     32,
 						Type:       defaultGCPDiskType,
 						Image:      defaultGCPDiskImage,
+					},
+				}
+			},
+			expectedOk:    true,
+			expectedError: "",
+		},
+		{
+			testCase: "sets default gpu Count",
+			providerSpec: &machinev1.GCPMachineProviderSpec{
+				GPUs: []machinev1.GCPGPUConfig{
+					{
+						Type: "type",
+					},
+				},
+			},
+			modifyDefault: func(p *machinev1.GCPMachineProviderSpec) {
+				p.GPUs = []machinev1.GCPGPUConfig{
+					{
+						Type:  "type",
+						Count: defaultGCPGPUCount,
 					},
 				}
 			},
