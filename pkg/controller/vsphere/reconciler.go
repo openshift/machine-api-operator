@@ -760,7 +760,7 @@ func getNetworkDevices(s *machineScope, resourcepool *object.ResourcePool, devic
 		}
 
 		if backing == nil {
-			return nil, fmt.Errorf("unable to get network for %q: %w", netSpec.NetworkName, err)
+			return nil, fmt.Errorf("unable to get network for %q", netSpec.NetworkName)
 		}
 
 		dev, err := object.EthernetCardTypes().CreateEthernetCard(ethCardType, backing)
