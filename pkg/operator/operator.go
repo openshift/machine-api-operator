@@ -334,8 +334,8 @@ func (optr *Operator) sync(key string) (reconcile.Result, error) {
 	return optr.syncAll(operatorConfig)
 }
 
-func getFeatureGate(listener configlistersv1.FeatureGateLister) (*configv1.FeatureGate, error) {
-	featureGate, err := listener.Get("cluster")
+func getFeatureGate(lister configlistersv1.FeatureGateLister) (*configv1.FeatureGate, error) {
+	featureGate, err := lister.Get("cluster")
 	if errors.IsNotFound(err) {
 		// No feature gate is set, therefore cannot be external.
 		// This is not an error as the feature gate is an optional resource.

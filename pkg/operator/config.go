@@ -41,7 +41,7 @@ type Images struct {
 	MachineAPIOperator            string `json:"machineAPIOperator"`
 	ClusterAPIControllerAWS       string `json:"clusterAPIControllerAWS"`
 	ClusterAPIControllerOpenStack string `json:"clusterAPIControllerOpenStack"`
-	ClusterAPIControllerMAPO      string `json:"clusterAPIControllerMAPO"`
+	MachineAPIControllerOpenStack string `json:"clusterAPIControllerMAPO"`
 	ClusterAPIControllerLibvirt   string `json:"clusterAPIControllerLibvirt"`
 	ClusterAPIControllerBareMetal string `json:"clusterAPIControllerBareMetal"`
 	ClusterAPIControllerAzure     string `json:"clusterAPIControllerAzure"`
@@ -87,7 +87,7 @@ func isMAPOFeatureGateEnabled(featureGate *configv1.FeatureGate) (bool, error) {
 
 	enabledFeatureGates := sets.NewString(featureSet.Enabled...)
 	disabledFeatureGates := sets.NewString(featureSet.Disabled...)
-	// CustomNoUpgrade will override the deafult enabled feature gates.
+	// CustomNoUpgrade will override the default enabled feature gates.
 	if featureGate.Spec.FeatureSet == configv1.CustomNoUpgrade && featureGate.Spec.CustomNoUpgrade != nil {
 		enabledFeatureGates = sets.NewString(featureGate.Spec.CustomNoUpgrade.Enabled...)
 		disabledFeatureGates = sets.NewString(featureGate.Spec.CustomNoUpgrade.Disabled...)
@@ -108,7 +108,7 @@ func getProviderControllerFromImages(platform configv1.PlatformType, featureGate
 			return "", err
 		}
 		if enabled {
-			return images.ClusterAPIControllerMAPO, nil
+			return images.MachineAPIControllerOpenStack, nil
 		} else {
 			return images.ClusterAPIControllerOpenStack, nil
 		}
