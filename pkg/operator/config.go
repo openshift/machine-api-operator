@@ -75,8 +75,6 @@ func getImagesFromJSONFile(filePath string) (*Images, error) {
 	return &i, nil
 }
 
-// isMAPOFeatureGateEnabled determines whether the machine-api-provider-openstack feature gate is present in the current
-// feature set.
 func isMAPOFeatureGateEnabled(featureGate *configv1.FeatureGate) (bool, error) {
 	if featureGate == nil {
 		// If no featureGate is present, then the user hasn't opted in to the external cloud controllers

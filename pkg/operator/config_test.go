@@ -186,6 +186,7 @@ func TestGetImagesFromJSONFile(t *testing.T) {
 
 func TestGetProviderControllerFromImages(t *testing.T) {
 	tests := []struct {
+		name          string
 		provider      configv1.PlatformType
 		featureGate   configv1.FeatureGate
 		expectedImage string
@@ -234,6 +235,7 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 			expectedImage: expectedPowerVSImage,
 		},
 		{
+			name:     "valid MAPO Feature Gate",
 			provider: configv1.OpenStackPlatformType,
 			featureGate: configv1.FeatureGate{
 				Spec: configv1.FeatureGateSpec{
@@ -246,6 +248,44 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 				},
 			},
 			expectedImage: expectedMAPOImage,
+		},
+		{
+			name:     "MAPO both enabled and disabled",
+			provider: configv1.OpenStackPlatformType,
+			featureGate: configv1.FeatureGate{
+				Spec: configv1.FeatureGateSpec{
+					FeatureGateSelection: configv1.FeatureGateSelection{
+						FeatureSet: configv1.CustomNoUpgrade,
+						CustomNoUpgrade: &configv1.CustomFeatureGates{
+							Enabled:  []string{MAPOFeature},
+							Disabled: []string{MAPOFeature},
+						},
+					},
+				},
+			},
+			expectedImage: expectedOpenstackImage,
+		},
+		{
+			name:     "MAPO both enabled and disabled",
+			provider: configv1.OpenStackPlatformType,
+			featureGate: configv1.FeatureGate{
+				Spec: configv1.FeatureGateSpec{
+					FeatureGateSelection: configv1.FeatureGateSelection{
+						FeatureSet: configv1.CustomNoUpgrade,
+						CustomNoUpgrade: &configv1.CustomFeatureGates{
+							Enabled:  []string{MAPOFeature},
+							Disabled: []string{MAPOFeature},
+						},
+					},
+				},
+			},
+			expectedImage: expectedOpenstackImage,
+		},
+		{
+			name:          "Feature Gate Unset does not error",
+			provider:      configv1.OpenStackPlatformType,
+			featureGate:   configv1.FeatureGate{},
+			expectedImage: expectedOpenstackImage,
 		},
 	}
 
