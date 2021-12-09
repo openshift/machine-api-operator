@@ -299,7 +299,7 @@ func (r *Reconciler) delete() error {
 
 	powerState, err := vm.getPowerState()
 	if err != nil {
-		return fmt.Errorf("can not determine %v vm power state", r.machine.GetName())
+		return fmt.Errorf("can not determine %v vm power state: %w", r.machine.GetName(), err)
 	}
 	if powerState != types.VirtualMachinePowerStatePoweredOff {
 		powerOffTaskRef, err := vm.powerOffVM()
@@ -307,9 +307,9 @@ func (r *Reconciler) delete() error {
 			return fmt.Errorf("%v: failed to power off vm: %w", r.machine.GetName(), err)
 		}
 		if err := setProviderStatus(powerOffTaskRef, conditionSuccess(), r.machineScope, vm); err != nil {
-			return fmt.Errorf("Failed to set provider status: %w", err)
+			return fmt.Errorf("failed to set provider status: %w", err)
 		}
-		return fmt.Errorf("powering off vm is in progress, reconciling")
+		return fmt.Errorf("powering off vm is in progress, requeuing")
 	}
 
 	task, err := vm.Obj.Destroy(r.Context)
@@ -327,7 +327,7 @@ func (r *Reconciler) delete() error {
 	}
 
 	// TODO: consider returning an error to specify retry time here
-	return fmt.Errorf("destroying vm in progress, reconciling")
+	return fmt.Errorf("destroying vm in progress, requeuing")
 }
 
 // nodeHasVolumesAttached returns true if node status still have volumes attached
