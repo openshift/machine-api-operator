@@ -9,6 +9,7 @@ import (
 var (
 	imagesJSONFile                  = "fixtures/images.json"
 	expectedAWSImage                = "docker.io/openshift/origin-aws-machine-controllers:v4.0.0"
+	expectedAlibabaImage            = "docker.io/openshift/origin-alibaba-machine-controllers:v4.0.0"
 	expectedLibvirtImage            = "docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0"
 	expectedOpenstackImage          = "docker.io/openshift/origin-openstack-machine-controllers:v4.0.0"
 	expectedMAPOImage               = "quay.io/shiftstack/machine-api-provider-openstack:latest"
@@ -35,6 +36,15 @@ func TestGetProviderFromInfrastructure(t *testing.T) {
 			},
 		},
 		expected: configv1.AWSPlatformType,
+	}, {
+		infra: &configv1.Infrastructure{
+			Status: configv1.InfrastructureStatus{
+				PlatformStatus: &configv1.PlatformStatus{
+					Type: configv1.AlibabaCloudPlatformType,
+				},
+			},
+		},
+		expected: configv1.AlibabaCloudPlatformType,
 	}, {
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
@@ -189,10 +199,15 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 		provider      configv1.PlatformType
 		featureGate   configv1.FeatureGate
 		expectedImage string
-	}{{
-		provider:      configv1.AWSPlatformType,
-		expectedImage: expectedAWSImage,
-	},
+	}{
+		{
+			provider:      configv1.AWSPlatformType,
+			expectedImage: expectedAWSImage,
+		},
+		{
+			provider:      configv1.AlibabaCloudPlatformType,
+			expectedImage: expectedAlibabaImage,
+		},
 		{
 			provider:      configv1.LibvirtPlatformType,
 			expectedImage: expectedLibvirtImage,
@@ -292,10 +307,15 @@ func TestGetTerminationHandlerFromImages(t *testing.T) {
 	tests := []struct {
 		provider      configv1.PlatformType
 		expectedImage string
-	}{{
-		provider:      configv1.AWSPlatformType,
-		expectedImage: expectedAWSImage,
-	},
+	}{
+		{
+			provider:      configv1.AWSPlatformType,
+			expectedImage: expectedAWSImage,
+		},
+		{
+			provider:      configv1.AlibabaCloudPlatformType,
+			expectedImage: expectedAlibabaImage,
+		},
 		{
 			provider:      configv1.LibvirtPlatformType,
 			expectedImage: clusterAPIControllerNoOp,

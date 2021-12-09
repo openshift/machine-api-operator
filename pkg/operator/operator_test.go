@@ -324,6 +324,24 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			},
 		},
 		{
+			name:     string(openshiftv1.AlibabaCloudPlatformType),
+			platform: openshiftv1.AlibabaCloudPlatformType,
+			infra:    infra,
+			proxy:    proxy,
+			expectedConfig: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				Proxy:           proxy,
+				Controllers: Controllers{
+					Provider:           images.ClusterAPIControllerAlibaba,
+					MachineSet:         images.MachineAPIOperator,
+					NodeLink:           images.MachineAPIOperator,
+					MachineHealthCheck: images.MachineAPIOperator,
+					TerminationHandler: images.ClusterAPIControllerAlibaba,
+					KubeRBACProxy:      images.KubeRBACProxy,
+				},
+			},
+		},
+		{
 			name:     string(openshiftv1.LibvirtPlatformType),
 			platform: openshiftv1.LibvirtPlatformType,
 			infra:    infra,
