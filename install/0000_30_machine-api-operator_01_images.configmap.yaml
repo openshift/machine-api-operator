@@ -21,5 +21,6 @@ data:
       "clusterAPIControllerIBMCloud": "registry.svc.ci.openshift.org/openshift:ibmcloud-machine-controllers",
       "clusterAPIControllerOvirt": "registry.svc.ci.openshift.org/openshift:ovirt-machine-controllers",
       "clusterAPIControllerPowerVS": "registry.svc.ci.openshift.org/openshift:powervs-machine-controllers",
-      "clusterAPIControllerVSphere": "registry.svc.ci.openshift.org/openshift:machine-api-operator"
+      "clusterAPIControllerVSphere": "registry.svc.ci.openshift.org/openshift:machine-api-operator",
+      "clusterAPIControllerNutanix": "public.ecr.aws/g7v6l0u0/openshift/mapi-provider-nutanix:latest"
     }
