@@ -6,12 +6,14 @@ import (
 	"os"
 	"time"
 
+	configv1 "github.com/openshift/api/config/v1"
 	osconfigv1 "github.com/openshift/api/config/v1"
 	osoperatorv1 "github.com/openshift/api/operator/v1"
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -332,6 +334,19 @@ func (optr *Operator) sync(key string) (reconcile.Result, error) {
 	return optr.syncAll(operatorConfig)
 }
 
+func getFeatureGate(lister configlistersv1.FeatureGateLister) (*configv1.FeatureGate, error) {
+	featureGate, err := lister.Get("cluster")
+	if errors.IsNotFound(err) {
+		// No feature gate is set, therefore cannot be external.
+		// This is not an error as the feature gate is an optional resource.
+		return nil, nil
+	} else if err != nil {
+		return nil, fmt.Errorf("could not fetch featuregate: %v", err)
+	}
+
+	return featureGate, nil
+}
+
 func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 	infra, err := optr.osClient.ConfigV1().Infrastructures().Get(context.Background(), "cluster", metav1.GetOptions{})
 	if err != nil {
@@ -348,7 +363,12 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 		return nil, err
 	}
 
-	providerControllerImage, err := getProviderControllerFromImages(provider, *images)
+	featureGate, err := getFeatureGate(optr.featureGateLister)
+	if err != nil {
+		return nil, err
+	}
+
+	providerControllerImage, err := getProviderControllerFromImages(provider, featureGate, *images)
 	if err != nil {
 		return nil, err
 	}

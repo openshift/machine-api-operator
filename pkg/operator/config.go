@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	configv1 "github.com/openshift/api/config/v1"
+	"k8s.io/apimachinery/pkg/util/sets"
 )
 
 const (
@@ -14,6 +15,7 @@ const (
 	clusterAPIControllerKubemark = "docker.io/gofed/kubemark-machine-controllers:v1.0"
 	clusterAPIControllerNoOp     = "no-op"
 	kubemarkPlatform             = configv1.PlatformType("kubemark")
+	MAPOFeature                  = "MachineAPIProviderOpenStack"
 )
 
 type Provider string
@@ -39,6 +41,7 @@ type Images struct {
 	MachineAPIOperator            string `json:"machineAPIOperator"`
 	ClusterAPIControllerAWS       string `json:"clusterAPIControllerAWS"`
 	ClusterAPIControllerOpenStack string `json:"clusterAPIControllerOpenStack"`
+	MachineAPIControllerOpenStack string `json:"clusterAPIControllerMAPO"`
 	ClusterAPIControllerLibvirt   string `json:"clusterAPIControllerLibvirt"`
 	ClusterAPIControllerBareMetal string `json:"clusterAPIControllerBareMetal"`
 	ClusterAPIControllerAzure     string `json:"clusterAPIControllerAzure"`
@@ -72,14 +75,43 @@ func getImagesFromJSONFile(filePath string) (*Images, error) {
 	return &i, nil
 }
 
-func getProviderControllerFromImages(platform configv1.PlatformType, images Images) (string, error) {
+func isMAPOFeatureGateEnabled(featureGate *configv1.FeatureGate) (bool, error) {
+	if featureGate == nil {
+		// If no featureGate is present, then the user hasn't opted in to the external cloud controllers
+		return false, nil
+	}
+	featureSet, ok := configv1.FeatureSets[featureGate.Spec.FeatureSet]
+	if !ok {
+		return false, fmt.Errorf(".spec.featureSet %q not found", featureGate.Spec.FeatureSet)
+	}
+
+	enabledFeatureGates := sets.NewString(featureSet.Enabled...)
+	disabledFeatureGates := sets.NewString(featureSet.Disabled...)
+	// CustomNoUpgrade will override the default enabled feature gates.
+	if featureGate.Spec.FeatureSet == configv1.CustomNoUpgrade && featureGate.Spec.CustomNoUpgrade != nil {
+		enabledFeatureGates = sets.NewString(featureGate.Spec.CustomNoUpgrade.Enabled...)
+		disabledFeatureGates = sets.NewString(featureGate.Spec.CustomNoUpgrade.Disabled...)
+	}
+
+	return !disabledFeatureGates.Has(MAPOFeature) && enabledFeatureGates.Has(MAPOFeature), nil
+}
+
+func getProviderControllerFromImages(platform configv1.PlatformType, featureGate *configv1.FeatureGate, images Images) (string, error) {
 	switch platform {
 	case configv1.AWSPlatformType:
 		return images.ClusterAPIControllerAWS, nil
 	case configv1.LibvirtPlatformType:
 		return images.ClusterAPIControllerLibvirt, nil
 	case configv1.OpenStackPlatformType:
-		return images.ClusterAPIControllerOpenStack, nil
+		enabled, err := isMAPOFeatureGateEnabled(featureGate)
+		if err != nil {
+			return "", err
+		}
+		if enabled {
+			return images.MachineAPIControllerOpenStack, nil
+		} else {
+			return images.ClusterAPIControllerOpenStack, nil
+		}
 	case configv1.AzurePlatformType:
 		return images.ClusterAPIControllerAzure, nil
 	case configv1.GCPPlatformType:

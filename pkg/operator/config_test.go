@@ -11,6 +11,7 @@ var (
 	expectedAWSImage                = "docker.io/openshift/origin-aws-machine-controllers:v4.0.0"
 	expectedLibvirtImage            = "docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0"
 	expectedOpenstackImage          = "docker.io/openshift/origin-openstack-machine-controllers:v4.0.0"
+	expectedMAPOImage               = "quay.io/shiftstack/machine-api-provider-openstack:latest"
 	expectedMachineAPIOperatorImage = "docker.io/openshift/origin-machine-api-operator:v4.0.0"
 	expectedKubeRBACProxyImage      = "docker.io/openshift/origin-kube-rbac-proxy:v4.0.0"
 	expectedBareMetalImage          = "quay.io/openshift/origin-baremetal-machine-controllers:v4.0.0"
@@ -177,11 +178,16 @@ func TestGetImagesFromJSONFile(t *testing.T) {
 	if img.ClusterAPIControllerPowerVS != expectedPowerVSImage {
 		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedPowerVSImage, img.ClusterAPIControllerPowerVS)
 	}
+	if img.MachineAPIControllerOpenStack != expectedMAPOImage {
+		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedMAPOImage, img.MachineAPIControllerOpenStack)
+	}
 }
 
 func TestGetProviderControllerFromImages(t *testing.T) {
 	tests := []struct {
+		name          string
 		provider      configv1.PlatformType
+		featureGate   configv1.FeatureGate
 		expectedImage string
 	}{{
 		provider:      configv1.AWSPlatformType,
@@ -227,6 +233,43 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 			provider:      configv1.PowerVSPlatformType,
 			expectedImage: expectedPowerVSImage,
 		},
+		{
+			name:     "valid MAPO Feature Gate",
+			provider: configv1.OpenStackPlatformType,
+			featureGate: configv1.FeatureGate{
+				Spec: configv1.FeatureGateSpec{
+					FeatureGateSelection: configv1.FeatureGateSelection{
+						FeatureSet: configv1.CustomNoUpgrade,
+						CustomNoUpgrade: &configv1.CustomFeatureGates{
+							Enabled: []string{MAPOFeature},
+						},
+					},
+				},
+			},
+			expectedImage: expectedMAPOImage,
+		},
+		{
+			name:     "MAPO both enabled and disabled",
+			provider: configv1.OpenStackPlatformType,
+			featureGate: configv1.FeatureGate{
+				Spec: configv1.FeatureGateSpec{
+					FeatureGateSelection: configv1.FeatureGateSelection{
+						FeatureSet: configv1.CustomNoUpgrade,
+						CustomNoUpgrade: &configv1.CustomFeatureGates{
+							Enabled:  []string{MAPOFeature},
+							Disabled: []string{MAPOFeature},
+						},
+					},
+				},
+			},
+			expectedImage: expectedOpenstackImage,
+		},
+		{
+			name:          "Feature Gate Unset does not error",
+			provider:      configv1.OpenStackPlatformType,
+			featureGate:   configv1.FeatureGate{},
+			expectedImage: expectedOpenstackImage,
+		},
 	}
 
 	img, err := getImagesFromJSONFile(imagesJSONFile)
@@ -235,7 +278,7 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		res, err := getProviderControllerFromImages(test.provider, *img)
+		res, err := getProviderControllerFromImages(test.provider, &test.featureGate, *img)
 		if err != nil {
 			t.Errorf("failed getProviderControllerFromImages: %v", err)
 		}
