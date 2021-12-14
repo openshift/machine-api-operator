@@ -218,6 +218,15 @@ func (DiskEncryptionSetParameters) SwaggerDoc() map[string]string {
 	return map_DiskEncryptionSetParameters
 }
 
+var map_DiskSettings = map[string]string{
+	"":                         "DiskSettings describe ephemeral disk settings for the os disk.",
+	"ephemeralStorageLocation": "EphemeralStorageLocation enables ephemeral OS when set to 'Local'. Possible values include: 'Local'. See https://docs.microsoft.com/en-us/azure/virtual-machines/ephemeral-os-disks for full details. Empty value means no opinion and the platform chooses a default, which is subject to change over time. Currently the default is that disks are saved to remote Azure storage.",
+}
+
+func (DiskSettings) SwaggerDoc() map[string]string {
+	return map_DiskSettings
+}
+
 var map_Image = map[string]string{
 	"":           "Image is a mirror of azure sdk compute.ImageReference",
 	"publisher":  "Publisher is the name of the organization that created the image",
@@ -243,9 +252,11 @@ func (ManagedDiskParameters) SwaggerDoc() map[string]string {
 }
 
 var map_OSDisk = map[string]string{
-	"osType":      "OSType is the operating system type of the OS disk. Possible values include \"Linux\" and \"Windows\".",
-	"managedDisk": "ManagedDisk specifies the Managed Disk parameters for the OS disk.",
-	"diskSizeGB":  "DiskSizeGB is the size in GB to assign to the data disk.",
+	"osType":       "OSType is the operating system type of the OS disk. Possible values include \"Linux\" and \"Windows\".",
+	"managedDisk":  "ManagedDisk specifies the Managed Disk parameters for the OS disk.",
+	"diskSizeGB":   "DiskSizeGB is the size in GB to assign to the data disk.",
+	"diskSettings": "DiskSettings describe ephemeral disk settings for the os disk.",
+	"cachingType":  "CachingType specifies the caching requirements. Possible values include: 'None', 'ReadOnly', 'ReadWrite'. Empty value means no opinion and the platform chooses a default, which is subject to change over time. Currently the default is `None`.",
 }
 
 func (OSDisk) SwaggerDoc() map[string]string {
