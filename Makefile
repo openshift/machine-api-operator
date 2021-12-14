@@ -50,7 +50,7 @@ vendor:
 	$(DOCKER_CMD) ./hack/go-mod.sh
 
 .PHONY: check
-check: lint fmt vet test ## Run code validations
+check: verify-crds-sync lint fmt vet test ## Run code validations
 
 .PHONY: build
 build: machine-api-operator nodelink-controller machine-healthcheck machineset vsphere ## Build binaries
@@ -124,6 +124,14 @@ goimports: ## Go fmt your code
 .PHONY: vet
 vet: ## Apply go vet to all go files
 	$(DOCKER_CMD) hack/go-vet.sh ./...
+
+.PHONY: crds-sync
+crds-sync: ## Sync crds in install with the ones in the vendored oc/api
+	$(DOCKER_CMD) hack/crds-sync.sh .
+
+.PHONY: verify-crds-sync
+verify-crds-sync: ## Verify that the crds in install and the ones in vendored oc/api are in sync
+	$(DOCKER_CMD) hack/crds-sync.sh . && hack/verify-diff.sh .
 
 .PHONY: help
 help:
