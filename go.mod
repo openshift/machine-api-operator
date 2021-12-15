@@ -107,5 +107,5 @@ require (
 
 replace (
 	github.com/go-logr/logr => github.com/go-logr/logr v0.4.0
-	k8s.io/klog/v2 => k8s.io/klog/v2 v2.9.0
+	k8s.io/klog/v2 => k8s.io/klog/v2 v2.10.0
 )
