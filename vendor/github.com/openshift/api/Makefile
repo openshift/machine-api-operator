@@ -47,6 +47,7 @@ verify-scripts:
 	bash -x hack/verify-swagger-docs.sh
 	hack/verify-crds.sh
 	bash -x hack/verify-types.sh
+	hack/verify-crds-version-upgrade.sh
 .PHONY: verify-scripts
 verify: verify-scripts verify-codegen-crds
 
