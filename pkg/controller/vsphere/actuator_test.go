@@ -232,7 +232,7 @@ func TestMachineEvents(t *testing.T) {
 			operation: func(actuator *Actuator, machine *machinev1.Machine) {
 				actuator.Delete(ctx, machine)
 			},
-			event: "test: reconciler failed to Delete machine: destroying vm in progress, reconciling",
+			event: "test: reconciler failed to Delete machine: destroying vm in progress, requeuing",
 		},
 		{
 			name: "Delete machine event succeed",

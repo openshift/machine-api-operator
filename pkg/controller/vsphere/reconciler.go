@@ -48,7 +48,9 @@ const (
 
 // vSphere tasks description IDs, for determinate task types (clone, delete, etc)
 const (
-	cloneVmTaskDescriptionId = "VirtualMachine.clone"
+	cloneVmTaskDescriptionId    = "VirtualMachine.clone"
+	destroyVmTaskDescriptionId  = "VirtualMachine.destroy"
+	powerOffVmTaskDescriptionId = "VirtualMachine.powerOff"
 )
 
 // Reconciler runs the logic to reconciles a machine resource towards its desired state
@@ -126,7 +128,7 @@ func (r *Reconciler) create() error {
 			return fmt.Errorf("Failed to check task status: %w", err)
 		}
 	} else if !taskIsFinished {
-		return fmt.Errorf("task %v has not finished", moTask.Reference().Value)
+		return fmt.Errorf("%v task %v has not finished", moTask.Info.DescriptionId, moTask.Reference().Value)
 	}
 	// If taskIsFinished then next reconcile should result in update.
 	return nil
@@ -157,9 +159,9 @@ func (r *Reconciler) update() error {
 					Namespace: r.machine.Namespace,
 					Reason:    "Task finished with error",
 				})
-				return err
+				return fmt.Errorf("%v task %v finished with error: %w", moTask.Info.DescriptionId, moTask.Reference().Value, err)
 			} else if !taskIsFinished {
-				return fmt.Errorf("task %v has not finished", moTask.Reference().Value)
+				return fmt.Errorf("%v task %v has not finished", moTask.Info.DescriptionId, moTask.Reference().Value)
 			}
 		}
 	}
@@ -241,15 +243,14 @@ func (r *Reconciler) delete() error {
 						Reason:    "Task finished with error",
 					})
 					klog.Errorf("Delete task finished with error: %w", err)
-					return err
+					return fmt.Errorf("%v task %v finished with error: %w", moTask.Info.DescriptionId, moTask.Reference().Value, err)
 				} else {
 					klog.Warningf(
 						"TaskRef points to clone task which finished with error: %w. Proceeding with machine deletion", err,
 					)
-					return err
 				}
 			} else if !taskIsFinished {
-				return fmt.Errorf("task %v has not finished", moTask.Reference().Value)
+				return fmt.Errorf("%v task %v has not finished", moTask.Info.DescriptionId, moTask.Reference().Value)
 			}
 		}
 	}
@@ -296,12 +297,21 @@ func (r *Reconciler) delete() error {
 		}
 	}
 
-	if _, err := vm.powerOffVM(); err != nil {
-		return err
+	powerState, err := vm.getPowerState()
+	if err != nil {
+		return fmt.Errorf("can not determine %v vm power state: %w", r.machine.GetName(), err)
+	}
+	if powerState != types.VirtualMachinePowerStatePoweredOff {
+		powerOffTaskRef, err := vm.powerOffVM()
+		if err != nil {
+			return fmt.Errorf("%v: failed to power off vm: %w", r.machine.GetName(), err)
+		}
+		if err := setProviderStatus(powerOffTaskRef, conditionSuccess(), r.machineScope, vm); err != nil {
+			return fmt.Errorf("failed to set provider status: %w", err)
+		}
+		return fmt.Errorf("powering off vm is in progress, requeuing")
 	}
 
-	// Will this error if VM not all the way powered off yet?  Don't want to
-	// emit an event for a transient condition.
 	task, err := vm.Obj.Destroy(r.Context)
 	if err != nil {
 		metrics.RegisterFailedInstanceDelete(&metrics.MachineLabels{
@@ -317,7 +327,7 @@ func (r *Reconciler) delete() error {
 	}
 
 	// TODO: consider returning an error to specify retry time here
-	return fmt.Errorf("destroying vm in progress, reconciling")
+	return fmt.Errorf("destroying vm in progress, requeuing")
 }
 
 // nodeHasVolumesAttached returns true if node status still have volumes attached
