@@ -9,7 +9,6 @@ import (
 	"strconv"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
-
 	"github.com/openshift/machine-api-operator/pkg/metrics"
 	"github.com/openshift/machine-api-operator/pkg/operator"
 	"github.com/openshift/machine-api-operator/pkg/util"

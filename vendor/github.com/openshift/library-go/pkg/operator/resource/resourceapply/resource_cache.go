@@ -4,6 +4,7 @@ import (
 	"crypto/md5"
 	"fmt"
 	"io"
+	"reflect"
 
 	"k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -42,9 +43,15 @@ func NewResourceCache() *resourceCache {
 var noCache *resourceCache
 
 func getResourceMetadata(obj runtime.Object) (schema.GroupKind, string, string, string, error) {
+	if obj == nil {
+		return schema.GroupKind{}, "", "", "", fmt.Errorf("nil object has no metadata")
+	}
 	metadata, err := meta.Accessor(obj)
 	if err != nil {
 		return schema.GroupKind{}, "", "", "", err
+	}
+	if metadata == nil || reflect.ValueOf(metadata).IsNil() {
+		return schema.GroupKind{}, "", "", "", fmt.Errorf("object has no metadata")
 	}
 	resourceHash := hashOfResourceStruct(obj)
 
@@ -66,9 +73,15 @@ func getResourceMetadata(obj runtime.Object) (schema.GroupKind, string, string, 
 }
 
 func getResourceVersion(obj runtime.Object) (string, error) {
+	if obj == nil {
+		return "", fmt.Errorf("nil object has no resourceVersion")
+	}
 	metadata, err := meta.Accessor(obj)
 	if err != nil {
 		return "", err
+	}
+	if metadata == nil || reflect.ValueOf(metadata).IsNil() {
+		return "", fmt.Errorf("object has no metadata")
 	}
 	rv := metadata.GetResourceVersion()
 	if len(rv) == 0 {
