@@ -21,7 +21,7 @@ import (
 // and an update performed if the mutatingwebhookconfiguration spec and metadata differ from
 // the previously required spec and metadata based on generation change.
 func ApplyMutatingWebhookConfiguration(ctx context.Context, client admissionregistrationclientv1.MutatingWebhookConfigurationsGetter, recorder events.Recorder,
-	requiredOriginal *admissionregistrationv1.MutatingWebhookConfiguration, expectedGeneration int64) (*admissionregistrationv1.MutatingWebhookConfiguration, bool, error) {
+	requiredOriginal *admissionregistrationv1.MutatingWebhookConfiguration) (*admissionregistrationv1.MutatingWebhookConfiguration, bool, error) {
 
 	if requiredOriginal == nil {
 		return nil, false, fmt.Errorf("Unexpected nil instead of an object")
@@ -30,7 +30,8 @@ func ApplyMutatingWebhookConfiguration(ctx context.Context, client admissionregi
 
 	existing, err := client.MutatingWebhookConfigurations().Get(ctx, required.GetName(), metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.MutatingWebhookConfigurations().Create(ctx, required, metav1.CreateOptions{})
+		actual, err := client.MutatingWebhookConfigurations().Create(
+			ctx, resourcemerge.WithCleanLabelsAndAnnotations(required).(*admissionregistrationv1.MutatingWebhookConfiguration), metav1.CreateOptions{})
 		reportCreateEvent(recorder, required, err)
 		if err != nil {
 			return nil, false, err
@@ -44,7 +45,7 @@ func ApplyMutatingWebhookConfiguration(ctx context.Context, client admissionregi
 	existingCopy := existing.DeepCopy()
 
 	resourcemerge.EnsureObjectMeta(modified, &existingCopy.ObjectMeta, required.ObjectMeta)
-	if !*modified && existingCopy.GetGeneration() == expectedGeneration {
+	if !*modified {
 		return existingCopy, false, nil
 	}
 	// at this point we know that we're going to perform a write.  We're just trying to get the object correct
@@ -84,7 +85,7 @@ func copyMutatingWebhookCABundle(from, to *admissionregistrationv1.MutatingWebho
 // and an update performed if the validatingwebhookconfiguration spec and metadata differ from
 // the previously required spec and metadata based on generation change.
 func ApplyValidatingWebhookConfiguration(ctx context.Context, client admissionregistrationclientv1.ValidatingWebhookConfigurationsGetter, recorder events.Recorder,
-	requiredOriginal *admissionregistrationv1.ValidatingWebhookConfiguration, expectedGeneration int64) (*admissionregistrationv1.ValidatingWebhookConfiguration, bool, error) {
+	requiredOriginal *admissionregistrationv1.ValidatingWebhookConfiguration) (*admissionregistrationv1.ValidatingWebhookConfiguration, bool, error) {
 	if requiredOriginal == nil {
 		return nil, false, fmt.Errorf("Unexpected nil instead of an object")
 	}
@@ -92,7 +93,8 @@ func ApplyValidatingWebhookConfiguration(ctx context.Context, client admissionre
 
 	existing, err := client.ValidatingWebhookConfigurations().Get(ctx, required.GetName(), metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.ValidatingWebhookConfigurations().Create(ctx, required, metav1.CreateOptions{})
+		actual, err := client.ValidatingWebhookConfigurations().Create(
+			ctx, resourcemerge.WithCleanLabelsAndAnnotations(required).(*admissionregistrationv1.ValidatingWebhookConfiguration), metav1.CreateOptions{})
 		reportCreateEvent(recorder, required, err)
 		if err != nil {
 			return nil, false, err
@@ -106,7 +108,7 @@ func ApplyValidatingWebhookConfiguration(ctx context.Context, client admissionre
 	existingCopy := existing.DeepCopy()
 
 	resourcemerge.EnsureObjectMeta(modified, &existingCopy.ObjectMeta, required.ObjectMeta)
-	if !*modified && existingCopy.GetGeneration() == expectedGeneration {
+	if !*modified {
 		return existingCopy, false, nil
 	}
 	// at this point we know that we're going to perform a write.  We're just trying to get the object correct

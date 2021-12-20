@@ -150,6 +150,7 @@ func (optr *Operator) syncClusterAPIController(config *OperatorConfig) error {
 
 	// we watch some resources so that our deployment will redeploy without explicitly and carefully ordered resource creation
 	inputHashes, err := resourcehash.MultipleObjectHashStringMapForObjectReferences(
+		context.TODO(),
 		optr.kubeClient,
 		resourcehash.NewObjectRef().ForConfigMap().InNamespace(config.TargetNamespace).Named(externalTrustBundleConfigMapName),
 	)
@@ -194,10 +195,9 @@ func (optr *Operator) syncWebhookConfiguration() error {
 }
 
 func (optr *Operator) syncValidatingWebhook() error {
-	expectedGeneration := resourcemerge.ExpectedValidatingWebhooksConfiguration(mapiwebhooks.NewValidatingWebhookConfiguration().Name, optr.generations)
 	validatingWebhook, updated, err := resourceapply.ApplyValidatingWebhookConfiguration(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
 		events.NewLoggingEventRecorder(optr.name),
-		mapiwebhooks.NewValidatingWebhookConfiguration(), expectedGeneration)
+		mapiwebhooks.NewValidatingWebhookConfiguration())
 	if err != nil {
 		return err
 	}
@@ -209,10 +209,9 @@ func (optr *Operator) syncValidatingWebhook() error {
 }
 
 func (optr *Operator) syncMutatingWebhook() error {
-	expectedGeneration := resourcemerge.ExpectedMutatingWebhooksConfiguration(mapiwebhooks.NewMutatingWebhookConfiguration().Name, optr.generations)
 	validatingWebhook, updated, err := resourceapply.ApplyMutatingWebhookConfiguration(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
 		events.NewLoggingEventRecorder(optr.name),
-		mapiwebhooks.NewMutatingWebhookConfiguration(), expectedGeneration)
+		mapiwebhooks.NewMutatingWebhookConfiguration())
 	if err != nil {
 		return err
 	}

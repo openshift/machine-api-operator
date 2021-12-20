@@ -76,13 +76,13 @@ type ObjectReference struct {
 }
 
 // MultipleObjectHashStringMapForObjectReferences returns a map of key/hash pairs suitable for merging into a configmap
-func MultipleObjectHashStringMapForObjectReferences(client kubernetes.Interface, objRefs ...*ObjectReference) (map[string]string, error) {
+func MultipleObjectHashStringMapForObjectReferences(ctx context.Context, client kubernetes.Interface, objRefs ...*ObjectReference) (map[string]string, error) {
 	objs := []runtime.Object{}
 
 	for _, objRef := range objRefs {
 		switch objRef.Resource {
 		case schema.GroupResource{Resource: "configmap"}, schema.GroupResource{Resource: "configmaps"}:
-			obj, err := client.CoreV1().ConfigMaps(objRef.Namespace).Get(context.TODO(), objRef.Name, metav1.GetOptions{})
+			obj, err := client.CoreV1().ConfigMaps(objRef.Namespace).Get(ctx, objRef.Name, metav1.GetOptions{})
 			if apierrors.IsNotFound(err) {
 				// don't error, just don't list the key. this is different than empty
 				continue
@@ -93,7 +93,7 @@ func MultipleObjectHashStringMapForObjectReferences(client kubernetes.Interface,
 			objs = append(objs, obj)
 
 		case schema.GroupResource{Resource: "secret"}, schema.GroupResource{Resource: "secrets"}:
-			obj, err := client.CoreV1().Secrets(objRef.Namespace).Get(context.TODO(), objRef.Name, metav1.GetOptions{})
+			obj, err := client.CoreV1().Secrets(objRef.Namespace).Get(ctx, objRef.Name, metav1.GetOptions{})
 			if apierrors.IsNotFound(err) {
 				// don't error, just don't list the key. this is different than empty
 				continue

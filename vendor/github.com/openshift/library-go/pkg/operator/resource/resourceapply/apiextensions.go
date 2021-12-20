@@ -16,7 +16,9 @@ import (
 func ApplyCustomResourceDefinitionV1(ctx context.Context, client apiextclientv1.CustomResourceDefinitionsGetter, recorder events.Recorder, required *apiextensionsv1.CustomResourceDefinition) (*apiextensionsv1.CustomResourceDefinition, bool, error) {
 	existing, err := client.CustomResourceDefinitions().Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.CustomResourceDefinitions().Create(ctx, required, metav1.CreateOptions{})
+		requiredCopy := required.DeepCopy()
+		actual, err := client.CustomResourceDefinitions().Create(
+			ctx, resourcemerge.WithCleanLabelsAndAnnotations(requiredCopy).(*apiextensionsv1.CustomResourceDefinition), metav1.CreateOptions{})
 		reportCreateEvent(recorder, required, err)
 		return actual, true, err
 	}
@@ -39,4 +41,16 @@ func ApplyCustomResourceDefinitionV1(ctx context.Context, client apiextclientv1.
 	reportUpdateEvent(recorder, required, err)
 
 	return actual, true, err
+}
+
+func DeleteCustomResourceDefinitionV1(ctx context.Context, client apiextclientv1.CustomResourceDefinitionsGetter, recorder events.Recorder, required *apiextensionsv1.CustomResourceDefinition) (*apiextensionsv1.CustomResourceDefinition, bool, error) {
+	err := client.CustomResourceDefinitions().Delete(ctx, required.Name, metav1.DeleteOptions{})
+	if err != nil && apierrors.IsNotFound(err) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	reportDeleteEvent(recorder, required, err)
+	return nil, true, nil
 }

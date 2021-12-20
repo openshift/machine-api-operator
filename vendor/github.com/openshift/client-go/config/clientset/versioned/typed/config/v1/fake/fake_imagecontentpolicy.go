@@ -83,7 +83,7 @@ func (c *FakeImageContentPolicies) Update(ctx context.Context, imageContentPolic
 // Delete takes name of the imageContentPolicy and deletes it. Returns an error if one occurs.
 func (c *FakeImageContentPolicies) Delete(ctx context.Context, name string, opts v1.DeleteOptions) error {
 	_, err := c.Fake.
-		Invokes(testing.NewRootDeleteAction(imagecontentpoliciesResource, name), &configv1.ImageContentPolicy{})
+		Invokes(testing.NewRootDeleteActionWithOptions(imagecontentpoliciesResource, name, opts), &configv1.ImageContentPolicy{})
 	return err
 }
 

@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
@@ -62,8 +63,8 @@ func TestMain(m *testing.M) {
 			filepath.Join("..", "..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1"),
 		},
 		WebhookInstallOptions: envtest.WebhookInstallOptions{
-			MutatingWebhooks:   []client.Object{NewMutatingWebhookConfiguration()},
-			ValidatingWebhooks: []client.Object{NewValidatingWebhookConfiguration()},
+			MutatingWebhooks:   []*admissionregistrationv1.MutatingWebhookConfiguration{NewMutatingWebhookConfiguration()},
+			ValidatingWebhooks: []*admissionregistrationv1.ValidatingWebhookConfiguration{NewValidatingWebhookConfiguration()},
 		},
 	}
 

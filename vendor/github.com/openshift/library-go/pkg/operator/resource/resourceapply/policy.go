@@ -4,12 +4,11 @@ import (
 	"context"
 
 	policyv1 "k8s.io/api/policy/v1"
-	"k8s.io/klog/v2"
-
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	policyclientv1 "k8s.io/client-go/kubernetes/typed/policy/v1"
+	"k8s.io/klog/v2"
 
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/resource/resourcemerge"
@@ -18,7 +17,9 @@ import (
 func ApplyPodDisruptionBudget(ctx context.Context, client policyclientv1.PodDisruptionBudgetsGetter, recorder events.Recorder, required *policyv1.PodDisruptionBudget) (*policyv1.PodDisruptionBudget, bool, error) {
 	existing, err := client.PodDisruptionBudgets(required.Namespace).Get(ctx, required.Name, metav1.GetOptions{})
 	if apierrors.IsNotFound(err) {
-		actual, err := client.PodDisruptionBudgets(required.Namespace).Create(ctx, required, metav1.CreateOptions{})
+		requiredCopy := required.DeepCopy()
+		actual, err := client.PodDisruptionBudgets(required.Namespace).Create(
+			ctx, resourcemerge.WithCleanLabelsAndAnnotations(requiredCopy).(*policyv1.PodDisruptionBudget), metav1.CreateOptions{})
 		reportCreateEvent(recorder, required, err)
 		return actual, true, err
 	}
@@ -44,4 +45,16 @@ func ApplyPodDisruptionBudget(ctx context.Context, client policyclientv1.PodDisr
 	actual, err := client.PodDisruptionBudgets(required.Namespace).Update(ctx, existingCopy, metav1.UpdateOptions{})
 	reportUpdateEvent(recorder, required, err)
 	return actual, true, err
+}
+
+func DeletePodDisruptionBudget(ctx context.Context, client policyclientv1.PodDisruptionBudgetsGetter, recorder events.Recorder, required *policyv1.PodDisruptionBudget) (*policyv1.PodDisruptionBudget, bool, error) {
+	err := client.PodDisruptionBudgets(required.Namespace).Delete(ctx, required.Name, metav1.DeleteOptions{})
+	if err != nil && apierrors.IsNotFound(err) {
+		return nil, false, nil
+	}
+	if err != nil {
+		return nil, false, err
+	}
+	reportDeleteEvent(recorder, required, err)
+	return nil, true, nil
 }
