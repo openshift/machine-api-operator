@@ -817,6 +817,18 @@ func TestMachineUpdate(t *testing.T) {
 				m.Spec.LifecycleHooks = machinev1.LifecycleHooks{}
 			},
 		},
+		{
+			name:         "when duplicating a lifecycle hook",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    awsClusterID,
+			baseProviderSpecValue: &kruntime.RawExtension{
+				Object: defaultAWSProviderSpec.DeepCopy(),
+			},
+			updateMachine: func(m *machinev1.Machine) {
+				m.Spec.LifecycleHooks.PreDrain = []machinev1.LifecycleHook{preDrainHook, preDrainHook}
+			},
+			expectedError: "spec.lifecycleHooks.preDrain[1].name: Forbidden: hook names must be unique within a lifecycle stage, the following hook name is already set: pre-drain",
+		},
 	}
 
 	for _, tc := range testCases {
