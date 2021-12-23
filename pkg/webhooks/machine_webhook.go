@@ -1276,18 +1276,40 @@ func isAzureGovCloud(platformStatus *osconfigv1.PlatformStatus) bool {
 
 func validateMachineLifecycleHooks(m, oldM *machinev1.Machine) []error {
 	var errs []error
-	if !isDeleting(m) || oldM == nil {
-		return errs
+
+	if nameErrs := checkUniqueHookNames(m.Spec.LifecycleHooks.PreDrain, field.NewPath("spec", "lifecycleHooks", "preDrain")); len(nameErrs) > 0 {
+		errs = append(errs, nameErrs...)
+	}
+	if nameErrs := checkUniqueHookNames(m.Spec.LifecycleHooks.PreTerminate, field.NewPath("spec", "lifecycleHooks", "preTerminate")); len(nameErrs) > 0 {
+		errs = append(errs, nameErrs...)
 	}
 
-	changedPreDrain := lifecyclehooks.GetChangedLifecycleHooks(oldM.Spec.LifecycleHooks.PreDrain, m.Spec.LifecycleHooks.PreDrain)
-	if len(changedPreDrain) > 0 {
-		errs = append(errs, field.Forbidden(field.NewPath("spec", "lifecycleHooks", "preDrain"), fmt.Sprintf("pre-drain hooks are immutable when machine is marked for deletion: the following hooks are new or changed: %+v", changedPreDrain)))
+	if isDeleting(m) && oldM != nil {
+		changedPreDrain := lifecyclehooks.GetChangedLifecycleHooks(oldM.Spec.LifecycleHooks.PreDrain, m.Spec.LifecycleHooks.PreDrain)
+		if len(changedPreDrain) > 0 {
+			errs = append(errs, field.Forbidden(field.NewPath("spec", "lifecycleHooks", "preDrain"), fmt.Sprintf("pre-drain hooks are immutable when machine is marked for deletion: the following hooks are new or changed: %+v", changedPreDrain)))
+		}
+
+		changedPreTerminate := lifecyclehooks.GetChangedLifecycleHooks(oldM.Spec.LifecycleHooks.PreTerminate, m.Spec.LifecycleHooks.PreTerminate)
+		if len(changedPreTerminate) > 0 {
+			errs = append(errs, field.Forbidden(field.NewPath("spec", "lifecycleHooks", "preTerminate"), fmt.Sprintf("pre-terminate hooks are immutable when machine is marked for deletion: the following hooks are new or changed: %+v", changedPreTerminate)))
+		}
 	}
 
-	changedPreTerminate := lifecyclehooks.GetChangedLifecycleHooks(oldM.Spec.LifecycleHooks.PreTerminate, m.Spec.LifecycleHooks.PreTerminate)
-	if len(changedPreTerminate) > 0 {
-		errs = append(errs, field.Forbidden(field.NewPath("spec", "lifecycleHooks", "preTerminate"), fmt.Sprintf("pre-terminate hooks are immutable when machine is marked for deletion: the following hooks are new or changed: %+v", changedPreTerminate)))
+	return errs
+}
+
+// checkUniqueHookNames checks that the names of hooks within a lifecycle stage are unique
+func checkUniqueHookNames(hooks []machinev1.LifecycleHook, parent *field.Path) []error {
+	errs := []error{}
+	names := make(map[string]struct{})
+
+	for i, hook := range hooks {
+		if _, found := names[hook.Name]; found {
+			errs = append(errs, field.Forbidden(parent.Index(i).Child("name"), fmt.Sprintf("hook names must be unique within a lifecycle stage, the following hook name is already set: %s", hook.Name)))
+		} else {
+			names[hook.Name] = struct{}{}
+		}
 	}
 
 	return errs
