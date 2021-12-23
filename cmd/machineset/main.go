@@ -18,15 +18,19 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"time"
 
+	osconfigv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
+	"github.com/openshift/library-go/pkg/config/leaderelection"
 	"github.com/openshift/machine-api-operator/pkg/controller"
 	"github.com/openshift/machine-api-operator/pkg/controller/machineset"
 	"github.com/openshift/machine-api-operator/pkg/metrics"
 	"github.com/openshift/machine-api-operator/pkg/util"
 	mapiwebhooks "github.com/openshift/machine-api-operator/pkg/webhooks"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -42,6 +46,12 @@ const (
 )
 
 func main() {
+	// Used to get the default values for leader election from library-go
+	defaultLeaderElectionValues := leaderelection.LeaderElectionDefaulting(
+		osconfigv1.LeaderElection{},
+		"", "",
+	)
+
 	flag.Set("logtostderr", "true")
 	klog.InitFlags(nil)
 	watchNamespace := flag.String("namespace", "",
@@ -75,10 +85,11 @@ func main() {
 		"Start a leader election client and gain leadership before executing the main loop. Enable this when running replicated components for high availability.",
 	)
 
+	// Default values are printed for the user to see, but zero is set as the default to distinguish user intent from default value for topology aware leader election
 	leaderElectLeaseDuration := flag.Duration(
 		"leader-elect-lease-duration",
-		util.LeaseDuration,
-		"The duration that non-leader candidates will wait after observing a leadership renewal until attempting to acquire leadership of a led but unrenewed leader slot. This is effectively the maximum duration that a leader can be stopped before it is replaced by another candidate. This is only applicable if leader election is enabled.",
+		0,
+		fmt.Sprintf("The duration that non-leader candidates will wait after observing a leadership renewal until attempting to acquire leadership of a led but unrenewed leader slot. This is effectively the maximum duration that a leader can be stopped before it is replaced by another candidate. This is only applicable if leader election is enabled. Default: (%s)", defaultLeaderElectionValues.LeaseDuration.Duration),
 	)
 
 	flag.Parse()
@@ -93,6 +104,11 @@ func main() {
 		log.Fatal(err)
 	}
 
+	le := util.GetLeaderElectionConfig(cfg, osconfigv1.LeaderElection{
+		Disable:       !*leaderElect,
+		LeaseDuration: metav1.Duration{Duration: *leaderElectLeaseDuration},
+	})
+
 	// Create a new Cmd to provide shared dependencies and start components
 	syncPeriod := 10 * time.Minute
 	opts := manager.Options{
@@ -103,9 +119,9 @@ func main() {
 		LeaderElection:          *leaderElect,
 		LeaderElectionNamespace: *leaderElectResourceNamespace,
 		LeaderElectionID:        "cluster-api-provider-machineset-leader",
-		LeaseDuration:           leaderElectLeaseDuration,
-		RetryPeriod:             util.TimeDuration(util.RetryPeriod),
-		RenewDeadline:           util.TimeDuration(util.RenewDeadline),
+		LeaseDuration:           &le.LeaseDuration.Duration,
+		RetryPeriod:             &le.RetryPeriod.Duration,
+		RenewDeadline:           &le.RenewDeadline.Duration,
 	}
 
 	mgr, err := manager.New(cfg, opts)

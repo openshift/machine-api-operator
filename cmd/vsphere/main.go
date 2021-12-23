@@ -8,12 +8,14 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
+	"github.com/openshift/library-go/pkg/config/leaderelection"
 	capimachine "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	machine "github.com/openshift/machine-api-operator/pkg/controller/vsphere"
 	machinesetcontroller "github.com/openshift/machine-api-operator/pkg/controller/vsphere/machineset"
 	"github.com/openshift/machine-api-operator/pkg/metrics"
 	"github.com/openshift/machine-api-operator/pkg/util"
 	"github.com/openshift/machine-api-operator/pkg/version"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -26,6 +28,12 @@ import (
 func main() {
 	var printVersion bool
 	flag.BoolVar(&printVersion, "version", false, "print version and exit")
+
+	// Used to get the default values for leader election from library-go
+	defaultLeaderElectionValues := leaderelection.LeaderElectionDefaulting(
+		configv1.LeaderElection{},
+		"", "",
+	)
 
 	klog.InitFlags(nil)
 	watchNamespace := flag.String(
@@ -46,10 +54,11 @@ func main() {
 		"Start a leader election client and gain leadership before executing the main loop. Enable this when running replicated components for high availability.",
 	)
 
+	// Default values are printed for the user to see, but zero is set as the default to distinguish user intent from default value for topology aware leader election
 	leaderElectLeaseDuration := flag.Duration(
 		"leader-elect-lease-duration",
-		util.LeaseDuration,
-		"The duration that non-leader candidates will wait after observing a leadership renewal until attempting to acquire leadership of a led but unrenewed leader slot. This is effectively the maximum duration that a leader can be stopped before it is replaced by another candidate. This is only applicable if leader election is enabled.",
+		0,
+		fmt.Sprintf("The duration that non-leader candidates will wait after observing a leadership renewal until attempting to acquire leadership of a led but unrenewed leader slot. This is effectively the maximum duration that a leader can be stopped before it is replaced by another candidate. This is only applicable if leader election is enabled. Default: (%s)", defaultLeaderElectionValues.LeaseDuration.Duration),
 	)
 
 	metricsAddress := flag.String(
@@ -74,6 +83,11 @@ func main() {
 	cfg := config.GetConfigOrDie()
 	syncPeriod := 10 * time.Minute
 
+	le := util.GetLeaderElectionConfig(cfg, configv1.LeaderElection{
+		Disable:       !*leaderElect,
+		LeaseDuration: metav1.Duration{Duration: *leaderElectLeaseDuration},
+	})
+
 	opts := manager.Options{
 		MetricsBindAddress:      *metricsAddress,
 		HealthProbeBindAddress:  *healthAddr,
@@ -81,9 +95,9 @@ func main() {
 		LeaderElection:          *leaderElect,
 		LeaderElectionNamespace: *leaderElectResourceNamespace,
 		LeaderElectionID:        "cluster-api-provider-vsphere-leader",
-		LeaseDuration:           leaderElectLeaseDuration,
-		RetryPeriod:             util.TimeDuration(util.RetryPeriod),
-		RenewDeadline:           util.TimeDuration(util.RenewDeadline),
+		LeaseDuration:           &le.LeaseDuration.Duration,
+		RetryPeriod:             &le.RetryPeriod.Duration,
+		RenewDeadline:           &le.RenewDeadline.Duration,
 	}
 
 	if *watchNamespace != "" {
