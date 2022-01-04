@@ -85,7 +85,13 @@ const (
 	defaultAzureCredentialsSecret = "azure-cloud-credentials"
 	defaultAzureOSDiskOSType      = "Linux"
 	defaultAzureOSDiskStorageType = "Premium_LRS"
-	azureMaxDiskSizeGB            = 32768
+
+	// Azure OSDisk constants
+	azureMaxDiskSizeGB                 = 32768
+	azureEphemeralStorageLocationLocal = "Local"
+	azureCachingTypeNone               = "None"
+	azureCachingTypeReadOnly           = "ReadOnly"
+	azureCachingTypeReadWrite          = "ReadWrite"
 
 	// GCP Defaults
 	defaultGCPMachineType       = "n1-standard-4"
@@ -857,6 +863,23 @@ func validateAzure(m *machinev1.Machine, config *admissionConfig) (bool, []strin
 
 	if providerSpec.OSDisk.DiskSizeGB <= 0 || providerSpec.OSDisk.DiskSizeGB >= azureMaxDiskSizeGB {
 		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "osDisk", "diskSizeGB"), providerSpec.OSDisk.DiskSizeGB, "diskSizeGB must be greater than zero and less than 32768"))
+	}
+
+	if providerSpec.OSDisk.DiskSettings.EphemeralStorageLocation != azureEphemeralStorageLocationLocal && providerSpec.OSDisk.DiskSettings.EphemeralStorageLocation != "" {
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "osDisk", "diskSettings", "ephemeralStorageLocation"), providerSpec.OSDisk.DiskSettings.EphemeralStorageLocation,
+			fmt.Sprintf("osDisk.diskSettings.ephemeralStorageLocation can either be omitted or set to %s", azureEphemeralStorageLocationLocal)))
+	}
+
+	switch providerSpec.OSDisk.CachingType {
+	case azureCachingTypeNone, azureCachingTypeReadOnly, azureCachingTypeReadWrite, "":
+		// Valid scenarios, do nothing
+	default:
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "osDisk", "cachingType"), providerSpec.OSDisk.CachingType,
+			fmt.Sprintf("osDisk.cachingType can be only %s, %s, %s or omitted", azureCachingTypeNone, azureCachingTypeReadOnly, azureCachingTypeReadWrite)))
+	}
+
+	if providerSpec.OSDisk.DiskSettings.EphemeralStorageLocation == azureEphemeralStorageLocationLocal && providerSpec.OSDisk.CachingType != azureCachingTypeReadOnly {
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "osDisk", "cachingType"), providerSpec.OSDisk.CachingType, "Instances using an ephemeral OS disk support only Readonly caching"))
 	}
 
 	if isAzureGovCloud(config.platformStatus) && providerSpec.SpotVMOptions != nil {

@@ -161,6 +161,84 @@ func TestMachineCreation(t *testing.T) {
 			expectedError: "",
 		},
 		{
+			name:         "with Azure and correct ephemeral storage location",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
+						DiskSizeGB:  128,
+						CachingType: "ReadOnly",
+						DiskSettings: machinev1.DiskSettings{
+							EphemeralStorageLocation: "Local",
+						},
+					},
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "with Azure and incorrect ephemeral storage location",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
+						DiskSizeGB: 128,
+						DiskSettings: machinev1.DiskSettings{
+							EphemeralStorageLocation: "INVALID",
+						},
+					},
+				},
+			},
+			expectedError: "providerSpec.osDisk.diskSettings.ephemeralStorageLocation: Invalid value: \"INVALID\": osDisk.diskSettings.ephemeralStorageLocation can either be omitted or set to Local",
+		},
+		{
+			name:         "with Azure and correct cachingType",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
+						DiskSizeGB:  128,
+						CachingType: "ReadOnly",
+					},
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "with Azure and incorrect cachingType",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
+						DiskSizeGB:  128,
+						CachingType: "INVALID",
+					},
+				},
+			},
+			expectedError: "providerSpec.osDisk.cachingType: Invalid value: \"INVALID\": osDisk.cachingType can be only None, ReadOnly, ReadWrite or omitted",
+		},
+		{
+			name:         "with Azure and ephemeral storage location with incorrect cachingType",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
+						DiskSizeGB:  128,
+						CachingType: "ReadWrite",
+						DiskSettings: machinev1.DiskSettings{
+							EphemeralStorageLocation: "Local",
+						},
+					},
+				},
+			},
+			expectedError: "providerSpec.osDisk.cachingType: Invalid value: \"ReadWrite\": Instances using an ephemeral OS disk support only Readonly caching",
+		},
+		{
 			name:         "with Azure disconnected installation request public IP",
 			platformType: osconfigv1.AzurePlatformType,
 			clusterID:    "azure-cluster",
@@ -385,10 +463,14 @@ func TestMachineUpdate(t *testing.T) {
 			Namespace: defaultSecretNamespace,
 		},
 		OSDisk: machinev1.OSDisk{
-			DiskSizeGB: 128,
-			OSType:     defaultAzureOSDiskOSType,
+			DiskSizeGB:  128,
+			OSType:      defaultAzureOSDiskOSType,
+			CachingType: "ReadOnly",
 			ManagedDisk: machinev1.ManagedDiskParameters{
 				StorageAccountType: defaultAzureOSDiskStorageType,
+			},
+			DiskSettings: machinev1.DiskSettings{
+				EphemeralStorageLocation: "Local",
 			},
 		},
 	}
@@ -637,6 +719,22 @@ func TestMachineUpdate(t *testing.T) {
 				}
 			},
 			expectedError: "providerSpec.credentialsSecret: Required value: credentialsSecret must be provided",
+		},
+		{
+			name:         "with an Azure ProviderSpec, removing caching type ",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    azureClusterID,
+			baseProviderSpecValue: &kruntime.RawExtension{
+				Object: defaultAzureProviderSpec.DeepCopy(),
+			},
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
+				object := defaultAzureProviderSpec.DeepCopy()
+				object.OSDisk.CachingType = ""
+				return &kruntime.RawExtension{
+					Object: object,
+				}
+			},
+			expectedError: "providerSpec.osDisk.cachingType: Invalid value: \"\": Instances using an ephemeral OS disk support only Readonly caching",
 		},
 		{
 			name:         "with a valid GCP ProviderSpec",
@@ -1308,6 +1406,15 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 			},
 			expectedOk:    false,
 			expectedError: "providerSpec.vmSize: Required value: vmSize should be set to one of the supported Azure VM sizes",
+		},
+		{
+			testCase: "with ephemeral storage but no caching type it fails",
+			modifySpec: func(p *machinev1.AzureMachineProviderSpec) {
+				p.OSDisk.CachingType = ""
+				p.OSDisk.DiskSettings.EphemeralStorageLocation = "Local"
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.osDisk.cachingType: Invalid value: \"\": Instances using an ephemeral OS disk support only Readonly caching",
 		},
 		{
 			testCase: "with a vnet but no subnet it fails",
