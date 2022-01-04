@@ -12,7 +12,7 @@ var (
 	expectedAlibabaImage            = "docker.io/openshift/origin-alibaba-machine-controllers:v4.0.0"
 	expectedLibvirtImage            = "docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0"
 	expectedOpenstackImage          = "docker.io/openshift/origin-openstack-machine-controllers:v4.0.0"
-	expectedMAPOImage               = "quay.io/shiftstack/machine-api-provider-openstack:latest"
+	expectedMAPOImage               = "quay.io/openshift/origin-machine-api-provider-openstack:v4.0.0"
 	expectedMachineAPIOperatorImage = "docker.io/openshift/origin-machine-api-operator:v4.0.0"
 	expectedKubeRBACProxyImage      = "docker.io/openshift/origin-kube-rbac-proxy:v4.0.0"
 	expectedBareMetalImage          = "quay.io/openshift/origin-baremetal-machine-controllers:v4.0.0"

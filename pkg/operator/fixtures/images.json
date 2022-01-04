@@ -2,7 +2,7 @@
   "clusterAPIControllerAWS": "docker.io/openshift/origin-aws-machine-controllers:v4.0.0",
   "clusterAPIControllerAlibaba": "docker.io/openshift/origin-alibaba-machine-controllers:v4.0.0",
   "clusterAPIControllerOpenStack": "docker.io/openshift/origin-openstack-machine-controllers:v4.0.0",
-  "clusterAPIControllerMAPO": "quay.io/shiftstack/machine-api-provider-openstack:latest",
+  "clusterAPIControllerMAPO": "quay.io/openshift/origin-machine-api-provider-openstack:v4.0.0",
   "clusterAPIControllerLibvirt": "docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0",
   "machineAPIOperator": "docker.io/openshift/origin-machine-api-operator:v4.0.0",
   "clusterAPIControllerBareMetal": "quay.io/openshift/origin-baremetal-machine-controllers:v4.0.0",
