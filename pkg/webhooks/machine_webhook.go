@@ -1227,6 +1227,9 @@ func validateVSphere(m *machinev1.Machine, config *admissionConfig) (bool, []str
 	if providerSpec.DiskGiB < minVSphereDiskGiB {
 		warnings = append(warnings, fmt.Sprintf("providerSpec.diskGiB: %d is missing or less than the recommended minimum (%d): nodes may fail to start if disk size is too low", providerSpec.DiskGiB, minVSphereDiskGiB))
 	}
+	if providerSpec.CloneMode == machinev1.LinkedClone && providerSpec.DiskGiB > 0 {
+		warnings = append(warnings, fmt.Sprintf("%s clone mode is set. DiskGiB parameter will be ignored, disk size from template will be used.", machinev1.LinkedClone))
+	}
 
 	if providerSpec.UserDataSecret == nil {
 		errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret"), "userDataSecret must be provided"))
