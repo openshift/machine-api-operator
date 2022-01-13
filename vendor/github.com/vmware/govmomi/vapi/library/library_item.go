@@ -88,6 +88,16 @@ func (c *Manager) CreateLibraryItem(ctx context.Context, item Item) (string, err
 	return res, c.Do(ctx, url.Request(http.MethodPost, spec), &res)
 }
 
+// CopyLibraryItem copies a library item
+func (c *Manager) CopyLibraryItem(ctx context.Context, src *Item, dst Item) (string, error) {
+	body := struct {
+		Item `json:"destination_create_spec"`
+	}{dst}
+	url := c.Resource(internal.LibraryItemPath).WithID(src.ID).WithAction("copy")
+	var res string
+	return res, c.Do(ctx, url.Request(http.MethodPost, body), &res)
+}
+
 // SyncLibraryItem syncs a subscribed library item
 func (c *Manager) SyncLibraryItem(ctx context.Context, item *Item, force bool) error {
 	body := struct {
@@ -95,6 +105,33 @@ func (c *Manager) SyncLibraryItem(ctx context.Context, item *Item, force bool) e
 	}{force}
 	url := c.Resource(internal.SubscribedLibraryItem).WithID(item.ID).WithAction("sync")
 	return c.Do(ctx, url.Request(http.MethodPost, body), nil)
+}
+
+// PublishLibraryItem publishes a library item to specified subscriptions.
+// If no subscriptions are specified, then publishes the library item to all subscriptions.
+func (c *Manager) PublishLibraryItem(ctx context.Context, item *Item, force bool, subscriptions []string) error {
+	body := internal.SubscriptionItemDestinationSpec{
+		Force: force,
+	}
+	for i := range subscriptions {
+		body.Subscriptions = append(body.Subscriptions, internal.SubscriptionDestination{ID: subscriptions[i]})
+	}
+	url := c.Resource(internal.LibraryItemPath).WithID(item.ID).WithAction("publish")
+	return c.Do(ctx, url.Request(http.MethodPost, body), nil)
+}
+
+// UpdateLibraryItem can update one or both of the item Description and Name fields.
+func (c *Manager) UpdateLibraryItem(ctx context.Context, item *Item) error {
+	spec := struct {
+		Item `json:"update_spec"`
+	}{
+		Item{
+			Name:        item.Name,
+			Description: item.Description,
+		},
+	}
+	url := c.Resource(internal.LibraryItemPath).WithID(item.ID)
+	return c.Do(ctx, url.Request(http.MethodPatch, spec), nil)
 }
 
 // DeleteLibraryItem deletes an existing library item.

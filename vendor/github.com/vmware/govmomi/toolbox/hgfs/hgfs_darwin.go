@@ -14,13 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package simulator
+package hgfs
 
-import "os"
+import (
+	"os"
+)
 
-func (ds *Datastore) stat() error {
-	info := ds.Info.GetDatastoreInfo()
-
-	_, err := os.Stat(info.Url)
-	return err
+func (a *AttrV2) sysStat(info os.FileInfo) {
 }
