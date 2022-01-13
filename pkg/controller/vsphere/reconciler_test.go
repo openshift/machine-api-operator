@@ -632,16 +632,41 @@ func TestGetNetworkDevices(t *testing.T) {
 	testCases := []struct {
 		testCase     string
 		providerSpec *machinev1.VSphereMachineProviderSpec
-		expected     func(gotDevices []types.BaseVirtualDeviceConfigSpec) bool
+		expected     func(gotDevices []types.BaseVirtualDeviceConfigSpec, err error) bool
 	}{
 		{
 			testCase:     "no Network",
 			providerSpec: &machinev1.VSphereMachineProviderSpec{},
-			expected: func(gotDevices []types.BaseVirtualDeviceConfigSpec) bool {
+			expected: func(gotDevices []types.BaseVirtualDeviceConfigSpec, err error) bool {
+				if err != nil {
+					t.Fatal(err)
+					return false
+				}
 				if len(gotDevices) != 1 {
 					return false
 				}
 				if gotDevices[0].GetVirtualDeviceConfigSpec().Operation != types.VirtualDeviceConfigSpecOperationRemove {
+					return false
+				}
+				return true
+			},
+		},
+		{
+			testCase: "wrong Network",
+			providerSpec: &machinev1.VSphereMachineProviderSpec{
+				Network: machinev1.NetworkSpec{
+					Devices: []machinev1.NetworkDeviceSpec{
+						{
+							NetworkName: "Wrong Network",
+						},
+					},
+				},
+			},
+			expected: func(gotDevices []types.BaseVirtualDeviceConfigSpec, err error) bool {
+				if len(gotDevices) != 0 {
+					return false
+				}
+				if err == nil {
 					return false
 				}
 				return true
@@ -658,7 +683,11 @@ func TestGetNetworkDevices(t *testing.T) {
 					},
 				},
 			},
-			expected: func(gotDevices []types.BaseVirtualDeviceConfigSpec) bool {
+			expected: func(gotDevices []types.BaseVirtualDeviceConfigSpec, err error) bool {
+				if err != nil {
+					t.Fatal(err)
+					return false
+				}
 				if len(gotDevices) != 2 {
 					return false
 				}
@@ -682,10 +711,8 @@ func TestGetNetworkDevices(t *testing.T) {
 				session:      session,
 			}
 			networkDevices, err := getNetworkDevices(machineScope, resourcePool, devices)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !tc.expected(networkDevices) {
+
+			if !tc.expected(networkDevices, err) {
 				t.Errorf("Got unexpected networkDevices len (%v) or operations (%v)",
 					len(networkDevices),
 					printOperations(networkDevices))
