@@ -651,7 +651,7 @@ func clone(s *machineScope) (string, error) {
 	}
 
 	klog.V(3).Infof("Getting network devices")
-	networkDevices, err := getNetworkDevices(s, devices)
+	networkDevices, err := getNetworkDevices(s, resourcepool, devices)
 	if err != nil {
 		return "", fmt.Errorf("error getting network specs: %v", err)
 	}
@@ -720,8 +720,9 @@ func getDiskSpec(s *machineScope, devices object.VirtualDeviceList) (types.BaseV
 	}, nil
 }
 
-func getNetworkDevices(s *machineScope, devices object.VirtualDeviceList) ([]types.BaseVirtualDeviceConfigSpec, error) {
+func getNetworkDevices(s *machineScope, resourcepool *object.ResourcePool, devices object.VirtualDeviceList) ([]types.BaseVirtualDeviceConfigSpec, error) {
 	var networkDevices []types.BaseVirtualDeviceConfigSpec
+	var backing types.BaseVirtualDeviceBackingInfo
 	// Remove any existing NICs
 	for _, dev := range devices.SelectByType((*types.VirtualEthernetCard)(nil)) {
 		networkDevices = append(networkDevices, &types.VirtualDeviceConfigSpec{
@@ -732,20 +733,47 @@ func getNetworkDevices(s *machineScope, devices object.VirtualDeviceList) ([]typ
 
 	// Add new NICs based on the machine config.
 	for i := range s.providerSpec.Network.Devices {
+		var ccrMo mo.ClusterComputeResource
+
 		netSpec := &s.providerSpec.Network.Devices[i]
 		klog.V(3).Infof("Adding device: %v", netSpec.NetworkName)
 
-		ref, err := s.GetSession().Finder.Network(s.Context, netSpec.NetworkName)
+		clusterRef, err := resourcepool.Owner(s.Context)
 		if err != nil {
-			const multipleFoundMsg = "multiple networks found, specify one in config"
-			const notFoundMsg = "network not found, specify valid value"
-			defaultError := fmt.Errorf("unable to get network for %q: %w", netSpec.NetworkName, err)
-			return nil, handleVSphereError(multipleFoundMsg, notFoundMsg, defaultError, err)
+			return nil, fmt.Errorf("unable to find cluster resource: %w", err)
 		}
 
-		backing, err := ref.EthernetCardBackingInfo(s.Context)
+		clusterRes := object.NewClusterComputeResource(s.GetSession().Client.Client, clusterRef.Reference())
+		err = clusterRes.Properties(s.Context, clusterRef.Reference(), []string{"network"}, &ccrMo)
 		if err != nil {
-			return nil, fmt.Errorf("unable to create new ethernet card backing info for network %q: %w", netSpec.NetworkName, err)
+			return nil, fmt.Errorf("unable to get list of networks in cluster: %w", err)
+		}
+
+		for _, netRef := range ccrMo.Network {
+			// Use generic network object to get name
+			genericNetwork := object.NewNetwork(s.GetSession().Client.Client, netRef)
+			networkName, err := genericNetwork.ObjectName(s.Context)
+			if err != nil {
+				return nil, fmt.Errorf("unable to get network name: %w", err)
+			}
+			if netSpec.NetworkName == networkName {
+				// Use more specific network reference to get Ethernet info
+				ref := object.NewReference(s.GetSession().Client.Client, netRef)
+				networkObject, ok := ref.(object.NetworkReference)
+				if !ok {
+					return nil, fmt.Errorf("unable to create new ethernet card backing info for network %q: network type failure: %s", netSpec.NetworkName, ref.Reference().Type)
+				}
+
+				backing, err = networkObject.EthernetCardBackingInfo(s.Context)
+				if err != nil {
+					return nil, fmt.Errorf("unable to create new ethernet card backing info for network %q: %w", netSpec.NetworkName, err)
+				}
+				break
+			}
+		}
+
+		if backing == nil {
+			return nil, fmt.Errorf("unable to get network for %q", netSpec.NetworkName)
 		}
 
 		dev, err := object.EthernetCardTypes().CreateEthernetCard(ethCardType, backing)
