@@ -925,7 +925,7 @@ func TestMachineUpdate(t *testing.T) {
 			updateMachine: func(m *machinev1.Machine) {
 				m.Spec.LifecycleHooks.PreDrain = []machinev1.LifecycleHook{preDrainHook, preDrainHook}
 			},
-			expectedError: "spec.lifecycleHooks.preDrain[1].name: Forbidden: hook names must be unique within a lifecycle stage, the following hook name is already set: pre-drain",
+			expectedError: "Invalid", // This is an openapi error. As lifecycleHooks have list-type=map, the API server will prevent duplication
 		},
 	}
 

@@ -121,7 +121,6 @@ var FeatureSets = map[FeatureSet]*FeatureGateEnabledDisabled{
 		with("CSIMigrationAzureFile").       // sig-storage, fbertina, Kubernetes feature gate
 		with("CSIMigrationvSphere").         // sig-storage, fbertina, Kubernetes feature gate
 		with("ExternalCloudProvider").       // sig-cloud-provider, jspeed, OCP specific
-		with("InsightsOperatorPullingSCA").  // insights-operator/ccx, tremes, OCP specific
 		with("CSIDriverSharedResource").     // sig-build, adkaplan, OCP specific
 		with("BuildCSIVolumes").             // sig-build, adkaplan, OCP specific
 		with("NodeSwap").                    // sig-node, ehashman, Kubernetes feature gate
@@ -151,6 +150,12 @@ var defaultFeatures = &FeatureGateEnabledDisabled{
 	},
 	Disabled: []string{
 		"LegacyNodeRoleBehavior", // sig-scheduling, ccoleman
+		"CSIMigrationAWS",        // sig-storage, jsafrane
+		"CSIMigrationOpenStack",  // sig-storage, jsafrane
+		"CSIMigrationGCE",        // sig-storage, jsafrane
+		"CSIMigrationAzureDisk",  // sig-storage, jsafrane
+		"CSIMigrationAzureFile",  // sig-storage, jsafrane
+		"CSIMigrationvSphere",    // sig-storage, jsafrane
 	},
 }
 
