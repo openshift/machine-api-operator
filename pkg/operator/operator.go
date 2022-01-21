@@ -12,6 +12,7 @@ import (
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
+	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -63,9 +64,11 @@ type Operator struct {
 	proxyLister       configlistersv1.ProxyLister
 	proxyListerSynced cache.InformerSynced
 
+	validatingWebhookCache        resourceapply.ResourceCache
 	validatingWebhookLister       admissionlisterv1.ValidatingWebhookConfigurationLister
 	validatingWebhookListerSynced cache.InformerSynced
 
+	mutatingWebhookCache        resourceapply.ResourceCache
 	mutatingWebhookLister       admissionlisterv1.MutatingWebhookConfigurationLister
 	mutatingWebhookListerSynced cache.InformerSynced
 
@@ -135,9 +138,11 @@ func New(
 	optr.proxyLister = proxyInformer.Lister()
 	optr.proxyListerSynced = proxyInformer.Informer().HasSynced
 
+	optr.validatingWebhookCache = resourceapply.NewResourceCache()
 	optr.validatingWebhookLister = validatingWebhookInformer.Lister()
 	optr.validatingWebhookListerSynced = validatingWebhookInformer.Informer().HasSynced
 
+	optr.mutatingWebhookCache = resourceapply.NewResourceCache()
 	optr.mutatingWebhookLister = mutatingWebhookInformer.Lister()
 	optr.mutatingWebhookListerSynced = mutatingWebhookInformer.Informer().HasSynced
 

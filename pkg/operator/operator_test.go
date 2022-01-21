@@ -15,6 +15,7 @@ import (
 	openshiftv1 "github.com/openshift/api/config/v1"
 	fakeos "github.com/openshift/client-go/config/clientset/versioned/fake"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions"
+	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -68,7 +69,9 @@ func newFakeOperator(kubeObjects []runtime.Object, osObjects []runtime.Object, s
 		proxyListerSynced:             proxyInformer.Informer().HasSynced,
 		daemonsetListerSynced:         daemonsetInformer.Informer().HasSynced,
 		featureGateCacheSynced:        featureGateInformer.Informer().HasSynced,
+		mutatingWebhookCache:          resourceapply.NewResourceCache(),
 		mutatingWebhookListerSynced:   mutatingWebhookInformer.Informer().HasSynced,
+		validatingWebhookCache:        resourceapply.NewResourceCache(),
 		validatingWebhookListerSynced: validatingWebhookInformer.Informer().HasSynced,
 	}
 
