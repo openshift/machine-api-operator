@@ -195,9 +195,10 @@ func (optr *Operator) syncWebhookConfiguration() error {
 }
 
 func (optr *Operator) syncValidatingWebhook() error {
-	validatingWebhook, updated, err := resourceapply.ApplyValidatingWebhookConfiguration(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
+	validatingWebhook, updated, err := resourceapply.ApplyValidatingWebhookConfigurationImproved(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
 		events.NewLoggingEventRecorder(optr.name),
-		mapiwebhooks.NewValidatingWebhookConfiguration())
+		mapiwebhooks.NewValidatingWebhookConfiguration(),
+		optr.validatingWebhookCache)
 	if err != nil {
 		return err
 	}
@@ -209,9 +210,10 @@ func (optr *Operator) syncValidatingWebhook() error {
 }
 
 func (optr *Operator) syncMutatingWebhook() error {
-	validatingWebhook, updated, err := resourceapply.ApplyMutatingWebhookConfiguration(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
+	validatingWebhook, updated, err := resourceapply.ApplyMutatingWebhookConfigurationImproved(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
 		events.NewLoggingEventRecorder(optr.name),
-		mapiwebhooks.NewMutatingWebhookConfiguration())
+		mapiwebhooks.NewMutatingWebhookConfiguration(),
+		optr.mutatingWebhookCache)
 	if err != nil {
 		return err
 	}

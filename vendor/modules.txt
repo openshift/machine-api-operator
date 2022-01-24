@@ -269,7 +269,7 @@ github.com/openshift/client-go/machine/informers/externalversions/internalinterf
 github.com/openshift/client-go/machine/informers/externalversions/machine
 github.com/openshift/client-go/machine/informers/externalversions/machine/v1beta1
 github.com/openshift/client-go/machine/listers/machine/v1beta1
-# github.com/openshift/library-go v0.0.0-20211220195323-eca2c467c492
+# github.com/openshift/library-go v0.0.0-20220121154930-b7889002d63e
 ## explicit; go 1.17
 github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers
 github.com/openshift/library-go/pkg/config/clusterstatus
