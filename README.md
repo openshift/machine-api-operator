@@ -27,11 +27,11 @@ Have a question? See our [Frequently Asked Questions](FAQ.md) for common inquiri
 
   Ensure that a provider instance is created for a Machine object in a given provider.
 
-  - [cluster-api-provider-aws](https://github.com/openshift/cluster-api-provider-aws)
+  - [machine-api-provider-aws](https://github.com/openshift/machine-api-provider-aws)
 
-  - [cluster-api-provider-gcp](https://github.com/openshift/cluster-api-provider-gcp)
+  - [machine-api-provider-gcp](https://github.com/openshift/machine-api-provider-gcp)
 
-  - [cluster-api-provider-azure](https://github.com/openshift/cluster-api-provider-azure)
+  - [machine-api-provider-azure](https://github.com/openshift/machine-api-provider-azure)
 
   - [cluster-api-provider-libvirt](https://github.com/openshift/cluster-api-provider-libvirt)
 
