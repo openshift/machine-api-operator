@@ -314,7 +314,6 @@ var map_BuildVolumeSource = map[string]string{
 	"type":      "type is the BuildVolumeSourceType for the volume source. Type must match the populated volume source. Valid types are: Secret, ConfigMap",
 	"secret":    "secret represents a Secret that should populate this volume. More info: https://kubernetes.io/docs/concepts/storage/volumes#secret",
 	"configMap": "configMap represents a ConfigMap that should populate this volume",
-	"csi":       "csi represents ephemeral storage provided by external CSI drivers which support this capability",
 }
 
 func (BuildVolumeSource) SwaggerDoc() map[string]string {
@@ -482,7 +481,7 @@ func (GitSourceRevision) SwaggerDoc() map[string]string {
 
 var map_ImageChangeCause = map[string]string{
 	"":        "ImageChangeCause contains information about the image that triggered a build",
-	"imageID": "imageID is the ID of the image that triggered a new build.",
+	"imageID": "imageID is the ID of the image that triggered a a new build.",
 	"fromRef": "fromRef contains detailed information about an image that triggered a build.",
 }
 

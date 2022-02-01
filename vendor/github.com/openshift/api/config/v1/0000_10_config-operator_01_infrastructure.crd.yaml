@@ -56,6 +56,29 @@ spec:
                       description: AWS contains settings specific to the Amazon Web Services infrastructure provider.
                       type: object
                       properties:
+                        resourceTags:
+                          description: ResourceTags is a list of additional tags to apply to AWS resources created for the cluster. See https://docs.aws.amazon.com/general/latest/gr/aws_tagging.html for information on tagging AWS resources. AWS supports a maximum of 50 tags per resource. OpenShift reserves 25 tags for its use, leaving 25 tags available for the user. While ResourceTags field is mutable, items can not be removed.
+                          type: array
+                          maxItems: 25
+                          items:
+                            description: AWSResourceTag is a tag to apply to AWS resources created for the cluster.
+                            type: object
+                            required:
+                              - key
+                              - value
+                            properties:
+                              key:
+                                description: key is the key of the tag
+                                type: string
+                                maxLength: 128
+                                minLength: 1
+                                pattern: ^[0-9A-Za-z_.:/=+-@]+$
+                              value:
+                                description: value is the value of the tag. Some AWS service do not support empty values. Since tags are added to resources in many services, the length of the tag value must meet the requirements of all services.
+                                type: string
+                                maxLength: 256
+                                minLength: 1
+                                pattern: ^[0-9A-Za-z_.:/=+-@]+$
                         serviceEndpoints:
                           description: serviceEndpoints list contains custom endpoints which will override default service endpoint of AWS Services. There must be only one ServiceEndpoint for a service.
                           type: array
@@ -98,29 +121,6 @@ spec:
                     powervs:
                       description: PowerVS contains settings specific to the IBM Power Systems Virtual Servers infrastructure provider.
                       type: object
-                      properties:
-                        serviceEndpoints:
-                          description: serviceEndpoints is a list of custom endpoints which will override the default service endpoints of a Power VS service.
-                          type: array
-                          items:
-                            description: PowervsServiceEndpoint stores the configuration of a custom url to override existing defaults of PowerVS Services.
-                            type: object
-                            required:
-                              - name
-                              - url
-                            properties:
-                              name:
-                                description: name is the name of the Power VS service. Few of the services are IAM - https://cloud.ibm.com/apidocs/iam-identity-token-api ResourceController - https://cloud.ibm.com/apidocs/resource-controller/resource-controller Power Cloud - https://cloud.ibm.com/apidocs/power-cloud
-                                type: string
-                                pattern: ^[a-z0-9-]+$
-                              url:
-                                description: url is fully qualified URI with scheme https, that overrides the default generated endpoint for a client. This must be provided and cannot be empty.
-                                type: string
-                                format: uri
-                                pattern: ^https://
-                          x-kubernetes-list-map-keys:
-                            - name
-                          x-kubernetes-list-type: map
                     type:
                       description: type is the underlying infrastructure provider for the cluster. This value controls whether infrastructure automation such as service load balancers, dynamic volume provisioning, machine creation and deletion, and other integrations are enabled. If None, no infrastructure automation is enabled. Allowed values are "AWS", "Azure", "BareMetal", "GCP", "Libvirt", "OpenStack", "VSphere", "oVirt", "KubeVirt", "EquinixMetal", "PowerVS", "AlibabaCloud" and "None". Individual components may not support all platforms, and must handle unrecognized platforms as None if they do not support that platform.
                       type: string
@@ -202,6 +202,7 @@ spec:
                       type: object
                       required:
                         - region
+                        - resourceGroupID
                       properties:
                         region:
                           description: region specifies the region for Alibaba Cloud resources created for the cluster.
@@ -210,7 +211,7 @@ spec:
                         resourceGroupID:
                           description: resourceGroupID is the ID of the resource group for the cluster.
                           type: string
-                          pattern: ^(rg-[0-9A-Za-z]+)?$
+                          pattern: ^rg-[0-9A-Za-z]+$
                         resourceTags:
                           description: resourceTags is a list of additional tags to apply to Alibaba Cloud resources created for the cluster.
                           type: array
@@ -412,7 +413,7 @@ spec:
                               - url
                             properties:
                               name:
-                                description: name is the name of the Power VS service. Few of the services are IAM - https://cloud.ibm.com/apidocs/iam-identity-token-api ResourceController - https://cloud.ibm.com/apidocs/resource-controller/resource-controller Power Cloud - https://cloud.ibm.com/apidocs/power-cloud
+                                description: name is the name of the Power VS service.
                                 type: string
                                 pattern: ^[a-z0-9-]+$
                               url:

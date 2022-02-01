@@ -180,10 +180,6 @@ const (
 
 	// VPC means that the IBM Cloud cluster is using VPC infrastructure
 	IBMCloudProviderTypeVPC IBMCloudProviderType = "VPC"
-
-	// IBMCloudProviderTypeUPI means that the IBM Cloud cluster is using user provided infrastructure.
-	// This is utilized in IBM Cloud Satellite environments.
-	IBMCloudProviderTypeUPI IBMCloudProviderType = "UPI"
 )
 
 // PlatformSpec holds the desired state specific to the underlying infrastructure provider
@@ -343,6 +339,15 @@ type AWSPlatformSpec struct {
 	// There must be only one ServiceEndpoint for a service.
 	// +optional
 	ServiceEndpoints []AWSServiceEndpoint `json:"serviceEndpoints,omitempty"`
+
+	// ResourceTags is a list of additional tags to apply to AWS resources created for the cluster.
+	// See https://docs.aws.amazon.com/general/latest/gr/aws_tagging.html for information on tagging AWS resources.
+	// AWS supports a maximum of 50 tags per resource. OpenShift reserves 25 tags for its use, leaving 25 tags
+	// available for the user.
+	// While ResourceTags field is mutable, items can not be removed.
+	// +kubebuilder:validation:MaxItems=25
+	// +optional
+	ResourceTags []AWSResourceTag `json:"resourceTags,omitempty"`
 }
 
 // AWSPlatformStatus holds the current status of the Amazon Web Services infrastructure provider.
@@ -603,10 +608,6 @@ type EquinixMetalPlatformStatus struct {
 // override existing defaults of PowerVS Services.
 type PowerVSServiceEndpoint struct {
 	// name is the name of the Power VS service.
-	// Few of the services are
-	// IAM - https://cloud.ibm.com/apidocs/iam-identity-token-api
-	// ResourceController - https://cloud.ibm.com/apidocs/resource-controller/resource-controller
-	// Power Cloud - https://cloud.ibm.com/apidocs/power-cloud
 	//
 	// +kubebuilder:validation:Required
 	// +kubebuilder:validation:Pattern=`^[a-z0-9-]+$`
@@ -625,14 +626,7 @@ type PowerVSServiceEndpoint struct {
 
 // PowerVSPlatformSpec holds the desired state of the IBM Power Systems Virtual Servers infrastructure provider.
 // This only includes fields that can be modified in the cluster.
-type PowerVSPlatformSpec struct {
-	// serviceEndpoints is a list of custom endpoints which will override the default
-	// service endpoints of a Power VS service.
-	// +listType=map
-	// +listMapKey=name
-	// +optional
-	ServiceEndpoints []PowerVSServiceEndpoint `json:"serviceEndpoints,omitempty"`
-}
+type PowerVSPlatformSpec struct{}
 
 // PowerVSPlatformStatus holds the current status of the IBM Power Systems Virtual Servers infrastrucutre provider.
 type PowerVSPlatformStatus struct {
@@ -665,9 +659,10 @@ type AlibabaCloudPlatformStatus struct {
 	// +required
 	Region string `json:"region"`
 	// resourceGroupID is the ID of the resource group for the cluster.
-	// +kubebuilder:validation:Pattern=`^(rg-[0-9A-Za-z]+)?$`
-	// +optional
-	ResourceGroupID string `json:"resourceGroupID,omitempty"`
+	// +kubebuilder:validation:Required
+	// +kubebuilder:validation:Pattern=`^rg-[0-9A-Za-z]+$`
+	// +required
+	ResourceGroupID string `json:"resourceGroupID"`
 	// resourceTags is a list of additional tags to apply to Alibaba Cloud resources created for the cluster.
 	// +kubebuilder:validation:MaxItems=20
 	// +listType=map
