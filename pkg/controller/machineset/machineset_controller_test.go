@@ -34,7 +34,7 @@ var _ = Describe("MachineSet Reconciler", func() {
 	var mgrStopped chan struct{}
 
 	BeforeEach(func() {
-		By("Setting up a new manager")
+		By("Setting up a new manager.")
 		mgr, err := manager.New(cfg, manager.Options{MetricsBindAddress: "0"})
 		Expect(err).NotTo(HaveOccurred())
 
