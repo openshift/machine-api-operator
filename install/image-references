@@ -58,3 +58,7 @@ spec:
     from:
       kind: DockerImage
       name: quay.io/openshift/origin-alibaba-machine-controllers
+  - name: nutanix-machine-controllers
+    from:
+      kind: DockerImage
+      name: quay.io/openshift/origin-nutanix-machine-controllers
