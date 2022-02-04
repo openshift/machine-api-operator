@@ -142,20 +142,16 @@ var defaultFeatures = &FeatureGateEnabledDisabled{
 	Enabled: []string{
 		"APIPriorityAndFairness",         // sig-apimachinery, deads2k
 		"RotateKubeletServerCertificate", // sig-pod, sjenning
-		"SupportPodPidsLimit",            // sig-pod, sjenning
-		"NodeDisruptionExclusion",        // sig-scheduling, ccoleman
-		"ServiceNodeExclusion",           // sig-scheduling, ccoleman
 		"DownwardAPIHugePages",           // sig-node, rphillips
 		"PodSecurity",                    // sig-auth, s-urbaniak
 	},
 	Disabled: []string{
-		"LegacyNodeRoleBehavior", // sig-scheduling, ccoleman
-		"CSIMigrationAWS",        // sig-storage, jsafrane
-		"CSIMigrationOpenStack",  // sig-storage, jsafrane
-		"CSIMigrationGCE",        // sig-storage, jsafrane
-		"CSIMigrationAzureDisk",  // sig-storage, jsafrane
-		"CSIMigrationAzureFile",  // sig-storage, jsafrane
-		"CSIMigrationvSphere",    // sig-storage, jsafrane
+		"CSIMigrationAWS",       // sig-storage, jsafrane
+		"CSIMigrationOpenStack", // sig-storage, jsafrane
+		"CSIMigrationGCE",       // sig-storage, jsafrane
+		"CSIMigrationAzureDisk", // sig-storage, jsafrane
+		"CSIMigrationAzureFile", // sig-storage, jsafrane
+		"CSIMigrationvSphere",   // sig-storage, jsafrane
 	},
 }
 
