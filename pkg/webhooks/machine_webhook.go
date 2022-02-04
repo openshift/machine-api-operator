@@ -732,6 +732,20 @@ func validateAWS(m *machinev1.Machine, config *admissionConfig) (bool, []string,
 		warnings = append(warnings, fmt.Sprintf("providerSpec.tags: duplicated tag names (%s): only the first value will be used.", strings.Join(duplicatedTags, ",")))
 	}
 
+	switch providerSpec.NetworkInterfaceType {
+	case "", machinev1.AWSENANetworkInterfaceType, machinev1.AWSEFANetworkInterfaceType:
+		// Do nothing, valid values
+	default:
+		errs = append(
+			errs,
+			field.Invalid(
+				field.NewPath("providerSpec", "networkInterfaceType"),
+				providerSpec.NetworkInterfaceType,
+				fmt.Sprintf("Valid values are: %s, %s and omitted", machinev1.AWSENANetworkInterfaceType, machinev1.AWSEFANetworkInterfaceType),
+			),
+		)
+	}
+
 	if len(errs) > 0 {
 		return false, warnings, utilerrors.NewAggregate(errs)
 	}

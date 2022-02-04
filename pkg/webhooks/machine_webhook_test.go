@@ -1218,6 +1218,21 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			expectedOk:       true,
 			expectedWarnings: []string{"can't use providerSpec.ami.filters, only providerSpec.ami.id can be used to reference AMI"},
 		},
+		{
+			testCase: "with a valid NetworkInterfaceType",
+			modifySpec: func(p *machinev1.AWSMachineProviderConfig) {
+				p.NetworkInterfaceType = machinev1.AWSEFANetworkInterfaceType
+			},
+			expectedOk: true,
+		},
+		{
+			testCase: "with an invalid NetworkInterfaceType",
+			modifySpec: func(p *machinev1.AWSMachineProviderConfig) {
+				p.NetworkInterfaceType = "efa"
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.networkInterfaceType: Invalid value: \"efa\": Valid values are: ENA, EFA and omitted",
+		},
 	}
 
 	secret := &corev1.Secret{
