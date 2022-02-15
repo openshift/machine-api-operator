@@ -10,18 +10,18 @@ metadata:
 data:
   images.json: >
     {
-      "machineAPIOperator": "registry.svc.ci.openshift.org/openshift:machine-api-operator",
-      "kubeRBACProxy": "registry.svc.ci.openshift.org/openshift:kube-rbac-proxy",
-      "clusterAPIControllerAWS": "registry.svc.ci.openshift.org/openshift:aws-machine-controllers",
-      "clusterAPIControllerAlibaba": "registry.svc.ci.openshift.org/openshift:alibaba-machine-controllers",
-      "clusterAPIControllerOpenStack": "registry.svc.ci.openshift.org/openshift:openstack-machine-controllers",
-      "clusterAPIControllerMAPO": "quay.io/openshift/origin-openstack-machine-api-provider",
-      "clusterAPIControllerLibvirt": "registry.svc.ci.openshift.org/openshift:libvirt-machine-controllers",
-      "clusterAPIControllerBareMetal": "registry.svc.ci.openshift.org/openshift:baremetal-machine-controllers",
-      "clusterAPIControllerAzure": "registry.svc.ci.openshift.org/openshift:azure-machine-controllers",
-      "clusterAPIControllerGCP": "registry.svc.ci.openshift.org/openshift:gcp-machine-controllers",
-      "clusterAPIControllerIBMCloud": "registry.svc.ci.openshift.org/openshift:ibmcloud-machine-controllers",
-      "clusterAPIControllerOvirt": "registry.svc.ci.openshift.org/openshift:ovirt-machine-controllers",
-      "clusterAPIControllerPowerVS": "registry.svc.ci.openshift.org/openshift:powervs-machine-controllers",
-      "clusterAPIControllerVSphere": "registry.svc.ci.openshift.org/openshift:machine-api-operator"
+      "machineAPIOperator": "quay.io/openshift/origin-machine-api-operator",
+      "kubeRBACProxy": "quay.io/openshift/origin-kube-rbac-proxy",
+      "clusterAPIControllerAWS": "quay.io/openshift/origin-aws-machine-controllers",
+      "clusterAPIControllerAlibaba": "quay.io/openshift/origin-alibaba-machine-controllers",
+      "clusterAPIControllerOpenStack": "quay.io/openshift/origin-openstack-machine-controllers",
+      "clusterAPIControllerMAPO": "quay.io/shiftstack/machine-api-provider-openstack:latest",
+      "clusterAPIControllerLibvirt": "quay.io/openshift/origin-libvirt-machine-controllers",
+      "clusterAPIControllerBareMetal": "quay.io/openshift/origin-baremetal-machine-controllers",
+      "clusterAPIControllerAzure": "quay.io/openshift/origin-azure-machine-controllers",
+      "clusterAPIControllerGCP": "quay.io/openshift/origin-gcp-machine-controllers",
+      "clusterAPIControllerIBMCloud": "quay.io/openshift/origin-ibmcloud-machine-controllers",
+      "clusterAPIControllerOvirt": "quay.io/openshift/origin-ovirt-machine-controllers",
+      "clusterAPIControllerPowerVS": "quay.io/openshift/origin-powervs-machine-controllers",
+      "clusterAPIControllerVSphere": "quay.io/openshift/origin-machine-api-operator"
     }

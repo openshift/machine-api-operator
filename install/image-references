@@ -5,15 +5,15 @@ spec:
   - name: machine-api-operator
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:machine-api-operator
+      name: quay.io/openshift/origin-machine-api-operator
   - name: aws-machine-controllers
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:aws-machine-controllers
+      name: quay.io/openshift/origin-aws-machine-controllers
   - name: openstack-machine-controllers
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:openstack-machine-controllers
+      name: quay.io/openshift/origin-openstack-machine-controllers
   - name: openstack-machine-api-provider
     from:
       kind: DockerImage
@@ -21,40 +21,40 @@ spec:
   - name: libvirt-machine-controllers
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:libvirt-machine-controllers
+      name: quay.io/openshift/origin-libvirt-machine-controllers
   - name: baremetal-machine-controllers
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:baremetal-machine-controllers
+      name: quay.io/openshift/origin-baremetal-machine-controllers
   - name: azure-machine-controllers
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:azure-machine-controllers
+      name: quay.io/openshift/origin-azure-machine-controllers
   - name: gcp-machine-controllers
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:gcp-machine-controllers
+      name: quay.io/openshift/origin-gcp-machine-controllers
   - name: ibmcloud-machine-controllers
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:ibmcloud-machine-controllers
+      name: quay.io/openshift/origin-ibmcloud-machine-controllers
   - name: powervs-machine-controllers
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:powervs-machine-controllers
+      name: quay.io/openshift/origin-powervs-machine-controllers
   - name: baremetal-operator
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:baremetal-operator
+      name: quay.io/openshift/origin-baremetal-operator
   - name: kube-rbac-proxy
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:kube-rbac-proxy
+      name: quay.io/openshift/origin-kube-rbac-proxy
   - name: ovirt-machine-controllers
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:ovirt-machine-controllers
+      name: quay.io/openshift/origin-ovirt-machine-controllers
   - name: alibaba-machine-controllers
     from:
       kind: DockerImage
-      name: registry.svc.ci.openshift.org/openshift:alibaba-machine-controllers
+      name: quay.io/openshift/origin-alibaba-machine-controllers
