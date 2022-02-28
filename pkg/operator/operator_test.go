@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"syscall"
 	"testing"
@@ -38,7 +37,7 @@ const (
 	releaseVersion   = "0.0.0.test-unit"
 )
 
-func newFakeOperator(kubeObjects []runtime.Object, osObjects []runtime.Object, stopCh <-chan struct{}) *Operator {
+func newFakeOperator(kubeObjects []runtime.Object, osObjects []runtime.Object, imagesFile string, stopCh <-chan struct{}) *Operator {
 	kubeClient := fakekube.NewSimpleClientset(kubeObjects...)
 	osClient := fakeos.NewSimpleClientset(osObjects...)
 	dynamicClient := fakedynamic.NewSimpleDynamicClient(scheme.Scheme, kubeObjects...)
@@ -61,7 +60,7 @@ func newFakeOperator(kubeObjects []runtime.Object, osObjects []runtime.Object, s
 		daemonsetLister:               daemonsetInformer.Lister(),
 		mutatingWebhookLister:         mutatingWebhookInformer.Lister(),
 		validatingWebhookLister:       validatingWebhookInformer.Lister(),
-		imagesFile:                    "fixtures/images.json",
+		imagesFile:                    imagesFile,
 		namespace:                     targetNamespace,
 		eventRecorder:                 record.NewFakeRecorder(50),
 		queue:                         workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
@@ -149,6 +148,12 @@ func TestOperatorSync_NoOp(t *testing.T) {
 		},
 	}
 
+	imagesJSONFile, err := createImagesJSONFromManifest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(imagesJSONFile)
+
 	for _, tc := range cases {
 		t.Run(string(tc.platform), func(t *testing.T) {
 			infra := &openshiftv1.Infrastructure{
@@ -168,12 +173,13 @@ func TestOperatorSync_NoOp(t *testing.T) {
 				},
 			}
 
-			stopCh := make(<-chan struct{})
-			optr := newFakeOperator(nil, []runtime.Object{infra, proxy}, stopCh)
+			stopCh := make(chan struct{})
+			defer close(stopCh)
+			optr := newFakeOperator(nil, []runtime.Object{infra, proxy}, imagesJSONFile, stopCh)
 			optr.queue.Add("trigger")
 			go optr.Run(1, stopCh)
 
-			err := wait.PollImmediate(1*time.Second, 5*time.Second, func() (bool, error) {
+			err = wait.PollImmediate(1*time.Second, 5*time.Second, func() (bool, error) {
 				_, err := optr.deployLister.Deployments(targetNamespace).Get(deploymentName)
 				if err != nil {
 					t.Logf("Failed to get %q deployment: %v", deploymentName, err)
@@ -280,10 +286,12 @@ func TestIsOwned(t *testing.T) {
 // for the given infrastructure
 func TestMAOConfigFromInfrastructure(t *testing.T) {
 	g := NewWithT(t)
-	file, err := ioutil.ReadFile("fixtures/images.json")
-	g.Expect(err).ToNot(HaveOccurred())
+
+	imagesJSONData, err := extractImagesJSONFromManifest()
+	g.Expect(err).NotTo(HaveOccurred())
+
 	images := &Images{}
-	g.Expect(json.Unmarshal(file, images)).To(Succeed())
+	g.Expect(json.Unmarshal(imagesJSONData, images)).To(Succeed())
 	// Make sure the images struct has been populated
 	g.Expect(images.MachineAPIOperator).ToNot(BeEmpty())
 
@@ -559,6 +567,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 		},
 	}
 
+	imagesJSONFile, err := createImagesJSONFromManifest()
+	g.Expect(err).ToNot(HaveOccurred())
+	defer os.Remove(imagesJSONFile)
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			g := NewWithT(t)
@@ -574,8 +586,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				proxy := tc.proxy.DeepCopy()
 				objects = append(objects, proxy)
 			}
-			stopCh := make(<-chan struct{})
-			optr := newFakeOperator(nil, objects, stopCh)
+
+			stopCh := make(chan struct{})
+			defer close(stopCh)
+			optr := newFakeOperator(nil, objects, imagesJSONFile, stopCh)
 			optr.queue.Add("trigger")
 
 			if tc.imagesFile != "" {
