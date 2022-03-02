@@ -1,27 +1,81 @@
 package operator
 
 import (
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	configv1 "github.com/openshift/api/config/v1"
+	imagev1 "github.com/openshift/api/image/v1"
+	corev1 "k8s.io/api/core/v1"
+	"sigs.k8s.io/yaml"
 )
 
-var (
-	imagesJSONFile                  = "fixtures/images.json"
-	expectedAWSImage                = "docker.io/openshift/origin-aws-machine-controllers:v4.0.0"
-	expectedAlibabaImage            = "docker.io/openshift/origin-alibaba-machine-controllers:v4.0.0"
-	expectedLibvirtImage            = "docker.io/openshift/origin-libvirt-machine-controllers:v4.0.0"
-	expectedOpenstackImage          = "docker.io/openshift/origin-openstack-machine-controllers:v4.0.0"
-	expectedMAPOImage               = "quay.io/openshift/origin-openstack-machine-api-provider:v4.0.0"
-	expectedMachineAPIOperatorImage = "docker.io/openshift/origin-machine-api-operator:v4.0.0"
-	expectedKubeRBACProxyImage      = "docker.io/openshift/origin-kube-rbac-proxy:v4.0.0"
-	expectedBareMetalImage          = "quay.io/openshift/origin-baremetal-machine-controllers:v4.0.0"
-	expectedAzureImage              = "quay.io/openshift/origin-azure-machine-controllers:v4.0.0"
-	expectedGCPImage                = "quay.io/openshift/origin-gcp-machine-controllers:v4.0.0"
-	expectedOvirtImage              = "quay.io/openshift/origin-ovirt-machine-controllers"
-	expectedVSphereImage            = "docker.io/openshift/origin-machine-api-operator:v4.0.0"
-	expectedPowerVSImage            = "quay.io/openshift/origin-powervs-machine-controllers:v4.0.0"
+const (
+	expectedAlibabaImage   = "quay.io/openshift/origin-alibaba-machine-controllers"
+	expectedAWSImage       = "quay.io/openshift/origin-aws-machine-controllers"
+	expectedAzureImage     = "quay.io/openshift/origin-azure-machine-controllers"
+	expectedBareMetalImage = "quay.io/openshift/origin-baremetal-machine-controllers"
+	expectedGCPImage       = "quay.io/openshift/origin-gcp-machine-controllers"
+	expectedLibvirtImage   = "quay.io/openshift/origin-libvirt-machine-controllers"
+	expectedMAPOImage      = "quay.io/openshift/origin-openstack-machine-api-provider"
+	expectedOpenstackImage = "quay.io/openshift/origin-openstack-machine-controllers"
+	expectedOvirtImage     = "quay.io/openshift/origin-ovirt-machine-controllers"
+	expectedPowerVSImage   = "quay.io/openshift/origin-powervs-machine-controllers"
+	expectedVSphereImage   = "quay.io/openshift/origin-machine-api-operator"
+
+	expectedKubeRBACProxyImage      = "quay.io/openshift/origin-kube-rbac-proxy"
+	expectedMachineAPIOperatorImage = "quay.io/openshift/origin-machine-api-operator"
+
+	manifestDir             = "../../install"
+	imagesConfigMapManifest = "0000_30_machine-api-operator_01_images.configmap.yaml"
+	imageReferencesManifest = "image-references"
 )
+
+// createImagesJSONFromManifest returns the path of a temporary file containing
+// images.json extracted from the deployment manifests
+func createImagesJSONFromManifest() (path string, err error) {
+	imagesJSONData, err := extractImagesJSONFromManifest()
+	if err != nil {
+		return "", err
+	}
+
+	f, err := os.CreateTemp("", "images.json")
+	if err != nil {
+		return "", fmt.Errorf("failed to create temp file: %w", err)
+	}
+	defer func() {
+		err = f.Close()
+	}()
+
+	f.Write(imagesJSONData)
+	return f.Name(), nil
+}
+
+// extractImagesJSONFromManifest parses the manifest file containing the images
+// configmap and returns the contents of images.json from it
+func extractImagesJSONFromManifest() ([]byte, error) {
+	imagesConfigMapPath := filepath.Join(manifestDir, imagesConfigMapManifest)
+	imagesConfigMapData, err := os.ReadFile(imagesConfigMapPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read images configmap manifest %s: %w", imagesConfigMapPath, err)
+	}
+
+	imagesConfigMap := &corev1.ConfigMap{}
+	err = yaml.Unmarshal(imagesConfigMapData, imagesConfigMap)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal images configmap manifest %s: %w", imagesConfigMapPath, err)
+	}
+
+	imagesJSONData, ok := imagesConfigMap.Data["images.json"]
+	if !ok {
+		return nil, fmt.Errorf("failed to find images.json in images configmap manifest")
+	}
+
+	return []byte(imagesJSONData), nil
+}
 
 func TestGetProviderFromInfrastructure(t *testing.T) {
 	tests := []struct {
@@ -157,9 +211,15 @@ func TestGetProviderFromInfrastructure(t *testing.T) {
 }
 
 func TestGetImagesFromJSONFile(t *testing.T) {
+	imagesJSONFile, err := createImagesJSONFromManifest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(imagesJSONFile)
+
 	img, err := getImagesFromJSONFile(imagesJSONFile)
 	if err != nil {
-		t.Errorf("failed getImagesFromJSONFile")
+		t.Fatal(fmt.Errorf("failed getImagesFromJSONFile, %v", err))
 	}
 	if img.ClusterAPIControllerAWS != expectedAWSImage {
 		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedAWSImage, img.ClusterAPIControllerAWS)
@@ -287,9 +347,15 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 		},
 	}
 
+	imagesJSONFile, err := createImagesJSONFromManifest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(imagesJSONFile)
+
 	img, err := getImagesFromJSONFile(imagesJSONFile)
 	if err != nil {
-		t.Errorf("failed getImagesFromJSONFile, %v", err)
+		t.Fatal(fmt.Errorf("failed getImagesFromJSONFile, %v", err))
 	}
 
 	for _, test := range tests {
@@ -358,9 +424,15 @@ func TestGetTerminationHandlerFromImages(t *testing.T) {
 		},
 	}
 
+	imagesJSONFile, err := createImagesJSONFromManifest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(imagesJSONFile)
+
 	img, err := getImagesFromJSONFile(imagesJSONFile)
 	if err != nil {
-		t.Errorf("failed getImagesFromJSONFile, %v", err)
+		t.Fatal(fmt.Errorf("failed getImagesFromJSONFile, %v", err))
 	}
 
 	for _, test := range tests {
@@ -375,9 +447,15 @@ func TestGetTerminationHandlerFromImages(t *testing.T) {
 }
 
 func TestGetMachineAPIOperatorFromImages(t *testing.T) {
+	imagesJSONFile, err := createImagesJSONFromManifest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(imagesJSONFile)
+
 	img, err := getImagesFromJSONFile(imagesJSONFile)
 	if err != nil {
-		t.Errorf("failed getImagesFromJSONFile, %v", err)
+		t.Fatal(fmt.Errorf("failed getImagesFromJSONFile, %v", err))
 	}
 
 	res, err := getMachineAPIOperatorFromImages(*img)
@@ -390,9 +468,15 @@ func TestGetMachineAPIOperatorFromImages(t *testing.T) {
 }
 
 func TestGetKubeRBACProxyFromImages(t *testing.T) {
+	imagesJSONFile, err := createImagesJSONFromManifest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(imagesJSONFile)
+
 	img, err := getImagesFromJSONFile(imagesJSONFile)
 	if err != nil {
-		t.Errorf("failed getImagesFromJSONFile, %v", err)
+		t.Fatal(fmt.Errorf("failed getImagesFromJSONFile, %v", err))
 	}
 
 	res, err := getKubeRBACProxyFromImages(*img)
@@ -401,5 +485,43 @@ func TestGetKubeRBACProxyFromImages(t *testing.T) {
 	}
 	if res != expectedKubeRBACProxyImage {
 		t.Errorf("failed getKubeRBACProxyFromImages. Expected: %s, got: %s", expectedKubeRBACProxyImage, res)
+	}
+}
+
+func TestImagesInImageReferences(t *testing.T) {
+	imagesJSONData, err := extractImagesJSONFromManifest()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	imageMap := make(map[string]string)
+	err = json.Unmarshal([]byte(imagesJSONData), &imageMap)
+	if err != nil {
+		t.Fatal(fmt.Errorf("failed to unmarshal images json file: %w", err))
+	}
+
+	imageReferencesPath := filepath.Join(manifestDir, imageReferencesManifest)
+	imageReferencesData, err := os.ReadFile(imageReferencesPath)
+	if err != nil {
+		t.Fatal(fmt.Errorf("failed to read image references manifest %s: %w", imageReferencesPath, err))
+	}
+
+	imageStream := imagev1.ImageStream{}
+	err = yaml.Unmarshal(imageReferencesData, &imageStream)
+	if err != nil {
+		t.Fatal(fmt.Errorf("failed to unmarshal image references manifest %s: %w", imageReferencesPath, err))
+	}
+
+	// Get all referenced images
+	referencedImages := make(map[string]struct{})
+	for _, tag := range imageStream.Spec.Tags {
+		referencedImages[tag.From.Name] = struct{}{}
+	}
+
+	// Check that every entry in images.json matches an entry in image-references
+	for _, image := range imageMap {
+		if _, ok := referencedImages[image]; !ok {
+			t.Errorf("no tagged image in %s references %s from images.json", imageReferencesPath, image)
+		}
 	}
 }

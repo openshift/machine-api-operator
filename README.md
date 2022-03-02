@@ -78,8 +78,11 @@ machine.openshift.io/cluster-api-machine-type: worker
 
 - Run:
 
+  Extract images.json to a file from
+  `install/0000_30_machine-api-operator_01_images.configmap.yaml` and run:
+
   ```sh
-  $ ./bin/machine-api-operator start --kubeconfig ${HOME}/.kube/config --images-json=pkg/operator/fixtures/images.json
+  $ ./bin/machine-api-operator start --kubeconfig ${HOME}/.kube/config --images-json=path/to/images.json
   ```
 
 - Image:

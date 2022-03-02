@@ -15,7 +15,7 @@ data:
       "clusterAPIControllerAWS": "quay.io/openshift/origin-aws-machine-controllers",
       "clusterAPIControllerAlibaba": "quay.io/openshift/origin-alibaba-machine-controllers",
       "clusterAPIControllerOpenStack": "quay.io/openshift/origin-openstack-machine-controllers",
-      "clusterAPIControllerMAPO": "quay.io/shiftstack/machine-api-provider-openstack:latest",
+      "clusterAPIControllerMAPO": "quay.io/openshift/origin-openstack-machine-api-provider",
       "clusterAPIControllerLibvirt": "quay.io/openshift/origin-libvirt-machine-controllers",
       "clusterAPIControllerBareMetal": "quay.io/openshift/origin-baremetal-machine-controllers",
       "clusterAPIControllerAzure": "quay.io/openshift/origin-azure-machine-controllers",

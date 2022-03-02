@@ -1,6 +1,7 @@
 package operator
 
 import (
+	"os"
 	"testing"
 	"time"
 
@@ -112,9 +113,17 @@ func TestCheckDeploymentRolloutStatus(t *testing.T) {
 		},
 	}
 
+	imagesJSONFile, err := createImagesJSONFromManifest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(imagesJSONFile)
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			optr := newFakeOperator([]runtime.Object{tc.deployment}, nil, make(<-chan struct{}))
+			stopCh := make(chan struct{})
+			defer close(stopCh)
+			optr := newFakeOperator([]runtime.Object{tc.deployment}, nil, imagesJSONFile, stopCh)
 
 			result, gotErr := optr.checkDeploymentRolloutStatus(tc.deployment)
 			if tc.expectedError != nil && gotErr != nil {
