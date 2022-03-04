@@ -21,6 +21,7 @@ import (
 	"github.com/vmware/govmomi/vim25/types"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
 
@@ -829,7 +830,7 @@ func taskIsFinished(task *mo.Task) (bool, error) {
 	}
 }
 
-func setProviderStatus(taskRef string, condition machinev1.VSphereMachineProviderCondition, scope *machineScope, vm *virtualMachine) error {
+func setProviderStatus(taskRef string, condition metav1.Condition, scope *machineScope, vm *virtualMachine) error {
 	klog.Infof("%s: Updating provider status", scope.machine.Name)
 
 	if vm != nil {
@@ -850,7 +851,7 @@ func setProviderStatus(taskRef string, condition machinev1.VSphereMachineProvide
 		scope.providerStatus.TaskRef = taskRef
 	}
 
-	scope.providerStatus.Conditions = setVSphereMachineProviderConditions(condition, scope.providerStatus.Conditions)
+	scope.providerStatus.Conditions = setConditions(condition, scope.providerStatus.Conditions)
 
 	return nil
 }
