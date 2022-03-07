@@ -11,10 +11,6 @@ import (
 
 	"github.com/google/uuid"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
-	machineapierros "github.com/openshift/machine-api-operator/pkg/controller/machine"
-	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
-	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
-	"github.com/openshift/machine-api-operator/pkg/metrics"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/property"
@@ -27,6 +23,11 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
+
+	machineapierros "github.com/openshift/machine-api-operator/pkg/controller/machine"
+	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
+	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
+	"github.com/openshift/machine-api-operator/pkg/metrics"
 )
 
 const (
@@ -694,6 +695,7 @@ func clone(s *machineScope) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error triggering clone op for machine %v: %w", s, err)
 	}
+	task.Wait(s.Context)
 	taskVal := task.Reference().Value
 	klog.V(3).Infof("%v: running task: %+v", s.machine.GetName(), taskVal)
 	return taskVal, nil

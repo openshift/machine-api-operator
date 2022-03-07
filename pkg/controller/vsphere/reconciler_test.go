@@ -27,8 +27,6 @@ import (
 	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
-	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
-	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/simulator"
 	"github.com/vmware/govmomi/vapi/rest"
@@ -40,6 +38,9 @@ import (
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
+	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
 
 	_ "github.com/vmware/govmomi/vapi/simulator"
 )
@@ -522,6 +523,10 @@ func TestTaskIsFinished(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	err = task.Wait(context.TODO())
+	if err != nil {
+		t.Fatal(err)
+	}
 	var moTask mo.Task
 	moRef := types.ManagedObjectReference{
 		Type:  "Task",
@@ -737,7 +742,7 @@ func TestGetDiskSpec(t *testing.T) {
 		expectedCapacityInKB int64
 	}{
 		{
-			name: "Succefully get disk spec with disk size 1",
+			name: "Successfully get disk spec with disk size 1",
 			devices: func() object.VirtualDeviceList {
 				devices, err := objVM.Device(context.TODO())
 				if err != nil {
@@ -745,11 +750,11 @@ func TestGetDiskSpec(t *testing.T) {
 				}
 				return devices
 			},
-			diskSize:             1,
-			expectedCapacityInKB: 1048576,
+			diskSize:             10,
+			expectedCapacityInKB: 10485760,
 		},
 		{
-			name: "Succefully get disk spec with disk size 3",
+			name: "Successfully get disk spec with disk size 3",
 			devices: func() object.VirtualDeviceList {
 				devices, err := objVM.Device(context.TODO())
 				if err != nil {
@@ -757,8 +762,8 @@ func TestGetDiskSpec(t *testing.T) {
 				}
 				return devices
 			},
-			diskSize:             3,
-			expectedCapacityInKB: 3145728,
+			diskSize:             30,
+			expectedCapacityInKB: 31457280,
 		},
 		{
 			name: "Fail on invalid disk count",
@@ -1438,6 +1443,8 @@ func TestDelete(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
+			task := object.NewTask(reconciler.session.Client.Client, powerOffTask.Reference())
+			task.Wait(context.TODO())
 			// first run should schedule power off
 			if powerOffTask.Info.DescriptionId != powerOffVmTaskDescriptionId {
 				t.Errorf("task description expected: %v, got: %v", powerOffVmTaskDescriptionId, powerOffTask.Info.DescriptionId)
@@ -1452,6 +1459,9 @@ func TestDelete(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
+			task = object.NewTask(reconciler.session.Client.Client, destroyTask.Reference())
+			task.Wait(context.TODO())
+
 			// second run should destroy vm
 			if destroyTask.Info.DescriptionId != destroyVmTaskDescriptionId {
 				t.Errorf("task description expected: %v, got: %v", destroyVmTaskDescriptionId, destroyTask.Info.DescriptionId)
@@ -1548,7 +1558,7 @@ func TestCreate(t *testing.T) {
 				CredentialsSecret: &corev1.LocalObjectReference{
 					Name: "test",
 				},
-				DiskGiB: 1,
+				DiskGiB: 10,
 				UserDataSecret: &corev1.LocalObjectReference{
 					Name: userDataSecretName,
 				},
@@ -2155,7 +2165,7 @@ func TestReconcilePowerStateAnnontation(t *testing.T) {
 		expectedError bool
 	}{
 		{
-			name: "Succefully reconcile annotation",
+			name: "Successfully reconcile annotation",
 			vm:   vm,
 		},
 		{
