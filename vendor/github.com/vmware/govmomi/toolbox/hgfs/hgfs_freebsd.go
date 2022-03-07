@@ -1,7 +1,5 @@
-//+build !windows
-
 /*
-Copyright (c) 2017 VMware, Inc. All Rights Reserved.
+Copyright (c) 2021 VMware, Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,23 +14,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package simulator
+package hgfs
 
-import "syscall"
+import (
+	"os"
+)
 
-func (ds *Datastore) stat() error {
-	info := ds.Info.GetDatastoreInfo()
-	var stat syscall.Statfs_t
-
-	err := syscall.Statfs(info.Url, &stat)
-	if err != nil {
-		return err
-	}
-
-	info.FreeSpace = int64(stat.Bfree * uint64(stat.Bsize))
-
-	ds.Summary.FreeSpace = info.FreeSpace
-	ds.Summary.Capacity = int64(stat.Blocks * uint64(stat.Bsize))
-
-	return nil
+func (a *AttrV2) sysStat(info os.FileInfo) {
 }

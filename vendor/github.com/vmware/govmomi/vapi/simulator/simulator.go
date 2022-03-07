@@ -37,6 +37,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/nfc"
 	"github.com/vmware/govmomi/object"
@@ -63,6 +64,8 @@ type item struct {
 type content struct {
 	*library.Library
 	Item map[string]*item
+	Subs map[string]*library.Subscriber
+	VMTX map[string]*types.ManagedObjectReference
 }
 
 type update struct {
@@ -85,7 +88,7 @@ type handler struct {
 	Tag         map[string]*tags.Tag
 	Association map[string]map[internal.AssociatedObject]bool
 	Session     map[string]*rest.Session
-	Library     map[string]content
+	Library     map[string]*content
 	Update      map[string]update
 	Download    map[string]download
 }
@@ -108,7 +111,7 @@ func New(u *url.URL, settings []vim.BaseOptionValue) (string, http.Handler) {
 		Tag:         make(map[string]*tags.Tag),
 		Association: make(map[string]map[internal.AssociatedObject]bool),
 		Session:     make(map[string]*rest.Session),
-		Library:     make(map[string]content),
+		Library:     make(map[string]*content),
 		Update:      make(map[string]update),
 		Download:    make(map[string]download),
 	}
@@ -130,6 +133,8 @@ func New(u *url.URL, settings []vim.BaseOptionValue) (string, http.Handler) {
 		{internal.LibraryPath + "/", s.libraryID},
 		{internal.LocalLibraryPath + "/", s.libraryID},
 		{internal.SubscribedLibraryPath + "/", s.libraryID},
+		{internal.Subscriptions, s.subscriptions},
+		{internal.Subscriptions + "/", s.subscriptionsID},
 		{internal.LibraryItemPath, s.libraryItem},
 		{internal.LibraryItemPath + "/", s.libraryItemID},
 		{internal.SubscribedLibraryItem + "/", s.libraryItemID},
@@ -144,10 +149,12 @@ func New(u *url.URL, settings []vim.BaseOptionValue) (string, http.Handler) {
 		{internal.LibraryItemFileData + "/", s.libraryItemFileData},
 		{internal.LibraryItemFilePath, s.libraryItemFile},
 		{internal.LibraryItemFilePath + "/", s.libraryItemFileID},
-		{internal.VCenterOVFLibraryItem + "/", s.libraryItemDeployID},
+		{internal.VCenterOVFLibraryItem, s.libraryItemOVF},
+		{internal.VCenterOVFLibraryItem + "/", s.libraryItemOVFID},
 		{internal.VCenterVMTXLibraryItem, s.libraryItemCreateTemplate},
 		{internal.VCenterVMTXLibraryItem + "/", s.libraryItemTemplateID},
 		{internal.VCenterVM + "/", s.vmID},
+		{internal.DebugEcho, s.debugEcho},
 	}
 
 	for i := range handlers {
@@ -284,26 +291,40 @@ func (s *handler) DetachTag(id vim.ManagedObjectReference, tag vim.VslmTagEntry)
 	return nil
 }
 
-// OK responds with http.StatusOK and json encoded val if given.
-func OK(w http.ResponseWriter, val ...interface{}) {
+// StatusOK responds with http.StatusOK and json encoded val if given.
+// For use with "/api" endpoints.
+func StatusOK(w http.ResponseWriter, val ...interface{}) {
 	w.WriteHeader(http.StatusOK)
-
 	if len(val) == 0 {
 		return
 	}
 
-	err := json.NewEncoder(w).Encode(struct {
-		Value interface{} `json:"value,omitempty"`
-	}{
-		val[0],
-	})
+	err := json.NewEncoder(w).Encode(val[0])
 
 	if err != nil {
 		log.Panic(err)
 	}
 }
 
+// OK responds with http.StatusOK and json encoded val if given.
+// For use with "/rest" endpoints where the response is a "value" wrapped structure.
+func OK(w http.ResponseWriter, val ...interface{}) {
+	if len(val) == 0 {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	s := struct {
+		Value interface{} `json:"value,omitempty"`
+	}{
+		val[0],
+	}
+
+	StatusOK(w, s)
+}
+
 // BadRequest responds with http.StatusBadRequest and json encoded vAPI error of type kind.
+// For use with "/rest" endpoints where the response is a "value" wrapped structure.
 func BadRequest(w http.ResponseWriter, kind string) {
 	w.WriteHeader(http.StatusBadRequest)
 
@@ -356,8 +377,23 @@ func Decode(r *http.Request, w http.ResponseWriter, val interface{}) bool {
 	return true
 }
 
+func (s *handler) expiredSession(id string, now time.Time) bool {
+	expired := true
+	s.Lock()
+	session, ok := s.Session[id]
+	if ok {
+		expired = now.Sub(session.LastAccessed) > simulator.SessionIdleTimeout
+		if expired {
+			delete(s.Session, id)
+		}
+	}
+	s.Unlock()
+	return expired
+}
+
 func (s *handler) session(w http.ResponseWriter, r *http.Request) {
 	id := r.Header.Get(internal.SessionCookieName)
+	useHeaderAuthn := strings.ToLower(r.Header.Get(internal.UseHeaderAuthn))
 
 	switch r.Method {
 	case http.MethodPost:
@@ -377,11 +413,14 @@ func (s *handler) session(w http.ResponseWriter, r *http.Request) {
 		id = uuid.New().String()
 		now := time.Now()
 		s.Session[id] = &rest.Session{User: user, Created: now, LastAccessed: now}
-		http.SetCookie(w, &http.Cookie{
-			Name:  internal.SessionCookieName,
-			Value: id,
-			Path:  rest.Path,
-		})
+		simulator.SessionIdleWatch(context.Background(), id, s.expiredSession)
+		if useHeaderAuthn != "true" {
+			http.SetCookie(w, &http.Cookie{
+				Name:  internal.SessionCookieName,
+				Value: id,
+				Path:  rest.Path,
+			})
+		}
 		OK(w, id)
 	case http.MethodDelete:
 		delete(s.Session, id)
@@ -489,7 +528,7 @@ func (s *handler) tag(w http.ResponseWriter, r *http.Request) {
 		}
 		if s.decode(r, w, &spec) {
 			for _, tag := range s.Tag {
-				if tag.Name == spec.Tag.Name {
+				if tag.Name == spec.Tag.Name && tag.CategoryID == spec.Tag.CategoryID {
 					BadRequest(w, "com.vmware.vapi.std.errors.already_exists")
 					return
 				}
@@ -549,6 +588,7 @@ func (s *handler) tagID(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// TODO: support cardinality checks
 func (s *handler) association(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -573,6 +613,7 @@ func (s *handler) association(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		OK(w, ids)
+
 	case "list-attached-objects-on-tags":
 		var res []tags.AttachedObjects
 		for _, id := range spec.TagIDs {
@@ -583,6 +624,7 @@ func (s *handler) association(w http.ResponseWriter, r *http.Request) {
 			res = append(res, o)
 		}
 		OK(w, res)
+
 	case "list-attached-tags-on-objects":
 		var res []tags.AttachedTags
 		for _, ref := range spec.ObjectIDs {
@@ -593,6 +635,56 @@ func (s *handler) association(w http.ResponseWriter, r *http.Request) {
 				}
 			}
 			res = append(res, o)
+		}
+		OK(w, res)
+
+	case "attach-multiple-tags-to-object":
+		// TODO: add check if target (moref) exist or return 403 as per API behavior
+
+		res := struct {
+			Success bool             `json:"success"`
+			Errors  tags.BatchErrors `json:"error_messages,omitempty"`
+		}{}
+
+		for _, id := range spec.TagIDs {
+			if _, exists := s.Association[id]; !exists {
+				log.Printf("association tag not found: %s", id)
+				res.Errors = append(res.Errors, tags.BatchError{
+					Type:    "cis.tagging.objectNotFound.error",
+					Message: fmt.Sprintf("Tagging object %s not found", id),
+				})
+			} else {
+				s.Association[id][*spec.ObjectID] = true
+			}
+		}
+
+		if len(res.Errors) == 0 {
+			res.Success = true
+		}
+		OK(w, res)
+
+	case "detach-multiple-tags-from-object":
+		// TODO: add check if target (moref) exist or return 403 as per API behavior
+
+		res := struct {
+			Success bool             `json:"success"`
+			Errors  tags.BatchErrors `json:"error_messages,omitempty"`
+		}{}
+
+		for _, id := range spec.TagIDs {
+			if _, exists := s.Association[id]; !exists {
+				log.Printf("association tag not found: %s", id)
+				res.Errors = append(res.Errors, tags.BatchError{
+					Type:    "cis.tagging.objectNotFound.error",
+					Message: fmt.Sprintf("Tagging object %s not found", id),
+				})
+			} else {
+				s.Association[id][*spec.ObjectID] = false
+			}
+		}
+
+		if len(res.Errors) == 0 {
+			res.Success = true
 		}
 		OK(w, res)
 	}
@@ -612,8 +704,18 @@ func (s *handler) associationID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var spec internal.Association
-	if !s.decode(r, w, &spec) {
-		return
+	var specs struct {
+		ObjectIDs []internal.AssociatedObject `json:"object_ids"`
+	}
+	switch s.action(r) {
+	case "attach", "detach", "list-attached-objects":
+		if !s.decode(r, w, &spec) {
+			return
+		}
+	case "attach-tag-to-multiple-objects":
+		if !s.decode(r, w, &specs) {
+			return
+		}
 	}
 
 	switch s.action(r) {
@@ -629,6 +731,11 @@ func (s *handler) associationID(w http.ResponseWriter, r *http.Request) {
 			ids = append(ids, id)
 		}
 		OK(w, ids)
+	case "attach-tag-to-multiple-objects":
+		for _, obj := range specs.ObjectIDs {
+			s.Association[id][obj] = true
+		}
+		OK(w)
 	}
 }
 
@@ -670,10 +777,32 @@ func (s *handler) library(w http.ResponseWriter, r *http.Request) {
 				s.error(w, err)
 				return
 			}
-			s.Library[id] = content{
+			s.Library[id] = &content{
 				Library: &spec.Library,
 				Item:    make(map[string]*item),
+				Subs:    make(map[string]*library.Subscriber),
+				VMTX:    make(map[string]*types.ManagedObjectReference),
 			}
+
+			pub := spec.Library.Publication
+			if pub != nil && pub.Published != nil && *pub.Published {
+				// Generate PublishURL as real vCenter does
+				pub.PublishURL = (&url.URL{
+					Scheme: s.URL.Scheme,
+					Host:   s.URL.Host,
+					Path:   "/cls/vcsp/lib/" + id,
+				}).String()
+			}
+
+			sub := spec.Library.Subscription
+			if sub != nil {
+				// Share the published Item map
+				pid := path.Base(sub.SubscriptionURL)
+				if p, ok := s.Library[pid]; ok {
+					s.Library[id].Item = p.Item
+				}
+			}
+
 			OK(w, id)
 		}
 	case http.MethodGet:
@@ -683,6 +812,44 @@ func (s *handler) library(w http.ResponseWriter, r *http.Request) {
 		}
 		OK(w, ids)
 	}
+}
+
+func (s *handler) publish(w http.ResponseWriter, r *http.Request, sids []internal.SubscriptionDestination, l *content, vmtx *item) bool {
+	var ids []string
+	if len(sids) == 0 {
+		for sid := range l.Subs {
+			ids = append(ids, sid)
+		}
+	} else {
+		for _, dst := range sids {
+			ids = append(ids, dst.ID)
+		}
+	}
+
+	for _, sid := range ids {
+		sub, ok := l.Subs[sid]
+		if !ok {
+			log.Printf("library subscription not found: %s", sid)
+			http.NotFound(w, r)
+			return false
+		}
+
+		slib := s.Library[sub.LibraryID]
+		if slib.VMTX[vmtx.ID] != nil {
+			return true // already cloned
+		}
+
+		ds := &vcenter.DiskStorage{Datastore: l.Library.Storage[0].DatastoreID}
+		ref, err := s.cloneVM(vmtx.Template.Value, vmtx.Name, sub.Placement, ds)
+		if err != nil {
+			s.error(w, err)
+			return false
+		}
+
+		slib.VMTX[vmtx.ID] = ref
+	}
+
+	return true
 }
 
 func (s *handler) libraryID(w http.ResponseWriter, r *http.Request) {
@@ -715,15 +882,121 @@ func (s *handler) libraryID(w http.ResponseWriter, r *http.Request) {
 			OK(w)
 		}
 	case http.MethodPost:
-	case "sync":
-		if l.Type == "SUBSCRIBED" {
-			l.LastSyncTime = types.NewTime(time.Now())
+		switch s.action(r) {
+		case "publish":
+			var spec internal.SubscriptionDestinationSpec
+			if !s.decode(r, w, &spec) {
+				return
+			}
+			for _, item := range l.Item {
+				if item.Type != library.ItemTypeVMTX {
+					continue
+				}
+				if !s.publish(w, r, spec.Subscriptions, l, item) {
+					return
+				}
+			}
 			OK(w)
-		} else {
-			http.NotFound(w, r)
+		case "sync":
+			if l.Type == "SUBSCRIBED" {
+				l.LastSyncTime = types.NewTime(time.Now())
+				OK(w)
+			} else {
+				http.NotFound(w, r)
+			}
 		}
 	case http.MethodGet:
 		OK(w, l)
+	}
+}
+
+func (s *handler) subscriptions(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	id := r.URL.Query().Get("library")
+	l, ok := s.Library[id]
+	if !ok {
+		log.Printf("library not found: %s", id)
+		http.NotFound(w, r)
+		return
+	}
+
+	var res []library.SubscriberSummary
+	for sid, slib := range l.Subs {
+		res = append(res, library.SubscriberSummary{
+			LibraryID:              slib.LibraryID,
+			LibraryName:            slib.LibraryName,
+			SubscriptionID:         sid,
+			LibraryVcenterHostname: "",
+		})
+	}
+	OK(w, res)
+}
+
+func (s *handler) subscriptionsID(w http.ResponseWriter, r *http.Request) {
+	id := s.id(r)
+	l, ok := s.Library[id]
+	if !ok {
+		log.Printf("library not found: %s", id)
+		http.NotFound(w, r)
+		return
+	}
+
+	switch s.action(r) {
+	case "get":
+		var dst internal.SubscriptionDestination
+		if !s.decode(r, w, &dst) {
+			return
+		}
+
+		sub, ok := l.Subs[dst.ID]
+		if !ok {
+			log.Printf("library subscription not found: %s", dst.ID)
+			http.NotFound(w, r)
+			return
+		}
+
+		OK(w, sub)
+	case "delete":
+		var dst internal.SubscriptionDestination
+		if !s.decode(r, w, &dst) {
+			return
+		}
+
+		delete(l.Subs, dst.ID)
+
+		OK(w)
+	case "create", "":
+		var spec struct {
+			Sub struct {
+				SubscriberLibrary library.SubscriberLibrary `json:"subscribed_library"`
+			} `json:"spec"`
+		}
+		if !s.decode(r, w, &spec) {
+			return
+		}
+
+		sub := spec.Sub.SubscriberLibrary
+		slib, ok := s.Library[sub.LibraryID]
+		if !ok {
+			log.Printf("library not found: %s", sub.LibraryID)
+			http.NotFound(w, r)
+			return
+		}
+
+		id := uuid.New().String()
+		l.Subs[id] = &library.Subscriber{
+			LibraryID:       slib.ID,
+			LibraryName:     slib.Name,
+			LibraryLocation: sub.Target,
+			Placement:       sub.Placement,
+			Vcenter:         sub.Vcenter,
+		}
+
+		OK(w, id)
 	}
 }
 
@@ -768,6 +1041,10 @@ func (s *handler) libraryItem(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				log.Printf("library not found: %s", id)
 				http.NotFound(w, r)
+				return
+			}
+			if l.Type == "SUBSCRIBED" {
+				BadRequest(w, "com.vmware.vapi.std.errors.invalid_element_type")
 				return
 			}
 			for _, item := range l.Item {
@@ -833,7 +1110,7 @@ func (s *handler) libraryItemID(w http.ResponseWriter, r *http.Request) {
 		OK(w)
 	case http.MethodPatch:
 		var spec struct {
-			Item library.Item `json:"update_spec"`
+			library.Item `json:"update_spec"`
 		}
 		if s.decode(r, w, &spec) {
 			item.Patch(&spec.Item)
@@ -841,12 +1118,44 @@ func (s *handler) libraryItemID(w http.ResponseWriter, r *http.Request) {
 		}
 	case http.MethodPost:
 		switch s.action(r) {
+		case "copy":
+			var spec struct {
+				library.Item `json:"destination_create_spec"`
+			}
+			if !s.decode(r, w, &spec) {
+				return
+			}
+
+			l, ok = s.Library[spec.LibraryID]
+			if !ok {
+				log.Printf("library not found: %q", spec.LibraryID)
+				http.NotFound(w, r)
+				return
+			}
+			if spec.Name == "" {
+				BadRequest(w, "com.vmware.vapi.std.errors.invalid_argument")
+			}
+
+			id := uuid.New().String()
+			nitem := item.cp()
+			nitem.ID = id
+			nitem.LibraryID = spec.LibraryID
+			l.Item[id] = nitem
+
+			OK(w, id)
 		case "sync":
 			if l.Type == "SUBSCRIBED" {
 				item.LastSyncTime = types.NewTime(time.Now())
 				OK(w)
 			} else {
 				http.NotFound(w, r)
+			}
+		case "publish":
+			var spec internal.SubscriptionDestinationSpec
+			if s.decode(r, w, &spec) {
+				if s.publish(w, r, spec.Subscriptions, l, item) {
+					OK(w)
+				}
 			}
 		}
 	case http.MethodGet:
@@ -1349,6 +1658,11 @@ func (s *handler) libraryItemFileID(w http.ResponseWriter, r *http.Request) {
 	http.NotFound(w, r)
 }
 
+func (i *item) cp() *item {
+	nitem := *i.Item
+	return &item{&nitem, i.File, i.Template}
+}
+
 func (i *item) ovf() string {
 	for _, f := range i.File {
 		if strings.HasSuffix(f.Name, ".ovf") {
@@ -1455,7 +1769,50 @@ func (s *handler) libraryDeploy(ctx context.Context, c *vim25.Client, lib *libra
 	return info, lease.Complete(ctx)
 }
 
-func (s *handler) libraryItemDeployID(w http.ResponseWriter, r *http.Request) {
+func (s *handler) libraryItemOVF(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req vcenter.OVF
+	if !s.decode(r, w, &req) {
+		return
+	}
+
+	switch {
+	case req.Target.LibraryItemID != "":
+	case req.Target.LibraryID != "":
+		l, ok := s.Library[req.Target.LibraryID]
+		if !ok {
+			http.NotFound(w, r)
+		}
+
+		id := uuid.New().String()
+		l.Item[id] = &item{
+			Item: &library.Item{
+				ID:               id,
+				LibraryID:        l.Library.ID,
+				Name:             req.Spec.Name,
+				Description:      req.Spec.Description,
+				Type:             library.ItemTypeOVF,
+				CreationTime:     types.NewTime(time.Now()),
+				LastModifiedTime: types.NewTime(time.Now()),
+			},
+		}
+
+		res := vcenter.CreateResult{
+			Succeeded: true,
+			ID:        id,
+		}
+		OK(w, res)
+	default:
+		BadRequest(w, "com.vmware.vapi.std.errors.invalid_argument")
+		return
+	}
+}
+
+func (s *handler) libraryItemOVFID(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
 		return
@@ -1466,6 +1823,10 @@ func (s *handler) libraryItemDeployID(w http.ResponseWriter, r *http.Request) {
 	var lib *library.Library
 	var item *item
 	for _, l := range s.Library {
+		if l.Library.Type == "SUBSCRIBED" {
+			// Subscribers share the same Item map, we need the LOCAL library to find the .ovf on disk
+			continue
+		}
 		item, ok = l.Item[id]
 		if ok {
 			lib = l.Library
@@ -1534,7 +1895,7 @@ func (s *handler) deleteVM(ref *types.ManagedObjectReference) {
 	})
 }
 
-func (s *handler) cloneVM(source string, name string, p *vcenter.Placement, storage *vcenter.DiskStorage) (*types.ManagedObjectReference, error) {
+func (s *handler) cloneVM(source string, name string, p *library.Placement, storage *vcenter.DiskStorage) (*types.ManagedObjectReference, error) {
 	var folder, pool, host, ds *types.ManagedObjectReference
 	if p.Folder != "" {
 		folder = &types.ManagedObjectReference{Type: "Folder", Value: p.Folder}
@@ -1579,28 +1940,6 @@ func (s *handler) cloneVM(source string, name string, p *vcenter.Placement, stor
 	})
 }
 
-func (s *handler) templateCreate(l content, deploy vcenter.Template) error {
-	ref, err := s.cloneVM(deploy.SourceVM, deploy.Name, deploy.Placement, nil)
-	if err != nil {
-		return err
-	}
-
-	id := uuid.New().String()
-	l.Item[id] = &item{
-		Item: &library.Item{
-			ID:               id,
-			LibraryID:        l.Library.ID,
-			Name:             deploy.Name,
-			Type:             library.ItemTypeVMTX,
-			CreationTime:     types.NewTime(time.Now()),
-			LastModifiedTime: types.NewTime(time.Now()),
-		},
-		Template: ref,
-	}
-
-	return nil
-}
-
 func (s *handler) libraryItemCreateTemplate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		w.WriteHeader(http.StatusMethodNotAllowed)
@@ -1620,7 +1959,8 @@ func (s *handler) libraryItemCreateTemplate(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	ref, err := s.cloneVM(spec.SourceVM, spec.Name, spec.Placement, nil)
+	ds := &vcenter.DiskStorage{Datastore: l.Library.Storage[0].DatastoreID}
+	ref, err := s.cloneVM(spec.SourceVM, spec.Name, spec.Placement, ds)
 	if err != nil {
 		BadRequest(w, err.Error())
 		return
@@ -1755,4 +2095,8 @@ func (s *handler) vmID(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+func (s *handler) debugEcho(w http.ResponseWriter, r *http.Request) {
+	r.Write(w)
 }
