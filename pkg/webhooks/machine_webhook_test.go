@@ -3225,3 +3225,249 @@ func TestDefaultVSphereProviderSpec(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdateFinalizer(t *testing.T) {
+	namespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "update-finalizer-test",
+		},
+	}
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "secret",
+			Namespace: namespace.Name,
+		},
+	}
+	c := fake.NewFakeClientWithScheme(scheme.Scheme, secret)
+
+	infra := plainInfra.DeepCopy()
+	infra.Status.InfrastructureName = "clusterID"
+	infra.Status.PlatformStatus.Type = osconfigv1.AWSPlatformType
+	h := createMachineValidator(infra, c, plainDNS)
+
+	providerSpec := &machinev1.AWSMachineProviderConfig{
+		AMI: machinev1.AWSResourceReference{
+			ID: pointer.StringPtr("ami"),
+		},
+		Placement: machinev1.Placement{
+			Region: "region",
+		},
+		InstanceType: "m5.large",
+		IAMInstanceProfile: &machinev1.AWSResourceReference{
+			ID: pointer.StringPtr("profileID"),
+		},
+		UserDataSecret: &corev1.LocalObjectReference{
+			Name: "secret",
+		},
+		CredentialsSecret: &corev1.LocalObjectReference{
+			Name: "secret",
+		},
+		SecurityGroups: []machinev1.AWSResourceReference{
+			{
+				ID: pointer.StringPtr("sg"),
+			},
+		},
+		Subnet: machinev1.AWSResourceReference{
+			ID: pointer.StringPtr("subnet"),
+		},
+	}
+
+	testCases := []struct {
+		testCase              string
+		modifyOldSpec         func(machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig
+		oldMachineFinalizers  []string
+		modifyNewSpec         func(machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig
+		newMachineFinalizers  []string
+		withDeletionTimestamp bool
+		expectedError         string
+		expectedOk            bool
+	}{
+		{
+			testCase:   "no changes on valid machines without finalizers",
+			expectedOk: true,
+		},
+		{
+			testCase:             "adding the finalizer to a valid machine",
+			newMachineFinalizers: []string{"machine-finalizer"},
+			expectedOk:           true,
+		},
+		{
+			testCase:             "no changes on valid machines with finalizers",
+			oldMachineFinalizers: []string{"machine-finalizer"},
+			newMachineFinalizers: []string{"machine-finalizer"},
+			expectedOk:           true,
+		},
+		{
+			testCase:             "updating the finalizer on a valid machine",
+			oldMachineFinalizers: []string{"machine-finalizer"},
+			newMachineFinalizers: []string{"new-machine-finalizer"},
+			expectedOk:           true,
+		},
+		{
+			testCase:             "deleting the finalizer from a valid machine",
+			oldMachineFinalizers: []string{"machine-finalizer"},
+			newMachineFinalizers: []string{""},
+			expectedOk:           true,
+		},
+		{
+			testCase: "no changes on invalid machines without finalizers",
+			modifyOldSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+				p.CredentialsSecret = nil
+				return p
+			},
+			modifyNewSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+				p.CredentialsSecret = nil
+				return p
+			},
+			expectedError: "providerSpec.credentialsSecret: Required value: expected providerSpec.credentialsSecret to be populated",
+		},
+		{
+			testCase: "adding the finalizer to an invalid machine",
+			modifyOldSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+				p.CredentialsSecret = nil
+				return p
+			},
+			modifyNewSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+				p.CredentialsSecret = nil
+				return p
+			},
+			newMachineFinalizers: []string{"machine-finalizer"},
+			expectedError:        "providerSpec.credentialsSecret: Required value: expected providerSpec.credentialsSecret to be populated",
+		},
+		{
+			testCase: "no changes on invalid machines with finalizers",
+			modifyOldSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+				p.CredentialsSecret = nil
+				return p
+			},
+			modifyNewSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+				p.CredentialsSecret = nil
+				return p
+			},
+			oldMachineFinalizers: []string{"machine-finalizer"},
+			newMachineFinalizers: []string{"machine-finalizer"},
+			expectedError:        "providerSpec.credentialsSecret: Required value: expected providerSpec.credentialsSecret to be populated",
+		},
+		{
+			testCase: "updating the finalizer on an invalid machine",
+			modifyOldSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+				p.CredentialsSecret = nil
+				return p
+			},
+			modifyNewSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+				p.CredentialsSecret = nil
+				return p
+			},
+			oldMachineFinalizers: []string{"machine-finalizer"},
+			newMachineFinalizers: []string{"new-machine-finalizer"},
+			expectedError:        "providerSpec.credentialsSecret: Required value: expected providerSpec.credentialsSecret to be populated",
+		},
+		{
+			testCase: "deleting the finalizer from an invalid machine",
+			modifyOldSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+				p.CredentialsSecret = nil
+				return p
+			},
+			modifyNewSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+				p.CredentialsSecret = nil
+				return p
+			},
+			oldMachineFinalizers: []string{"machine-finalizer"},
+			newMachineFinalizers: []string{""},
+			expectedError:        "providerSpec.credentialsSecret: Required value: expected providerSpec.credentialsSecret to be populated",
+		},
+		{
+			testCase: "deleting the finalizer from an invalid machine with set deletion timestamp",
+			modifyOldSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+				p.CredentialsSecret = nil
+				return p
+			},
+			modifyNewSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+				p.CredentialsSecret = nil
+				return p
+			},
+			oldMachineFinalizers:  []string{"machine-finalizer"},
+			newMachineFinalizers:  []string{""},
+			withDeletionTimestamp: true,
+			expectedOk:            true,
+		},
+		{
+			testCase: "deleting the finalizer and applying an invalid change",
+			modifyNewSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+				p.CredentialsSecret = nil
+				return p
+			},
+			oldMachineFinalizers: []string{"machine-finalizer"},
+			newMachineFinalizers: []string{""},
+			expectedError:        "providerSpec.credentialsSecret: Required value: expected providerSpec.credentialsSecret to be populated",
+		},
+		{
+			testCase: "deleting the finalizer and fixing the machine",
+			modifyOldSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+				p.CredentialsSecret = nil
+				return p
+			},
+			modifyNewSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+				p.CredentialsSecret = &corev1.LocalObjectReference{Name: defaultAWSCredentialsSecret}
+				return p
+			},
+			oldMachineFinalizers: []string{"machine-finalizer"},
+			newMachineFinalizers: []string{""},
+			expectedOk:           true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.testCase, func(t *testing.T) {
+			var rawBytes []byte
+			var err error
+
+			gs := NewWithT(t)
+
+			oldM := &machinev1.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:  namespace.Name,
+					Finalizers: tc.oldMachineFinalizers,
+				},
+			}
+
+			if tc.modifyOldSpec != nil {
+				rawBytes, err = json.Marshal(tc.modifyOldSpec(*providerSpec))
+			} else {
+				rawBytes, err = json.Marshal(providerSpec)
+			}
+			gs.Expect(err).ToNot(HaveOccurred())
+			oldM.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
+
+			newM := &machinev1.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace:  namespace.Name,
+					Finalizers: tc.newMachineFinalizers,
+				},
+			}
+			if tc.modifyNewSpec != nil {
+				rawBytes, err = json.Marshal(tc.modifyNewSpec(*providerSpec))
+			} else {
+				rawBytes, err = json.Marshal(providerSpec)
+			}
+			gs.Expect(err).ToNot(HaveOccurred())
+			newM.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
+
+			if tc.withDeletionTimestamp {
+				deletionTimestamp := metav1.Now()
+				oldM.SetDeletionTimestamp(&deletionTimestamp)
+				newM.SetDeletionTimestamp(&deletionTimestamp)
+			}
+
+			ok, _, err := h.validateMachine(newM, oldM)
+			gs.Expect(ok).To(Equal(tc.expectedOk))
+
+			if err == nil {
+				gs.Expect(tc.expectedError).To(BeEmpty())
+			} else {
+				gs.Expect(err.Error()).To(Equal(tc.expectedError))
+			}
+		})
+	}
+}
