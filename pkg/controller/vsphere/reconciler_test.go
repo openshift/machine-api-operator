@@ -54,7 +54,24 @@ func init() {
 
 type simulatorModelOption func(m *simulator.Model)
 
-func initSimulator(t *testing.T, opts ...simulatorModelOption) (*simulator.Model, *session.Session, *simulator.Server) {
+func initSimulator(t *testing.T) (*simulator.Model, *session.Session, *simulator.Server) {
+	model := simulator.VPX()
+	model.Host = 0
+
+	err := model.Create()
+	if err != nil {
+		t.Fatal(err)
+	}
+	model.Service.TLS = new(tls.Config)
+	model.Service.RegisterEndpoints = true
+
+	server := model.Service.NewServer()
+	session := getSimulatorSession(t, server)
+
+	return model, session, server
+}
+
+func initSimulatorCustom(t *testing.T, opts ...simulatorModelOption) (*simulator.Model, *simulator.Server) {
 	model := simulator.VPX()
 	model.Host = 0
 
@@ -69,11 +86,20 @@ func initSimulator(t *testing.T, opts ...simulatorModelOption) (*simulator.Model
 	model.Service.RegisterEndpoints = true
 
 	server := model.Service.NewServer()
+
+	return model, server
+}
+
+func getSimulatorSession(t *testing.T, server *simulator.Server) *session.Session {
+	return getSimulatorSessionWithDC(t, server, "")
+}
+
+func getSimulatorSessionWithDC(t *testing.T, server *simulator.Server, dc string) *session.Session {
 	pass, _ := server.URL.User.Password()
 
 	authSession, err := session.GetOrCreate(
 		context.TODO(),
-		server.URL.Host, "",
+		server.URL.Host, dc,
 		server.URL.User.Username(), pass, true)
 	if err != nil {
 		t.Fatal(err)
@@ -88,7 +114,7 @@ func initSimulator(t *testing.T, opts ...simulatorModelOption) (*simulator.Model
 		t.Fatal(err)
 	}
 
-	return model, authSession, server
+	return authSession
 }
 
 func TestClone(t *testing.T) {
@@ -610,10 +636,30 @@ func TestTaskIsFinished(t *testing.T) {
 	}
 }
 
-func TestGetNetworkDevices(t *testing.T) {
+func TestGetNetworkDevicesSingleDatacenter(t *testing.T) {
 	model, session, server := initSimulator(t)
 	defer model.Remove()
 	defer server.Close()
+
+	testGetNetworkDevicesWithSimulator(t, model, server, session)
+}
+
+func TestGetNetworkDevicesMultiDatacenter(t *testing.T) {
+	withMultiDatacenter := func(m *simulator.Model) {
+		m.OpaqueNetwork = 2
+		m.Datacenter = 2
+		m.Cluster = 2
+	}
+
+	model, server := initSimulatorCustom(t, withMultiDatacenter)
+	session := getSimulatorSessionWithDC(t, server, "DC0")
+	defer model.Remove()
+	defer server.Close()
+
+	testGetNetworkDevicesWithSimulator(t, model, server, session)
+}
+
+func testGetNetworkDevicesWithSimulator(t *testing.T, model *simulator.Model, server *simulator.Server, session *session.Session) {
 
 	managedObj := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
 	objVM := object.NewVirtualMachine(session.Client.Client, managedObj.Reference())
@@ -629,7 +675,7 @@ func TestGetNetworkDevices(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	resourcePool, err := session.Finder.DefaultResourcePool(context.TODO())
+	resourcePool, err := session.Finder.ResourcePool(context.TODO(), "/DC0/host/DC0_C0/Resources")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1245,7 +1291,7 @@ func TestDelete(t *testing.T) {
 		}
 	}
 
-	model, _, server := initSimulator(t, withMoreVms(5))
+	model, server := initSimulatorCustom(t, withMoreVms(5))
 	defer model.Remove()
 	defer server.Close()
 	host, port, err := net.SplitHostPort(server.URL.Host)
