@@ -695,7 +695,6 @@ func clone(s *machineScope) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error triggering clone op for machine %v: %w", s, err)
 	}
-	task.Wait(s.Context)
 	taskVal := task.Reference().Value
 	klog.V(3).Infof("%v: running task: %+v", s.machine.GetName(), taskVal)
 	return taskVal, nil

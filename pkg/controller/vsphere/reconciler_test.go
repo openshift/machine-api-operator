@@ -1703,6 +1703,16 @@ func TestCreate(t *testing.T) {
 				if err != nil {
 					t.Fatalf("reconciler was not expected to return error: %v", err)
 				}
+
+				// The create task above runs asynchronously so we must wait on it here to prevent early teardown
+				// of vCenter simulator.
+				task, err := session.GetTask(context.TODO(), reconciler.providerStatus.TaskRef)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				taskObj := object.NewTask(session.Client.Client, task.Reference())
+				taskObj.Wait(context.TODO())
 			}
 		})
 	}
