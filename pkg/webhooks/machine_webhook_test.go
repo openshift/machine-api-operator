@@ -466,7 +466,7 @@ func TestMachineUpdate(t *testing.T) {
 			DiskSizeGB:  128,
 			OSType:      defaultAzureOSDiskOSType,
 			CachingType: "ReadOnly",
-			ManagedDisk: machinev1.ManagedDiskParameters{
+			ManagedDisk: machinev1.OSDiskManagedDiskParameters{
 				StorageAccountType: defaultAzureOSDiskStorageType,
 			},
 			DiskSettings: machinev1.DiskSettings{
@@ -1587,7 +1587,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 			modifySpec: func(p *machinev1.AzureMachineProviderSpec) {
 				p.OSDisk = machinev1.OSDisk{
 					OSType: "osType",
-					ManagedDisk: machinev1.ManagedDiskParameters{
+					ManagedDisk: machinev1.OSDiskManagedDiskParameters{
 						StorageAccountType: "storageAccountType",
 					},
 				}
