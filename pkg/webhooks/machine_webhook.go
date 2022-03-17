@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"regexp"
 	"runtime"
 	"strings"
 
@@ -896,6 +897,16 @@ func validateAzure(m *machinev1.Machine, config *admissionConfig) (bool, []strin
 		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "osDisk", "cachingType"), providerSpec.OSDisk.CachingType, "Instances using an ephemeral OS disk support only Readonly caching"))
 	}
 
+	switch providerSpec.UltraSSDCapability {
+	case machinev1.AzureUltraSSDCapabilityEnabled, machinev1.AzureUltraSSDCapabilityDisabled, "":
+		// Valid scenarios, do nothing
+	default:
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "ultraSSDCapability"), providerSpec.UltraSSDCapability,
+			fmt.Sprintf("ultraSSDCapability can be only %s, %s or omitted", machinev1.AzureUltraSSDCapabilityEnabled, machinev1.AzureUltraSSDCapabilityDisabled)))
+	}
+
+	errs = append(errs, validateAzureDataDisks(m.Name, providerSpec, field.NewPath("providerSpec", "dataDisks"))...)
+
 	if isAzureGovCloud(config.platformStatus) && providerSpec.SpotVMOptions != nil {
 		warnings = append(warnings, "spot VMs may not be supported when using GovCloud region")
 	}
@@ -1327,6 +1338,60 @@ func validateMachineLifecycleHooks(m, oldM *machinev1.Machine) []error {
 		if len(changedPreTerminate) > 0 {
 			errs = append(errs, field.Forbidden(field.NewPath("spec", "lifecycleHooks", "preTerminate"), fmt.Sprintf("pre-terminate hooks are immutable when machine is marked for deletion: the following hooks are new or changed: %+v", changedPreTerminate)))
 		}
+	}
+
+	return errs
+}
+
+func validateAzureDataDisks(machineName string, spec *machinev1.AzureMachineProviderSpec, parentPath *field.Path) []error {
+
+	var errs []error
+	dataDiskLuns := make(map[int32]struct{})
+	dataDiskNames := make(map[string]struct{})
+	// defines rules for matching. strings must start and finish with an alphanumeric character
+	// and can only contain letters, numbers, underscores, periods or hyphens.
+	reg := regexp.MustCompile(`^[a-zA-Z0-9](?:[\w\.-]*[a-zA-Z0-9])?$`)
+
+	for i, disk := range spec.DataDisks {
+		fldPath := parentPath.Index(i)
+
+		dataDiskName := machineName + "_" + disk.NameSuffix
+
+		if len(dataDiskName) > 80 {
+			errs = append(errs, field.Invalid(fldPath.Child("nameSuffix"), disk.NameSuffix, "too long, the overall disk name must not exceed 80 chars"))
+		}
+
+		if matched := reg.MatchString(disk.NameSuffix); !matched {
+			errs = append(errs, field.Invalid(fldPath.Child("nameSuffix"), disk.NameSuffix, "nameSuffix must be provided, must start and finish with an alphanumeric character and can only contain letters, numbers, underscores, periods or hyphens"))
+		}
+
+		if _, exists := dataDiskNames[disk.NameSuffix]; exists {
+			errs = append(errs, field.Invalid(fldPath.Child("nameSuffix"), disk.NameSuffix, "each Data Disk must have a unique nameSuffix"))
+		}
+
+		if disk.DiskSizeGB < 4 {
+			errs = append(errs, field.Invalid(fldPath.Child("diskSizeGB"), disk.DiskSizeGB, "diskSizeGB must be provided and at least 4GB in size"))
+		}
+
+		if disk.Lun < 0 || disk.Lun > 63 {
+			errs = append(errs, field.Invalid(fldPath.Child("lun"), disk.Lun, "must be greater than or equal to 0 and less than 64"))
+		}
+
+		if _, exists := dataDiskLuns[disk.Lun]; exists {
+			errs = append(errs, field.Invalid(fldPath.Child("lun"), disk.Lun, "each Data Disk must have a unique lun"))
+		}
+
+		if (disk.ManagedDisk.StorageAccountType == machinev1.StorageAccountUltraSSDLRS) &&
+			(disk.CachingType != machinev1.CachingTypeNone && disk.CachingType != "") {
+			errs = append(errs,
+				field.Invalid(fldPath.Child("cachingType"),
+					disk.CachingType,
+					fmt.Sprintf("must be \"None\" or omitted when storageAccountType is \"%s\"", machinev1.StorageAccountUltraSSDLRS)),
+			)
+		}
+
+		dataDiskLuns[disk.Lun] = struct{}{}
+		dataDiskNames[disk.NameSuffix] = struct{}{}
 	}
 
 	return errs
