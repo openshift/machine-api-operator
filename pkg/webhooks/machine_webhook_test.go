@@ -267,6 +267,353 @@ func TestMachineCreation(t *testing.T) {
 			disconnected: true,
 		},
 		{
+			name:         "with Azure and a Data Disk set",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
+						DiskSizeGB: 128,
+					},
+					DataDisks: []machinev1.DataDisk{
+						{
+							NameSuffix: "test",
+							DiskSizeGB: 4,
+							Lun:        0,
+						},
+					},
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "with Azure and an Ultra Disk Data Disk set",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
+						DiskSizeGB: 128,
+					},
+					DataDisks: []machinev1.DataDisk{
+						{
+							NameSuffix: "test",
+							DiskSizeGB: 4,
+							Lun:        0,
+							ManagedDisk: machinev1.DataDiskManagedDiskParameters{
+								StorageAccountType: machinev1.StorageAccountUltraSSDLRS,
+							},
+						},
+					},
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "with Azure and a Premium Disk Data Disk set",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
+						DiskSizeGB: 128,
+					},
+					DataDisks: []machinev1.DataDisk{
+						{
+							NameSuffix: "test",
+							DiskSizeGB: 4,
+							Lun:        0,
+							ManagedDisk: machinev1.DataDiskManagedDiskParameters{
+								StorageAccountType: machinev1.StorageAccountPremiumLRS,
+							},
+						},
+					},
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "with Azure and and two Data Disks set",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
+						DiskSizeGB: 128,
+					},
+					DataDisks: []machinev1.DataDisk{
+						{
+							NameSuffix: "test",
+							DiskSizeGB: 4,
+							Lun:        0,
+						},
+						{
+							NameSuffix: "test-1",
+							DiskSizeGB: 4,
+							Lun:        1,
+						},
+					},
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "with Azure and a Data Disk with empty nameSuffix",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
+						DiskSizeGB: 128,
+					},
+					DataDisks: []machinev1.DataDisk{
+						{
+							NameSuffix: "",
+							DiskSizeGB: 4,
+							Lun:        0,
+						},
+					},
+				},
+			},
+			expectedError: "providerSpec.dataDisks[0].nameSuffix: " +
+				"Invalid value: \"\":" +
+				" nameSuffix must be provided, must start and finish with an alphanumeric character and can only contain letters, numbers, underscores, periods or hyphens",
+		},
+		{
+			name:         "with Azure and a Data Disks too long nameSuffix",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
+						DiskSizeGB: 128,
+					},
+					DataDisks: []machinev1.DataDisk{
+						{
+							NameSuffix: "qwkuid031j3x3fxktj9saez28zoo2843jkl35w3ner90i9wvwkqphau1l5y7j7k3750960btqljnlthoq",
+							DiskSizeGB: 4,
+							Lun:        0,
+						},
+					},
+				},
+			},
+			expectedError: "providerSpec.dataDisks[0].nameSuffix: " +
+				"Invalid value: \"qwkuid031j3x3fxktj9saez28zoo2843jkl35w3ner90i9wvwkqphau1l5y7j7k3750960btqljnlthoq\":" +
+				" too long, the overall disk name must not exceed 80 chars",
+		},
+		{
+			name:         "with Azure and a Data Disks invalid chars",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
+						DiskSizeGB: 128,
+					},
+					DataDisks: []machinev1.DataDisk{
+						{
+							NameSuffix: "inv$alid",
+							DiskSizeGB: 4,
+							Lun:        0,
+						},
+					},
+				},
+			},
+			expectedError: "providerSpec.dataDisks[0].nameSuffix: " +
+				"Invalid value: \"inv$alid\":" +
+				" nameSuffix must be provided, must start and finish with an alphanumeric character and can only contain letters, numbers, underscores, periods or hyphens",
+		},
+		{
+			name:         "with Azure and two Data Disks set with non unique nameSuffix",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
+						DiskSizeGB: 128,
+					},
+					DataDisks: []machinev1.DataDisk{
+						{
+							NameSuffix: "test",
+							DiskSizeGB: 4,
+							Lun:        0,
+						},
+						{
+							NameSuffix: "test",
+							DiskSizeGB: 4,
+							Lun:        1,
+						},
+					},
+				},
+			},
+			expectedError: "providerSpec.dataDisks[1].nameSuffix: Invalid value:" +
+				" \"test\": each Data Disk must have a unique nameSuffix",
+		},
+		{
+			name:         "with Azure and two Data Disks set with diskSizeGB too low",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
+						DiskSizeGB: 128,
+					},
+					DataDisks: []machinev1.DataDisk{
+						{
+							NameSuffix: "test",
+							DiskSizeGB: 3,
+							Lun:        0,
+						},
+					},
+				},
+			},
+			expectedError: "providerSpec.dataDisks[0].diskSizeGB: Invalid value: 3: diskSizeGB must be provided and at least 4GB in size",
+		},
+		{
+			name:         "with Azure and two Data Disks set with non unique lun",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
+						DiskSizeGB: 128,
+					},
+					DataDisks: []machinev1.DataDisk{
+						{
+							NameSuffix: "test",
+							DiskSizeGB: 4,
+							Lun:        0,
+						},
+						{
+							NameSuffix: "test-1",
+							DiskSizeGB: 4,
+							Lun:        0,
+						},
+					},
+				},
+			},
+			expectedError: "providerSpec.dataDisks[1].lun: Invalid value: 0: each Data Disk must have a unique lun",
+		},
+		{
+			name:         "with Azure and two Data Disks set with lun too low",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
+						DiskSizeGB: 128,
+					},
+					DataDisks: []machinev1.DataDisk{
+						{
+							NameSuffix: "test",
+							DiskSizeGB: 4,
+							Lun:        -1,
+						},
+					},
+				},
+			},
+			expectedError: "providerSpec.dataDisks[0].lun: Invalid value: -1: must be greater than or equal to 0 and less than 64",
+		},
+		{
+			name:         "with Azure and two Data Disks set with lun too high",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
+						DiskSizeGB: 128,
+					},
+					DataDisks: []machinev1.DataDisk{
+						{
+							NameSuffix: "test",
+							DiskSizeGB: 4,
+							Lun:        64,
+						},
+					},
+				},
+			},
+			expectedError: "providerSpec.dataDisks[0].lun: Invalid value: 64: must be greater than or equal to 0 and less than 64",
+		},
+		{
+			name:         "with Azure and Ultra Disk with forbidden non-None cachingType",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
+						DiskSizeGB: 128,
+					},
+					DataDisks: []machinev1.DataDisk{
+						{
+							NameSuffix:  "test",
+							DiskSizeGB:  4,
+							Lun:         0,
+							CachingType: machinev1.CachingTypeReadOnly,
+							ManagedDisk: machinev1.DataDiskManagedDiskParameters{
+								StorageAccountType: machinev1.StorageAccountUltraSSDLRS,
+							},
+						},
+					},
+				},
+			},
+			expectedError: fmt.Sprintf("providerSpec.dataDisks[0].cachingType:"+
+				" Invalid value: \"%s\": must be \"None\" or omitted when storageAccountType is \"%s\"",
+				machinev1.CachingTypeReadOnly, machinev1.StorageAccountUltraSSDLRS),
+		},
+		{
+			name:         "with Azure and ultraSSDCapability Enabled",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
+						DiskSizeGB: 128,
+					},
+					UltraSSDCapability: machinev1.AzureUltraSSDCapabilityEnabled,
+				},
+			},
+		},
+		{
+			name:         "with Azure and ultraSSDCapability Disabled",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
+						DiskSizeGB: 128,
+					},
+					UltraSSDCapability: machinev1.AzureUltraSSDCapabilityDisabled,
+				},
+			},
+		},
+		{
+			name:         "with Azure and ultraSSDCapability omitted",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
+						DiskSizeGB: 128,
+					},
+				},
+			},
+		},
+		{
+			name:         "with Azure and ultraSSDCapability with wrong value",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
+						DiskSizeGB: 128,
+					},
+					UltraSSDCapability: "hello",
+				},
+			},
+			expectedError: fmt.Sprintf("providerSpec.ultraSSDCapability: Invalid value: \"hello\": ultraSSDCapability"+
+				" can be only %s, %s or omitted", machinev1.AzureUltraSSDCapabilityEnabled, machinev1.AzureUltraSSDCapabilityDisabled),
+		},
+		{
 			name:              "with GCP and a nil provider spec value",
 			platformType:      osconfigv1.GCPPlatformType,
 			clusterID:         "gcp-cluster",
@@ -308,7 +655,9 @@ func TestMachineCreation(t *testing.T) {
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1.VSphereMachineProviderSpec{},
 			},
-			expectedError: "[providerSpec.template: Required value: template must be provided, providerSpec.workspace: Required value: workspace must be provided, providerSpec.network.devices: Required value: at least 1 network device must be provided]",
+			expectedError: "[providerSpec.template: Required value: template must be provided," +
+				" providerSpec.workspace: Required value: workspace must be provided," +
+				" providerSpec.network.devices: Required value: at least 1 network device must be provided]",
 		},
 		{
 			name:            "with vSphere and the template, workspace and network devices set",
@@ -466,7 +815,7 @@ func TestMachineUpdate(t *testing.T) {
 			DiskSizeGB:  128,
 			OSType:      defaultAzureOSDiskOSType,
 			CachingType: "ReadOnly",
-			ManagedDisk: machinev1.ManagedDiskParameters{
+			ManagedDisk: machinev1.OSDiskManagedDiskParameters{
 				StorageAccountType: defaultAzureOSDiskStorageType,
 			},
 			DiskSettings: machinev1.DiskSettings{
@@ -503,6 +852,7 @@ func TestMachineUpdate(t *testing.T) {
 			Name: defaultGCPCredentialsSecret,
 		},
 	}
+
 	vsphereClusterID := "vsphere-cluster"
 	defaultVSphereProviderSpec := &machinev1.VSphereMachineProviderSpec{
 		Template: "template",
@@ -1587,7 +1937,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 			modifySpec: func(p *machinev1.AzureMachineProviderSpec) {
 				p.OSDisk = machinev1.OSDisk{
 					OSType: "osType",
-					ManagedDisk: machinev1.ManagedDiskParameters{
+					ManagedDisk: machinev1.OSDiskManagedDiskParameters{
 						StorageAccountType: "storageAccountType",
 					},
 				}

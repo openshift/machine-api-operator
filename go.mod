@@ -9,7 +9,7 @@ require (
 	github.com/google/uuid v1.2.0
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.17.0
-	github.com/openshift/api v0.0.0-20220304163151-654ca07c2567
+	github.com/openshift/api v0.0.0-20220322000322-9c4998a4d646
 	github.com/openshift/client-go v0.0.0-20211209144617-7385dd6338e3
 	github.com/openshift/library-go v0.0.0-20220121154930-b7889002d63e
 	github.com/operator-framework/operator-sdk v0.5.1-0.20190301204940-c2efe6f74e7b
