@@ -277,9 +277,10 @@ func TestMachineCreation(t *testing.T) {
 					},
 					DataDisks: []machinev1.DataDisk{
 						{
-							NameSuffix: "test",
-							DiskSizeGB: 4,
-							Lun:        0,
+							NameSuffix:     "test",
+							DiskSizeGB:     4,
+							Lun:            0,
+							DeletionPolicy: machinev1.DiskDeletionPolicyTypeDelete,
 						},
 					},
 				},
@@ -303,6 +304,7 @@ func TestMachineCreation(t *testing.T) {
 							ManagedDisk: machinev1.DataDiskManagedDiskParameters{
 								StorageAccountType: machinev1.StorageAccountUltraSSDLRS,
 							},
+							DeletionPolicy: machinev1.DiskDeletionPolicyTypeDelete,
 						},
 					},
 				},
@@ -326,6 +328,7 @@ func TestMachineCreation(t *testing.T) {
 							ManagedDisk: machinev1.DataDiskManagedDiskParameters{
 								StorageAccountType: machinev1.StorageAccountPremiumLRS,
 							},
+							DeletionPolicy: machinev1.DiskDeletionPolicyTypeDelete,
 						},
 					},
 				},
@@ -343,14 +346,16 @@ func TestMachineCreation(t *testing.T) {
 					},
 					DataDisks: []machinev1.DataDisk{
 						{
-							NameSuffix: "test",
-							DiskSizeGB: 4,
-							Lun:        0,
+							NameSuffix:     "test",
+							DiskSizeGB:     4,
+							Lun:            0,
+							DeletionPolicy: machinev1.DiskDeletionPolicyTypeDelete,
 						},
 						{
-							NameSuffix: "test-1",
-							DiskSizeGB: 4,
-							Lun:        1,
+							NameSuffix:     "test-1",
+							DiskSizeGB:     4,
+							Lun:            1,
+							DeletionPolicy: machinev1.DiskDeletionPolicyTypeDelete,
 						},
 					},
 				},
@@ -368,9 +373,10 @@ func TestMachineCreation(t *testing.T) {
 					},
 					DataDisks: []machinev1.DataDisk{
 						{
-							NameSuffix: "",
-							DiskSizeGB: 4,
-							Lun:        0,
+							NameSuffix:     "",
+							DiskSizeGB:     4,
+							Lun:            0,
+							DeletionPolicy: machinev1.DiskDeletionPolicyTypeDelete,
 						},
 					},
 				},
@@ -390,9 +396,10 @@ func TestMachineCreation(t *testing.T) {
 					},
 					DataDisks: []machinev1.DataDisk{
 						{
-							NameSuffix: "qwkuid031j3x3fxktj9saez28zoo2843jkl35w3ner90i9wvwkqphau1l5y7j7k3750960btqljnlthoq",
-							DiskSizeGB: 4,
-							Lun:        0,
+							NameSuffix:     "qwkuid031j3x3fxktj9saez28zoo2843jkl35w3ner90i9wvwkqphau1l5y7j7k3750960btqljnlthoq",
+							DiskSizeGB:     4,
+							Lun:            0,
+							DeletionPolicy: machinev1.DiskDeletionPolicyTypeDelete,
 						},
 					},
 				},
@@ -412,9 +419,10 @@ func TestMachineCreation(t *testing.T) {
 					},
 					DataDisks: []machinev1.DataDisk{
 						{
-							NameSuffix: "inv$alid",
-							DiskSizeGB: 4,
-							Lun:        0,
+							NameSuffix:     "inv$alid",
+							DiskSizeGB:     4,
+							Lun:            0,
+							DeletionPolicy: machinev1.DiskDeletionPolicyTypeDelete,
 						},
 					},
 				},
@@ -434,14 +442,16 @@ func TestMachineCreation(t *testing.T) {
 					},
 					DataDisks: []machinev1.DataDisk{
 						{
-							NameSuffix: "test",
-							DiskSizeGB: 4,
-							Lun:        0,
+							NameSuffix:     "test",
+							DiskSizeGB:     4,
+							Lun:            0,
+							DeletionPolicy: machinev1.DiskDeletionPolicyTypeDelete,
 						},
 						{
-							NameSuffix: "test",
-							DiskSizeGB: 4,
-							Lun:        1,
+							NameSuffix:     "test",
+							DiskSizeGB:     4,
+							Lun:            1,
+							DeletionPolicy: machinev1.DiskDeletionPolicyTypeDelete,
 						},
 					},
 				},
@@ -460,9 +470,10 @@ func TestMachineCreation(t *testing.T) {
 					},
 					DataDisks: []machinev1.DataDisk{
 						{
-							NameSuffix: "test",
-							DiskSizeGB: 3,
-							Lun:        0,
+							NameSuffix:     "test",
+							DiskSizeGB:     3,
+							Lun:            0,
+							DeletionPolicy: machinev1.DiskDeletionPolicyTypeDelete,
 						},
 					},
 				},
@@ -480,14 +491,16 @@ func TestMachineCreation(t *testing.T) {
 					},
 					DataDisks: []machinev1.DataDisk{
 						{
-							NameSuffix: "test",
-							DiskSizeGB: 4,
-							Lun:        0,
+							NameSuffix:     "test",
+							DiskSizeGB:     4,
+							Lun:            0,
+							DeletionPolicy: machinev1.DiskDeletionPolicyTypeDelete,
 						},
 						{
-							NameSuffix: "test-1",
-							DiskSizeGB: 4,
-							Lun:        0,
+							NameSuffix:     "test-1",
+							DiskSizeGB:     4,
+							Lun:            0,
+							DeletionPolicy: machinev1.DiskDeletionPolicyTypeDelete,
 						},
 					},
 				},
@@ -505,9 +518,10 @@ func TestMachineCreation(t *testing.T) {
 					},
 					DataDisks: []machinev1.DataDisk{
 						{
-							NameSuffix: "test",
-							DiskSizeGB: 4,
-							Lun:        -1,
+							NameSuffix:     "test",
+							DiskSizeGB:     4,
+							Lun:            -1,
+							DeletionPolicy: machinev1.DiskDeletionPolicyTypeDelete,
 						},
 					},
 				},
@@ -525,9 +539,10 @@ func TestMachineCreation(t *testing.T) {
 					},
 					DataDisks: []machinev1.DataDisk{
 						{
-							NameSuffix: "test",
-							DiskSizeGB: 4,
-							Lun:        64,
+							NameSuffix:     "test",
+							DiskSizeGB:     4,
+							Lun:            64,
+							DeletionPolicy: machinev1.DiskDeletionPolicyTypeDelete,
 						},
 					},
 				},
@@ -552,6 +567,7 @@ func TestMachineCreation(t *testing.T) {
 							ManagedDisk: machinev1.DataDiskManagedDiskParameters{
 								StorageAccountType: machinev1.StorageAccountUltraSSDLRS,
 							},
+							DeletionPolicy: machinev1.DiskDeletionPolicyTypeDelete,
 						},
 					},
 				},
@@ -612,6 +628,109 @@ func TestMachineCreation(t *testing.T) {
 			},
 			expectedError: fmt.Sprintf("providerSpec.ultraSSDCapability: Invalid value: \"hello\": ultraSSDCapability"+
 				" can be only %s, %s or omitted", machinev1.AzureUltraSSDCapabilityEnabled, machinev1.AzureUltraSSDCapabilityDisabled),
+		},
+		{
+			name:         "with Azure and deletionPolicy with wrong value",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
+						DiskSizeGB: 128,
+					},
+					DataDisks: []machinev1.DataDisk{
+						{
+							NameSuffix:  "test",
+							DiskSizeGB:  4,
+							Lun:         0,
+							CachingType: machinev1.CachingTypeNone,
+							ManagedDisk: machinev1.DataDiskManagedDiskParameters{
+								StorageAccountType: machinev1.StorageAccountUltraSSDLRS,
+							},
+							DeletionPolicy: "bla",
+						},
+					},
+				},
+			},
+			expectedError: fmt.Sprintf("providerSpec.dataDisks[0].deletionPolicy:"+
+				" Invalid value: \"%s\": must be either %s or %s",
+				"bla", machinev1.DiskDeletionPolicyTypeDelete, machinev1.DiskDeletionPolicyTypeDetach),
+		},
+		{
+			name:         "with Azure and deletionPolicy with omitted value",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
+						DiskSizeGB: 128,
+					},
+					DataDisks: []machinev1.DataDisk{
+						{
+							NameSuffix:  "test",
+							DiskSizeGB:  4,
+							Lun:         0,
+							CachingType: machinev1.CachingTypeNone,
+							ManagedDisk: machinev1.DataDiskManagedDiskParameters{
+								StorageAccountType: machinev1.StorageAccountUltraSSDLRS,
+							},
+						},
+					},
+				},
+			},
+			expectedError: fmt.Sprintf("providerSpec.dataDisks[0].deletionPolicy:"+
+				" Required value: deletionPolicy must be provided and must be either %s or %s",
+				machinev1.DiskDeletionPolicyTypeDelete, machinev1.DiskDeletionPolicyTypeDetach),
+		},
+		{
+			name:         "with Azure and deletionPolicy with Detach value",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
+						DiskSizeGB: 128,
+					},
+					DataDisks: []machinev1.DataDisk{
+						{
+							NameSuffix:  "test",
+							DiskSizeGB:  4,
+							Lun:         0,
+							CachingType: machinev1.CachingTypeNone,
+							ManagedDisk: machinev1.DataDiskManagedDiskParameters{
+								StorageAccountType: machinev1.StorageAccountUltraSSDLRS,
+							},
+							DeletionPolicy: machinev1.DiskDeletionPolicyTypeDetach,
+						},
+					},
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "with Azure and deletionPolicy with Delete value",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.AzureMachineProviderSpec{
+					OSDisk: machinev1.OSDisk{
+						DiskSizeGB: 128,
+					},
+					DataDisks: []machinev1.DataDisk{
+						{
+							NameSuffix:  "test",
+							DiskSizeGB:  4,
+							Lun:         0,
+							CachingType: machinev1.CachingTypeNone,
+							ManagedDisk: machinev1.DataDiskManagedDiskParameters{
+								StorageAccountType: machinev1.StorageAccountUltraSSDLRS,
+							},
+							DeletionPolicy: machinev1.DiskDeletionPolicyTypeDelete,
+						},
+					},
+				},
+			},
+			expectedError: "",
 		},
 		{
 			name:              "with GCP and a nil provider spec value",

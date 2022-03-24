@@ -1384,9 +1384,13 @@ func validateAzureDataDisks(machineName string, spec *machinev1.AzureMachineProv
 		switch disk.DeletionPolicy {
 		case machinev1.DiskDeletionPolicyTypeDelete, machinev1.DiskDeletionPolicyTypeDetach:
 			// Valid scenarios, do nothing
+		case "":
+			errs = append(errs, field.Required(fldPath.Child("deletionPolicy"),
+				fmt.Sprintf("deletionPolicy must be provided and must be either %s or %s",
+					machinev1.DiskDeletionPolicyTypeDelete, machinev1.DiskDeletionPolicyTypeDetach)))
 		default:
 			errs = append(errs, field.Invalid(fldPath.Child("deletionPolicy"), disk.DeletionPolicy,
-				fmt.Sprintf("must be either %s or %s.", machinev1.DiskDeletionPolicyTypeDelete, machinev1.DiskDeletionPolicyTypeDetach)))
+				fmt.Sprintf("must be either %s or %s", machinev1.DiskDeletionPolicyTypeDelete, machinev1.DiskDeletionPolicyTypeDetach)))
 		}
 
 		if (disk.ManagedDisk.StorageAccountType == machinev1.StorageAccountUltraSSDLRS) &&
