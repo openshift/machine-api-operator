@@ -1381,6 +1381,14 @@ func validateAzureDataDisks(machineName string, spec *machinev1.AzureMachineProv
 			errs = append(errs, field.Invalid(fldPath.Child("lun"), disk.Lun, "each Data Disk must have a unique lun"))
 		}
 
+		switch disk.DeletionPolicy {
+		case machinev1.DiskDeletionPolicyTypeDelete, machinev1.DiskDeletionPolicyTypeDetach:
+			// Valid scenarios, do nothing
+		default:
+			errs = append(errs, field.Invalid(fldPath.Child("deletionPolicy"), disk.DeletionPolicy,
+				fmt.Sprintf("must be either %s or %s.", machinev1.DiskDeletionPolicyTypeDelete, machinev1.DiskDeletionPolicyTypeDetach)))
+		}
+
 		if (disk.ManagedDisk.StorageAccountType == machinev1.StorageAccountUltraSSDLRS) &&
 			(disk.CachingType != machinev1.CachingTypeNone && disk.CachingType != "") {
 			errs = append(errs,
