@@ -20,8 +20,7 @@ const (
 	expectedBareMetalImage = "quay.io/openshift/origin-baremetal-machine-controllers"
 	expectedGCPImage       = "quay.io/openshift/origin-gcp-machine-controllers"
 	expectedLibvirtImage   = "quay.io/openshift/origin-libvirt-machine-controllers"
-	expectedMAPOImage      = "quay.io/openshift/origin-openstack-machine-api-provider"
-	expectedOpenstackImage = "quay.io/openshift/origin-openstack-machine-controllers"
+	expectedOpenstackImage = "quay.io/openshift/origin-openstack-machine-api-provider"
 	expectedOvirtImage     = "quay.io/openshift/origin-ovirt-machine-controllers"
 	expectedPowerVSImage   = "quay.io/openshift/origin-powervs-machine-controllers"
 	expectedVSphereImage   = "quay.io/openshift/origin-machine-api-operator"
@@ -248,9 +247,6 @@ func TestGetImagesFromJSONFile(t *testing.T) {
 	if img.ClusterAPIControllerPowerVS != expectedPowerVSImage {
 		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedPowerVSImage, img.ClusterAPIControllerPowerVS)
 	}
-	if img.MachineAPIControllerOpenStack != expectedMAPOImage {
-		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedMAPOImage, img.MachineAPIControllerOpenStack)
-	}
 }
 
 func TestGetProviderControllerFromImages(t *testing.T) {
@@ -307,43 +303,6 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 		{
 			provider:      configv1.PowerVSPlatformType,
 			expectedImage: expectedPowerVSImage,
-		},
-		{
-			name:     "valid MAPO Feature Gate",
-			provider: configv1.OpenStackPlatformType,
-			featureGate: configv1.FeatureGate{
-				Spec: configv1.FeatureGateSpec{
-					FeatureGateSelection: configv1.FeatureGateSelection{
-						FeatureSet: configv1.CustomNoUpgrade,
-						CustomNoUpgrade: &configv1.CustomFeatureGates{
-							Enabled: []string{MAPOFeature},
-						},
-					},
-				},
-			},
-			expectedImage: expectedMAPOImage,
-		},
-		{
-			name:     "MAPO both enabled and disabled",
-			provider: configv1.OpenStackPlatformType,
-			featureGate: configv1.FeatureGate{
-				Spec: configv1.FeatureGateSpec{
-					FeatureGateSelection: configv1.FeatureGateSelection{
-						FeatureSet: configv1.CustomNoUpgrade,
-						CustomNoUpgrade: &configv1.CustomFeatureGates{
-							Enabled:  []string{MAPOFeature},
-							Disabled: []string{MAPOFeature},
-						},
-					},
-				},
-			},
-			expectedImage: expectedOpenstackImage,
-		},
-		{
-			name:          "Feature Gate Unset does not error",
-			provider:      configv1.OpenStackPlatformType,
-			featureGate:   configv1.FeatureGate{},
-			expectedImage: expectedOpenstackImage,
 		},
 	}
 
