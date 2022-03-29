@@ -143,7 +143,7 @@ type AzureMachineProviderStatus struct {
 	// Conditions is a set of conditions associated with the Machine to indicate
 	// errors or other status.
 	// +optional
-	Conditions []AzureMachineProviderCondition `json:"conditions,omitempty"`
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
 // VMState describes the state of an Azure virtual machine.
@@ -380,26 +380,6 @@ type SecurityProfile struct {
 	// set. Default is disabled.
 	// +optional
 	EncryptionAtHost *bool `json:"encryptionAtHost,omitempty"`
-}
-
-// AzureMachineProviderCondition is a condition in a AzureMachineProviderStatus
-type AzureMachineProviderCondition struct {
-	// Type is the type of the condition.
-	Type ConditionType `json:"type"`
-	// Status is the status of the condition.
-	Status corev1.ConditionStatus `json:"status"`
-	// LastProbeTime is the last time we probed the condition.
-	// +optional
-	LastProbeTime metav1.Time `json:"lastProbeTime"`
-	// LastTransitionTime is the last time the condition transitioned from one status to another.
-	// +optional
-	LastTransitionTime metav1.Time `json:"lastTransitionTime"`
-	// Reason is a unique, one-word, CamelCase reason for the condition's last transition.
-	// +optional
-	Reason string `json:"reason"`
-	// Message is a human-readable message indicating details about last transition.
-	// +optional
-	Message string `json:"message"`
 }
 
 // AzureUltraSSDCapabilityState defines the different states of an UltraSSDCapability

@@ -1703,6 +1703,16 @@ func (in *IngressControllerStatus) DeepCopyInto(out *IngressControllerStatus) {
 		*out = new(configv1.TLSProfileSpec)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.NamespaceSelector != nil {
+		in, out := &in.NamespaceSelector, &out.NamespaceSelector
+		*out = new(metav1.LabelSelector)
+		(*in).DeepCopyInto(*out)
+	}
+	if in.RouteSelector != nil {
+		in, out := &in.RouteSelector, &out.RouteSelector
+		*out = new(metav1.LabelSelector)
+		(*in).DeepCopyInto(*out)
+	}
 	return
 }
 
