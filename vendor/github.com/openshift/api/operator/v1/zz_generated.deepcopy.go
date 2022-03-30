@@ -1749,6 +1749,11 @@ func (in *IngressControllerTuningOptions) DeepCopyInto(out *IngressControllerTun
 		*out = new(metav1.Duration)
 		**out = **in
 	}
+	if in.HealthCheckInterval != nil {
+		in, out := &in.HealthCheckInterval, &out.HealthCheckInterval
+		*out = new(metav1.Duration)
+		**out = **in
+	}
 	return
 }
 
