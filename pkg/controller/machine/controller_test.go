@@ -312,7 +312,7 @@ func TestReconcileRequest(t *testing.T) {
 				existCallCount:  1,
 				updateCallCount: 0,
 				deleteCallCount: 0,
-				result:          reconcile.Result{RequeueAfter: requeueAfter},
+				result:          reconcile.Result{Requeue: true},
 				error:           false,
 				phase:           phaseProvisioning,
 			},
