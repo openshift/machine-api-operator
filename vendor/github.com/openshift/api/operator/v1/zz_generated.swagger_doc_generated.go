@@ -726,6 +726,8 @@ var map_IngressControllerStatus = map[string]string{
 	"conditions":                 "conditions is a list of conditions and their status.\n\nAvailable means the ingress controller deployment is available and servicing route and ingress resources (i.e, .status.availableReplicas equals .spec.replicas)\n\nThere are additional conditions which indicate the status of other ingress controller features and capabilities.\n\n  * LoadBalancerManaged\n  - True if the following conditions are met:\n    * The endpoint publishing strategy requires a service load balancer.\n  - False if any of those conditions are unsatisfied.\n\n  * LoadBalancerReady\n  - True if the following conditions are met:\n    * A load balancer is managed.\n    * The load balancer is ready.\n  - False if any of those conditions are unsatisfied.\n\n  * DNSManaged\n  - True if the following conditions are met:\n    * The endpoint publishing strategy and platform support DNS.\n    * The ingress controller domain is set.\n    * dns.config.openshift.io/cluster configures DNS zones.\n  - False if any of those conditions are unsatisfied.\n\n  * DNSReady\n  - True if the following conditions are met:\n    * DNS is managed.\n    * DNS records have been successfully created.\n  - False if any of those conditions are unsatisfied.",
 	"tlsProfile":                 "tlsProfile is the TLS connection configuration that is in effect.",
 	"observedGeneration":         "observedGeneration is the most recent generation observed.",
+	"namespaceSelector":          "namespaceSelector is the actual namespaceSelector in use.",
+	"routeSelector":              "routeSelector is the actual routeSelector in use.",
 }
 
 func (IngressControllerStatus) SwaggerDoc() map[string]string {
