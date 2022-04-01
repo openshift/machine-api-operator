@@ -2448,7 +2448,19 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 				}
 			},
 			expectedOk:    false,
-			expectedError: "providerSpec.disks[0].type: Unsupported value: \"invalid\": supported values: \"pd-ssd\", \"pd-standard\"",
+			expectedError: "providerSpec.disks[0].type: Unsupported value: \"invalid\": supported values: \"pd-balanced\", \"pd-ssd\", \"pd-standard\"",
+		},
+		{
+			testCase: "with a disk type that is supported",
+			modifySpec: func(p *machinev1.GCPMachineProviderSpec) {
+				p.Disks = []*machinev1.GCPDisk{
+					{
+						SizeGB: 16,
+						Type:   "pd-balanced",
+					},
+				}
+			},
+			expectedOk: true,
 		},
 		{
 			testCase: "with no service accounts",
