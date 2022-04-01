@@ -40,6 +40,8 @@ Have a question? See our [Frequently Asked Questions](FAQ.md) for common inquiri
   - [cluster-api-provider-baremetal](https://github.com/openshift/cluster-api-provider-baremetal)
 
   - [cluster-api-provider-ovirt](https://github.com/openshift/cluster-api-provider-ovirt)
+  
+  - [cluster-api-provider-ibmcloud](https://github.com/openshift/cluster-api-provider-ibmcloud)
 
 - Nodelink Controller
 
