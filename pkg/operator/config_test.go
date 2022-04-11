@@ -24,6 +24,7 @@ const (
 	expectedOvirtImage     = "quay.io/openshift/origin-ovirt-machine-controllers"
 	expectedPowerVSImage   = "quay.io/openshift/origin-powervs-machine-controllers"
 	expectedVSphereImage   = "quay.io/openshift/origin-machine-api-operator"
+	expectedNutanixImage   = "quay.io/openshift/origin-nutanix-machine-controllers"
 
 	expectedKubeRBACProxyImage      = "quay.io/openshift/origin-kube-rbac-proxy"
 	expectedMachineAPIOperatorImage = "quay.io/openshift/origin-machine-api-operator"
@@ -195,6 +196,15 @@ func TestGetProviderFromInfrastructure(t *testing.T) {
 			},
 		},
 		expected: configv1.PowerVSPlatformType,
+	}, {
+		infra: &configv1.Infrastructure{
+			Status: configv1.InfrastructureStatus{
+				PlatformStatus: &configv1.PlatformStatus{
+					Type: configv1.NutanixPlatformType,
+				},
+			},
+		},
+		expected: configv1.NutanixPlatformType,
 	}}
 
 	for _, test := range tests {
@@ -246,6 +256,9 @@ func TestGetImagesFromJSONFile(t *testing.T) {
 	}
 	if img.ClusterAPIControllerPowerVS != expectedPowerVSImage {
 		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedPowerVSImage, img.ClusterAPIControllerPowerVS)
+	}
+	if img.ClusterAPIControllerNutanix != expectedNutanixImage {
+		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedNutanixImage, img.ClusterAPIControllerNutanix)
 	}
 }
 
@@ -303,6 +316,10 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 		{
 			provider:      configv1.PowerVSPlatformType,
 			expectedImage: expectedPowerVSImage,
+		},
+		{
+			provider:      configv1.NutanixPlatformType,
+			expectedImage: expectedNutanixImage,
 		},
 	}
 
@@ -379,6 +396,10 @@ func TestGetTerminationHandlerFromImages(t *testing.T) {
 		},
 		{
 			provider:      configv1.PowerVSPlatformType,
+			expectedImage: clusterAPIControllerNoOp,
+		},
+		{
+			provider:      configv1.NutanixPlatformType,
 			expectedImage: clusterAPIControllerNoOp,
 		},
 	}
