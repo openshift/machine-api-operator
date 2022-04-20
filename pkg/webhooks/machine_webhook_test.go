@@ -1702,6 +1702,21 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			expectedOk:    false,
 			expectedError: "providerSpec.networkInterfaceType: Invalid value: \"efa\": Valid values are: ENA, EFA and omitted",
 		},
+		{
+			testCase: "valid metadataServiceOptions",
+			modifySpec: func(p *machinev1.AWSMachineProviderConfig) {
+				p.MetadataServiceOptions.Authentication = "Required"
+			},
+			expectedOk: true,
+		},
+		{
+			testCase: "with invalid metadataServiceOptions",
+			modifySpec: func(p *machinev1.AWSMachineProviderConfig) {
+				p.MetadataServiceOptions.Authentication = "Boom"
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.metadataServiceOptions.authentication: Invalid value: \"Boom\": Allowed values are either 'Optional' or 'Required'",
+		},
 	}
 
 	secret := &corev1.Secret{

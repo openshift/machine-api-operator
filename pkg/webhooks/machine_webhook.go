@@ -747,6 +747,20 @@ func validateAWS(m *machinev1.Machine, config *admissionConfig) (bool, []string,
 		)
 	}
 
+	switch providerSpec.MetadataServiceOptions.Authentication {
+	case "", machinev1.MetadataServiceAuthenticationOptional, machinev1.MetadataServiceAuthenticationRequired:
+		// Valid values
+	default:
+		errs = append(
+			errs,
+			field.Invalid(
+				field.NewPath("providerSpec", "metadataServiceOptions", "authentication"),
+				providerSpec.MetadataServiceOptions.Authentication,
+				fmt.Sprintf("Allowed values are either '%s' or '%s'", machinev1.MetadataServiceAuthenticationOptional, machinev1.MetadataServiceAuthenticationRequired),
+			),
+		)
+	}
+
 	if len(errs) > 0 {
 		return false, warnings, utilerrors.NewAggregate(errs)
 	}
