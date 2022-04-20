@@ -18,7 +18,7 @@ Namely:
 
 MAO installation/upgrade procedure relies on CVO. 
 
-MAO is deployed after CVO starts running at [run level](https://github.com/openshift/cluster-version-operator/blob/master/docs/dev/operators.md#how-do-i-get-added-as-a-special-run-level) 30, right after the Kubernetes operators (run level 10-29), and before the `machine-config-operator` (run level 80)
+MAO is deployed after CVO starts running at [run level](https://github.com/openshift/enhancements/blob/master/dev-guide/cluster-version-operator/dev/operators.md#how-do-i-get-added-as-a-special-run-level) 30, right after the Kubernetes operators (run level 10-29), and before the `machine-config-operator` (run level 80)
 
 A newly deployed version of MAO Deployment is responsible for installing/upgrading provider executables, as described in the following section.
 
