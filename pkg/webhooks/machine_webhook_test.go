@@ -8,8 +8,11 @@ import (
 	"runtime"
 	"testing"
 
+	"k8s.io/apimachinery/pkg/util/intstr"
+
 	. "github.com/onsi/gomega"
 	osconfigv1 "github.com/openshift/api/config/v1"
+	machinev1 "github.com/openshift/api/machine/v1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -25,7 +28,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
-	yaml "sigs.k8s.io/yaml"
+	"sigs.k8s.io/yaml"
 )
 
 var (
@@ -82,15 +85,23 @@ func TestMachineCreation(t *testing.T) {
 			Namespace: defaultSecretNamespace,
 		},
 	}
+	powerVSSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultPowerVSCredentialsSecret,
+			Namespace: defaultSecretNamespace,
+		},
+	}
 	g.Expect(c.Create(ctx, awsSecret)).To(Succeed())
 	g.Expect(c.Create(ctx, vSphereSecret)).To(Succeed())
 	g.Expect(c.Create(ctx, GCPSecret)).To(Succeed())
 	g.Expect(c.Create(ctx, azureSecret)).To(Succeed())
+	g.Expect(c.Create(ctx, powerVSSecret)).To(Succeed())
 	defer func() {
 		g.Expect(c.Delete(ctx, awsSecret)).To(Succeed())
 		g.Expect(c.Delete(ctx, vSphereSecret)).To(Succeed())
 		g.Expect(c.Delete(ctx, GCPSecret)).To(Succeed())
 		g.Expect(c.Delete(ctx, azureSecret)).To(Succeed())
+		g.Expect(c.Delete(ctx, powerVSSecret)).To(Succeed())
 	}()
 
 	testCases := []struct {
@@ -801,6 +812,230 @@ func TestMachineCreation(t *testing.T) {
 			},
 			expectedError: "",
 		},
+		{
+			name:              "with PowerVS and a nil provider spec value",
+			platformType:      osconfigv1.PowerVSPlatformType,
+			clusterID:         "powervs-cluster",
+			providerSpecValue: nil,
+			expectedError:     "providerSpec.value: Required value: a value must be provided",
+		},
+		{
+			name:         "with PowerVS and no serviceInstanceID set",
+			platformType: osconfigv1.PowerVSPlatformType,
+			clusterID:    "powervs-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.PowerVSMachineProviderConfig{
+					KeyPairName: "TestKeyPair",
+					Image: machinev1.PowerVSResource{
+						Type: machinev1.PowerVSResourceTypeName,
+						Name: pointer.StringPtr("TestNetworkName"),
+					},
+					Network: machinev1.PowerVSResource{
+						Type: machinev1.PowerVSResourceTypeName,
+						Name: pointer.StringPtr("TestNetworkName"),
+					},
+				},
+			},
+			expectedError: "providerSpec.serviceInstance: Required value: serviceInstance identifier must be provided",
+		},
+		{
+			name:         "with PowerVS and ServiceInstance ID set",
+			platformType: osconfigv1.PowerVSPlatformType,
+			clusterID:    "powervs-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.PowerVSMachineProviderConfig{
+					ServiceInstance: machinev1.PowerVSResource{
+						Type: machinev1.PowerVSResourceTypeID,
+						ID:   pointer.StringPtr("TestServiceInstanceID"),
+					},
+					KeyPairName: "TestKeyPair",
+					Image: machinev1.PowerVSResource{
+						Type: machinev1.PowerVSResourceTypeName,
+						Name: pointer.StringPtr("TestNetworkName"),
+					},
+					Network: machinev1.PowerVSResource{
+						Type: machinev1.PowerVSResourceTypeName,
+						Name: pointer.StringPtr("TestNetworkName"),
+					},
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "with PowerVS and ServiceInstance Name set",
+			platformType: osconfigv1.PowerVSPlatformType,
+			clusterID:    "powervs-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.PowerVSMachineProviderConfig{
+					ServiceInstance: machinev1.PowerVSResource{
+						Type: machinev1.PowerVSResourceTypeName,
+						Name: pointer.StringPtr("TestServiceInstanceID"),
+					},
+					KeyPairName: "TestKeyPair",
+					Image: machinev1.PowerVSResource{
+						Type: machinev1.PowerVSResourceTypeName,
+						Name: pointer.StringPtr("TestNetworkName"),
+					},
+					Network: machinev1.PowerVSResource{
+						Type: machinev1.PowerVSResourceTypeName,
+						Name: pointer.StringPtr("TestNetworkName"),
+					},
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "with PowerVS and ServiceInstance Regex is set",
+			platformType: osconfigv1.PowerVSPlatformType,
+			clusterID:    "powervs-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.PowerVSMachineProviderConfig{
+					ServiceInstance: machinev1.PowerVSResource{
+						Type:  machinev1.PowerVSResourceTypeRegEx,
+						RegEx: pointer.StringPtr("TestServiceInstanceID"),
+					},
+					KeyPairName: "TestKeyPair",
+					Image: machinev1.PowerVSResource{
+						Type: machinev1.PowerVSResourceTypeName,
+						Name: pointer.StringPtr("TestNetworkName"),
+					},
+					Network: machinev1.PowerVSResource{
+						Type: machinev1.PowerVSResourceTypeName,
+						Name: pointer.StringPtr("TestNetworkName"),
+					},
+				},
+			},
+			expectedError: "providerSpec.serviceInstance: Invalid value: \"RegEx\": serviceInstance identifier is specified as RegEx but only ID and Name are valid resource identifiers",
+		},
+		{
+			name:         "with PowerVS and no keyPair set",
+			platformType: osconfigv1.PowerVSPlatformType,
+			clusterID:    "powervs-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.PowerVSMachineProviderConfig{
+					ServiceInstance: machinev1.PowerVSResource{
+						Type: machinev1.PowerVSResourceTypeName,
+						Name: pointer.StringPtr("TestServiceInstanceID"),
+					},
+					Image: machinev1.PowerVSResource{
+						Type: machinev1.PowerVSResourceTypeName,
+						Name: pointer.StringPtr("TestNetworkName"),
+					},
+					Network: machinev1.PowerVSResource{
+						Type: machinev1.PowerVSResourceTypeName,
+						Name: pointer.StringPtr("TestNetworkName"),
+					},
+				},
+			},
+			expectedError: "providerSpec.keyPairName: Required value: providerSpec.keyPairName must be provided",
+		},
+		{
+			name:         "with PowerVS and no Image ID or Image Name set",
+			platformType: osconfigv1.PowerVSPlatformType,
+			clusterID:    "powervs-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.PowerVSMachineProviderConfig{
+					KeyPairName: "TestKeyPair",
+					ServiceInstance: machinev1.PowerVSResource{
+						Type: machinev1.PowerVSResourceTypeName,
+						Name: pointer.StringPtr("TestServiceInstanceID"),
+					},
+					Network: machinev1.PowerVSResource{
+						Type: machinev1.PowerVSResourceTypeName,
+						Name: pointer.StringPtr("TestNetworkName"),
+					},
+				},
+			},
+			expectedError: "providerSpec.image: Required value: image identifier must be provided",
+		},
+		{
+			name:         "with PowerVS and no Network ID or Network Name or Regex set",
+			platformType: osconfigv1.PowerVSPlatformType,
+			clusterID:    "powervs-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.PowerVSMachineProviderConfig{
+					KeyPairName: "TestKeyPair",
+					ServiceInstance: machinev1.PowerVSResource{
+						Type: machinev1.PowerVSResourceTypeName,
+						Name: pointer.StringPtr("TestServiceInstanceID"),
+					},
+					Image: machinev1.PowerVSResource{
+						Type: machinev1.PowerVSResourceTypeName,
+						Name: pointer.StringPtr("TestNetworkName"),
+					},
+				},
+			},
+			expectedError: "providerSpec.network: Required value: network identifier must be provided",
+		},
+		{
+			name:         "with PowerVS and with Network ID is set",
+			platformType: osconfigv1.PowerVSPlatformType,
+			clusterID:    "powervs-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.PowerVSMachineProviderConfig{
+					KeyPairName: "TestKeyPair",
+					ServiceInstance: machinev1.PowerVSResource{
+						Type: machinev1.PowerVSResourceTypeName,
+						Name: pointer.StringPtr("TestServiceInstanceID"),
+					},
+					Image: machinev1.PowerVSResource{
+						Type: machinev1.PowerVSResourceTypeName,
+						Name: pointer.StringPtr("TestNetworkName"),
+					},
+					Network: machinev1.PowerVSResource{
+						Type: machinev1.PowerVSResourceTypeID,
+						ID:   pointer.StringPtr("TestNetworkID"),
+					},
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "with PowerVS and with Network Regex is set",
+			platformType: osconfigv1.PowerVSPlatformType,
+			clusterID:    "powervs-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.PowerVSMachineProviderConfig{
+					KeyPairName: "TestKeyPair",
+					ServiceInstance: machinev1.PowerVSResource{
+						Type: machinev1.PowerVSResourceTypeName,
+						Name: pointer.StringPtr("TestServiceInstanceID"),
+					},
+					Image: machinev1.PowerVSResource{
+						Type: machinev1.PowerVSResourceTypeName,
+						Name: pointer.StringPtr("TestNetworkName"),
+					},
+					Network: machinev1.PowerVSResource{
+						Type:  machinev1.PowerVSResourceTypeRegEx,
+						RegEx: pointer.StringPtr("DHCP"),
+					},
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "with PowerVS and with correct data",
+			platformType: osconfigv1.PowerVSPlatformType,
+			clusterID:    "powervs-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.PowerVSMachineProviderConfig{
+					KeyPairName: "TestKeyPair",
+					ServiceInstance: machinev1.PowerVSResource{
+						Type: machinev1.PowerVSResourceTypeName,
+						Name: pointer.StringPtr("TestServiceInstanceID"),
+					},
+					Image: machinev1.PowerVSResource{
+						Type: machinev1.PowerVSResourceTypeName,
+						Name: pointer.StringPtr("TestNetworkName"),
+					},
+					Network: machinev1.PowerVSResource{
+						Type: machinev1.PowerVSResourceTypeName,
+						Name: pointer.StringPtr("TestNetworkName"),
+					},
+				},
+			},
+			expectedError: "",
+		},
 	}
 
 	for _, tc := range testCases {
@@ -993,6 +1228,32 @@ func TestMachineUpdate(t *testing.T) {
 			Name: defaultVSphereCredentialsSecret,
 		},
 	}
+	powerVSClusterID := "powerVS-cluster"
+	defaultPowerVSProviderSpec := &machinev1.PowerVSMachineProviderConfig{
+		ServiceInstance: machinev1.PowerVSResource{
+			Type: machinev1.PowerVSResourceTypeName,
+			Name: pointer.StringPtr("testServiceInstanceID"),
+		},
+		Image: machinev1.PowerVSResource{
+			Type: machinev1.PowerVSResourceTypeName,
+			Name: pointer.StringPtr("testImageName"),
+		},
+		Network: machinev1.PowerVSResource{
+			Type: machinev1.PowerVSResourceTypeName,
+			Name: pointer.StringPtr("testNetworkName"),
+		},
+		UserDataSecret: &machinev1.PowerVSSecretReference{
+			Name: defaultUserDataSecret,
+		},
+		CredentialsSecret: &machinev1.PowerVSSecretReference{
+			Name: defaultPowerVSCredentialsSecret,
+		},
+		SystemType:    defaultPowerVSSysType,
+		ProcessorType: defaultPowerVSProcType,
+		Processors:    intstr.FromString(defaultPowerVSProcessor),
+		MemoryGiB:     defaultPowerVSMemory,
+		KeyPairName:   "test-keypair",
+	}
 
 	g := NewWithT(t)
 
@@ -1038,15 +1299,23 @@ func TestMachineUpdate(t *testing.T) {
 			Namespace: defaultSecretNamespace,
 		},
 	}
+	powerVSSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultPowerVSCredentialsSecret,
+			Namespace: defaultSecretNamespace,
+		},
+	}
 	g.Expect(c.Create(ctx, awsSecret)).To(Succeed())
 	g.Expect(c.Create(ctx, vSphereSecret)).To(Succeed())
 	g.Expect(c.Create(ctx, GCPSecret)).To(Succeed())
 	g.Expect(c.Create(ctx, azureSecret)).To(Succeed())
+	g.Expect(c.Create(ctx, powerVSSecret)).To(Succeed())
 	defer func() {
 		g.Expect(c.Delete(ctx, awsSecret)).To(Succeed())
 		g.Expect(c.Delete(ctx, vSphereSecret)).To(Succeed())
 		g.Expect(c.Delete(ctx, GCPSecret)).To(Succeed())
 		g.Expect(c.Delete(ctx, azureSecret)).To(Succeed())
+		g.Expect(c.Delete(ctx, powerVSSecret)).To(Succeed())
 	}()
 
 	preDrainHook := machinev1beta1.LifecycleHook{
@@ -1395,6 +1664,116 @@ func TestMachineUpdate(t *testing.T) {
 				m.Spec.LifecycleHooks.PreDrain = []machinev1beta1.LifecycleHook{preDrainHook, preDrainHook}
 			},
 			expectedError: "Invalid", // This is an openapi error. As lifecycleHooks have list-type=map, the API server will prevent duplication
+		},
+		{
+			name:         "with a valid PowerVS ProviderSpec",
+			platformType: osconfigv1.PowerVSPlatformType,
+			clusterID:    powerVSClusterID,
+			baseProviderSpecValue: &kruntime.RawExtension{
+				Object: defaultPowerVSProviderSpec.DeepCopy(),
+			},
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
+				return &kruntime.RawExtension{
+					Object: defaultPowerVSProviderSpec.DeepCopy(),
+				}
+			},
+			expectedError: "",
+		},
+		{
+			name:         "with an PowerVS ProviderSpec, removing the serviceInstanceID",
+			platformType: osconfigv1.PowerVSPlatformType,
+			clusterID:    powerVSClusterID,
+			baseProviderSpecValue: &kruntime.RawExtension{
+				Object: defaultPowerVSProviderSpec.DeepCopy(),
+			},
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
+				object := defaultPowerVSProviderSpec.DeepCopy()
+				object.ServiceInstance = machinev1.PowerVSResource{}
+				return &kruntime.RawExtension{
+					Object: object,
+				}
+			},
+			expectedError: "providerSpec.serviceInstance: Required value: serviceInstance identifier must be provided",
+		},
+		{
+			name:         "with a PowerVS ProviderSpec, removing the UserDataSecret",
+			platformType: osconfigv1.PowerVSPlatformType,
+			clusterID:    powerVSClusterID,
+			baseProviderSpecValue: &kruntime.RawExtension{
+				Object: defaultPowerVSProviderSpec.DeepCopy(),
+			},
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
+				object := defaultPowerVSProviderSpec.DeepCopy()
+				object.UserDataSecret = nil
+				return &kruntime.RawExtension{
+					Object: object,
+				}
+			},
+			expectedError: "providerSpec.userDataSecret: Required value: providerSpec.userDataSecret must be provided",
+		},
+		{
+			name:         "with an PowerVS ProviderSpec, removing the CredentialsSecret",
+			platformType: osconfigv1.PowerVSPlatformType,
+			clusterID:    powerVSClusterID,
+			baseProviderSpecValue: &kruntime.RawExtension{
+				Object: defaultPowerVSProviderSpec.DeepCopy(),
+			},
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
+				object := defaultPowerVSProviderSpec.DeepCopy()
+				object.CredentialsSecret = nil
+				return &kruntime.RawExtension{
+					Object: object,
+				}
+			},
+			expectedError: "providerSpec.credentialsSecret: Required value: providerSpec.credentialsSecret must be provided",
+		},
+		{
+			name:         "with an PowerVS ProviderSpec, removing the keyPairName",
+			platformType: osconfigv1.PowerVSPlatformType,
+			clusterID:    powerVSClusterID,
+			baseProviderSpecValue: &kruntime.RawExtension{
+				Object: defaultPowerVSProviderSpec.DeepCopy(),
+			},
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
+				object := defaultPowerVSProviderSpec.DeepCopy()
+				object.KeyPairName = ""
+				return &kruntime.RawExtension{
+					Object: object,
+				}
+			},
+			expectedError: "providerSpec.keyPairName: Required value: providerSpec.keyPairName must be provided",
+		},
+		{
+			name:         "with an PowerVS ProviderSpec, removing the Image Name",
+			platformType: osconfigv1.PowerVSPlatformType,
+			clusterID:    powerVSClusterID,
+			baseProviderSpecValue: &kruntime.RawExtension{
+				Object: defaultPowerVSProviderSpec.DeepCopy(),
+			},
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
+				object := defaultPowerVSProviderSpec.DeepCopy()
+				object.Image.Name = nil
+				return &kruntime.RawExtension{
+					Object: object,
+				}
+			},
+			expectedError: "providerSpec.image.name: Required value: image identifier is specified as Name but the value is nil",
+		},
+		{
+			name:         "with an PowerVS ProviderSpec, removing the Network Name",
+			platformType: osconfigv1.PowerVSPlatformType,
+			clusterID:    powerVSClusterID,
+			baseProviderSpecValue: &kruntime.RawExtension{
+				Object: defaultPowerVSProviderSpec.DeepCopy(),
+			},
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
+				object := defaultPowerVSProviderSpec.DeepCopy()
+				object.Network.Name = nil
+				return &kruntime.RawExtension{
+					Object: object,
+				}
+			},
+			expectedError: "providerSpec.network.name: Required value: network identifier is specified as Name but the value is nil",
 		},
 	}
 
@@ -3225,7 +3604,6 @@ func TestDefaultVSphereProviderSpec(t *testing.T) {
 		})
 	}
 }
-
 func TestUpdateFinalizer(t *testing.T) {
 	namespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -3246,15 +3624,15 @@ func TestUpdateFinalizer(t *testing.T) {
 	infra.Status.PlatformStatus.Type = osconfigv1.AWSPlatformType
 	h := createMachineValidator(infra, c, plainDNS)
 
-	providerSpec := &machinev1.AWSMachineProviderConfig{
-		AMI: machinev1.AWSResourceReference{
+	providerSpec := &machinev1beta1.AWSMachineProviderConfig{
+		AMI: machinev1beta1.AWSResourceReference{
 			ID: pointer.StringPtr("ami"),
 		},
-		Placement: machinev1.Placement{
+		Placement: machinev1beta1.Placement{
 			Region: "region",
 		},
 		InstanceType: "m5.large",
-		IAMInstanceProfile: &machinev1.AWSResourceReference{
+		IAMInstanceProfile: &machinev1beta1.AWSResourceReference{
 			ID: pointer.StringPtr("profileID"),
 		},
 		UserDataSecret: &corev1.LocalObjectReference{
@@ -3263,21 +3641,21 @@ func TestUpdateFinalizer(t *testing.T) {
 		CredentialsSecret: &corev1.LocalObjectReference{
 			Name: "secret",
 		},
-		SecurityGroups: []machinev1.AWSResourceReference{
+		SecurityGroups: []machinev1beta1.AWSResourceReference{
 			{
 				ID: pointer.StringPtr("sg"),
 			},
 		},
-		Subnet: machinev1.AWSResourceReference{
+		Subnet: machinev1beta1.AWSResourceReference{
 			ID: pointer.StringPtr("subnet"),
 		},
 	}
 
 	testCases := []struct {
 		testCase              string
-		modifyOldSpec         func(machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig
+		modifyOldSpec         func(machinev1beta1.AWSMachineProviderConfig) machinev1beta1.AWSMachineProviderConfig
 		oldMachineFinalizers  []string
-		modifyNewSpec         func(machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig
+		modifyNewSpec         func(machinev1beta1.AWSMachineProviderConfig) machinev1beta1.AWSMachineProviderConfig
 		newMachineFinalizers  []string
 		withDeletionTimestamp bool
 		expectedError         string
@@ -3312,11 +3690,11 @@ func TestUpdateFinalizer(t *testing.T) {
 		},
 		{
 			testCase: "no changes on invalid machines without finalizers",
-			modifyOldSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+			modifyOldSpec: func(p machinev1beta1.AWSMachineProviderConfig) machinev1beta1.AWSMachineProviderConfig {
 				p.CredentialsSecret = nil
 				return p
 			},
-			modifyNewSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+			modifyNewSpec: func(p machinev1beta1.AWSMachineProviderConfig) machinev1beta1.AWSMachineProviderConfig {
 				p.CredentialsSecret = nil
 				return p
 			},
@@ -3324,11 +3702,11 @@ func TestUpdateFinalizer(t *testing.T) {
 		},
 		{
 			testCase: "adding the finalizer to an invalid machine",
-			modifyOldSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+			modifyOldSpec: func(p machinev1beta1.AWSMachineProviderConfig) machinev1beta1.AWSMachineProviderConfig {
 				p.CredentialsSecret = nil
 				return p
 			},
-			modifyNewSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+			modifyNewSpec: func(p machinev1beta1.AWSMachineProviderConfig) machinev1beta1.AWSMachineProviderConfig {
 				p.CredentialsSecret = nil
 				return p
 			},
@@ -3337,11 +3715,11 @@ func TestUpdateFinalizer(t *testing.T) {
 		},
 		{
 			testCase: "no changes on invalid machines with finalizers",
-			modifyOldSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+			modifyOldSpec: func(p machinev1beta1.AWSMachineProviderConfig) machinev1beta1.AWSMachineProviderConfig {
 				p.CredentialsSecret = nil
 				return p
 			},
-			modifyNewSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+			modifyNewSpec: func(p machinev1beta1.AWSMachineProviderConfig) machinev1beta1.AWSMachineProviderConfig {
 				p.CredentialsSecret = nil
 				return p
 			},
@@ -3351,11 +3729,11 @@ func TestUpdateFinalizer(t *testing.T) {
 		},
 		{
 			testCase: "updating the finalizer on an invalid machine",
-			modifyOldSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+			modifyOldSpec: func(p machinev1beta1.AWSMachineProviderConfig) machinev1beta1.AWSMachineProviderConfig {
 				p.CredentialsSecret = nil
 				return p
 			},
-			modifyNewSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+			modifyNewSpec: func(p machinev1beta1.AWSMachineProviderConfig) machinev1beta1.AWSMachineProviderConfig {
 				p.CredentialsSecret = nil
 				return p
 			},
@@ -3365,11 +3743,11 @@ func TestUpdateFinalizer(t *testing.T) {
 		},
 		{
 			testCase: "deleting the finalizer from an invalid machine",
-			modifyOldSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+			modifyOldSpec: func(p machinev1beta1.AWSMachineProviderConfig) machinev1beta1.AWSMachineProviderConfig {
 				p.CredentialsSecret = nil
 				return p
 			},
-			modifyNewSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+			modifyNewSpec: func(p machinev1beta1.AWSMachineProviderConfig) machinev1beta1.AWSMachineProviderConfig {
 				p.CredentialsSecret = nil
 				return p
 			},
@@ -3379,11 +3757,11 @@ func TestUpdateFinalizer(t *testing.T) {
 		},
 		{
 			testCase: "deleting the finalizer from an invalid machine with set deletion timestamp",
-			modifyOldSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+			modifyOldSpec: func(p machinev1beta1.AWSMachineProviderConfig) machinev1beta1.AWSMachineProviderConfig {
 				p.CredentialsSecret = nil
 				return p
 			},
-			modifyNewSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+			modifyNewSpec: func(p machinev1beta1.AWSMachineProviderConfig) machinev1beta1.AWSMachineProviderConfig {
 				p.CredentialsSecret = nil
 				return p
 			},
@@ -3394,7 +3772,7 @@ func TestUpdateFinalizer(t *testing.T) {
 		},
 		{
 			testCase: "deleting the finalizer and applying an invalid change",
-			modifyNewSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+			modifyNewSpec: func(p machinev1beta1.AWSMachineProviderConfig) machinev1beta1.AWSMachineProviderConfig {
 				p.CredentialsSecret = nil
 				return p
 			},
@@ -3404,11 +3782,11 @@ func TestUpdateFinalizer(t *testing.T) {
 		},
 		{
 			testCase: "deleting the finalizer and fixing the machine",
-			modifyOldSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+			modifyOldSpec: func(p machinev1beta1.AWSMachineProviderConfig) machinev1beta1.AWSMachineProviderConfig {
 				p.CredentialsSecret = nil
 				return p
 			},
-			modifyNewSpec: func(p machinev1.AWSMachineProviderConfig) machinev1.AWSMachineProviderConfig {
+			modifyNewSpec: func(p machinev1beta1.AWSMachineProviderConfig) machinev1beta1.AWSMachineProviderConfig {
 				p.CredentialsSecret = &corev1.LocalObjectReference{Name: defaultAWSCredentialsSecret}
 				return p
 			},
@@ -3425,7 +3803,7 @@ func TestUpdateFinalizer(t *testing.T) {
 
 			gs := NewWithT(t)
 
-			oldM := &machinev1.Machine{
+			oldM := &machinev1beta1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:  namespace.Name,
 					Finalizers: tc.oldMachineFinalizers,
@@ -3440,7 +3818,7 @@ func TestUpdateFinalizer(t *testing.T) {
 			gs.Expect(err).ToNot(HaveOccurred())
 			oldM.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 
-			newM := &machinev1.Machine{
+			newM := &machinev1beta1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Namespace:  namespace.Name,
 					Finalizers: tc.newMachineFinalizers,
@@ -3467,6 +3845,334 @@ func TestUpdateFinalizer(t *testing.T) {
 				gs.Expect(tc.expectedError).To(BeEmpty())
 			} else {
 				gs.Expect(err.Error()).To(Equal(tc.expectedError))
+			}
+		})
+	}
+}
+
+func TestValidatePowerVSProviderSpec(t *testing.T) {
+	namespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "powervs-validation-test",
+		},
+	}
+
+	testCases := []struct {
+		testCase         string
+		modifySpec       func(providerConfig *machinev1.PowerVSMachineProviderConfig)
+		expectedError    string
+		expectedOk       bool
+		expectedWarnings []string
+	}{
+		{
+			testCase: "with no serviceInstanceID provided",
+			modifySpec: func(p *machinev1.PowerVSMachineProviderConfig) {
+				p.ServiceInstance = machinev1.PowerVSResource{}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.serviceInstance: Required value: serviceInstance identifier must be provided",
+		},
+		{
+			testCase: "with regex for serviceInstanceID",
+			modifySpec: func(p *machinev1.PowerVSMachineProviderConfig) {
+				p.ServiceInstance.Type = machinev1.PowerVSResourceTypeRegEx
+				p.ServiceInstance.RegEx = pointer.StringPtr("DHCP")
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.serviceInstance: Invalid value: \"RegEx\": serviceInstance identifier is specified as RegEx but only ID and Name are valid resource identifiers",
+		},
+		{
+			testCase: "with no UserDataSecret",
+			modifySpec: func(p *machinev1.PowerVSMachineProviderConfig) {
+				p.UserDataSecret = nil
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.userDataSecret: Required value: providerSpec.userDataSecret must be provided",
+		},
+		{
+			testCase: "with no CredentialsSecret",
+			modifySpec: func(p *machinev1.PowerVSMachineProviderConfig) {
+				p.CredentialsSecret = nil
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.credentialsSecret: Required value: providerSpec.credentialsSecret must be provided",
+		},
+		{
+			testCase: "with no keyPairName",
+			modifySpec: func(p *machinev1.PowerVSMachineProviderConfig) {
+				p.KeyPairName = ""
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.keyPairName: Required value: providerSpec.keyPairName must be provided",
+		},
+		{
+			testCase: "with no Image",
+			modifySpec: func(p *machinev1.PowerVSMachineProviderConfig) {
+				p.Image = machinev1.PowerVSResource{}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.image: Required value: image identifier must be provided",
+		},
+		{
+			testCase: "with regex for image",
+			modifySpec: func(p *machinev1.PowerVSMachineProviderConfig) {
+				p.Image.Type = machinev1.PowerVSResourceTypeRegEx
+				p.Image.RegEx = pointer.StringPtr("DHCP")
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.image: Invalid value: \"RegEx\": image identifier is specified as RegEx but only ID and Name are valid resource identifiers",
+		},
+		{
+			testCase: "with no Network",
+			modifySpec: func(p *machinev1.PowerVSMachineProviderConfig) {
+				p.Network = machinev1.PowerVSResource{}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.network: Required value: network identifier must be provided",
+		},
+		{
+			testCase: "with no user data secret name provided",
+			modifySpec: func(p *machinev1.PowerVSMachineProviderConfig) {
+				p.UserDataSecret = &machinev1.PowerVSSecretReference{}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.userDataSecret.name: Required value: providerSpec.userDataSecret.name must be provided",
+		},
+		{
+			testCase: "when the credentials secret does not exist",
+			modifySpec: func(p *machinev1.PowerVSMachineProviderConfig) {
+				p.CredentialsSecret.Name = "does-not-exist"
+			},
+			expectedOk:       true,
+			expectedWarnings: []string{"providerSpec.credentialsSecret: Invalid value: \"does-not-exist\": not found. Expected CredentialsSecret to exist"},
+		},
+		{
+			testCase: "with not a known system type",
+			modifySpec: func(p *machinev1.PowerVSMachineProviderConfig) {
+				p.SystemType = "testSystemType"
+			},
+			expectedOk:       true,
+			expectedWarnings: []string{"providerSpec.SystemType: testSystemType is not known, Currently known system types are s922, e980 and e880"},
+		},
+		{
+			testCase: "with a known system type",
+			modifySpec: func(p *machinev1.PowerVSMachineProviderConfig) {
+				p.SystemType = defaultPowerVSSysType
+			},
+			expectedOk: true,
+		},
+		{
+			testCase: "with memory greater than supported value",
+			modifySpec: func(p *machinev1.PowerVSMachineProviderConfig) {
+				p.MemoryGiB = 950
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.memoryGiB: Invalid value: 950: for s922 systemtype the maximum supported memory value is 942",
+		},
+		{
+			testCase: "with memory less than minimum value",
+			modifySpec: func(p *machinev1.PowerVSMachineProviderConfig) {
+				p.MemoryGiB = 30
+			},
+			expectedOk:       true,
+			expectedWarnings: []string{"providerspec.MemoryGiB 30 is less than the minimum value 32"},
+		},
+		{
+			testCase: "with invalid processor value",
+			modifySpec: func(p *machinev1.PowerVSMachineProviderConfig) {
+				p.Processors = intstr.FromString("testProcessor")
+			},
+			expectedOk:    false,
+			expectedError: "error while getting processor vlaue failed to convert Processors testProcessor to float64",
+		},
+		{
+			testCase: "with processor greater than supported value for s922 systemtype",
+			modifySpec: func(p *machinev1.PowerVSMachineProviderConfig) {
+				p.Processors = intstr.FromInt(20)
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.processor: Invalid value: 20: for s922 systemtype the maximum supported processor value is 15.000000",
+		},
+		{
+			testCase: "with supported value processor for e880 systemtype",
+			modifySpec: func(p *machinev1.PowerVSMachineProviderConfig) {
+				p.SystemType = powerVSSystemTypeE880
+				p.Processors = intstr.FromInt(20)
+			},
+			expectedOk: true,
+		},
+		{
+			testCase: "with processor less than minimum value for dedicated Processor type",
+			modifySpec: func(p *machinev1.PowerVSMachineProviderConfig) {
+				p.ProcessorType = machinev1.PowerVSProcessorTypeDedicated
+				p.Processors = intstr.FromString("0.9")
+			},
+			expectedOk:       true,
+			expectedWarnings: []string{"providerspec.Processor 0.900000 is less than the minimum value 1.000000 for providerSpec.ProcessorType: Dedicated"},
+		},
+		{
+			testCase: "with processor less than minimum value for shared Processor type",
+			modifySpec: func(p *machinev1.PowerVSMachineProviderConfig) {
+				p.Processors = intstr.FromString("0.4")
+			},
+			expectedOk:       true,
+			expectedWarnings: []string{"providerspec.Processor 0.400000 is less than the minimum value 0.500000 for providerSpec.ProcessorType: Shared"},
+		},
+		{
+			testCase:      "with all required fields it succeeds",
+			expectedOk:    true,
+			expectedError: "",
+		},
+	}
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultPowerVSCredentialsSecret,
+			Namespace: namespace.Name,
+		},
+	}
+	c := fake.NewFakeClientWithScheme(scheme.Scheme, secret)
+	infra := plainInfra.DeepCopy()
+	infra.Status.InfrastructureName = "clusterID"
+	infra.Status.PlatformStatus.Type = osconfigv1.PowerVSPlatformType
+	h := createMachineValidator(infra, c, plainDNS)
+
+	for _, tc := range testCases {
+		t.Run(tc.testCase, func(t *testing.T) {
+			providerSpec := &machinev1.PowerVSMachineProviderConfig{
+				ServiceInstance: machinev1.PowerVSResource{
+					Type: machinev1.PowerVSResourceTypeName,
+					Name: pointer.StringPtr("testServiceInstanceID"),
+				},
+				Image: machinev1.PowerVSResource{
+					Type: machinev1.PowerVSResourceTypeName,
+					Name: pointer.StringPtr("testImageName"),
+				},
+				Network: machinev1.PowerVSResource{
+					Type: machinev1.PowerVSResourceTypeName,
+					Name: pointer.StringPtr("testNetworkName"),
+				},
+				UserDataSecret: &machinev1.PowerVSSecretReference{
+					Name: defaultUserDataSecret,
+				},
+				CredentialsSecret: &machinev1.PowerVSSecretReference{
+					Name: defaultPowerVSCredentialsSecret,
+				},
+				SystemType:    defaultPowerVSSysType,
+				ProcessorType: defaultPowerVSProcType,
+				Processors:    intstr.FromString(defaultPowerVSProcessor),
+				MemoryGiB:     defaultPowerVSMemory,
+				KeyPairName:   "test-keypair",
+			}
+			if tc.modifySpec != nil {
+				tc.modifySpec(providerSpec)
+			}
+
+			m := &machinev1beta1.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: namespace.Name,
+				},
+			}
+			rawBytes, err := json.Marshal(providerSpec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
+
+			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
+			if ok != tc.expectedOk {
+				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
+			}
+
+			if err == nil {
+				if tc.expectedError != "" {
+					t.Errorf("expected: %q, got: %v", tc.expectedError, err)
+				}
+			} else {
+				if err.Error() != tc.expectedError {
+					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
+				}
+			}
+
+			if !reflect.DeepEqual(warnings, tc.expectedWarnings) {
+				t.Errorf("expected: %q, got: %q", tc.expectedWarnings, warnings)
+			}
+		})
+	}
+}
+
+func TestDefaultPowerVSProviderSpec(t *testing.T) {
+
+	clusterID := "clusterID"
+	testCases := []struct {
+		testCase         string
+		providerSpec     *machinev1.PowerVSMachineProviderConfig
+		modifyDefault    func(*machinev1.PowerVSMachineProviderConfig)
+		expectedError    string
+		expectedOk       bool
+		expectedWarnings []string
+	}{
+		{
+			testCase:      "it defaults defaultable fields",
+			providerSpec:  &machinev1.PowerVSMachineProviderConfig{},
+			expectedOk:    true,
+			expectedError: "",
+		},
+	}
+
+	platformStatus := &osconfigv1.PlatformStatus{Type: osconfigv1.PowerVSPlatformType}
+	h := createMachineDefaulter(platformStatus, clusterID)
+
+	for _, tc := range testCases {
+		t.Run(tc.testCase, func(t *testing.T) {
+			defaultProviderSpec := &machinev1.PowerVSMachineProviderConfig{
+				UserDataSecret: &machinev1.PowerVSSecretReference{
+					Name: defaultUserDataSecret,
+				},
+				CredentialsSecret: &machinev1.PowerVSSecretReference{
+					Name: defaultPowerVSCredentialsSecret,
+				},
+				ProcessorType: defaultPowerVSProcType,
+				SystemType:    defaultPowerVSSysType,
+				Processors:    intstr.FromString(defaultPowerVSProcessor),
+				MemoryGiB:     defaultPowerVSMemory,
+			}
+			if tc.modifyDefault != nil {
+				tc.modifyDefault(defaultProviderSpec)
+			}
+
+			m := &machinev1beta1.Machine{}
+			rawBytes, err := json.Marshal(tc.providerSpec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
+
+			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
+			if ok != tc.expectedOk {
+				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
+			}
+
+			gotProviderSpec := new(machinev1.PowerVSMachineProviderConfig)
+			if err := yaml.Unmarshal(m.Spec.ProviderSpec.Value.Raw, &gotProviderSpec); err != nil {
+				t.Fatal(err)
+			}
+
+			if !equality.Semantic.DeepEqual(defaultProviderSpec, gotProviderSpec) {
+				t.Errorf("expected: %+v, got: %+v", defaultProviderSpec, gotProviderSpec)
+			}
+			if err == nil {
+				if tc.expectedError != "" {
+					t.Errorf("expected: %q, got: %v", tc.expectedError, err)
+				}
+			} else {
+				if err.Error() != tc.expectedError {
+					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
+				}
+			}
+
+			if !reflect.DeepEqual(warnings, tc.expectedWarnings) {
+				t.Errorf("expected: %q, got: %q", tc.expectedWarnings, warnings)
 			}
 		})
 	}

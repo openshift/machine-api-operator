@@ -7,9 +7,11 @@ import (
 	"net/http"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
+	machinev1 "github.com/openshift/api/machine/v1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
 	"github.com/openshift/machine-api-operator/pkg/util/lifecyclehooks"
@@ -19,6 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kruntime "k8s.io/apimachinery/pkg/runtime"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/sets"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/klog/v2"
@@ -28,6 +31,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 	yaml "sigs.k8s.io/yaml"
 )
+
+type systemSpecifications struct {
+	minMemoryGiB             int32
+	maxMemoryGiB             int32
+	minProcessorSharedCapped float64
+	minProcessorDedicated    float64
+	maxProcessor             float64
+}
 
 var (
 	// Azure Defaults
@@ -59,6 +70,33 @@ var (
 	}
 	defaultGCPTags = func(clusterID string) []string {
 		return []string{fmt.Sprintf("%s-worker", clusterID)}
+	}
+
+	// Power VS variables
+
+	//powerVSMachineConfigurations contains the known Power VS system types and their allowed configuration limits
+	powerVSMachineConfigurations = map[string]systemSpecifications{
+		"s922": {
+			minMemoryGiB:             32,
+			maxMemoryGiB:             942,
+			minProcessorSharedCapped: 0.5,
+			minProcessorDedicated:    1,
+			maxProcessor:             15,
+		},
+		"e880": {
+			minMemoryGiB:             32,
+			maxMemoryGiB:             7463,
+			minProcessorSharedCapped: 0.5,
+			minProcessorDedicated:    1,
+			maxProcessor:             143,
+		},
+		"e980": {
+			minMemoryGiB:             32,
+			maxMemoryGiB:             15307,
+			minProcessorSharedCapped: 0.5,
+			minProcessorDedicated:    1,
+			maxProcessor:             143,
+		},
 	}
 )
 
@@ -111,6 +149,18 @@ const (
 	minVSphereMemoryMiB = 2048
 	// https://docs.openshift.com/container-platform/4.1/installing/installing_vsphere/installing-vsphere.html#minimum-resource-requirements_installing-vsphere
 	minVSphereDiskGiB = 120
+
+	// PowerVS Defaults
+	defaultPowerVSCredentialsSecret = "powervs-credentials"
+	defaultPowerVSSysType           = "s922"
+	defaultPowerVSProcType          = "Shared"
+	defaultPowerVSProcessor         = "0.5"
+	defaultPowerVSMemory            = 32
+	powerVSServiceInstance          = "serviceInstance"
+	powerVSNetwork                  = "network"
+	powerVSImage                    = "image"
+	powerVSSystemTypeE880           = "e880"
+	powerVSSystemTypeE980           = "e980"
 )
 
 var (
@@ -269,6 +319,8 @@ func getMachineValidatorOperation(platform osconfigv1.PlatformType) machineAdmis
 		return validateGCP
 	case osconfigv1.VSpherePlatformType:
 		return validateVSphere
+	case osconfigv1.PowerVSPlatformType:
+		return validatePowerVS
 	default:
 		// just no-op
 		return func(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, utilerrors.Aggregate) {
@@ -311,6 +363,8 @@ func getMachineDefaulterOperation(platformStatus *osconfigv1.PlatformStatus) mac
 		return defaultGCP
 	case osconfigv1.VSpherePlatformType:
 		return defaultVSphere
+	case osconfigv1.PowerVSPlatformType:
+		return defaultPowerVS
 	default:
 		// just no-op
 		return func(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, utilerrors.Aggregate) {
@@ -1433,6 +1487,190 @@ func validateAzureDataDisks(machineName string, spec *machinev1beta1.AzureMachin
 	}
 
 	return errs
+}
+
+func defaultPowerVS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, utilerrors.Aggregate) {
+	klog.V(3).Infof("Defaulting PowerVS providerSpec")
+
+	var errs []error
+	var warnings []string
+	providerSpec := new(machinev1.PowerVSMachineProviderConfig)
+	if err := unmarshalInto(m, providerSpec); err != nil {
+		errs = append(errs, err)
+		return false, warnings, utilerrors.NewAggregate(errs)
+	}
+	if providerSpec.UserDataSecret == nil {
+		providerSpec.UserDataSecret = &machinev1.PowerVSSecretReference{Name: defaultUserDataSecret}
+	}
+	if providerSpec.CredentialsSecret == nil {
+		providerSpec.CredentialsSecret = &machinev1.PowerVSSecretReference{Name: defaultPowerVSCredentialsSecret}
+	}
+	if providerSpec.SystemType == "" {
+		providerSpec.SystemType = defaultPowerVSSysType
+	}
+	if providerSpec.ProcessorType == "" {
+		providerSpec.ProcessorType = defaultPowerVSProcType
+	}
+	if providerSpec.Processors.IntVal == 0 || providerSpec.Processors.StrVal == "" {
+		switch providerSpec.ProcessorType {
+		case machinev1.PowerVSProcessorTypeDedicated:
+			providerSpec.Processors = intstr.IntOrString{Type: intstr.Int, IntVal: 1}
+		default:
+			providerSpec.Processors = intstr.IntOrString{Type: intstr.String, StrVal: "0.5"}
+		}
+	}
+	if providerSpec.MemoryGiB == 0 {
+		providerSpec.MemoryGiB = defaultPowerVSMemory
+	}
+
+	rawBytes, err := json.Marshal(providerSpec)
+	if err != nil {
+		errs = append(errs, err)
+	}
+
+	if len(errs) > 0 {
+		return false, warnings, utilerrors.NewAggregate(errs)
+	}
+
+	m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
+	return true, warnings, nil
+}
+
+func validatePowerVS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, utilerrors.Aggregate) {
+	klog.V(3).Infof("Validating PowerVS providerSpec")
+
+	var errs []error
+	var warnings []string
+	providerSpec := new(machinev1.PowerVSMachineProviderConfig)
+	if err := unmarshalInto(m, providerSpec); err != nil {
+		errs = append(errs, err)
+		return false, warnings, utilerrors.NewAggregate(errs)
+	}
+
+	if providerSpec.KeyPairName == "" {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "keyPairName"), "providerSpec.keyPairName must be provided"))
+	}
+
+	serviceInstanceErrors := validatePowerVSResourceIdentifiers(providerSpec.ServiceInstance, powerVSServiceInstance, field.NewPath("providerSpec", "serviceInstance"))
+	errs = append(errs, serviceInstanceErrors...)
+
+	imageErrors := validatePowerVSResourceIdentifiers(providerSpec.Image, powerVSImage, field.NewPath("providerSpec", "image"))
+	errs = append(errs, imageErrors...)
+
+	networkErrors := validatePowerVSResourceIdentifiers(providerSpec.Network, powerVSNetwork, field.NewPath("providerSpec", "network"))
+	errs = append(errs, networkErrors...)
+
+	if providerSpec.UserDataSecret == nil {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret"), "providerSpec.userDataSecret must be provided"))
+	} else {
+		if providerSpec.UserDataSecret.Name == "" {
+			errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret", "name"), "providerSpec.userDataSecret.name must be provided"))
+		}
+	}
+
+	if providerSpec.CredentialsSecret == nil {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret"), "providerSpec.credentialsSecret must be provided"))
+	} else {
+		if providerSpec.CredentialsSecret.Name == "" {
+			errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret", "name"), "providerSpec.credentialsSecret.name must be provided"))
+		} else {
+			warnings = append(warnings, credentialsSecretExists(config.client, providerSpec.CredentialsSecret.Name, m.GetNamespace())...)
+		}
+	}
+
+	machineConfigWarnings, machineConfigErrors := validateMachineConfigurations(providerSpec, field.NewPath("providerSpec"))
+	warnings = append(warnings, machineConfigWarnings...)
+	errs = append(errs, machineConfigErrors...)
+
+	if len(errs) > 0 {
+		return false, warnings, utilerrors.NewAggregate(errs)
+	}
+	return true, warnings, nil
+}
+
+func validatePowerVSResourceIdentifiers(serviceInstance machinev1.PowerVSResource, resourceType string, parentPath *field.Path) (errs []error) {
+	switch serviceInstance.Type {
+	case machinev1.PowerVSResourceTypeID:
+		if serviceInstance.ID == nil {
+			errs = append(errs, field.Required(parentPath.Child("id"),
+				fmt.Sprintf("%s identifier is specified as ID but the value is nil", resourceType)))
+		}
+	case machinev1.PowerVSResourceTypeName:
+		if serviceInstance.Name == nil {
+			errs = append(errs, field.Required(parentPath.Child("name"),
+				fmt.Sprintf("%s identifier is specified as Name but the value is nil", resourceType)))
+		}
+	case machinev1.PowerVSResourceTypeRegEx:
+		if resourceType == powerVSServiceInstance || resourceType == powerVSImage {
+			errs = append(errs, field.Invalid(parentPath, serviceInstance.Type,
+				fmt.Sprintf("%s identifier is specified as %s but only %s and %s are valid resource identifiers",
+					resourceType, serviceInstance.Type, machinev1.PowerVSResourceTypeID, machinev1.PowerVSResourceTypeName)))
+		}
+		if serviceInstance.RegEx == nil {
+			errs = append(errs, field.Required(parentPath.Child("regex"),
+				fmt.Sprintf("%s identifier is specified as Regex but the value is nil", resourceType)))
+		}
+	case "":
+		errs = append(errs, field.Required(parentPath,
+			fmt.Sprintf("%s identifier must be provided", resourceType)))
+	default:
+		errs = append(errs, field.Invalid(parentPath, serviceInstance.Type,
+			fmt.Sprintf("%s identifier is specified as %s but only %s, %s and %s are valid resource identifiers",
+				resourceType, serviceInstance.Type, machinev1.PowerVSResourceTypeID, machinev1.PowerVSResourceTypeName, machinev1.PowerVSResourceTypeRegEx)))
+	}
+	return errs
+}
+
+func validateMachineConfigurations(providerSpec *machinev1.PowerVSMachineProviderConfig, parentPath *field.Path) (warnings []string, errs []error) {
+	if providerSpec == nil {
+		errs = append(errs, []error{field.Required(parentPath, "providerSpec must be provided")}...)
+		return
+	}
+	if val, found := powerVSMachineConfigurations[providerSpec.SystemType]; !found {
+		warnings = append(warnings, fmt.Sprintf("providerSpec.SystemType: %s is not known, Currently known system types are %s, %s and %s", providerSpec.SystemType, defaultPowerVSSysType, powerVSSystemTypeE980, powerVSSystemTypeE880))
+	} else {
+		if providerSpec.MemoryGiB > val.maxMemoryGiB {
+			errs = append(errs, field.Invalid(parentPath.Child("memoryGiB"), providerSpec.MemoryGiB, fmt.Sprintf("for %s systemtype the maximum supported memory value is %d", providerSpec.SystemType, val.maxMemoryGiB)))
+		}
+
+		if providerSpec.MemoryGiB < val.minMemoryGiB {
+			warnings = append(warnings, fmt.Sprintf("providerspec.MemoryGiB %d is less than the minimum value %d", providerSpec.MemoryGiB, val.minMemoryGiB))
+		}
+
+		processor, err := getPowerVSProcessorValue(providerSpec.Processors)
+		if err != nil {
+			errs = append(errs, fmt.Errorf("error while getting processor vlaue %w", err))
+			return
+		} else {
+			if processor > val.maxProcessor {
+				errs = append(errs, field.Invalid(parentPath.Child("processor"), processor, fmt.Sprintf("for %s systemtype the maximum supported processor value is %f", providerSpec.SystemType, val.maxProcessor)))
+			}
+		}
+		// validate minimum processor values depending on ProcessorType
+		if providerSpec.ProcessorType == machinev1.PowerVSProcessorTypeDedicated {
+			if processor < val.minProcessorDedicated {
+				warnings = append(warnings, fmt.Sprintf("providerspec.Processor %f is less than the minimum value %f for providerSpec.ProcessorType: %s", processor, val.minProcessorDedicated, providerSpec.ProcessorType))
+			}
+		} else {
+			if processor < val.minProcessorSharedCapped {
+				warnings = append(warnings, fmt.Sprintf("providerspec.Processor %f is less than the minimum value %f for providerSpec.ProcessorType: %s", processor, val.minProcessorSharedCapped, providerSpec.ProcessorType))
+			}
+		}
+	}
+	return
+}
+
+func getPowerVSProcessorValue(processor intstr.IntOrString) (processors float64, err error) {
+	switch processor.Type {
+	case intstr.Int:
+		processors = float64(processor.IntVal)
+	case intstr.String:
+		processors, err = strconv.ParseFloat(processor.StrVal, 64)
+		if err != nil {
+			err = fmt.Errorf("failed to convert Processors %s to float64", processor.StrVal)
+		}
+	}
+	return
 }
 
 func isDeleting(obj metav1.Object) bool {
