@@ -8,7 +8,7 @@ import (
 	"reflect"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
-	machinev1 "github.com/openshift/api/machine/v1beta1"
+	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -83,18 +83,18 @@ func createMachineSetDefaulter(platformStatus *osconfigv1.PlatformStatus, cluste
 
 // Handle handles HTTP requests for admission webhook servers.
 func (h *machineSetValidatorHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
-	ms := &machinev1.MachineSet{}
+	ms := &machinev1beta1.MachineSet{}
 
 	if err := h.decoder.Decode(req, ms); err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
 	}
 
-	var oldMS *machinev1.MachineSet
+	var oldMS *machinev1beta1.MachineSet
 	if len(req.OldObject.Raw) > 0 {
 		// oldMS must only be initialised if there is an old object (ie on UPDATE or DELETE).
 		// It should be nil otherwise to allow skipping certain validations that rely on
 		// the presence of the old object.
-		oldMS = &machinev1.MachineSet{}
+		oldMS = &machinev1beta1.MachineSet{}
 		if err := h.decoder.DecodeRaw(req.OldObject, oldMS); err != nil {
 			return admission.Errored(http.StatusBadRequest, err)
 		}
@@ -112,7 +112,7 @@ func (h *machineSetValidatorHandler) Handle(ctx context.Context, req admission.R
 
 // Handle handles HTTP requests for admission webhook servers.
 func (h *machineSetDefaulterHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
-	ms := &machinev1.MachineSet{}
+	ms := &machinev1beta1.MachineSet{}
 
 	if err := h.decoder.Decode(req, ms); err != nil {
 		return admission.Errored(http.StatusBadRequest, err)
@@ -132,11 +132,11 @@ func (h *machineSetDefaulterHandler) Handle(ctx context.Context, req admission.R
 	return admission.PatchResponseFromRaw(req.Object.Raw, marshaledMachineSet).WithWarnings(warnings...)
 }
 
-func (h *machineSetValidatorHandler) validateMachineSet(ms, oldMS *machinev1.MachineSet) (bool, []string, utilerrors.Aggregate) {
+func (h *machineSetValidatorHandler) validateMachineSet(ms, oldMS *machinev1beta1.MachineSet) (bool, []string, utilerrors.Aggregate) {
 	errs := validateMachineSetSpec(ms, oldMS)
 
 	// Create a Machine from the MachineSet and validate the Machine template
-	m := &machinev1.Machine{
+	m := &machinev1beta1.Machine{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: ms.GetNamespace(),
 		},
@@ -153,9 +153,9 @@ func (h *machineSetValidatorHandler) validateMachineSet(ms, oldMS *machinev1.Mac
 	return true, warnings, nil
 }
 
-func (h *machineSetDefaulterHandler) defaultMachineSet(ms *machinev1.MachineSet) (bool, []string, utilerrors.Aggregate) {
+func (h *machineSetDefaulterHandler) defaultMachineSet(ms *machinev1beta1.MachineSet) (bool, []string, utilerrors.Aggregate) {
 	// Create a Machine from the MachineSet and default the Machine template
-	m := &machinev1.Machine{Spec: ms.Spec.Template.Spec}
+	m := &machinev1beta1.Machine{Spec: ms.Spec.Template.Spec}
 	ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
 	if !ok {
 		return false, warnings, utilerrors.NewAggregate(err.Errors())
@@ -168,7 +168,7 @@ func (h *machineSetDefaulterHandler) defaultMachineSet(ms *machinev1.MachineSet)
 
 // validateMachineSetSpec is used to validate any changes to the MachineSet spec outside of
 // the providerSpec. Eg it can be used to verify changes to the selector.
-func validateMachineSetSpec(ms, oldMS *machinev1.MachineSet) []error {
+func validateMachineSetSpec(ms, oldMS *machinev1beta1.MachineSet) []error {
 	var errs []error
 	if oldMS != nil && !reflect.DeepEqual(ms.Spec.Selector, oldMS.Spec.Selector) {
 		errs = append(errs, field.Forbidden(field.NewPath("spec", "selector"), "selector is immutable"))
