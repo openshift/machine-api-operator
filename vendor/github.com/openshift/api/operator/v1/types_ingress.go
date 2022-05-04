@@ -561,22 +561,24 @@ type HostNetworkStrategy struct {
 	// httpPort is the port on the host which should be used to listen for
 	// HTTP requests. This field should be set when port 80 is already in use.
 	// The value should not coincide with the NodePort range of the cluster.
-	// When not specified the value defaults to 80.
+	// When the value is 0 or is not specified it defaults to 80.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Maximum=65535
-	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:default=80
-	HTTPPort int32 `json:"httpPort"`
+	// +optional
+	HTTPPort int32 `json:"httpPort,omitempty"`
 
 	// httpsPort is the port on the host which should be used to listen for
 	// HTTPS requests. This field should be set when port 443 is already in use.
 	// The value should not coincide with the NodePort range of the cluster.
-	// When not specified the value defaults to 443.
+	// When the value is 0 or is not specified it defaults to 443.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Maximum=65535
-	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:default=443
-	HTTPSPort int32 `json:"httpsPort"`
+	// +optional
+	HTTPSPort int32 `json:"httpsPort,omitempty"`
 
 	// statsPort is the port on the host where the stats from the router are
 	// published. The value should not coincide with the NodePort range of the
@@ -590,13 +592,14 @@ type HostNetworkStrategy struct {
 	// within a maximum of 45 seconds after /healthz/ready starts reporting
 	// not-ready. Probing every 5 to 10 seconds, with a 5-second timeout and with
 	// a threshold of two successful or failed requests to become healthy or
-	// unhealthy respectively, are well-tested values. When not specified the
-	// value defaults to 1936.
+	// unhealthy respectively, are well-tested values. When the value is 0 or
+	// is not specified it defaults to 1936.
 	// +kubebuilder:validation:Optional
 	// +kubebuilder:validation:Maximum=65535
-	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:default=1936
-	StatsPort int32 `json:"statsPort"`
+	// +optional
+	StatsPort int32 `json:"statsPort,omitempty"`
 }
 
 // PrivateStrategy holds parameters for the Private endpoint publishing
