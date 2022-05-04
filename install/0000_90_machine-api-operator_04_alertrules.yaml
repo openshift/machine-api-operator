@@ -16,7 +16,17 @@ spec:
       rules:
         - alert: MachineWithoutValidNode
           expr: |
-             sum by (name, namespace) (mapi_machine_created_timestamp_seconds unless on(node) kube_node_info) > 0
+             sum by (name, namespace) (mapi_machine_created_timestamp_seconds{name=~".*master.*"} unless on(node) kube_node_info) > 0
+          for: 60m
+          labels:
+            severity: critical
+          annotations:
+            summary: "master machine {{ $labels.name }} does not have valid node reference"
+            description: |
+              This could indicate that the master node has been unexpectedly terminated.
+        - alert: MachineWithoutValidNode
+          expr: |
+             sum by (name, namespace) (mapi_machine_created_timestamp_seconds{name!~".*master.*"} unless on(node) kube_node_info) > 0
           for: 60m
           labels:
             severity: warning
@@ -29,7 +39,18 @@ spec:
       rules:
         - alert: MachineWithNoRunningPhase
           expr: |
-            sum by (name, namespace) (mapi_machine_created_timestamp_seconds{phase!~"Running|Deleting"}) > 0
+            sum by (name, namespace) (mapi_machine_created_timestamp_seconds{name=~".*master.*", phase!~"Running|Deleting"}) > 0
+          for: 60m
+          labels:
+            severity: critical
+          annotations:
+            summary: "master machine {{ $labels.name }} is in phase: {{ $labels.phase }}"
+            description: |
+              The machine has been without a Running or Deleting phase for more than 60 minutes.
+              This could indicate that the master node has been unexpectedly terminated.
+        - alert: MachineWithNoRunningPhase
+          expr: |
+            sum by (name, namespace) (mapi_machine_created_timestamp_seconds{name!~".*master.*", phase!~"Running|Deleting"}) > 0
           for: 60m
           labels:
             severity: warning
