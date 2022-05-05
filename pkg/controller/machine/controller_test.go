@@ -441,20 +441,23 @@ func TestReconcileRequest(t *testing.T) {
 			act := newTestActuator()
 			act.ExistsValue = tc.existsValue
 			machinev1.AddToScheme(scheme.Scheme)
+
+			cl := fake.NewFakeClientWithScheme(scheme.Scheme,
+				&machineNoPhase,
+				&machineProvisioning,
+				&machineProvisioned,
+				&machineDeleting,
+				&machineDeletingPreDrainHook,
+				&machineDeletingPreDrainHookWithoutNode,
+				&machineDeletingPreTerminateHook,
+				&machineFailed,
+				&machineRunning,
+			)
 			r := &ReconcileMachine{
-				Client: fake.NewFakeClientWithScheme(scheme.Scheme,
-					&machineNoPhase,
-					&machineProvisioning,
-					&machineProvisioned,
-					&machineDeleting,
-					&machineDeletingPreDrainHook,
-					&machineDeletingPreDrainHookWithoutNode,
-					&machineDeletingPreTerminateHook,
-					&machineFailed,
-					&machineRunning,
-				),
-				scheme:   scheme.Scheme,
-				actuator: act,
+				Client:       cl,
+				directClient: cl,
+				scheme:       scheme.Scheme,
+				actuator:     act,
 			}
 
 			result, err := r.Reconcile(ctx, tc.request)

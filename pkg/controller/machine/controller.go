@@ -102,19 +102,33 @@ const (
 var DefaultActuator Actuator
 
 func AddWithActuator(mgr manager.Manager, actuator Actuator) error {
-	return add(mgr, newReconciler(mgr, actuator))
+	r, err := newReconciler(mgr, actuator)
+	if err != nil {
+		return fmt.Errorf("could not construct reconciler: %w", err)
+	}
+
+	return add(mgr, r)
 }
 
 // newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager, actuator Actuator) reconcile.Reconciler {
+func newReconciler(mgr manager.Manager, actuator Actuator) (reconcile.Reconciler, error) {
+	directClient, err := client.New(mgr.GetConfig(), client.Options{
+		Scheme: mgr.GetScheme(),
+		Mapper: mgr.GetRESTMapper(),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("could not create direct client: %w", err)
+	}
+
 	r := &ReconcileMachine{
 		Client:        mgr.GetClient(),
+		directClient:  directClient,
 		eventRecorder: mgr.GetEventRecorderFor("machine-controller"),
 		config:        mgr.GetConfig(),
 		scheme:        mgr.GetScheme(),
 		actuator:      actuator,
 	}
-	return r
+	return r, nil
 }
 
 func stringPointerDeref(stringPointer *string) string {
@@ -142,6 +156,8 @@ func add(mgr manager.Manager, r reconcile.Reconciler) error {
 // ReconcileMachine reconciles a Machine object
 type ReconcileMachine struct {
 	client.Client
+	directClient client.Client
+
 	config *rest.Config
 	scheme *runtime.Scheme
 
@@ -380,6 +396,22 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 		if err := r.updateStatus(ctx, m, phaseProvisioning, nil, originalConditions); err != nil {
 			return reconcile.Result{}, err
 		}
+		return reconcile.Result{Requeue: true}, nil
+	}
+
+	// At this point, we are certain that the Machine we have in memory has not been created already,
+	// so we are going to ask the actuator to create it.
+	// To avoid potential eventual consistency errors from having a stale informer cache, make sure to
+	// get the latest machine directly from the Kube API to send into the actuator.
+	directM := &machinev1.Machine{}
+	if err := r.directClient.Get(ctx, request.NamespacedName, directM); err != nil {
+		return reconcile.Result{}, fmt.Errorf("could not fetch machine with direct client: %w", err)
+	}
+	if m.GetResourceVersion() != directM.GetResourceVersion() {
+		// The object we retrieved from the informer is not up to date.
+		// We should not attempt to create a new machine with a stale object.
+		// Requeue until the informer has the latest version.
+		klog.V(2).Infof("%v: resource versions mismatch, reconciling stale object, requeue (%s vs %s)", m.GetName(), m.GetResourceVersion(), directM.GetResourceVersion())
 		return reconcile.Result{Requeue: true}, nil
 	}
 
