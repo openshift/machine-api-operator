@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"net/url"
 	"sync"
+	"time"
 
 	"github.com/vmware/govmomi/vapi/rest"
 	"github.com/vmware/govmomi/vim25/mo"
@@ -40,6 +41,7 @@ var sessionMU sync.Mutex
 
 const (
 	managedObjectTypeTask = "Task"
+	clientTimeout         = 30 * time.Second
 )
 
 // Session is a vSphere session with a configured Finder.
@@ -85,6 +87,7 @@ func GetOrCreate(
 	// See https://github.com/vmware/govmomi/blob/master/client.go#L91
 	soapURL.User = nil
 	client, err := govmomi.NewClient(ctx, soapURL, insecure)
+	client.Timeout = clientTimeout
 	if err != nil {
 		return nil, fmt.Errorf("error setting up new vSphere SOAP client: %w", err)
 	}
