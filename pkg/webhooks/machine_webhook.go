@@ -488,6 +488,18 @@ func MachineSetMutatingWebhook() admissionregistrationv1.MutatingWebhook {
 }
 
 func (h *machineValidatorHandler) validateMachine(m, oldM *machinev1.Machine) (bool, []string, utilerrors.Aggregate) {
+	// Skip validation if we just remove the finalizer.
+	// For more information: https://issues.redhat.com/browse/OCPCLOUD-1426
+	if !m.DeletionTimestamp.IsZero() {
+		isFinalizerOnly, err := isFinalizerOnlyRemoval(m, oldM)
+		if err != nil {
+			return false, nil, utilerrors.NewAggregate([]error{err})
+		}
+		if isFinalizerOnly {
+			return true, nil, nil
+		}
+	}
+
 	errs := validateMachineLifecycleHooks(m, oldM)
 
 	ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
@@ -1425,4 +1437,15 @@ func validateAzureDataDisks(machineName string, spec *machinev1.AzureMachineProv
 
 func isDeleting(obj metav1.Object) bool {
 	return obj.GetDeletionTimestamp() != nil
+}
+
+// isFinalizerOnlyRemoval checks if the machine update only removes finalizers.
+func isFinalizerOnlyRemoval(m, oldM *machinev1.Machine) (bool, error) {
+	patchBase := client.MergeFrom(oldM)
+	data, err := patchBase.Data(m)
+	if err != nil {
+		return false, fmt.Errorf("cannot calculate patch data from machine object: %w", err)
+	}
+
+	return string(data) == `{"metadata":{"finalizers":[""]}}`, nil
 }
