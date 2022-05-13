@@ -45,7 +45,10 @@ import (
 	_ "github.com/vmware/govmomi/vapi/simulator"
 )
 
-const poweredOnState = "poweredOn"
+const (
+	poweredOnState         = "poweredOn"
+	minimumHWVersionString = "vmx-15"
+)
 
 func init() {
 	// Add types to scheme
@@ -129,6 +132,7 @@ func TestClone(t *testing.T) {
 	namespace := "test"
 	defaultSizeGiB := int32(5)
 	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	vm.Config.Version = minimumHWVersionString
 
 	machine := object.NewVirtualMachine(session.Client.Client, vm.Reference())
 	devices, err := machine.Device(context.TODO())
@@ -165,6 +169,25 @@ func TestClone(t *testing.T) {
 		Data: map[string][]byte{
 			userDataSecretKey: []byte("{}"),
 		},
+	}
+
+	getMachineScope := func(providerSpec *machinev1.VSphereMachineProviderSpec) *machineScope {
+		return &machineScope{
+			Context: context.TODO(),
+			machine: &machinev1.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "test",
+					Labels: map[string]string{
+						machinev1.MachineClusterIDLabel: "CLUSTERID",
+					},
+				},
+			},
+			providerSpec:   providerSpec,
+			session:        session,
+			providerStatus: &machinev1.VSphereMachineProviderStatus{},
+			client:         fake.NewFakeClientWithScheme(scheme.Scheme, &credentialsSecret, &userDataSecret),
+		}
 	}
 
 	testCases := []struct {
@@ -425,29 +448,12 @@ func TestClone(t *testing.T) {
 					t.Fatal(err)
 				}
 			}
-
-			machineScope := machineScope{
-				Context: context.TODO(),
-				machine: &machinev1.Machine{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test",
-						Namespace: "test",
-						Labels: map[string]string{
-							machinev1.MachineClusterIDLabel: "CLUSTERID",
-						},
-					},
-				},
-				providerSpec:   &tc.providerSpec,
-				session:        session,
-				providerStatus: &machinev1.VSphereMachineProviderStatus{},
-				client:         fake.NewFakeClientWithScheme(scheme.Scheme, &credentialsSecret, &userDataSecret),
-			}
-
+			machineScope := getMachineScope(&tc.providerSpec)
 			if tc.machineName != "" {
 				machineScope.machine.Name = tc.machineName
 			}
 
-			taskRef, err := clone(&machineScope)
+			taskRef, err := clone(machineScope)
 
 			if tc.expectedError != nil {
 				if taskRef != "" {
@@ -472,6 +478,65 @@ func TestClone(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("Test template HW version handling", func(t *testing.T) {
+		getMinimalProviderSpec := func() *machinev1.VSphereMachineProviderSpec {
+			return &machinev1.VSphereMachineProviderSpec{
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: "test",
+				},
+				Workspace: &machinev1.Workspace{
+					Server: server.URL.Host,
+				},
+				DiskGiB:  defaultSizeGiB,
+				Template: vm.Name,
+				UserDataSecret: &corev1.LocalObjectReference{
+					Name: userDataSecretName,
+				},
+			}
+		}
+
+		cases := []struct {
+			name              string
+			errMsg            string
+			VmHWVersionString string
+		}{
+			{
+				name:              "Clone ok",
+				errMsg:            "",
+				VmHWVersionString: minimumHWVersionString,
+			}, {
+				name:              "HW version lower than minimal: 2",
+				errMsg:            "Hardware lower than 15 is not supported, clone stopped. Detected machine template version is 2.",
+				VmHWVersionString: "vmx-2",
+			}, {
+				name:              "HW version lower than minimal: 13",
+				errMsg:            "Hardware lower than 15 is not supported, clone stopped. Detected machine template version is 13.",
+				VmHWVersionString: "vmx-13",
+			}, {
+				name:              "HW version not recognized",
+				errMsg:            "Unable to detect machine template HW version for machine 'test': can not extract hardware version from version string: foobar-123, format unknown",
+				VmHWVersionString: "foobar-123",
+			},
+		}
+		for _, tc := range cases {
+			t.Run(tc.name, func(t *testing.T) {
+				g := NewWithT(t)
+				// change vm template hw version for single test
+				vm.Config.Version = tc.VmHWVersionString
+				defer func() {
+					vm.Config.Version = minimumHWVersionString
+				}()
+
+				scope := getMachineScope(getMinimalProviderSpec())
+				_, err := clone(scope)
+				if tc.errMsg != "" {
+					g.Expect(err).Should(HaveOccurred())
+					g.Expect(err.Error()).Should(ContainSubstring(tc.errMsg))
+				}
+			})
+		}
+	})
 }
 
 func TestGetPowerState(t *testing.T) {
@@ -1541,6 +1606,7 @@ func TestCreate(t *testing.T) {
 	namespace := "test"
 	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
 	vm.Name = vmName
+	vm.Config.Version = minimumHWVersionString
 
 	credentialsSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{

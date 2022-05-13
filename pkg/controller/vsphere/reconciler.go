@@ -39,6 +39,7 @@ const (
 	providerIDPrefix      = "vsphere://"
 	regionKey             = "region"
 	zoneKey               = "zone"
+	minimumHWVersion      = 15
 )
 
 // These are the guestinfo variables used by Ignition.
@@ -578,13 +579,18 @@ func clone(s *machineScope) (string, error) {
 
 	hwVersion, err := getHwVersion(s.Context, vmTemplate)
 	if err != nil {
-		// TODO throw an event also?
-		klog.Warningf("Unable to detect machine template HW version for machine %s: %v", s.machine.GetName(), err)
-	}
-	if hwVersion == 13 { // TODO figure out this condition more precisely
 		return "", machineapierros.InvalidMachineConfiguration(
-			"Hardware version 13 is not supported, clone stopped. " +
-				"Please update machine template: https://access.redhat.com/articles/6090681",
+			"Unable to detect machine template HW version for machine '%s': %v", s.machine.GetName(), err,
+		)
+	}
+	if hwVersion < minimumHWVersion {
+		return "", machineapierros.InvalidMachineConfiguration(
+			fmt.Sprintf(
+				"Hardware lower than %d is not supported, clone stopped. "+
+					"Detected machine template version is %d. "+
+					"Please update machine template: https://access.redhat.com/articles/6090681",
+				minimumHWVersion, hwVersion,
+			),
 		)
 	}
 
