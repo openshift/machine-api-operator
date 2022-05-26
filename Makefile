@@ -3,7 +3,7 @@ DBG         ?= 0
 VERSION     ?= $(shell git describe --always --abbrev=7)
 MUTABLE_TAG ?= latest
 IMAGE        = $(REGISTRY)machine-api-operator
-BUILD_IMAGE ?= registry.ci.openshift.org/openshift/release:golang-1.17
+BUILD_IMAGE ?= registry.ci.openshift.org/openshift/release:golang-1.18
 
 # Enable go modules and vendoring
 # https://github.com/golang/go/wiki/Modules#how-to-install-and-activate-module-support
@@ -41,7 +41,7 @@ ifeq ($(NO_DOCKER), 1)
 else
   DOCKER_CMD := $(ENGINE) run --env GO111MODULE=$(GO111MODULE) --env GOFLAGS=$(GOFLAGS) --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z  -w /go/src/github.com/openshift/machine-api-operator $(BUILD_IMAGE)
   # The command below is for building/testing with the actual image that Openshift uses. Uncomment/comment out to use instead of above command. CI registry pull secret is required to use this image.
-  # DOCKER_CMD := $(ENGINE) run --env GO111MODULE=$(GO111MODULE) --env GOFLAGS=$(GOFLAGS) --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z -w /go/src/github.com/openshift/machine-api-operator registry.ci.openshift.org/ocp/builder:rhel-8-golang-1.17-openshift-4.10
+  # DOCKER_CMD := $(ENGINE) run --env GO111MODULE=$(GO111MODULE) --env GOFLAGS=$(GOFLAGS) --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z -w /go/src/github.com/openshift/machine-api-operator registry.ci.openshift.org/ocp/builder:rhel-8-golang-1.18-openshift-4.11
   IMAGE_BUILD_CMD = $(ENGINE) build
 endif
 
