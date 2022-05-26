@@ -6,7 +6,6 @@ import (
 	"time"
 
 	v1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/leaderelection/resourcelock"
@@ -39,15 +38,24 @@ func CreateResourceLock(cb *ClientBuilder, componentNamespace, componentName str
 	// add a uniquifier so that two processes on the same host don't accidentally both become active
 	id = id + "_" + string(uuid.NewUUID())
 
-	return &resourcelock.ConfigMapLock{
-		ConfigMapMeta: metav1.ObjectMeta{
-			Namespace: componentNamespace,
-			Name:      componentName,
-		},
-		Client: cb.KubeClientOrDie("leader-election").CoreV1(),
-		LockConfig: resourcelock.ResourceLockConfig{
+	// Set up Multilock for leader election. This Multilock is here for the
+	// transitionary period from configmaps to leases see:
+	// https://github.com/kubernetes-sigs/controller-runtime/pull/1144#discussion_r480173688.
+	// and
+	// https://github.com/kubernetes-sigs/controller-runtime/blob/196828e54e4210497438671b2b449522c004db5c/pkg/manager/manager.go#L144-L175.
+	ml, err := resourcelock.New(resourcelock.ConfigMapsLeasesResourceLock,
+		componentNamespace,
+		componentName,
+		cb.KubeClientOrDie("leader-election").CoreV1(),
+		cb.KubeClientOrDie("leader-election").CoordinationV1(),
+		resourcelock.ResourceLockConfig{
 			Identity:      id,
 			EventRecorder: recorder,
 		},
+	)
+	if err != nil {
+		klog.Fatalf("Error creating lock: %v", err)
 	}
+
+	return ml
 }
