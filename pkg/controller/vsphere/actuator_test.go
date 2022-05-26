@@ -46,6 +46,7 @@ func TestMachineEvents(t *testing.T) {
 	password, _ := server.URL.User.Password()
 
 	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	vm.Config.Version = minimumHWVersionString
 
 	testEnv := &envtest.Environment{
 		CRDDirectoryPaths: []string{
