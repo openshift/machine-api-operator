@@ -17,9 +17,12 @@ limitations under the License.
 package session
 
 import (
+	. "github.com/onsi/gomega"
+
 	"context"
 	"crypto/tls"
 	"testing"
+	"time"
 
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/simulator"
@@ -243,4 +246,65 @@ func TestGetTask(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestClientTimeout(t *testing.T) {
+
+	t.Run("Global delay which not exceeds the timeout", func(t *testing.T) {
+		g := NewGomegaWithT(t)
+		model, session, server := initSimulator(t)
+		defer model.Remove()
+		defer server.Close()
+
+		model.DelayConfig = simulator.DelayConfig{
+			Delay: int(time.Second.Milliseconds()),
+		}
+
+		simulatorVM := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+
+		_, err := session.FindVM(context.TODO(), simulatorVM.Config.Uuid, simulatorVM.Config.Name)
+		g.Expect(err).ShouldNot(HaveOccurred())
+	})
+
+	t.Run("laggy method", func(t *testing.T) {
+		g := NewGomegaWithT(t)
+		model, session, server := initSimulator(t)
+		defer model.Remove()
+		defer server.Close()
+
+		model.DelayConfig = simulator.DelayConfig{
+			MethodDelay: map[string]int{
+				"RetrieveProperties": int(18 * time.Second.Milliseconds()),
+			},
+		}
+		simulatorVM := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+
+		_, err := session.findVMByName(context.TODO(), simulatorVM.Config.Name)
+		g.Expect(err.Error()).Should(ContainSubstring("unable to find template by name"))
+		g.Expect(err.Error()).Should(ContainSubstring("context deadline exceeded (Client.Timeout exceeded while awaiting headers)"))
+	})
+
+	t.Run("Globally laggy vcenter", func(t *testing.T) {
+		g := NewGomegaWithT(t)
+
+		model := simulator.VPX()
+		model.Host = 0
+		err := model.Create()
+		g.Expect(err).NotTo(HaveOccurred())
+		model.Service.TLS = new(tls.Config)
+		model.DelayConfig = simulator.DelayConfig{
+			Delay: int(18 * time.Second.Milliseconds()),
+		}
+
+		server := model.Service.NewServer()
+		pass, _ := server.URL.User.Password()
+
+		_, err = GetOrCreate(
+			context.TODO(),
+			server.URL.Host, "",
+			server.URL.User.Username(), pass, true)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err.Error()).Should(ContainSubstring("error setting up new vSphere SOAP client"))
+		g.Expect(err.Error()).Should(ContainSubstring("context deadline exceeded"))
+	})
 }
