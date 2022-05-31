@@ -31,7 +31,12 @@ const (
 
 	// DeleteNodeAnnotation marks nodes that will be given priority for deletion
 	// when a machineset scales down. This annotation is given top priority on all delete policies.
-	DeleteNodeAnnotation = "machine.openshift.io/cluster-api-delete-machine"
+	DeleteNodeAnnotation = "machine.openshift.io/delete-machine"
+
+	// oldDeleteNodeAnnotation is the previous version of the DeleteNodeAnnotation.
+	// This was changed so that the new version, compatible with the cluster api Kubernetes Autoscaler
+	// provider could be preferred.
+	oldDeleteNodeAnnotation = "machine.openshift.io/cluster-api-delete-machine"
 
 	mustDelete    deletePriority = 100.0
 	betterDelete  deletePriority = 50.0
@@ -49,7 +54,7 @@ func oldestDeletePriority(machine *machinev1.Machine) deletePriority {
 	if machine.DeletionTimestamp != nil && !machine.DeletionTimestamp.IsZero() {
 		return mustDelete
 	}
-	if machine.ObjectMeta.Annotations != nil && machine.ObjectMeta.Annotations[DeleteNodeAnnotation] != "" {
+	if machine.ObjectMeta.Annotations != nil && (machine.ObjectMeta.Annotations[DeleteNodeAnnotation] != "" || machine.ObjectMeta.Annotations[oldDeleteNodeAnnotation] != "") {
 		return mustDelete
 	}
 	if machine.Status.ErrorReason != nil || machine.Status.ErrorMessage != nil {

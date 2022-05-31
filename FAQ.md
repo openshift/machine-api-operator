@@ -124,7 +124,7 @@ There is a limited number of features we support on each cloud provider that are
 # MachineSets
 
 ## What decides which Machines to destroy when a MachineSet is scaled down?
-By default, it selects a Machine at random.  You can set **Spec.DeletePolicy** to **“Random”, “Oldest”, or “Newest”**.  You can also designate Machines with an annotation which will override all other selection criteria: **"machine.openshift.io/cluster-api-delete-machine"**
+By default, it selects a Machine at random.  You can set **Spec.DeletePolicy** to **“Random”, “Oldest”, or “Newest”**.  You can also designate Machines with an annotation which will override all other selection criteria: **"machine.openshift.io/delete-machine"**
 
 ## What Happens if I change a MachineSet
 You are free to edit a MachineSet at any time.  Any changes you make will not affect existing Machines, only Machines created after the changes are made.

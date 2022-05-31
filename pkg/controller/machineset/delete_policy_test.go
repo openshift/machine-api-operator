@@ -31,6 +31,7 @@ func TestMachineToDelete(t *testing.T) {
 	mustDeleteMachine := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{DeletionTimestamp: &now}}
 	betterDeleteMachine := &machinev1.Machine{Status: machinev1.MachineStatus{ErrorMessage: &msg}}
 	deleteMeMachine := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{DeleteNodeAnnotation: "yes"}}}
+	oldDeleteMeMachine := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{oldDeleteNodeAnnotation: "yes"}}}
 	runningMachine := &machinev1.Machine{Status: machinev1.MachineStatus{NodeRef: &corev1.ObjectReference{}}}
 	notYetRunningMachine := &machinev1.Machine{}
 
@@ -149,6 +150,18 @@ func TestMachineToDelete(t *testing.T) {
 			},
 			expect: []*machinev1.Machine{
 				deleteMeMachine,
+			},
+		},
+		{
+			desc: "func=randomDeletePolicy, annotated (old), diff=1",
+			diff: 1,
+			machines: []*machinev1.Machine{
+				runningMachine,
+				oldDeleteMeMachine,
+				runningMachine,
+			},
+			expect: []*machinev1.Machine{
+				oldDeleteMeMachine,
 			},
 		},
 		{
