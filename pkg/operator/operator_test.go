@@ -14,6 +14,7 @@ import (
 	openshiftv1 "github.com/openshift/api/config/v1"
 	fakeos "github.com/openshift/client-go/config/clientset/versioned/fake"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions"
+	fakemachine "github.com/openshift/client-go/machine/clientset/versioned/fake"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
@@ -37,9 +38,10 @@ const (
 	releaseVersion   = "0.0.0.test-unit"
 )
 
-func newFakeOperator(kubeObjects []runtime.Object, osObjects []runtime.Object, imagesFile string, stopCh <-chan struct{}) *Operator {
+func newFakeOperator(kubeObjects, osObjects, machineObjects []runtime.Object, imagesFile string, stopCh <-chan struct{}) *Operator {
 	kubeClient := fakekube.NewSimpleClientset(kubeObjects...)
 	osClient := fakeos.NewSimpleClientset(osObjects...)
+	machineClient := fakemachine.NewSimpleClientset(machineObjects...)
 	dynamicClient := fakedynamic.NewSimpleDynamicClient(scheme.Scheme, kubeObjects...)
 	kubeNamespacedSharedInformer := informers.NewSharedInformerFactoryWithOptions(kubeClient, 2*time.Minute, informers.WithNamespace(targetNamespace))
 	configSharedInformer := configinformersv1.NewSharedInformerFactoryWithOptions(osClient, 2*time.Minute)
@@ -53,6 +55,7 @@ func newFakeOperator(kubeObjects []runtime.Object, osObjects []runtime.Object, i
 	optr := &Operator{
 		kubeClient:                    kubeClient,
 		osClient:                      osClient,
+		machineClient:                 machineClient,
 		dynamicClient:                 dynamicClient,
 		featureGateLister:             featureGateInformer.Lister(),
 		deployLister:                  deployInformer.Lister(),
@@ -175,7 +178,7 @@ func TestOperatorSync_NoOp(t *testing.T) {
 
 			stopCh := make(chan struct{})
 			defer close(stopCh)
-			optr := newFakeOperator(nil, []runtime.Object{infra, proxy}, imagesJSONFile, stopCh)
+			optr := newFakeOperator(nil, []runtime.Object{infra, proxy}, nil, imagesJSONFile, stopCh)
 			optr.queue.Add("trigger")
 			go optr.Run(1, stopCh)
 
@@ -589,7 +592,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 
 			stopCh := make(chan struct{})
 			defer close(stopCh)
-			optr := newFakeOperator(nil, objects, imagesJSONFile, stopCh)
+			optr := newFakeOperator(nil, objects, nil, imagesJSONFile, stopCh)
 			optr.queue.Add("trigger")
 
 			if tc.imagesFile != "" {

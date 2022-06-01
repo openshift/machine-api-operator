@@ -5,11 +5,13 @@ import (
 	"testing"
 	"time"
 
+	. "github.com/onsi/gomega"
 	osconfigv1 "github.com/openshift/api/config/v1"
 	fakeconfigclientset "github.com/openshift/client-go/config/clientset/versioned/fake"
 	"github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/apimachinery/pkg/api/equality"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
 )
@@ -349,5 +351,86 @@ func normalizeTransitionTimes(got, expected osconfigv1.ClusterOperatorStatus) {
 
 	for i := range expected.Conditions {
 		expected.Conditions[i].LastTransitionTime = now
+	}
+}
+
+func TestIsInitializing(t *testing.T) {
+	testCases := []struct {
+		name                 string
+		existingCO           *osconfigv1.ClusterOperator
+		expectedError        error
+		expectedInitializing bool
+	}{
+		{
+			name:                 "with no existing cluster operator",
+			existingCO:           nil,
+			expectedError:        apierrors.NewNotFound(osconfigv1.GroupVersion.WithResource("clusteroperators").GroupResource(), clusterOperatorName),
+			expectedInitializing: false,
+		},
+		{
+			name: "with an initialized Available condition",
+			existingCO: &osconfigv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: clusterOperatorName,
+				},
+				Status: osconfigv1.ClusterOperatorStatus{
+					Conditions: []osconfigv1.ClusterOperatorStatusCondition{
+						newClusterOperatorStatusCondition(
+							osconfigv1.OperatorAvailable,
+							osconfigv1.ConditionFalse,
+							string(ReasonAsExpected),
+							"Operator is initialized",
+						),
+					},
+				},
+			},
+			expectedError:        nil,
+			expectedInitializing: false,
+		},
+		{
+			name: "with an initializing Available condition",
+			existingCO: &osconfigv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: clusterOperatorName,
+				},
+				Status: osconfigv1.ClusterOperatorStatus{
+					Conditions: []osconfigv1.ClusterOperatorStatusCondition{
+						newClusterOperatorStatusCondition(
+							osconfigv1.OperatorAvailable,
+							osconfigv1.ConditionTrue,
+							string(ReasonInitializing),
+							"Operator is initializing",
+						),
+					},
+				},
+			},
+			expectedError:        nil,
+			expectedInitializing: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			var osClient *fakeconfigclientset.Clientset
+			if tc.existingCO != nil {
+				osClient = fakeconfigclientset.NewSimpleClientset(tc.existingCO)
+			} else {
+				osClient = fakeconfigclientset.NewSimpleClientset()
+			}
+			optr := Operator{
+				osClient: osClient,
+			}
+
+			initializing, err := optr.isInitializing()
+			if tc.expectedError != nil {
+				g.Expect(err).To(MatchError(err))
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
+			}
+
+			g.Expect(initializing).To(Equal(tc.expectedInitializing))
+		})
 	}
 }

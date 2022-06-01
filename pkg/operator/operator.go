@@ -12,6 +12,7 @@ import (
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
+	machineclientset "github.com/openshift/client-go/machine/clientset/versioned"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -50,6 +51,7 @@ type Operator struct {
 
 	kubeClient    kubernetes.Interface
 	osClient      osclientset.Interface
+	machineClient machineclientset.Interface
 	dynamicClient dynamic.Interface
 	eventRecorder record.EventRecorder
 
@@ -97,6 +99,7 @@ func New(
 	proxyInformer configinformersv1.ProxyInformer,
 	kubeClient kubernetes.Interface,
 	osClient osclientset.Interface,
+	machineClient machineclientset.Interface,
 	dynamicClient dynamic.Interface,
 
 	recorder record.EventRecorder,
@@ -114,6 +117,7 @@ func New(
 		imagesFile:      imagesFile,
 		kubeClient:      kubeClient,
 		osClient:        osClient,
+		machineClient:   machineClient,
 		dynamicClient:   dynamicClient,
 		eventRecorder:   recorder,
 		queue:           workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
