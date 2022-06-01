@@ -26,8 +26,8 @@ if [ -n "$TRACE" ]; then
   set -x
 fi
 
-k8s_version=1.19.2
-etcd_version=3.4.10
+k8s_version=1.23.5
+etcd_version=3.5.4
 goarch=amd64
 goos="unknown"
 
