@@ -289,6 +289,38 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 	}
+	machineDeletingAlreadyDrained := machinev1.Machine{
+		TypeMeta: metav1.TypeMeta{
+			Kind: "Machine",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "delete-drained",
+			Namespace:         "default",
+			Finalizers:        []string{machinev1.MachineFinalizer, metav1.FinalizerDeleteDependents},
+			DeletionTimestamp: &time,
+			Labels: map[string]string{
+				machinev1.MachineClusterIDLabel: "testcluster",
+			},
+		},
+		Spec: machinev1.MachineSpec{
+			LifecycleHooks: machinev1.LifecycleHooks{
+				PreDrain: []machinev1.LifecycleHook{
+					{
+						Name:  "protect-from-drain",
+						Owner: "machine-api-tests",
+					},
+				},
+			},
+			ProviderSpec: machinev1.ProviderSpec{
+				Value: &runtime.RawExtension{
+					Raw: []byte("{}"),
+				},
+			},
+		},
+		Status: machinev1.MachineStatus{
+			Conditions: machinev1.Conditions{*conditions.TrueCondition(machinev1.MachineDrained)},
+		},
+	}
 
 	type expected struct {
 		createCallCount int64
@@ -348,9 +380,9 @@ func TestReconcileRequest(t *testing.T) {
 			existsValue: false,
 			expected: expected{
 				createCallCount: 0,
-				existCallCount:  1,
+				existCallCount:  0,
 				updateCallCount: 0,
-				deleteCallCount: 1,
+				deleteCallCount: 0,
 				result:          reconcile.Result{},
 				error:           false,
 				phase:           phaseDeleting,
@@ -361,10 +393,10 @@ func TestReconcileRequest(t *testing.T) {
 			existsValue: true,
 			expected: expected{
 				createCallCount: 0,
-				existCallCount:  1,
+				existCallCount:  0,
 				updateCallCount: 0,
-				deleteCallCount: 1,
-				result:          reconcile.Result{RequeueAfter: requeueAfter},
+				deleteCallCount: 0,
+				result:          reconcile.Result{},
 				error:           false,
 				phase:           phaseDeleting,
 			},
@@ -387,10 +419,10 @@ func TestReconcileRequest(t *testing.T) {
 			existsValue: true,
 			expected: expected{
 				createCallCount: 0,
-				existCallCount:  1,
+				existCallCount:  0,
 				updateCallCount: 0,
-				deleteCallCount: 1,
-				result:          reconcile.Result{RequeueAfter: requeueAfter},
+				deleteCallCount: 0,
+				result:          reconcile.Result{},
 				error:           false,
 				phase:           phaseDeleting,
 			},
@@ -403,6 +435,32 @@ func TestReconcileRequest(t *testing.T) {
 				existCallCount:  0,
 				updateCallCount: 0,
 				deleteCallCount: 0,
+				result:          reconcile.Result{},
+				error:           false,
+				phase:           phaseDeleting,
+			},
+		},
+		{
+			request:     reconcile.Request{NamespacedName: types.NamespacedName{Name: machineDeletingAlreadyDrained.Name, Namespace: machineDeletingAlreadyDrained.Namespace}},
+			existsValue: true,
+			expected: expected{
+				createCallCount: 0,
+				existCallCount:  1,
+				updateCallCount: 0,
+				deleteCallCount: 1,
+				result:          reconcile.Result{RequeueAfter: requeueAfter},
+				error:           false,
+				phase:           phaseDeleting,
+			},
+		},
+		{
+			request:     reconcile.Request{NamespacedName: types.NamespacedName{Name: machineDeletingAlreadyDrained.Name, Namespace: machineDeletingAlreadyDrained.Namespace}},
+			existsValue: false,
+			expected: expected{
+				createCallCount: 0,
+				existCallCount:  1,
+				updateCallCount: 0,
+				deleteCallCount: 1,
 				result:          reconcile.Result{},
 				error:           false,
 				phase:           phaseDeleting,
@@ -452,6 +510,7 @@ func TestReconcileRequest(t *testing.T) {
 					&machineDeletingPreTerminateHook,
 					&machineFailed,
 					&machineRunning,
+					&machineDeletingAlreadyDrained,
 				),
 				scheme:   scheme.Scheme,
 				actuator: act,
