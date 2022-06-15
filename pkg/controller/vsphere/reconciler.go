@@ -1067,7 +1067,7 @@ func (vm *virtualMachine) checkAttachedTag(ctx context.Context, tagName string, 
 }
 
 func (vm *virtualMachine) foundTag(ctx context.Context, tagName string, m *tags.Manager) (bool, error) {
-	tags, err := m.ListTags(ctx)
+	tags, err := m.ListTagsForCategory(ctx,"openshift-"+tagName)
 	if err != nil {
 		return false, err
 	}
