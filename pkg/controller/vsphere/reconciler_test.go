@@ -1067,7 +1067,7 @@ func TestReconcileTags(t *testing.T) {
 			expectedError: false,
 			attachTag:     true,
 			testCondition: func() {
-				createTagAndCategory(session, "CLUSTERID_CATEGORY", tagName)
+				createTagAndCategory(session, "openshift-CLUSTERID", tagName)
 			},
 		},
 		{
@@ -1148,7 +1148,7 @@ func TestCheckAttachedTag(t *testing.T) {
 		id, err := tagsMgr.CreateCategory(context.TODO(), &tags.Category{
 			AssociableTypes: []string{"VirtualMachine"},
 			Cardinality:     "SINGLE",
-			Name:            "CLUSTERID_CATEGORY",
+			Name:            "openshift-" + tagName,
 		})
 		if err != nil {
 			return err
@@ -1166,8 +1166,18 @@ func TestCheckAttachedTag(t *testing.T) {
 			return err
 		}
 
+		nonAttachedCategoryId, err := tagsMgr.CreateCategory(context.TODO(), &tags.Category{
+			AssociableTypes: []string{"VirtualMachine"},
+			Cardinality:     "SINGLE",
+			Name:            "openshift-" + nonAttachedTagName,
+		})
+
+		if err != nil {
+			return err
+		}
+
 		_, err = tagsMgr.CreateTag(context.TODO(), &tags.Tag{
-			CategoryID: id,
+			CategoryID: nonAttachedCategoryId,
 			Name:       nonAttachedTagName,
 		})
 		if err != nil {
@@ -1836,7 +1846,7 @@ func TestUpdate(t *testing.T) {
 		},
 	}
 
-	createTagAndCategory(session, "CLUSTERID_CATEGORY", "CLUSTERID")
+	createTagAndCategory(session, "openshift-CLUSTERID", "CLUSTERID")
 
 	cases := []struct {
 		name          string
