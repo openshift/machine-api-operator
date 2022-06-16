@@ -131,19 +131,6 @@ REMOTE_NAME="working"
 
 set -e
 
-function fork_repo () {
-    local repo_name="$1"
-
-    if ! gh repo fork --remote --remote-name $REMOTE_NAME; then
-        # Forking failed, so maybe we have another repo with that name
-        # forked from a different source. Try adding that as a remote.
-        echo "Forking failed, trying a simple clone"
-        local github_user=$(git config --get github.user)
-        git remote add $REMOTE_NAME git@github.com:${github_user}/${repo_name}.git
-        git remote update $REMOTE_NAME
-    fi
-}
-
 for repo in $REPOS; do
     echo
     echo "Building PR for $repo"
@@ -192,7 +179,7 @@ for repo in $REPOS; do
 
     pushd ./$repo
 
-      fork_repo $repo
+      gh repo fork --remote --remote-name $REMOTE_NAME
       git push -u --force $REMOTE_NAME $WORKING_BRANCH_NAME
 
       # If branch name is not specified, create pr into repo's default
