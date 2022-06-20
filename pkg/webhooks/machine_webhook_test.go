@@ -2484,6 +2484,76 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 			},
 			expectedOk: true,
 		},
+		{
+			testCase: "with Azure Managed boot diagnostics",
+			modifySpec: func(p *machinev1beta1.AzureMachineProviderSpec) {
+				p.Diagnostics.Boot = &machinev1beta1.AzureBootDiagnostics{
+					StorageAccountType: machinev1beta1.AzureManagedAzureDiagnosticsStorage,
+				}
+			},
+			azurePlatformStatus: &osconfigv1.AzurePlatformStatus{
+				CloudName: osconfigv1.AzurePublicCloud,
+			},
+			expectedOk: true,
+		},
+		{
+			testCase: "with Customer Managed boot diagnostics",
+			modifySpec: func(p *machinev1beta1.AzureMachineProviderSpec) {
+				p.Diagnostics.Boot = &machinev1beta1.AzureBootDiagnostics{
+					StorageAccountType: machinev1beta1.CustomerManagedAzureDiagnosticsStorage,
+					CustomerManaged: &machinev1beta1.AzureCustomerManagedBootDiagnostics{
+						StorageAccountURI: "https://storageaccount.blob.core.windows.net/",
+					},
+				}
+			},
+			azurePlatformStatus: &osconfigv1.AzurePlatformStatus{
+				CloudName: osconfigv1.AzurePublicCloud,
+			},
+			expectedOk: true,
+		},
+		{
+			testCase: "with Azure Managed boot diagnostics, with a Customer Managed configuration",
+			modifySpec: func(p *machinev1beta1.AzureMachineProviderSpec) {
+				p.Diagnostics.Boot = &machinev1beta1.AzureBootDiagnostics{
+					StorageAccountType: machinev1beta1.AzureManagedAzureDiagnosticsStorage,
+					CustomerManaged: &machinev1beta1.AzureCustomerManagedBootDiagnostics{
+						StorageAccountURI: "https://storageaccount.blob.core.windows.net/",
+					},
+				}
+			},
+			azurePlatformStatus: &osconfigv1.AzurePlatformStatus{
+				CloudName: osconfigv1.AzurePublicCloud,
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.diagnostics.boot.customerManaged: Invalid value: v1beta1.AzureCustomerManagedBootDiagnostics{StorageAccountURI:\"https://storageaccount.blob.core.windows.net/\"}: customerManaged may not be set when type is AzureManaged",
+		},
+		{
+			testCase: "with Customer Managed boot diagnostics, with a missing storage account URI",
+			modifySpec: func(p *machinev1beta1.AzureMachineProviderSpec) {
+				p.Diagnostics.Boot = &machinev1beta1.AzureBootDiagnostics{
+					StorageAccountType: machinev1beta1.CustomerManagedAzureDiagnosticsStorage,
+					CustomerManaged:    &machinev1beta1.AzureCustomerManagedBootDiagnostics{},
+				}
+			},
+			azurePlatformStatus: &osconfigv1.AzurePlatformStatus{
+				CloudName: osconfigv1.AzurePublicCloud,
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.diagnostics.boot.customerManaged.storageAccountURI: Required value: storageAccountURI must be provided",
+		},
+		{
+			testCase: "with an invalid boot diagnostics storage account type",
+			modifySpec: func(p *machinev1beta1.AzureMachineProviderSpec) {
+				p.Diagnostics.Boot = &machinev1beta1.AzureBootDiagnostics{
+					StorageAccountType: machinev1beta1.AzureBootDiagnosticsStorageAccountType("invalid"),
+				}
+			},
+			azurePlatformStatus: &osconfigv1.AzurePlatformStatus{
+				CloudName: osconfigv1.AzurePublicCloud,
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.diagnostics.boot.storageAccountType: Invalid value: \"invalid\": storageAccountType must be one of: AzureManaged, CustomerManaged",
+		},
 	}
 
 	for _, tc := range testCases {

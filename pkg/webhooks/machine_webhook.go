@@ -987,6 +987,8 @@ func validateAzure(m *machinev1beta1.Machine, config *admissionConfig) (bool, []
 
 	errs = append(errs, validateAzureDataDisks(m.Name, providerSpec, field.NewPath("providerSpec", "dataDisks"))...)
 
+	errs = append(errs, validateAzureDiagnostics(providerSpec.Diagnostics, field.NewPath("providerSpec", "diagnostics"))...)
+
 	if isAzureGovCloud(config.platformStatus) && providerSpec.SpotVMOptions != nil {
 		warnings = append(warnings, "spot VMs may not be supported when using GovCloud region")
 	}
@@ -1025,6 +1027,33 @@ func validateAzureImage(image machinev1beta1.Image) []error {
 	}
 
 	return errors
+}
+
+func validateAzureDiagnostics(diagnosticsSpec machinev1beta1.AzureDiagnostics, parentPath *field.Path) []error {
+	errs := []error{}
+
+	if diagnosticsSpec.Boot != nil {
+		cmPath := parentPath.Child("boot", "customerManaged")
+
+		switch diagnosticsSpec.Boot.StorageAccountType {
+		case machinev1beta1.CustomerManagedAzureDiagnosticsStorage:
+			if diagnosticsSpec.Boot.CustomerManaged == nil {
+				errs = append(errs, field.Required(cmPath, "customerManaged configuration must be provided"))
+			} else if diagnosticsSpec.Boot.CustomerManaged.StorageAccountURI == "" {
+				errs = append(errs, field.Required(cmPath.Child("storageAccountURI"), "storageAccountURI must be provided"))
+			}
+
+		case machinev1beta1.AzureManagedAzureDiagnosticsStorage:
+			if diagnosticsSpec.Boot.CustomerManaged != nil {
+				errs = append(errs, field.Invalid(cmPath, diagnosticsSpec.Boot.CustomerManaged, "customerManaged may not be set when type is AzureManaged"))
+			}
+
+		default:
+			errs = append(errs, field.Invalid(parentPath.Child("boot", "storageAccountType"), diagnosticsSpec.Boot.StorageAccountType, fmt.Sprintf("storageAccountType must be one of: %s, %s", machinev1beta1.AzureManagedAzureDiagnosticsStorage, machinev1beta1.CustomerManagedAzureDiagnosticsStorage)))
+		}
+	}
+
+	return errs
 }
 
 func defaultGCP(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, utilerrors.Aggregate) {
