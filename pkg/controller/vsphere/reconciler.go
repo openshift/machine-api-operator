@@ -1066,8 +1066,17 @@ func (vm *virtualMachine) checkAttachedTag(ctx context.Context, tagName string, 
 	return false, nil
 }
 
+// tagToCategoryName converts the tag name to the category name based upon the format set up by the installer.
+// Note this is only valid in IPI clusters as typically a UPI cluster won't have the cluster ID tag, in which case the
+// controller skips tag creation.
+// Ref: https://github.com/openshift/installer/blob/f912534f12491721e3874e2bf64f7fa8d44aa7f5/data/data/vsphere/pre-bootstrap/main.tf#L57
+// Ref: https://github.com/openshift/installer/blob/f912534f12491721e3874e2bf64f7fa8d44aa7f5/pkg/destroy/vsphere/vsphere.go#L231
+func tagToCategoryName(tagName string) string {
+	return fmt.Sprintf("openshift-%s", tagName)
+}
+
 func (vm *virtualMachine) foundTag(ctx context.Context, tagName string, m *tags.Manager) (bool, error) {
-	tags, err := m.ListTagsForCategory(ctx, "openshift-"+tagName)
+	tags, err := m.ListTagsForCategory(ctx, tagToCategoryName(tagName))
 	if err != nil {
 		if strings.Contains(err.Error(), "404") {
 			return false, nil
