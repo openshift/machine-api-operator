@@ -8,7 +8,7 @@ push_updates.sh [-h]
 push_updates.sh [-b BRANCH] [-n] [-r REPO] [-s SHA] [-t TITLE]
 
   -b BRANCH
-    Set the release branch to be updated. Defaults to "master".
+    Set the release branch to be updated. Defaults to repo's default (master, main, whatever).
 
   -h
     Shows this help message.
@@ -18,7 +18,7 @@ push_updates.sh [-b BRANCH] [-n] [-r REPO] [-s SHA] [-t TITLE]
 
   -r REPO
     Update the given repository. May be repeated.
-    Defaults to updating all cluster-api-provider repositories:
+    Defaults to updating all machine-api-provider repositories:
 EOF
 
     for r in $DEFAULT_REPOS; do
@@ -35,6 +35,9 @@ cat <<EOF
     The commit and pull-request title to use. Defaults to
     a message that includes the SHA.
 
+  -d DESCRIPTION
+    Pull request description body. Default is empty.
+
 Without any arguments, creates a pull request for each repository to
 update the vendored version of machine-api-operator to refer to the
 current HEAD commit on the master branch.
@@ -43,18 +46,24 @@ EOF
 }
 
 DEFAULT_REPOS="
-cluster-api-provider-aws
-cluster-api-provider-azure
+machine-api-provider-aws
+machine-api-provider-azure
+machine-api-provider-gcp
+machine-api-provider-openstack
+machine-api-provider-powervs
+machine-api-provider-nutanix
 cluster-api-provider-baremetal
-cluster-api-provider-gcp
-cluster-api-provider-openstack
+cluster-api-provider-ibmcloud
+cluster-api-provider-alibaba
 "
+
 TITLE=""
 SHA=""
-BRANCH_NAME="master"
+BRANCH_NAME=""
+PR_DESCRIPTION=""
 DRY_RUN=false
 
-while getopts "b:hnr:s:t:" OPTION; do
+while getopts "b:hnr:s:t:d:" OPTION; do
     case $OPTION in
         b)
             BRANCH_NAME="$OPTARG"
@@ -75,12 +84,15 @@ while getopts "b:hnr:s:t:" OPTION; do
         t)
             TITLE="$OPTARG"
             ;;
+        d)
+            PR_DESCRIPTION="$OPTARG"
+            ;;
     esac
 done
 
-if ! which hub 2>/dev/null 1>&2; then
+if ! which gh 2>/dev/null 1>&2; then
     echo "This tool requires the hub command line app." 1>&2
-    echo "Refer to https://github.com/github/hub for installation instructions." 1>&2
+    echo "Refer to https://github.com/cli/cli for installation instructions." 1>&2
     exit 1
 fi
 
@@ -90,12 +102,21 @@ WORKING_DIR=$(mktemp -d $TMPDIR/mao-push-updates.XXXX)
 cd $WORKING_DIR
 echo "Working in $WORKING_DIR"
 
-hub clone openshift/machine-api-operator
+gh repo clone openshift/machine-api-operator
 
 if [ -z "$SHA" ]; then
     echo "Determining SHA for machine-api-operator repository..."
-    FULL_SHA=$(cd ./machine-api-operator && git show --format="%H" origin/$BRANCH_NAME)
-    SHA=$(cd ./machine-api-operator && git show --format="%h" origin/$BRANCH_NAME)
+
+    if [ -z "$BRANCH_NAME" ]; then
+      MAO_BRANCH=origin/master
+    else
+      MAO_BRANCH=origin/$BRANCH_NAME
+    fi
+
+    echo "Branch: $MAO_BRANCH"
+
+    FULL_SHA=$(cd ./machine-api-operator && git show --format="%H" $MAO_BRANCH)
+    SHA=$(cd ./machine-api-operator && git show --format="%h" $MAO_BRANCH)
 else
     FULL_SHA=$(cd ./machine-api-operator && git show --format="%H" $SHA)
 fi
@@ -110,28 +131,20 @@ REMOTE_NAME="working"
 
 set -e
 
-function fork_repo () {
-    local repo_name="$1"
-
-    if ! hub fork --remote-name $REMOTE_NAME; then
-        # Forking failed, so maybe we have another repo with that name
-        # forked from a different source. Try adding that as a remote.
-        echo "Forking failed, trying a simple clone"
-        local github_user=$(git config --get github.user)
-        git remote add $REMOTE_NAME git@github.com:${github_user}/${repo_name}.git
-        git remote update $REMOTE_NAME
-    fi
-}
-
 for repo in $REPOS; do
     echo
     echo "Building PR for $repo"
     echo
 
-    hub clone openshift/$repo
+    gh repo clone openshift/$repo
     pushd ./$repo
 
-    git checkout origin/$BRANCH_NAME
+    if [ -z "$BRANCH_NAME" ]; then
+      git checkout
+    else
+      git checkout origin/$BRANCH_NAME
+    fi
+
     git checkout -b $WORKING_BRANCH_NAME
 
     set -x
@@ -166,9 +179,15 @@ for repo in $REPOS; do
 
     pushd ./$repo
 
-    fork_repo $repo
-    git push -u $REMOTE_NAME $WORKING_BRANCH_NAME
-    hub pull-request --no-edit --base openshift:$BRANCH_NAME
+      gh repo fork --remote --remote-name $REMOTE_NAME
+      git push -u --force $REMOTE_NAME $WORKING_BRANCH_NAME
+
+      # If branch name is not specified, create pr into repo's default
+      if [ -z "$BRANCH_NAME" ]; then
+        gh pr create --title="$TITLE" --body="$PR_DESCRIPTION"
+      else
+        gh pr create --title="$TITLE" --body="$PR_DESCRIPTION" --base openshift:$BRANCH_NAME
+      fi
 
     popd
 done
