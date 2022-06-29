@@ -4,6 +4,8 @@ package fake
 
 import (
 	clientset "github.com/openshift/client-go/machine/clientset/versioned"
+	machinev1 "github.com/openshift/client-go/machine/clientset/versioned/typed/machine/v1"
+	fakemachinev1 "github.com/openshift/client-go/machine/clientset/versioned/typed/machine/v1/fake"
 	machinev1beta1 "github.com/openshift/client-go/machine/clientset/versioned/typed/machine/v1beta1"
 	fakemachinev1beta1 "github.com/openshift/client-go/machine/clientset/versioned/typed/machine/v1beta1/fake"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -62,6 +64,11 @@ var (
 	_ clientset.Interface = &Clientset{}
 	_ testing.FakeClient  = &Clientset{}
 )
+
+// MachineV1 retrieves the MachineV1Client
+func (c *Clientset) MachineV1() machinev1.MachineV1Interface {
+	return &fakemachinev1.FakeMachineV1{Fake: &c.Fake}
+}
 
 // MachineV1beta1 retrieves the MachineV1beta1Client
 func (c *Clientset) MachineV1beta1() machinev1beta1.MachineV1beta1Interface {
