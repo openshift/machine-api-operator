@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 	"github.com/openshift/library-go/pkg/operator/resource/resourcehash"
@@ -41,6 +42,8 @@ const (
 	hostKubeConfigPath                  = "/var/lib/kubelet/kubeconfig"
 	hostKubePKIPath                     = "/var/lib/kubelet/pki"
 	operatorStatusNoOpMessage           = "Cluster Machine API Operator is in NoOp mode"
+
+	minimumWorkerReplicas = int32(2)
 )
 
 var (
@@ -112,6 +115,34 @@ func (optr *Operator) syncAll(config *OperatorConfig) (reconcile.Result, error) 
 	}
 
 	klog.V(3).Info("Synced up all machine API configurations")
+
+	initializing, err := optr.isInitializing()
+	if err != nil {
+		if err := optr.statusDegraded(err.Error()); err != nil {
+			// Just log the error here.  We still want to
+			// return the outer error.
+			klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
+		}
+		klog.Errorf("Error determining state of operator: %v", err)
+		return reconcile.Result{}, err
+	}
+
+	if initializing {
+		if err := optr.checkMinimumWorkerMachines(); err != nil {
+			if err := optr.statusDegraded(err.Error()); err != nil {
+				// Just log the error here.  We still want to
+				// return the outer error.
+				klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
+			}
+
+			klog.Errorf("Cluster is initializing and minimum worker Machine requirements are not met: %v", err)
+			// Check again every requeue period until the Machines come up.
+			// If we error we will eventually hit the maximum errors and drop from the queue.
+			return reconcile.Result{RequeueAfter: checkStatusRequeuePeriod}, nil
+		}
+
+		klog.V(3).Info("All cluster Machines are now Running")
+	}
 
 	message := fmt.Sprintf("Cluster Machine API Operator is available at %s", optr.printOperandVersions())
 	if err := optr.statusAvailable(message); err != nil {
@@ -282,6 +313,69 @@ func (optr *Operator) checkDaemonSetRolloutStatus(resource *appsv1.DaemonSet) (r
 	}
 
 	return reconcile.Result{}, nil
+}
+
+// checkMinimumWorkerMachines looks at the worker Machines in the cluster and checks if they are running.
+// If fewer than 2 worker Machines are Running, it will return an error.
+// This is used during initialization of the cluster to prevent the operator from being Available
+// until the minimum required number of worker Machines have started working correctly.
+func (optr *Operator) checkMinimumWorkerMachines() error {
+	machineSets, err := optr.machineClient.MachineV1beta1().MachineSets(optr.namespace).List(context.Background(), metav1.ListOptions{})
+	if err != nil {
+		return fmt.Errorf("could not list MachineSets: %w", err)
+	}
+
+	expectedReplicas := int32(0)
+	nonRunningMachines := []string{}
+	for _, machineSet := range machineSets.Items {
+		replicas, nonRunningMachineSetMachines, err := optr.checkRunningMachineSetMachines(machineSet)
+		if err != nil {
+			return fmt.Errorf("could not determine running Machines in MachineSet %q: %w", machineSet.GetName(), err)
+		}
+		expectedReplicas += replicas
+		nonRunningMachines = append(nonRunningMachines, nonRunningMachineSetMachines...)
+	}
+
+	if expectedReplicas == 0 {
+		// This means there are no MachineSets in the cluster, so we are ok to proceed.
+		return nil
+	}
+
+	// If any MachineSet doesn't have the correct number of replicas, we error before this point.
+	// So the running replicas should be (total replicas) - (non-running replicas).
+	runningReplicas := expectedReplicas - int32(len(nonRunningMachines))
+	if runningReplicas < minimumWorkerReplicas {
+		return fmt.Errorf("minimum worker replica count (%d) not yet met: current running replicas %d, waiting for %v", minimumWorkerReplicas, runningReplicas, nonRunningMachines)
+	}
+
+	return nil
+}
+
+func (optr *Operator) checkRunningMachineSetMachines(machineSet machinev1beta1.MachineSet) (int32, []string, error) {
+	replicas := pointer.Int32Deref(machineSet.Spec.Replicas, 0)
+
+	selector, err := metav1.LabelSelectorAsSelector(&machineSet.Spec.Selector)
+	if err != nil {
+		return 0, []string{}, fmt.Errorf("could not convert MachineSet label selector to selector: %w", err)
+	}
+
+	machines, err := optr.machineClient.MachineV1beta1().Machines(optr.namespace).List(context.Background(), metav1.ListOptions{
+		LabelSelector: selector.String(),
+	})
+
+	if int32(len(machines.Items)) != replicas {
+		return 0, []string{}, fmt.Errorf("replicas not satisfied for MachineSet: expected %d replicas, got %d current replicas", replicas, len(machines.Items))
+	}
+
+	nonRunningMachines := []string{}
+	for _, machine := range machines.Items {
+		phase := pointer.StringDeref(machine.Status.Phase, "")
+		if phase != "Running" {
+			nonRunningMachines = append(nonRunningMachines, machine.GetName())
+		}
+	}
+
+	return replicas, nonRunningMachines, nil
 }
 
 func newDeployment(config *OperatorConfig, features map[string]bool) *appsv1.Deployment {

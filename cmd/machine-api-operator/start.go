@@ -135,6 +135,7 @@ func startControllers(ctx *ControllerContext) {
 		ctx.ConfigInformerFactory.Config().V1().Proxies(),
 		ctx.ClientBuilder.KubeClientOrDie(componentName),
 		ctx.ClientBuilder.OpenshiftClientOrDie(componentName),
+		ctx.ClientBuilder.MachineClientOrDie(componentName),
 		ctx.ClientBuilder.DynamicClientOrDie(componentName),
 		recorder,
 	).Run(1, ctx.Stop)

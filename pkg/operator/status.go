@@ -336,3 +336,16 @@ func (optr *Operator) printOperandVersions() string {
 	}
 	return strings.Join(versionsOutput, ", ")
 }
+
+// isInitializing determines if the operator Available condition is still in the initializing
+// phase. This means the operator has never reached an available status.
+func (optr *Operator) isInitializing() (bool, error) {
+	co, err := optr.getClusterOperator()
+	if err != nil {
+		return false, fmt.Errorf("could not get cluster operator: %w", err)
+	}
+
+	availableCondition := v1helpers.FindStatusCondition(co.Status.Conditions, osconfigv1.OperatorAvailable)
+
+	return availableCondition != nil && availableCondition.Reason == string(ReasonInitializing), nil
+}

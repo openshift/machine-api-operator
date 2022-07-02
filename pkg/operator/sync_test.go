@@ -1,10 +1,13 @@
 package operator
 
 import (
+	"errors"
 	"os"
 	"testing"
 	"time"
 
+	. "github.com/onsi/gomega"
+	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
@@ -123,7 +126,7 @@ func TestCheckDeploymentRolloutStatus(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			stopCh := make(chan struct{})
 			defer close(stopCh)
-			optr := newFakeOperator([]runtime.Object{tc.deployment}, nil, imagesJSONFile, stopCh)
+			optr := newFakeOperator([]runtime.Object{tc.deployment}, nil, nil, imagesJSONFile, stopCh)
 
 			result, gotErr := optr.checkDeploymentRolloutStatus(tc.deployment)
 			if tc.expectedError != nil && gotErr != nil {
@@ -260,6 +263,162 @@ func Test_ensureDependecyAnnotations(t *testing.T) {
 			ensureDependecyAnnotations(test.inputHashes, input)
 			if !equality.Semantic.DeepEqual(test.expected, input) {
 				t.Fatalf("unexpected: %s", diff.ObjectDiff(test.expected, input))
+			}
+		})
+	}
+}
+
+func TestCheckMinimumWorkerMachines(t *testing.T) {
+	workerLabels := map[string]string{
+		"role": "worker",
+	}
+
+	workerSelector := metav1.LabelSelector{
+		MatchLabels: workerLabels,
+	}
+
+	infraLabels := map[string]string{
+		"role": "infra",
+	}
+
+	infraSelector := metav1.LabelSelector{
+		MatchLabels: infraLabels,
+	}
+
+	newMachineSet := func(name string, replicas int32, selector metav1.LabelSelector) *machinev1beta1.MachineSet {
+		return &machinev1beta1.MachineSet{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: targetNamespace,
+			},
+			Spec: machinev1beta1.MachineSetSpec{
+				Replicas: &replicas,
+				Selector: selector,
+			},
+		}
+	}
+
+	newMachine := func(name string, labels map[string]string, phase string) *machinev1beta1.Machine {
+		return &machinev1beta1.Machine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: targetNamespace,
+				Labels:    labels,
+			},
+			Status: machinev1beta1.MachineStatus{
+				Phase: &phase,
+			},
+		}
+	}
+
+	testCases := []struct {
+		name          string
+		machineSets   []runtime.Object
+		machines      []runtime.Object
+		expectedError error
+	}{
+		{
+			name:          "with no MachineSets",
+			expectedError: nil,
+		},
+		{
+			name: "with a MachineSet with no Machines",
+			machineSets: []runtime.Object{
+				newMachineSet("no-machines", 3, workerSelector),
+			},
+			expectedError: errors.New("could not determine running Machines in MachineSet \"no-machines\": replicas not satisfied for MachineSet: expected 3 replicas, got 0 current replicas"),
+		},
+		{
+			name: "with a MachineSet with not enough Machines",
+			machineSets: []runtime.Object{
+				newMachineSet("no-machines", 3, workerSelector),
+			},
+			machines: []runtime.Object{
+				newMachine("running-0", workerLabels, "Running"),
+			},
+			expectedError: errors.New("could not determine running Machines in MachineSet \"no-machines\": replicas not satisfied for MachineSet: expected 3 replicas, got 1 current replicas"),
+		},
+		{
+			name: "with a MachineSet with 1 Machine Running, 2 Machines Provisioned",
+			machineSets: []runtime.Object{
+				newMachineSet("1-running-machine", 3, workerSelector),
+			},
+			machines: []runtime.Object{
+				newMachine("running-0", workerLabels, "Running"),
+				newMachine("provisioned-0", workerLabels, "Provisioned"),
+				newMachine("provisioned-1", workerLabels, "Provisioned"),
+				newMachine("infra-0", infraLabels, "Running"), // This Machine doesn't belong to a MachineSet so shouldn't affect the result.
+			},
+			expectedError: errors.New("minimum worker replica count (2) not yet met: current running replicas 1, waiting for [provisioned-0 provisioned-1]"),
+		},
+		{
+			name: "with a MachineSet with 2 Machines Running, 1 Machine Provisioned",
+			machineSets: []runtime.Object{
+				newMachineSet("1-running-machine", 3, workerSelector),
+			},
+			machines: []runtime.Object{
+				newMachine("running-0", workerLabels, "Running"),
+				newMachine("running-1", workerLabels, "Running"),
+				newMachine("provisioned-0", workerLabels, "Provisioned"),
+			},
+			expectedError: nil,
+		},
+		{
+			name: "with 2 MachineSets with 1 Machine Running, 2 Machines Provisioned each",
+			machineSets: []runtime.Object{
+				newMachineSet("1-running-worker", 3, workerSelector),
+				newMachineSet("1-running-infra", 3, infraSelector),
+			},
+			machines: []runtime.Object{
+				newMachine("worker-0", workerLabels, "Running"),
+				newMachine("worker-1", workerLabels, "Provisioned"),
+				newMachine("worker-2", workerLabels, "Provisioned"),
+				newMachine("infra-0", infraLabels, "Running"),
+				newMachine("infra-1", infraLabels, "Provisioned"),
+				newMachine("infra-2", infraLabels, "Provisioned"),
+			},
+			expectedError: nil,
+		},
+		{
+			// This would be a bit weird, it means the MachineSet controller was working, but now isn't?
+			name: "with a MachineSet with no Machines, while other MachineSets are healthy",
+			machineSets: []runtime.Object{
+				newMachineSet("no-machines", 3, workerSelector),
+				newMachineSet("infra", 3, infraSelector),
+			},
+			machines: []runtime.Object{
+				newMachine("infra-0", infraLabels, "Running"),
+				newMachine("infra-1", infraLabels, "Running"),
+				newMachine("infra-2", infraLabels, "Running"),
+			},
+			expectedError: errors.New("could not determine running Machines in MachineSet \"no-machines\": replicas not satisfied for MachineSet: expected 3 replicas, got 0 current replicas"),
+		},
+	}
+
+	imagesJSONFile, err := createImagesJSONFromManifest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.Remove(imagesJSONFile)
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			stopCh := make(chan struct{})
+			defer close(stopCh)
+
+			var machineObjects []runtime.Object
+			machineObjects = append(machineObjects, tc.machineSets...)
+			machineObjects = append(machineObjects, tc.machines...)
+
+			optr := newFakeOperator(nil, nil, machineObjects, imagesJSONFile, stopCh)
+
+			err := optr.checkMinimumWorkerMachines()
+			if tc.expectedError != nil {
+				g.Expect(err).To(MatchError(tc.expectedError.Error()))
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
 			}
 		})
 	}
