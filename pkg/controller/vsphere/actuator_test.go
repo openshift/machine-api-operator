@@ -166,7 +166,7 @@ func TestMachineEvents(t *testing.T) {
 		g.Expect(k8sClient.Delete(context.Background(), userDataSecret)).To(Succeed())
 	}()
 
-	createTagAndCategory(session, "CLUSTERID", "CLUSTERID")
+	createTagAndCategory(session, tagToCategoryName("CLUSTERID"), "CLUSTERID")
 
 	ctx := context.Background()
 
