@@ -8,8 +8,6 @@ import (
 	"runtime"
 	"testing"
 
-	"k8s.io/apimachinery/pkg/util/intstr"
-
 	. "github.com/onsi/gomega"
 	osconfigv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1"
@@ -17,8 +15,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kruntime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/utils/pointer"
@@ -91,17 +91,25 @@ func TestMachineCreation(t *testing.T) {
 			Namespace: defaultSecretNamespace,
 		},
 	}
+	nutanixSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      defaultNutanixCredentialsSecret,
+			Namespace: defaultSecretNamespace,
+		},
+	}
 	g.Expect(c.Create(ctx, awsSecret)).To(Succeed())
 	g.Expect(c.Create(ctx, vSphereSecret)).To(Succeed())
 	g.Expect(c.Create(ctx, GCPSecret)).To(Succeed())
 	g.Expect(c.Create(ctx, azureSecret)).To(Succeed())
 	g.Expect(c.Create(ctx, powerVSSecret)).To(Succeed())
+	g.Expect(c.Create(ctx, nutanixSecret)).To(Succeed())
 	defer func() {
 		g.Expect(c.Delete(ctx, awsSecret)).To(Succeed())
 		g.Expect(c.Delete(ctx, vSphereSecret)).To(Succeed())
 		g.Expect(c.Delete(ctx, GCPSecret)).To(Succeed())
 		g.Expect(c.Delete(ctx, azureSecret)).To(Succeed())
 		g.Expect(c.Delete(ctx, powerVSSecret)).To(Succeed())
+		g.Expect(c.Delete(ctx, nutanixSecret)).To(Succeed())
 	}()
 
 	testCases := []struct {
@@ -1032,6 +1040,44 @@ func TestMachineCreation(t *testing.T) {
 						Type: machinev1.PowerVSResourceTypeName,
 						Name: pointer.StringPtr("TestNetworkName"),
 					},
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:              "with nutanix and a nil provider spec value",
+			platformType:      osconfigv1.NutanixPlatformType,
+			clusterID:         "nutanix-cluster",
+			providerSpecValue: nil,
+			expectedError:     "providerSpec.value: Required value: a value must be provided",
+		},
+		{
+			name:         "with nutanix and no fields set",
+			platformType: osconfigv1.NutanixPlatformType,
+			clusterID:    "nutanix-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.NutanixMachineProviderConfig{},
+			},
+			expectedError: "[providerSpec.cluster.type: Invalid value: \"\": cluster type must be one of name or uuid," +
+				" providerSpec.image.type: Invalid value: \"\": image type must be one of name or uuid," +
+				" providerSpec.subnets: missing subnets: nodes may fail to start if no subnets are configured]",
+		},
+		{
+			name:            "with nutanix and the required fields set",
+			platformType:    osconfigv1.NutanixPlatformType,
+			clusterID:       "nutanix-cluster",
+			presetClusterID: true,
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1.NutanixMachineProviderConfig{
+					VCPUSockets:    minNutanixCPUSockets,
+					VCPUsPerSocket: minNutanixCPUPerSocket,
+					MemorySize:     resource.MustParse(fmt.Sprintf("%dMi", minNutanixMemoryMiB)),
+					SystemDiskSize: resource.MustParse(fmt.Sprintf("%dGi", minNutanixDiskGiB)),
+					Subnets: []machinev1.NutanixResourceIdentifier{
+						{Type: machinev1.NutanixIdentifierName, Name: pointer.String("subnet-1")},
+					},
+					Cluster: machinev1.NutanixResourceIdentifier{Type: machinev1.NutanixIdentifierName, Name: pointer.String("cluster-1")},
+					Image:   machinev1.NutanixResourceIdentifier{Type: machinev1.NutanixIdentifierName, Name: pointer.String("image-1")},
 				},
 			},
 			expectedError: "",
@@ -3604,6 +3650,80 @@ func TestDefaultVSphereProviderSpec(t *testing.T) {
 		})
 	}
 }
+
+func TestDefaultNutanixProviderSpec(t *testing.T) {
+
+	clusterID := "clusterID"
+	testCases := []struct {
+		testCase         string
+		providerSpec     *machinev1.NutanixMachineProviderConfig
+		modifyDefault    func(providerConfig *machinev1.NutanixMachineProviderConfig)
+		expectedError    string
+		expectedOk       bool
+		expectedWarnings []string
+	}{
+		{
+			testCase:      "it defaults defaultable fields",
+			providerSpec:  &machinev1.NutanixMachineProviderConfig{},
+			expectedOk:    true,
+			expectedError: "",
+		},
+	}
+
+	platformStatus := &osconfigv1.PlatformStatus{Type: osconfigv1.NutanixPlatformType}
+	h := createMachineDefaulter(platformStatus, clusterID)
+
+	for _, tc := range testCases {
+		t.Run(tc.testCase, func(t *testing.T) {
+			defaultProviderSpec := &machinev1.NutanixMachineProviderConfig{
+				UserDataSecret: &corev1.LocalObjectReference{
+					Name: defaultUserDataSecret,
+				},
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: defaultNutanixCredentialsSecret,
+				},
+			}
+			if tc.modifyDefault != nil {
+				tc.modifyDefault(defaultProviderSpec)
+			}
+
+			m := &machinev1beta1.Machine{}
+			rawBytes, err := json.Marshal(tc.providerSpec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
+
+			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
+			if ok != tc.expectedOk {
+				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
+			}
+
+			gotProviderSpec := new(machinev1.NutanixMachineProviderConfig)
+			if err := yaml.Unmarshal(m.Spec.ProviderSpec.Value.Raw, &gotProviderSpec); err != nil {
+				t.Fatal(err)
+			}
+
+			if !equality.Semantic.DeepEqual(defaultProviderSpec, gotProviderSpec) {
+				t.Errorf("expected: %+v, got: %+v", defaultProviderSpec, gotProviderSpec)
+			}
+			if err == nil {
+				if tc.expectedError != "" {
+					t.Errorf("expected: %q, got: %v", tc.expectedError, err)
+				}
+			} else {
+				if err.Error() != tc.expectedError {
+					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
+				}
+			}
+
+			if !reflect.DeepEqual(warnings, tc.expectedWarnings) {
+				t.Errorf("expected: %q, got: %q", tc.expectedWarnings, warnings)
+			}
+		})
+	}
+}
+
 func TestUpdateFinalizer(t *testing.T) {
 	namespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
@@ -4161,6 +4281,147 @@ func TestDefaultPowerVSProviderSpec(t *testing.T) {
 			if !equality.Semantic.DeepEqual(defaultProviderSpec, gotProviderSpec) {
 				t.Errorf("expected: %+v, got: %+v", defaultProviderSpec, gotProviderSpec)
 			}
+			if err == nil {
+				if tc.expectedError != "" {
+					t.Errorf("expected: %q, got: %v", tc.expectedError, err)
+				}
+			} else {
+				if err.Error() != tc.expectedError {
+					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
+				}
+			}
+
+			if !reflect.DeepEqual(warnings, tc.expectedWarnings) {
+				t.Errorf("expected: %q, got: %q", tc.expectedWarnings, warnings)
+			}
+		})
+	}
+}
+
+func TestValidateNutanixProviderSpec(t *testing.T) {
+	namespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "nutanix-validation-test",
+		},
+	}
+
+	testCases := []struct {
+		testCase         string
+		modifySpec       func(*machinev1.NutanixMachineProviderConfig)
+		expectedError    string
+		expectedOk       bool
+		expectedWarnings []string
+	}{
+		{
+			testCase: "with too few CPU sockets provided",
+			modifySpec: func(p *machinev1.NutanixMachineProviderConfig) {
+				p.VCPUSockets = 0
+				p.VCPUsPerSocket = 1
+			},
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: []string{"providerSpec.vcpuSockets: 0 is missing or less than the minimum value (1): nodes may not boot correctly"},
+		},
+		{
+			testCase: "with too few CPUs per socket provided",
+			modifySpec: func(p *machinev1.NutanixMachineProviderConfig) {
+				p.VCPUSockets = 1
+				p.VCPUsPerSocket = 0
+			},
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: []string{"providerSpec.vcpusPerSocket: 0 is missing or less than the minimum value (1): nodes may not boot correctly"},
+		},
+		{
+			testCase: "with too little memory provided",
+			modifySpec: func(p *machinev1.NutanixMachineProviderConfig) {
+				p.MemorySize = resource.MustParse("1024Mi")
+			},
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: []string{"providerSpec.memorySize: 1024 is missing or less than the recommended minimum value (2048): nodes may not boot correctly"},
+		},
+		{
+			testCase: "with too little disk size provided",
+			modifySpec: func(p *machinev1.NutanixMachineProviderConfig) {
+				p.SystemDiskSize = resource.MustParse("10Gi")
+			},
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: []string{"providerSpec.systemDiskSize: 10 is missing or less than the recommended minimum (20): nodes may fail to start if disk size is too low"},
+		},
+		{
+			testCase: "with no subnets provided",
+			modifySpec: func(p *machinev1.NutanixMachineProviderConfig) {
+				p.Subnets = make([]machinev1.NutanixResourceIdentifier, 0)
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.subnets: missing subnets: nodes may fail to start if no subnets are configured",
+			//expectedWarnings: []string{"providerSpec.subnets: missing subnets: nodes may fail to start if no subnets are configured"},
+		},
+		{
+			testCase: "with too many subnets provided",
+			modifySpec: func(p *machinev1.NutanixMachineProviderConfig) {
+				p.Subnets = []machinev1.NutanixResourceIdentifier{
+					{Type: machinev1.NutanixIdentifierName, Name: pointer.String("subnet-1")},
+					{Type: machinev1.NutanixIdentifierName, Name: pointer.String("subnet-2")},
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.subnets: too many subnets: currently nutanix platform supports one subnet per VM but more than one subnets are configured",
+		},
+		{
+			testCase:      "with all required fields it succeeds",
+			expectedOk:    true,
+			expectedError: "",
+		},
+	}
+
+	secret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "name",
+			Namespace: namespace.Name,
+		},
+	}
+	c := fake.NewFakeClientWithScheme(scheme.Scheme, secret)
+	infra := plainInfra.DeepCopy()
+	infra.Status.InfrastructureName = "clusterID"
+	infra.Status.PlatformStatus.Type = osconfigv1.NutanixPlatformType
+	h := createMachineValidator(infra, c, plainDNS)
+
+	for _, tc := range testCases {
+		t.Run(tc.testCase, func(t *testing.T) {
+			providerSpec := &machinev1.NutanixMachineProviderConfig{
+				VCPUSockets:    minNutanixCPUSockets,
+				VCPUsPerSocket: minNutanixCPUPerSocket,
+				MemorySize:     resource.MustParse(fmt.Sprintf("%dMi", minNutanixMemoryMiB)),
+				SystemDiskSize: resource.MustParse(fmt.Sprintf("%dGi", minNutanixDiskGiB)),
+				Subnets: []machinev1.NutanixResourceIdentifier{
+					{Type: machinev1.NutanixIdentifierName, Name: pointer.String("subnet-1")},
+				},
+				Cluster: machinev1.NutanixResourceIdentifier{Type: machinev1.NutanixIdentifierName, Name: pointer.String("cluster-1")},
+				Image:   machinev1.NutanixResourceIdentifier{Type: machinev1.NutanixIdentifierName, Name: pointer.String("image-1")},
+			}
+			if tc.modifySpec != nil {
+				tc.modifySpec(providerSpec)
+			}
+
+			m := &machinev1beta1.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Namespace: namespace.Name,
+				},
+			}
+			rawBytes, err := json.Marshal(providerSpec)
+			if err != nil {
+				t.Fatal(err)
+			}
+			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
+
+			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
+			if ok != tc.expectedOk {
+				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
+			}
+
 			if err == nil {
 				if tc.expectedError != "" {
 					t.Errorf("expected: %q, got: %v", tc.expectedError, err)
