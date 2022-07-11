@@ -3685,7 +3685,7 @@ func TestUpdateFinalizer(t *testing.T) {
 		{
 			testCase:             "deleting the finalizer from a valid machine",
 			oldMachineFinalizers: []string{"machine-finalizer"},
-			newMachineFinalizers: []string{""},
+			newMachineFinalizers: nil,
 			expectedOk:           true,
 		},
 		{
@@ -3752,7 +3752,7 @@ func TestUpdateFinalizer(t *testing.T) {
 				return p
 			},
 			oldMachineFinalizers: []string{"machine-finalizer"},
-			newMachineFinalizers: []string{""},
+			newMachineFinalizers: nil,
 			expectedError:        "providerSpec.credentialsSecret: Required value: expected providerSpec.credentialsSecret to be populated",
 		},
 		{
@@ -3766,7 +3766,7 @@ func TestUpdateFinalizer(t *testing.T) {
 				return p
 			},
 			oldMachineFinalizers:  []string{"machine-finalizer"},
-			newMachineFinalizers:  []string{""},
+			newMachineFinalizers:  nil,
 			withDeletionTimestamp: true,
 			expectedOk:            true,
 		},
@@ -3777,7 +3777,7 @@ func TestUpdateFinalizer(t *testing.T) {
 				return p
 			},
 			oldMachineFinalizers: []string{"machine-finalizer"},
-			newMachineFinalizers: []string{""},
+			newMachineFinalizers: nil,
 			expectedError:        "providerSpec.credentialsSecret: Required value: expected providerSpec.credentialsSecret to be populated",
 		},
 		{
@@ -3791,7 +3791,7 @@ func TestUpdateFinalizer(t *testing.T) {
 				return p
 			},
 			oldMachineFinalizers: []string{"machine-finalizer"},
-			newMachineFinalizers: []string{""},
+			newMachineFinalizers: nil,
 			expectedOk:           true,
 		},
 	}
