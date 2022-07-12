@@ -4371,6 +4371,22 @@ func TestValidateNutanixProviderSpec(t *testing.T) {
 			expectedError: "providerSpec.subnets: too many subnets: currently nutanix platform supports one subnet per VM but more than one subnets are configured",
 		},
 		{
+			testCase: "with no userDataSecret provided",
+			modifySpec: func(p *machinev1.NutanixMachineProviderConfig) {
+				p.UserDataSecret = nil
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.userDataSecret: Required value: userDataSecret must be provided",
+		},
+		{
+			testCase: "with no credentialsSecret provided",
+			modifySpec: func(p *machinev1.NutanixMachineProviderConfig) {
+				p.CredentialsSecret = nil
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.credentialsSecret: Required value: credentialsSecret must be provided",
+		},
+		{
 			testCase:      "with all required fields it succeeds",
 			expectedOk:    true,
 			expectedError: "",
@@ -4379,7 +4395,7 @@ func TestValidateNutanixProviderSpec(t *testing.T) {
 
 	secret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "name",
+			Name:      defaultNutanixCredentialsSecret,
 			Namespace: namespace.Name,
 		},
 	}
@@ -4399,8 +4415,10 @@ func TestValidateNutanixProviderSpec(t *testing.T) {
 				Subnets: []machinev1.NutanixResourceIdentifier{
 					{Type: machinev1.NutanixIdentifierName, Name: pointer.String("subnet-1")},
 				},
-				Cluster: machinev1.NutanixResourceIdentifier{Type: machinev1.NutanixIdentifierName, Name: pointer.String("cluster-1")},
-				Image:   machinev1.NutanixResourceIdentifier{Type: machinev1.NutanixIdentifierName, Name: pointer.String("image-1")},
+				Cluster:           machinev1.NutanixResourceIdentifier{Type: machinev1.NutanixIdentifierName, Name: pointer.String("cluster-1")},
+				Image:             machinev1.NutanixResourceIdentifier{Type: machinev1.NutanixIdentifierName, Name: pointer.String("image-1")},
+				UserDataSecret:    &corev1.LocalObjectReference{Name: defaultUserDataSecret},
+				CredentialsSecret: &corev1.LocalObjectReference{Name: defaultNutanixCredentialsSecret},
 			}
 			if tc.modifySpec != nil {
 				tc.modifySpec(providerSpec)
