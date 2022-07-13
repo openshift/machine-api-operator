@@ -1531,6 +1531,24 @@ func validateNutanix(m *machinev1beta1.Machine, config *admissionConfig) (bool, 
 		warnings = append(warnings, fmt.Sprintf("providerSpec.systemDiskSize: %d is missing or less than the recommended minimum (%d): nodes may fail to start if disk size is too low", providerSpec.SystemDiskSize.Value()/(1024*1024*1024), minNutanixDiskGiB))
 	}
 
+	if providerSpec.UserDataSecret == nil {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret"), "userDataSecret must be provided"))
+	} else {
+		if providerSpec.UserDataSecret.Name == "" {
+			errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret", "name"), "name must be provided"))
+		}
+	}
+
+	if providerSpec.CredentialsSecret == nil {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret"), "credentialsSecret must be provided"))
+	} else {
+		if providerSpec.CredentialsSecret.Name == "" {
+			errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret", "name"), "name must be provided"))
+		} else {
+			warnings = append(warnings, credentialsSecretExists(config.client, providerSpec.CredentialsSecret.Name, m.GetNamespace())...)
+		}
+	}
+
 	if len(errs) > 0 {
 		return false, warnings, utilerrors.NewAggregate(errs)
 	}
