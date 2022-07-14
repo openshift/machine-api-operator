@@ -4308,6 +4308,19 @@ func TestDefaultPowerVSProviderSpec(t *testing.T) {
 			expectedOk:    true,
 			expectedError: "",
 		},
+		{
+			testCase: "it does not override the set values",
+			providerSpec: &machinev1.PowerVSMachineProviderConfig{
+				Processors: intstr.FromString("1.5"),
+				MemoryGiB:  35,
+			},
+			modifyDefault: func(providerConfig *machinev1.PowerVSMachineProviderConfig) {
+				providerConfig.Processors = intstr.FromString("1.5")
+				providerConfig.MemoryGiB = 35
+			},
+			expectedOk:    true,
+			expectedError: "",
+		},
 	}
 
 	platformStatus := &osconfigv1.PlatformStatus{Type: osconfigv1.PowerVSPlatformType}
