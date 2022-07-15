@@ -1683,7 +1683,7 @@ func defaultPowerVS(m *machinev1beta1.Machine, config *admissionConfig) (bool, [
 	if providerSpec.ProcessorType == "" {
 		providerSpec.ProcessorType = defaultPowerVSProcType
 	}
-	if providerSpec.Processors.IntVal == 0 || providerSpec.Processors.StrVal == "" {
+	if providerSpec.Processors.IntVal == 0 && providerSpec.Processors.StrVal == "" {
 		switch providerSpec.ProcessorType {
 		case machinev1.PowerVSProcessorTypeDedicated:
 			providerSpec.Processors = intstr.IntOrString{Type: intstr.Int, IntVal: 1}
