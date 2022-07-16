@@ -1857,5 +1857,5 @@ func isFinalizerOnlyRemoval(m, oldM *machinev1beta1.Machine) (bool, error) {
 		return false, fmt.Errorf("cannot calculate patch data from machine object: %w", err)
 	}
 
-	return string(data) == `{"metadata":{"finalizers":[""]}}`, nil
+	return string(data) == `{"metadata":{"finalizers":null}}`, nil
 }
