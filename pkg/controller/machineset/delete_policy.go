@@ -74,7 +74,7 @@ func newestDeletePriority(machine *machinev1.Machine) deletePriority {
 	if machine.DeletionTimestamp != nil && !machine.DeletionTimestamp.IsZero() {
 		return mustDelete
 	}
-	if machine.ObjectMeta.Annotations != nil && machine.ObjectMeta.Annotations[DeleteNodeAnnotation] != "" {
+	if machine.ObjectMeta.Annotations != nil && (machine.ObjectMeta.Annotations[DeleteNodeAnnotation] != "" || machine.ObjectMeta.Annotations[oldDeleteNodeAnnotation] != "") {
 		return mustDelete
 	}
 	if machine.Status.ErrorReason != nil || machine.Status.ErrorMessage != nil {
@@ -87,7 +87,7 @@ func randomDeletePolicy(machine *machinev1.Machine) deletePriority {
 	if machine.DeletionTimestamp != nil && !machine.DeletionTimestamp.IsZero() {
 		return mustDelete
 	}
-	if machine.ObjectMeta.Annotations != nil && machine.ObjectMeta.Annotations[DeleteNodeAnnotation] != "" {
+	if machine.ObjectMeta.Annotations != nil && (machine.ObjectMeta.Annotations[DeleteNodeAnnotation] != "" || machine.ObjectMeta.Annotations[oldDeleteNodeAnnotation] != "") {
 		return betterDelete
 	}
 	if machine.Status.ErrorReason != nil || machine.Status.ErrorMessage != nil {
