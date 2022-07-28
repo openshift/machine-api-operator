@@ -29,22 +29,22 @@ func TestAddPowershellTags(t *testing.T) {
 		{
 			name:     "String is wrapped properly",
 			target:   "some stuff",
-			expected: "<powershell>some stuff</powershell>",
+			expected: "<powershell>some stuff</powershell>\n<persist>true</persist>",
 		},
 		{
 			name:     "String is already wrapped, does not wrap a second time",
-			target:   "<powershell>some stuff</powershell>",
-			expected: "<powershell>some stuff</powershell>",
+			target:   "<powershell>some stuff</powershell>\n<persist>true</persist>",
+			expected: "<powershell>some stuff</powershell>\n<persist>true</persist>",
 		},
 		{
 			name:     "String has open tag but no close, does wrap",
 			target:   "<powershell>some stuff",
-			expected: "<powershell><powershell>some stuff</powershell>",
+			expected: "<powershell><powershell>some stuff</powershell>\n<persist>true</persist>",
 		},
 		{
 			name:     "String has close tag but no open, does wrap",
 			target:   "some stuff</powershell>",
-			expected: "<powershell>some stuff</powershell></powershell>",
+			expected: "<powershell>some stuff</powershell></powershell>\n<persist>true</persist>",
 		},
 	}
 
@@ -66,7 +66,7 @@ func TestHasPowershellTags(t *testing.T) {
 	}{
 		{
 			name:     "String has both tags",
-			target:   "<powershell>some stuff</powershell>",
+			target:   "<powershell>some stuff</powershell>\n<persist>true</persist>",
 			expected: true,
 		},
 		{
@@ -76,7 +76,7 @@ func TestHasPowershellTags(t *testing.T) {
 		},
 		{
 			name:     "String has close tag only",
-			target:   "some stuff</powershell>",
+			target:   "some stuff</powershell>\n<persist>true</persist>",
 			expected: false,
 		},
 		{
@@ -109,7 +109,7 @@ func TestRemovePowershellTags(t *testing.T) {
 		},
 		{
 			name:     "String has both tags",
-			target:   "<powershell>some stuff</powershell>",
+			target:   "<powershell>some stuff</powershell>\n<persist>true</persist>",
 			expected: "some stuff",
 		},
 		{
@@ -119,8 +119,8 @@ func TestRemovePowershellTags(t *testing.T) {
 		},
 		{
 			name:     "String has close tag only, does not remove",
-			target:   "some stuff</powershell>",
-			expected: "some stuff</powershell>",
+			target:   "some stuff</powershell>\n<persist>true</persist>",
+			expected: "some stuff</powershell>\n<persist>true</persist>",
 		},
 	}
 
