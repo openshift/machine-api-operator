@@ -183,6 +183,13 @@ func getInsecureFlagFromConfig(config *vSphereConfig) bool {
 	return false
 }
 
+func stringPointerDeref(stringPointer *string) string {
+	if stringPointer != nil {
+		return *stringPointer
+	}
+	return ""
+}
+
 // RawExtensionFromProviderSpec marshals the machine provider spec.
 func RawExtensionFromProviderSpec(spec *machinev1.VSphereMachineProviderSpec) (*runtime.RawExtension, error) {
 	if spec == nil {
