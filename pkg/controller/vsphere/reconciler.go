@@ -25,6 +25,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/pointer"
 
 	machineapierros "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
@@ -242,7 +243,8 @@ func (r *Reconciler) exists() (bool, error) {
 		return false, fmt.Errorf("%v: failed validating machine provider spec: %w", r.machine.GetName(), err)
 	}
 
-	if _, err := findVM(r.machineScope); err != nil {
+	vmRef, err := findVM(r.machineScope)
+	if err != nil {
 		if !isNotFound(err) {
 			return false, err
 		}
@@ -251,10 +253,19 @@ func (r *Reconciler) exists() (bool, error) {
 	}
 
 	// Check if machine was powered on after clone.
-	// If it is in poweredOff state and in "Provisioning" phase, treat machine as non-existed yet and requeue for proceed
+	// If it is powered off and in "Provisioning" phase, treat machine as non-existed yet and requeue for proceed
 	// with creation procedure.
-	powerState := stringPointerDeref(r.machineScope.providerStatus.InstanceState)
-	if stringPointerDeref(r.machine.Status.Phase) == machinePhaseProvisioning && powerState == string(types.VirtualMachinePowerStatePoweredOff) {
+	powerState := types.VirtualMachinePowerState(pointer.StringDeref(r.machineScope.providerStatus.InstanceState, ""))
+	if powerState == "" {
+		vm := &virtualMachine{
+			Context: r.machineScope.Context,
+			Obj:     object.NewVirtualMachine(r.machineScope.session.Client.Client, vmRef),
+			Ref:     vmRef,
+		}
+		powerState, err = vm.getPowerState()
+	}
+
+	if pointer.StringDeref(r.machine.Status.Phase, "") == machinePhaseProvisioning && powerState == types.VirtualMachinePowerStatePoweredOff {
 		klog.Infof("%v: already exists, but was not powered on after clone, requeue ", r.machine.GetName())
 		return false, nil
 	}
