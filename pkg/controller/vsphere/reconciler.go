@@ -25,6 +25,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/pointer"
 
 	machineapierros "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
@@ -55,6 +56,10 @@ const (
 	cloneVmTaskDescriptionId    = "VirtualMachine.clone"
 	destroyVmTaskDescriptionId  = "VirtualMachine.destroy"
 	powerOffVmTaskDescriptionId = "VirtualMachine.powerOff"
+)
+
+const (
+	machinePhaseProvisioning = "Provisioning"
 )
 
 // Reconciler runs the logic to reconciles a machine resource towards its desired state
@@ -134,6 +139,28 @@ func (r *Reconciler) create() error {
 	} else if !taskIsFinished {
 		return fmt.Errorf("%v task %v has not finished", moTask.Info.DescriptionId, moTask.Reference().Value)
 	}
+
+	// if clone task finished successfully, power on the vm
+	if moTask.Info.DescriptionId == cloneVmTaskDescriptionId {
+		klog.Infof("Powering on cloned machine: %v", r.machine.Name)
+		task, err := powerOn(r.machineScope)
+		if err != nil {
+			metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
+				Name:      r.machine.Name,
+				Namespace: r.machine.Namespace,
+				Reason:    "PowerOn task finished with error",
+			})
+			conditionFailed := conditionFailed()
+			conditionFailed.Message = err.Error()
+			statusError := setProviderStatus(task, conditionFailed, r.machineScope, nil)
+			if statusError != nil {
+				return fmt.Errorf("Failed to set provider status: %w", err)
+			}
+			return err
+		}
+		return setProviderStatus(task, conditionSuccess(), r.machineScope, nil)
+	}
+
 	// If taskIsFinished then next reconcile should result in update.
 	return nil
 }
@@ -216,13 +243,33 @@ func (r *Reconciler) exists() (bool, error) {
 		return false, fmt.Errorf("%v: failed validating machine provider spec: %w", r.machine.GetName(), err)
 	}
 
-	if _, err := findVM(r.machineScope); err != nil {
+	vmRef, err := findVM(r.machineScope)
+	if err != nil {
 		if !isNotFound(err) {
 			return false, err
 		}
 		klog.Infof("%v: does not exist", r.machine.GetName())
 		return false, nil
 	}
+
+	// Check if machine was powered on after clone.
+	// If it is powered off and in "Provisioning" phase, treat machine as non-existed yet and requeue for proceed
+	// with creation procedure.
+	powerState := types.VirtualMachinePowerState(pointer.StringDeref(r.machineScope.providerStatus.InstanceState, ""))
+	if powerState == "" {
+		vm := &virtualMachine{
+			Context: r.machineScope.Context,
+			Obj:     object.NewVirtualMachine(r.machineScope.session.Client.Client, vmRef),
+			Ref:     vmRef,
+		}
+		powerState, err = vm.getPowerState()
+	}
+
+	if pointer.StringDeref(r.machine.Status.Phase, "") == machinePhaseProvisioning && powerState == types.VirtualMachinePowerStatePoweredOff {
+		klog.Infof("%v: already exists, but was not powered on after clone, requeue ", r.machine.GetName())
+		return false, nil
+	}
+
 	klog.Infof("%v: already exists", r.machine.GetName())
 	return true, nil
 }
@@ -722,7 +769,7 @@ func clone(s *machineScope) (string, error) {
 			Pool:         types.NewReference(resourcepool.Reference()),
 			DiskMoveType: diskMoveType,
 		},
-		PowerOn:  true,
+		PowerOn:  false, // Create powered off machine, for power it on later in "create" procedure
 		Snapshot: snapshotRef,
 	}
 
@@ -733,6 +780,37 @@ func clone(s *machineScope) (string, error) {
 	taskVal := task.Reference().Value
 	klog.V(3).Infof("%v: running task: %+v", s.machine.GetName(), taskVal)
 	return taskVal, nil
+}
+
+func powerOn(s *machineScope) (string, error) {
+	vmRef, err := findVM(s)
+	if err != nil {
+		if !isNotFound(err) {
+			return "", err
+		}
+		return "", fmt.Errorf("vm not found during creation for powering on: %w", err)
+	}
+
+	datacenter := s.session.Datacenter
+	if datacenter == nil { // if there is no dataceneter, fallback to old powerOn method via vm object
+		vm := &virtualMachine{
+			Context: s.Context,
+			Obj:     object.NewVirtualMachine(s.session.Client.Client, vmRef),
+			Ref:     vmRef,
+		}
+
+		return vm.powerOnVM()
+	}
+
+	overrideDRS := &types.OptionValue{
+		Key:   string(types.ClusterPowerOnVmOptionOverrideAutomationLevel),
+		Value: string(types.DrsBehaviorFullyAutomated),
+	}
+	task, err := datacenter.PowerOnVM(s.Context, []types.ManagedObjectReference{vmRef}, overrideDRS)
+	if err != nil {
+		return "", fmt.Errorf("error powering on %s vm: %w", s.machine.Name, err)
+	}
+	return task.Reference().Value, nil
 }
 
 func getDiskSpec(s *machineScope, devices object.VirtualDeviceList) (types.BaseVirtualDeviceConfigSpec, error) {

@@ -539,6 +539,91 @@ func TestClone(t *testing.T) {
 	})
 }
 
+func TestPowerOn(t *testing.T) {
+	model, simSession, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	getMinimalProviderSpec := func() *machinev1.VSphereMachineProviderSpec {
+		return &machinev1.VSphereMachineProviderSpec{
+			CredentialsSecret: &corev1.LocalObjectReference{
+				Name: "test",
+			},
+			Workspace: &machinev1.Workspace{
+				Server: server.URL.Host,
+			},
+			DiskGiB:  int32(5),
+			Template: "template",
+			UserDataSecret: &corev1.LocalObjectReference{
+				Name: "foo",
+			},
+		}
+	}
+
+	getMachineScope := func(providerSpec *machinev1.VSphereMachineProviderSpec, name string) *machineScope {
+		return &machineScope{
+			Context: context.TODO(),
+			machine: &machinev1.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      name,
+					Namespace: "test",
+					Labels: map[string]string{
+						machinev1.MachineClusterIDLabel: "CLUSTERID",
+					},
+				},
+			},
+			providerSpec:   providerSpec,
+			session:        simSession,
+			providerStatus: &machinev1.VSphereMachineProviderStatus{},
+			client:         fake.NewFakeClientWithScheme(scheme.Scheme),
+		}
+	}
+
+	t.Run("powerOn should fail if there is no machine found", func(t *testing.T) {
+		g := NewWithT(t)
+
+		scope := getMachineScope(getMinimalProviderSpec(), "test")
+		taskId, err := powerOn(scope)
+
+		g.Expect(err).Should(HaveOccurred())
+		g.Expect(taskId).To(BeEmpty())
+		g.Expect(err.Error()).Should(ContainSubstring("vm not found during creation for powering on"))
+	})
+
+	t.Run("Test powering on vm with RDS (via datacenter)", func(t *testing.T) {
+		g := NewWithT(t)
+		vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+		object.NewVirtualMachine(simSession.Client.Client, vm.Reference())
+
+		scope := getMachineScope(getMinimalProviderSpec(), vm.Name)
+		taskId, err := powerOn(scope)
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(taskId).NotTo(BeEmpty())
+
+		task, err := simSession.GetTask(context.TODO(), taskId)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(task.Info.DescriptionId).Should(BeEquivalentTo("Datacenter.powerOnMultiVM"))
+	})
+
+	t.Run("Test powering on vm without a datacenter", func(t *testing.T) {
+		g := NewWithT(t)
+		vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+		object.NewVirtualMachine(simSession.Client.Client, vm.Reference())
+
+		scope := getMachineScope(getMinimalProviderSpec(), vm.Name)
+		scope.session.Datacenter = nil
+		taskId, err := powerOn(scope)
+
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(taskId).NotTo(BeEmpty())
+
+		task, err := simSession.GetTask(context.TODO(), taskId)
+		g.Expect(err).ShouldNot(HaveOccurred())
+		g.Expect(task.Info.DescriptionId).Should(BeEquivalentTo("VirtualMachine.powerOn"))
+	})
+}
+
 func TestGetPowerState(t *testing.T) {
 	model, session, server := initSimulator(t)
 	defer model.Remove()
@@ -1991,16 +2076,39 @@ func TestExists(t *testing.T) {
 	}
 
 	cases := []struct {
-		name   string
-		exists bool
+		name          string
+		machinePhase  string
+		instanceState string
+		exists        bool
+		vmExists      bool
 	}{
 		{
-			name:   "VM doesn't exist",
-			exists: false,
+			name:          "VM doesn't exist",
+			machinePhase:  "Provisioning",
+			instanceState: string(types.VirtualMachinePowerStatePoweredOn),
+			exists:        false,
+			vmExists:      false,
 		},
 		{
-			name:   "VM already exists",
-			exists: true,
+			name:          "VM already exists",
+			machinePhase:  "Provisioning",
+			instanceState: string(types.VirtualMachinePowerStatePoweredOn),
+			exists:        true,
+			vmExists:      true,
+		},
+		{
+			name:          "VM exists but didnt powered on after clone",
+			machinePhase:  "Provisioning",
+			instanceState: string(types.VirtualMachinePowerStatePoweredOff),
+			exists:        false,
+			vmExists:      true,
+		},
+		{
+			name:          "VM exists, but powered off",
+			machinePhase:  "Provisioned",
+			instanceState: string(types.VirtualMachinePowerStatePoweredOff),
+			exists:        true,
+			vmExists:      true,
 		},
 	}
 
@@ -2016,20 +2124,24 @@ func TestExists(t *testing.T) {
 							machinev1.MachineClusterIDLabel: "CLUSTERID",
 						},
 					},
+					Status: machinev1.MachineStatus{
+						Phase: &tc.machinePhase,
+					},
 				},
 				providerSpec: &machinev1.VSphereMachineProviderSpec{
 					Template: vm.Name,
 				},
 				session: session,
 				providerStatus: &machinev1.VSphereMachineProviderStatus{
-					TaskRef: task.Reference().Value,
+					TaskRef:       task.Reference().Value,
+					InstanceState: &tc.instanceState,
 				},
 				client: fake.NewFakeClientWithScheme(scheme.Scheme, &credentialsSecret),
 			}
 
 			reconciler := newReconciler(&machineScope)
 
-			if tc.exists {
+			if tc.vmExists {
 				reconciler.machine.UID = apimachinerytypes.UID(instanceUUID)
 			}
 
