@@ -22,8 +22,11 @@ import (
 )
 
 const (
+	// these powershell tag constants are based on the secret creation in WMCO
+	// they should follow how the secret is created there, see
+	// https://github.com/openshift/windows-machine-config-operator/blob/master/pkg/secrets/secrets.go
 	powershellOpenTag  = "<powershell>"
-	powershellCloseTag = "</powershell>"
+	powershellCloseTag = "</powershell>\n<persist>true</persist>"
 )
 
 // Return the supplied string wrapped with the powershell tags.
