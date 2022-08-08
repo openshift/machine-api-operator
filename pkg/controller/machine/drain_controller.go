@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"golang.org/x/time/rate"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -12,6 +13,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/util/workqueue"
 	"k8s.io/klog/v2"
 	"k8s.io/kubectl/pkg/drain"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -41,6 +43,19 @@ func newDrainController(mgr manager.Manager) reconcile.Reconciler {
 		scheme:        mgr.GetScheme(),
 	}
 	return d
+}
+
+// newDrainRateLimiter is based on the workqueue.DefaultControllerRateLimiter.
+// The default rate limiter used by controller-runtime has a base delay of 5 milliseconds.
+// As we know drains are a slower operation then traditional reconciles, we start with a
+// larger base delay to allow the pods time for graceful shutdown.
+// We cap out at 1000 seconds as with the default queue.
+func newDrainRateLimiter() workqueue.RateLimiter {
+	return workqueue.NewMaxOfRateLimiter(
+		workqueue.NewItemExponentialFailureRateLimiter(5*time.Second, 1000*time.Second),
+		// 10 qps, 100 bucket size.  This is only for retry speed and its only the overall factor (not per item)
+		&workqueue.BucketRateLimiter{Limiter: rate.NewLimiter(rate.Limit(10), 100)},
+	)
 }
 
 func (d *machineDrainController) Reconcile(ctx context.Context, request reconcile.Request) (reconcile.Result, error) {
@@ -152,9 +167,14 @@ func (d *machineDrainController) drainNode(ctx context.Context, machine *machine
 	}
 
 	if err := drain.RunNodeDrain(drainer, node.Name); err != nil {
-		// Machine still tries to terminate after drain failure
 		klog.Warningf("drain failed for machine %q: %v", machine.Name, err)
-		return &RequeueAfterError{RequeueAfter: 20 * time.Second}
+
+		// Make sure we return a regular error to take advantage of exponential backoff.
+		// This will allow certain pods that need to finish work (eg static
+		// installer pods) to complete even when being drained.
+		// If we never allow the pods to complete, this can cause a deadlock between the
+		// drain controller and installer pods.
+		return err
 	}
 
 	klog.Infof("drain successful for machine %q", machine.Name)
