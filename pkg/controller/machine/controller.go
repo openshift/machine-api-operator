@@ -103,7 +103,10 @@ func AddWithActuator(mgr manager.Manager, actuator Actuator) error {
 	if err := add(mgr, newReconciler(mgr, actuator), "machine-controller"); err != nil {
 		return err
 	}
-	if err := add(mgr, newDrainController(mgr), "machine-drain-controller"); err != nil {
+	if err := addWithOpts(mgr, controller.Options{
+		Reconciler:  newDrainController(mgr),
+		RateLimiter: newDrainRateLimiter(),
+	}, "machine-drain-controller"); err != nil {
 		return err
 	}
 	return nil
@@ -130,8 +133,13 @@ func stringPointerDeref(stringPointer *string) string {
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
 func add(mgr manager.Manager, r reconcile.Reconciler, controllerName string) error {
+	return addWithOpts(mgr, controller.Options{Reconciler: r}, controllerName)
+}
+
+// add adds a new Controller to mgr with r as the reconcile.Reconciler
+func addWithOpts(mgr manager.Manager, opts controller.Options, controllerName string) error {
 	// Create a new controller
-	c, err := controller.New(controllerName, mgr, controller.Options{Reconciler: r})
+	c, err := controller.New(controllerName, mgr, opts)
 	if err != nil {
 		return err
 	}
