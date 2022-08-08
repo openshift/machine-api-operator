@@ -10,10 +10,6 @@ spec:
     from:
       kind: DockerImage
       name: quay.io/openshift/origin-aws-machine-controllers
-  - name: openstack-machine-controllers
-    from:
-      kind: DockerImage
-      name: quay.io/openshift/origin-openstack-machine-controllers
   - name: openstack-machine-api-provider
     from:
       kind: DockerImage
