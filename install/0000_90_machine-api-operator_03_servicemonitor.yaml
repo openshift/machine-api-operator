@@ -18,6 +18,8 @@ spec:
       tlsConfig:
         caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
         serverName: machine-api-operator.openshift-machine-api.svc
+        certFile: /etc/prometheus/secrets/metrics-client-certs/tls.crt
+        keyFile: /etc/prometheus/secrets/metrics-client-certs/tls.key
   namespaceSelector:
     matchNames:
       - openshift-machine-api
@@ -51,6 +53,8 @@ spec:
     tlsConfig:
       caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
       serverName: machine-api-controllers.openshift-machine-api.svc
+      certFile: /etc/prometheus/secrets/metrics-client-certs/tls.crt
+      keyFile: /etc/prometheus/secrets/metrics-client-certs/tls.key
   - port: machineset-mtrc
     bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
     interval: 30s
@@ -58,6 +62,8 @@ spec:
     tlsConfig:
       caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
       serverName: machine-api-controllers.openshift-machine-api.svc
+      certFile: /etc/prometheus/secrets/metrics-client-certs/tls.crt
+      keyFile: /etc/prometheus/secrets/metrics-client-certs/tls.key
   - port: mhc-mtrc
     bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
     interval: 30s
@@ -65,3 +71,5 @@ spec:
     tlsConfig:
       caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
       serverName: machine-api-controllers.openshift-machine-api.svc
+      certFile: /etc/prometheus/secrets/metrics-client-certs/tls.crt
+      keyFile: /etc/prometheus/secrets/metrics-client-certs/tls.key
