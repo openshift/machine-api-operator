@@ -18,6 +18,9 @@ package windows
 
 import (
 	"testing"
+
+	machinev1 "github.com/openshift/api/machine/v1beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestAddPowershellTags(t *testing.T) {
@@ -89,6 +92,51 @@ func TestHasPowershellTags(t *testing.T) {
 	for _, tc := range testcases {
 		t.Run(tc.name, func(t *testing.T) {
 			observed := HasPowershellTags(tc.target)
+			if tc.expected != observed {
+				t.Errorf("observed: %v, expected: %v", observed, tc.expected)
+			}
+		})
+	}
+}
+
+func TestIsMachineOSWindows(t *testing.T) {
+	testcases := []struct {
+		name     string
+		machine  machinev1.Machine
+		expected bool
+	}{
+		{
+			name: "Machine has Windows OS label",
+			machine: machinev1.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"machine.openshift.io/os-id": "Windows",
+					},
+				},
+			},
+			expected: true,
+		},
+		{
+			name: "Machine has Linux OS label",
+			machine: machinev1.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{
+						"machine.openshift.io/os-id": "Linux",
+					},
+				},
+			},
+			expected: false,
+		},
+		{
+			name:     "Machine has no OS label",
+			machine:  machinev1.Machine{},
+			expected: false,
+		},
+	}
+
+	for _, tc := range testcases {
+		t.Run(tc.name, func(t *testing.T) {
+			observed := IsMachineOSWindows(tc.machine)
 			if tc.expected != observed {
 				t.Errorf("observed: %v, expected: %v", observed, tc.expected)
 			}
