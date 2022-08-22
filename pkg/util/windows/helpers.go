@@ -19,6 +19,8 @@ package windows
 import (
 	"fmt"
 	"strings"
+
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 )
 
 const (
@@ -42,6 +44,15 @@ func AddPowershellTags(target string) string {
 // Returns true if the string is wrapped with open and close tags for powershell.
 func HasPowershellTags(target string) bool {
 	return strings.HasPrefix(target, powershellOpenTag) && strings.HasSuffix(target, powershellCloseTag)
+}
+
+// Returns true if the Machine has the operating system label for a Windows instance.
+func IsMachineOSWindows(machine machinev1.Machine) bool {
+	osid, found := machine.Labels["machine.openshift.io/os-id"]
+	if found && osid == "Windows" {
+		return true
+	}
+	return false
 }
 
 // Return the supplied string with its powershell tags removed.
