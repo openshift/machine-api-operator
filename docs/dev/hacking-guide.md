@@ -120,7 +120,7 @@ The section is inspired by [this](https://notes.elmiko.dev/2020/08/18/tips-exper
 
 Prerequisites:
 ```
-git checkout github.com/openshift/$repository_name
+git clone github.com/openshift/$repository_name
 cd $repository_name
 ```
 
