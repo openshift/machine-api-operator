@@ -1136,15 +1136,13 @@ func (vm *virtualMachine) getPowerState() (types.VirtualMachinePowerState, error
 
 // reconcileTags ensures that the required tags are present on the virtual machine, eg the Cluster ID
 // that is used by the installer on cluster deletion to ensure ther are no leaked resources.
-func (vm *virtualMachine) reconcileTags(ctx context.Context, session *session.Session, machine *machinev1.Machine) error {
-	if err := session.WithRestClient(vm.Context, func(c *rest.Client) error {
+func (vm *virtualMachine) reconcileTags(ctx context.Context, sessionInstance *session.Session, machine *machinev1.Machine) error {
+	if err := sessionInstance.WithCachingTagsManager(vm.Context, func(c *session.CachingTagsManager) error {
 		klog.Infof("%v: Reconciling attached tags", machine.GetName())
-
-		m := tags.NewManager(c)
 
 		clusterID := machine.Labels[machinev1.MachineClusterIDLabel]
 
-		attached, err := vm.checkAttachedTag(ctx, clusterID, m)
+		attached, err := vm.checkAttachedTag(ctx, clusterID, c)
 		if err != nil {
 			return err
 		}
@@ -1152,7 +1150,7 @@ func (vm *virtualMachine) reconcileTags(ctx context.Context, session *session.Se
 		if !attached {
 			klog.Infof("%v: Attaching %s tag to vm", machine.GetName(), clusterID)
 			// the tag should already be created by installer
-			if err := m.AttachTag(ctx, clusterID, vm.Ref); err != nil {
+			if err := c.AttachTag(ctx, clusterID, vm.Ref); err != nil {
 				return err
 			}
 		}
@@ -1166,7 +1164,7 @@ func (vm *virtualMachine) reconcileTags(ctx context.Context, session *session.Se
 }
 
 // checkAttachedTag returns true if tag is already attached to a vm or tag doesn't exist
-func (vm *virtualMachine) checkAttachedTag(ctx context.Context, tagName string, m *tags.Manager) (bool, error) {
+func (vm *virtualMachine) checkAttachedTag(ctx context.Context, tagName string, m *session.CachingTagsManager) (bool, error) {
 	// cluster ID tag doesn't exists in UPI, we should skip tag attachment if it's not found
 	foundTag, err := vm.foundTag(ctx, tagName, m)
 	if err != nil {
