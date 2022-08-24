@@ -1122,7 +1122,7 @@ func TestReconcileNetwork(t *testing.T) {
 	if !reflect.DeepEqual(expectedAddresses, r.machineScope.machine.Status.Addresses) {
 		t.Errorf("Expected: %v, got: %v", expectedAddresses, r.machineScope.machine.Status.Addresses)
 	}
-	// TODO: add more cases by adding network devices to the NewVirtualMachine() object
+	//TODO: add more cases by adding network devices to the NewVirtualMachine() object
 }
 
 func TestReconcileTags(t *testing.T) {
@@ -1155,8 +1155,8 @@ func TestReconcileTags(t *testing.T) {
 			name:          "Successfully attach a tag",
 			expectedError: false,
 			attachTag:     true,
-			testCondition: func() {
-				createTagAndCategory(session, "CLUSTERID_CATEGORY", tagName)
+			testCondition: func(tagName string) {
+				createTagAndCategory(sessionObj, tagToCategoryName(tagName), tagName)
 			},
 		},
 		{
@@ -1241,7 +1241,7 @@ func TestCheckAttachedTag(t *testing.T) {
 		id, err := tagsMgr.CreateCategory(context.TODO(), &tags.Category{
 			AssociableTypes: []string{"VirtualMachine"},
 			Cardinality:     "SINGLE",
-			Name:            "CLUSTERID_CATEGORY",
+			Name:            tagToCategoryName(tagName),
 		})
 		if err != nil {
 			return err
@@ -1259,8 +1259,18 @@ func TestCheckAttachedTag(t *testing.T) {
 			return err
 		}
 
+		nonAttachedCategoryId, err := tagsMgr.CreateCategory(context.TODO(), &tags.Category{
+			AssociableTypes: []string{"VirtualMachine"},
+			Cardinality:     "SINGLE",
+			Name:            tagToCategoryName(nonAttachedTagName),
+		})
+
+		if err != nil {
+			return err
+		}
+
 		_, err = tagsMgr.CreateTag(context.TODO(), &tags.Tag{
-			CategoryID: id,
+			CategoryID: nonAttachedCategoryId,
 			Name:       nonAttachedTagName,
 		})
 		if err != nil {
@@ -1290,6 +1300,7 @@ func TestCheckAttachedTag(t *testing.T) {
 		{
 			name:    "Fail to find a tag",
 			tagName: nonAttachedTagName,
+			findTag: false,
 		},
 	}
 

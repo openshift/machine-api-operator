@@ -248,7 +248,6 @@ func ProviderStatusFromRawExtension(rawExtension *runtime.RawExtension) (*machin
 	return providerStatus, nil
 }
 
-<<<<<<< HEAD
 // podPredicate is a predicate function for filtering PodList
 type podPredicate func(corev1.Pod) bool
 
@@ -291,10 +290,10 @@ func getPodList(ctx context.Context, apiReader runtimeclient.Reader, n *corev1.N
 	}
 
 	return filterPods(allPods, filters...), nil
-=======
+}
+
 // isNotFoundErr checks if error message contains "Not Found" message.
 // vSphere api client does not expose error type, so we can rely only on error message
 func isNotFoundErr(err error) bool {
 	return err != nil && strings.HasSuffix(err.Error(), http.StatusText(http.StatusNotFound))
->>>>>>> be344a73 (Use CachingTagsManager for tags reconciliation)
 }

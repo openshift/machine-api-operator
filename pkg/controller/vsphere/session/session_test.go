@@ -26,6 +26,8 @@ import (
 
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/simulator"
+
+	_ "github.com/vmware/govmomi/vapi/simulator"
 )
 
 func initSimulator(t *testing.T) (*simulator.Model, *Session, *simulator.Server) {
@@ -36,6 +38,7 @@ func initSimulator(t *testing.T) (*simulator.Model, *Session, *simulator.Server)
 		t.Fatal(err)
 	}
 	model.Service.TLS = new(tls.Config)
+	model.Service.RegisterEndpoints = true
 
 	server := model.Service.NewServer()
 	pass, _ := server.URL.User.Password()
