@@ -49,6 +49,7 @@ const (
 	GuestInfoIgnitionData     = "guestinfo.ignition.config.data"
 	GuestInfoIgnitionEncoding = "guestinfo.ignition.config.data.encoding"
 	GuestInfoHostname         = "guestinfo.hostname"
+	StealClock                = "stealclock.enable"
 )
 
 // vSphere tasks description IDs, for determinate task types (clone, delete, etc)
@@ -747,6 +748,10 @@ func clone(s *machineScope) (string, error) {
 	extraConfig = append(extraConfig, &types.OptionValue{
 		Key:   GuestInfoHostname,
 		Value: s.machine.GetName(),
+	})
+	extraConfig = append(extraConfig, &types.OptionValue{
+		Key:   StealClock,
+		Value: "TRUE",
 	})
 
 	spec := types.VirtualMachineCloneSpec{
