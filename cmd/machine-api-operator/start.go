@@ -95,6 +95,7 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 				klog.Fatalf("Leader election lost")
 			},
 		},
+		ReleaseOnCancel: true,
 	})
 	panic("unreachable")
 }
