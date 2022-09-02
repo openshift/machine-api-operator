@@ -1122,44 +1122,46 @@ func TestReconcileNetwork(t *testing.T) {
 }
 
 func TestReconcileTags(t *testing.T) {
-	model, session, server := initSimulator(t)
+	model, sessionObj, server := initSimulator(t)
 	defer model.Remove()
 	defer server.Close()
 
 	managedObj := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
-	managedObjRef := object.NewVirtualMachine(session.Client.Client, managedObj.Reference()).Reference()
+	managedObjRef := object.NewVirtualMachine(sessionObj.Client.Client, managedObj.Reference()).Reference()
 
 	vm := &virtualMachine{
 		Context: context.TODO(),
-		Obj:     object.NewVirtualMachine(session.Client.Client, managedObjRef),
+		Obj:     object.NewVirtualMachine(sessionObj.Client.Client, managedObjRef),
 		Ref:     managedObjRef,
 	}
-
-	tagName := "CLUSTERID"
 
 	testCases := []struct {
 		name          string
 		expectedError bool
 		attachTag     bool
-		testCondition func()
+		testCondition func(tagName string)
+		tagName       string
 	}{
 		{
 			name:          "Don't fail when tag doesn't exist",
 			expectedError: false,
+			tagName:       "FOOOOOOOOO",
 		},
 		{
 			name:          "Successfully attach a tag",
 			expectedError: false,
 			attachTag:     true,
-			testCondition: func() {
-				createTagAndCategory(session, tagToCategoryName(tagName), tagName)
+			tagName:       "BAAAAAAR",
+			testCondition: func(tagName string) {
+				createTagAndCategory(sessionObj, tagToCategoryName(tagName), tagName)
 			},
 		},
 		{
 			name:          "Fail on vSphere API error",
 			expectedError: false,
-			testCondition: func() {
-				session.Logout(context.Background())
+			tagName:       "BAAAAAZ",
+			testCondition: func(tagName string) {
+				sessionObj.Logout(context.Background())
 			},
 		},
 	}
@@ -1167,13 +1169,13 @@ func TestReconcileTags(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.testCondition != nil {
-				tc.testCondition()
+				tc.testCondition(tc.tagName)
 			}
 
-			err := vm.reconcileTags(context.TODO(), session, &machinev1.Machine{
+			err := vm.reconcileTags(context.TODO(), sessionObj, &machinev1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:   "machine",
-					Labels: map[string]string{machinev1.MachineClusterIDLabel: tagName},
+					Labels: map[string]string{machinev1.MachineClusterIDLabel: tc.tagName},
 				},
 			})
 
@@ -1187,16 +1189,19 @@ func TestReconcileTags(t *testing.T) {
 				}
 
 				if tc.attachTag {
-					if err := session.WithRestClient(context.TODO(), func(c *rest.Client) error {
-						tagsMgr := tags.NewManager(c)
+					if err := sessionObj.WithCachingTagsManager(context.TODO(), func(tagMgr *session.CachingTagsManager) error {
 
-						tags, err := tagsMgr.GetAttachedTags(context.TODO(), managedObjRef)
+						tags, err := tagMgr.GetAttachedTags(context.TODO(), managedObjRef)
 						if err != nil {
 							return err
 						}
 
-						if tags[0].Name != tagName {
-							t.Fatalf("Expected tag %s, got %s", tagName, tags[0].Name)
+						if len(tags) == 0 {
+							t.Fatalf("Expected tags to be found")
+						}
+
+						if tags[0].Name != tc.tagName {
+							t.Fatalf("Expected tag %s, got %s", tc.tagName, tags[0].Name)
 						}
 
 						return nil
@@ -1211,23 +1216,23 @@ func TestReconcileTags(t *testing.T) {
 }
 
 func TestCheckAttachedTag(t *testing.T) {
-	model, session, server := initSimulator(t)
+	model, sessionObj, server := initSimulator(t)
 	defer model.Remove()
 	defer server.Close()
 
 	managedObj := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
-	managedObjRef := object.NewVirtualMachine(session.Client.Client, managedObj.Reference()).Reference()
+	managedObjRef := object.NewVirtualMachine(sessionObj.Client.Client, managedObj.Reference()).Reference()
 
 	vm := &virtualMachine{
 		Context: context.TODO(),
-		Obj:     object.NewVirtualMachine(session.Client.Client, managedObjRef),
+		Obj:     object.NewVirtualMachine(sessionObj.Client.Client, managedObjRef),
 		Ref:     managedObjRef,
 	}
 
 	tagName := "CLUSTERID"
 	nonAttachedTagName := "nonAttachedTag"
 
-	if err := session.WithRestClient(context.TODO(), func(c *rest.Client) error {
+	if err := sessionObj.WithRestClient(context.TODO(), func(c *rest.Client) error {
 		tagsMgr := tags.NewManager(c)
 
 		id, err := tagsMgr.CreateCategory(context.TODO(), &tags.Category{
@@ -1297,10 +1302,9 @@ func TestCheckAttachedTag(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			if err := session.WithRestClient(context.TODO(), func(c *rest.Client) error {
-				tagsMgr := tags.NewManager(c)
+			if err := sessionObj.WithCachingTagsManager(context.TODO(), func(c *session.CachingTagsManager) error {
 
-				attached, err := vm.checkAttachedTag(context.TODO(), tc.tagName, tagsMgr)
+				attached, err := vm.checkAttachedTag(context.TODO(), tc.tagName, c)
 				if err != nil {
 					return fmt.Errorf("Not expected error %v", err)
 				}
