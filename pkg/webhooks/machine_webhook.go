@@ -1851,8 +1851,12 @@ func isDeleting(obj metav1.Object) bool {
 
 // isFinalizerOnlyRemoval checks if the machine update only removes finalizers.
 func isFinalizerOnlyRemoval(m, oldM *machinev1beta1.Machine) (bool, error) {
+	// ignore updated managed fields as they don't affect the result
+	machineCopy := m.DeepCopy()
+	machineCopy.ManagedFields = oldM.ManagedFields
+
 	patchBase := client.MergeFrom(oldM)
-	data, err := patchBase.Data(m)
+	data, err := patchBase.Data(machineCopy)
 	if err != nil {
 		return false, fmt.Errorf("cannot calculate patch data from machine object: %w", err)
 	}
