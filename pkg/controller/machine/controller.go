@@ -430,8 +430,11 @@ func isInvalidMachineConfigurationError(err error) bool {
 // Because the conditions are set on the machine outside of this function, we must pass the original state of the
 // machine conditions so that the diff can be calculated properly within this function.
 func (r *ReconcileMachine) updateStatus(ctx context.Context, machine *machinev1.Machine, phase string, failureCause error, originalConditions []machinev1.Condition) error {
+	phaseChanged := false
 	if stringPointerDeref(machine.Status.Phase) != phase {
 		klog.V(3).Infof("%v: going into phase %q", machine.GetName(), phase)
+
+		phaseChanged = true
 	}
 
 	// Ensure the lifecycle hook conditions are accurate whenever the status is updated
@@ -495,8 +498,10 @@ func (r *ReconcileMachine) updateStatus(ctx context.Context, machine *machinev1.
 	}
 
 	// Update the metric after everything else has succeeded to prevent duplicate
-	// entries when there are failures
-	if phase != phaseDeleting {
+	// entries when there are failures.
+	// Only update when there is a change to the phase to avoid duplicating entries for
+	// individual machines.
+	if phaseChanged && phase != phaseDeleting {
 		// Apart from deleting, update the transition metric
 		// Deleting would always end up in the infinite bucket
 		timeElapsed := r.now().Sub(machine.GetCreationTimestamp().Time).Seconds()
