@@ -135,16 +135,16 @@ func (t *CachingTagsManager) GetTag(ctx context.Context, id string) (*tags.Tag, 
 	cache := getOrCreateSessionCache(t.sessionKey)
 	cachedTagID, found := cache.tags.Get(id)
 	if found {
-		klog.V(4).Infof("found cached tag id value")
+		klog.V(4).Infof("tag %s: found cached tag id value", id)
 		if cachedTagID == notFoundValue {
-			klog.V(4).Infof("cache contains special value indicates that tag was not found when cache was filled, treating as non existed tag")
+			klog.V(4).Infof("tag %s: cache contains special value indicates that tag was not found when cache was filled, treating as non existed tag", id)
 			return nil, fmt.Errorf(notFoundErrMessage)
 		}
 
 		tag, err := t.Manager.GetTag(ctx, cachedTagID)
 		if err != nil {
 			if isObjectNotFoundErr(err) {
-				klog.V(4).Infof("tag was not found in vCenter by cached id, invalidating cache")
+				klog.V(3).Infof("tag %s: tag was not found in vCenter by cached id, invalidating cache", id)
 				// if tag not found, invalidate the cache and fallback to the default search method
 				cache.tags.Delete(id)
 				return t.Manager.GetTag(ctx, id)
@@ -154,11 +154,11 @@ func (t *CachingTagsManager) GetTag(ctx context.Context, id string) (*tags.Tag, 
 		return tag, nil
 	}
 
-	klog.V(4).Infof("tags cache miss, trying to find tag by name, it might take time")
+	klog.V(3).Infof("tag %s: tags cache miss, trying to find tag by name, it might take time", id)
 	tag, err := t.Manager.GetTag(ctx, id)
 	if err != nil {
 		if isObjectNotFoundErr(err) {
-			klog.V(4).Infof("tag %s not found in vCenter, caching", id)
+			klog.V(3).Infof("tag %s not found in vCenter, caching", id)
 			// Caching the fact that tag was not found due to performance issues with lookup tag by name.
 			// In case when object does not exist amount of requests equals the amount of categories should happen,
 			// because of vCenter rest api design.
@@ -188,18 +188,17 @@ func (t *CachingTagsManager) GetCategory(ctx context.Context, id string) (*tags.
 	cache := getOrCreateSessionCache(t.sessionKey)
 	cachedCategoryID, found := cache.categories.Get(id)
 	if found {
-		klog.V(4).Infof("found cached category id value")
+		klog.V(4).Infof("category %s: found cached category id value", id)
 		if cachedCategoryID == notFoundValue {
-			klog.V(4).Infof("cache contains special value indicates that tag was not found when cache was filled, treating as non existing category")
+			klog.V(4).Infof("category %s: cache contains special value indicates that tag was not found when cache was filled, treating as non existing category", id)
 			return nil, fmt.Errorf(notFoundErrMessage)
 		}
 
 		category, err := t.Manager.GetCategory(ctx, cachedCategoryID)
-		klog.V(4).Infof("found category by category id")
 		if err != nil {
 			if isObjectNotFoundErr(err) {
-				klog.V(4).Infof("category was not found in vCenter by cached id, invalidating id cache")
-				cache.categories.Delete(id) // if tag not found, invalidate the cache and fallback to the default search method
+				klog.V(3).Infof("category %s: category was not found in vCenter by cached id, invalidating id cache", id)
+				cache.categories.Delete(id) // if category not found, invalidate the cache and fallback to the default search method
 				return t.Manager.GetCategory(ctx, id)
 			}
 			return category, err
@@ -207,11 +206,11 @@ func (t *CachingTagsManager) GetCategory(ctx context.Context, id string) (*tags.
 		return category, nil
 	}
 
-	klog.V(4).Infof("categories cache miss, trying to find category by name, it might take time")
+	klog.V(3).Infof("category %s: categories cache miss, trying to find category by name, it might take time", id)
 	category, err := t.Manager.GetCategory(ctx, id)
 	if err != nil {
 		if isObjectNotFoundErr(err) {
-			klog.V(4).Infof("category %s not found in vCenter, caching", id)
+			klog.V(3).Infof("category %s not found in vCenter, caching", id)
 			// Caching the fact that category was not found due to performance issues with lookup category by name.
 			// In case when object does not exist amount of requests equals the amount of categories should happen,
 			// because of vCenter rest api design.
