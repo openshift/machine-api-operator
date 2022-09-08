@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"testing"
+	"time"
 
 	. "github.com/onsi/gomega"
 
@@ -176,4 +177,171 @@ func TestDrainControllerReconcileRequest(t *testing.T) {
 		expectedConditions := getDrainedConditions("Drained")
 		g.Expect(updatedMachine.Status.Conditions).To(conditions.MatchConditions(expectedConditions))
 	})
+}
+
+func TestIsDrainAllowed(t *testing.T) {
+	cordonedNode := newNode("cordoned", cordoned)
+	workerNode := newNode("worker")
+	masterNode := newNode("master", masterLabel)
+	masterNodeCordoned := newNode("master-cordoned", masterLabel, cordoned)
+	controlPlaneNode := newNode("controlplane", controlPlaneLabel)
+	controlPlaneNodeCordoned := newNode("controlplane", controlPlaneLabel, cordoned)
+
+	testCases := []struct {
+		name          string
+		node          *corev1.Node
+		nodes         []runtime.Object
+		expectedError error
+	}{
+		{
+			name: "With a node that is already cordoned",
+			node: cordonedNode,
+			nodes: []runtime.Object{
+				controlPlaneNode,
+				masterNode,
+				workerNode,
+				cordonedNode,
+			},
+		},
+		{
+			name: "With a node not labelled as a control plane or master",
+			node: workerNode,
+			nodes: []runtime.Object{
+				controlPlaneNode,
+				masterNode,
+				workerNode,
+				cordonedNode,
+			},
+		},
+		{
+			name: "With a cordoned control plane node",
+			node: controlPlaneNodeCordoned,
+			nodes: []runtime.Object{
+				controlPlaneNode,
+				masterNode,
+				workerNode,
+				cordonedNode,
+			},
+		},
+		{
+			name: "With a cordoned master node",
+			node: masterNodeCordoned,
+			nodes: []runtime.Object{
+				controlPlaneNode,
+				masterNode,
+				workerNode,
+				cordonedNode,
+			},
+		},
+		{
+			name: "With a control plane node",
+			node: controlPlaneNode,
+			nodes: []runtime.Object{
+				controlPlaneNode,
+				masterNode,
+				workerNode,
+				cordonedNode,
+			},
+		},
+		{
+			name: "With a master node",
+			node: masterNode,
+			nodes: []runtime.Object{
+				controlPlaneNode,
+				masterNode,
+				workerNode,
+				cordonedNode,
+			},
+		},
+		{
+			name: "With a control plane node and another control plane node is already cordoned",
+			node: controlPlaneNode,
+			nodes: []runtime.Object{
+				controlPlaneNodeCordoned,
+				masterNode,
+				workerNode,
+				cordonedNode,
+			},
+			expectedError: &RequeueAfterError{RequeueAfter: 20 * time.Second},
+		},
+		{
+			name: "With a control plane node and another master node is already cordoned",
+			node: controlPlaneNode,
+			nodes: []runtime.Object{
+				controlPlaneNode,
+				masterNodeCordoned,
+				workerNode,
+				cordonedNode,
+			},
+			expectedError: &RequeueAfterError{RequeueAfter: 20 * time.Second},
+		},
+		{
+			name: "With a master node and another control plane node is already cordoned",
+			node: masterNode,
+			nodes: []runtime.Object{
+				controlPlaneNodeCordoned,
+				masterNode,
+				workerNode,
+				cordonedNode,
+			},
+			expectedError: &RequeueAfterError{RequeueAfter: 20 * time.Second},
+		},
+		{
+			name: "With a master node and another master node is already cordoned",
+			node: masterNode,
+			nodes: []runtime.Object{
+				controlPlaneNode,
+				masterNodeCordoned,
+				workerNode,
+				cordonedNode,
+			},
+			expectedError: &RequeueAfterError{RequeueAfter: 20 * time.Second},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewGomegaWithT(t)
+
+			fakeClient := fake.NewFakeClientWithScheme(scheme.Scheme, tc.nodes...)
+
+			d := &machineDrainController{
+				Client: fakeClient,
+			}
+
+			err := d.isDrainAllowed(ctx, tc.node)
+			if tc.expectedError != nil {
+				g.Expect(err).To(MatchError(tc.expectedError))
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
+			}
+		})
+	}
+}
+
+func newNode(name string, transforms ...func(n *corev1.Node)) *corev1.Node {
+	n := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   name,
+			Labels: make(map[string]string),
+		},
+	}
+
+	for _, transform := range transforms {
+		transform(n)
+	}
+
+	return n
+}
+
+func cordoned(n *corev1.Node) {
+	n.Spec.Unschedulable = true
+}
+
+func controlPlaneLabel(n *corev1.Node) {
+	n.GetLabels()[nodeControlPlaneLabel] = ""
+}
+
+func masterLabel(n *corev1.Node) {
+	n.GetLabels()[nodeMasterLabel] = ""
 }

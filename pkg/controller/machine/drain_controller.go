@@ -25,6 +25,11 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
 )
 
+const (
+	nodeControlPlaneLabel = "node-role.kubernetes.io/control-plane"
+	nodeMasterLabel       = "node-role.kubernetes.io/master"
+)
+
 // DrainController performs pods eviction for deleting node
 type machineDrainController struct {
 	client.Client
@@ -129,6 +134,10 @@ func (d *machineDrainController) drainNode(ctx context.Context, machine *machine
 		return fmt.Errorf("unable to get node %q: %v", machine.Status.NodeRef.Name, err)
 	}
 
+	if err := d.isDrainAllowed(ctx, node); err != nil {
+		return fmt.Errorf("drain not permitted: %w", err)
+	}
+
 	drainer := &drain.Helper{
 		Ctx:                 ctx,
 		Client:              kubeClient,
@@ -181,4 +190,42 @@ func (d *machineDrainController) drainNode(ctx context.Context, machine *machine
 	d.eventRecorder.Eventf(machine, corev1.EventTypeNormal, "Deleted", "Node %q drained", node.Name)
 
 	return nil
+}
+
+// isDrainAllowed checks whether the drain is permitted at this time.
+// It checks the following:
+// - Is the node cordoned, if so allow draining to complete any previous attempt to drain.
+// - Is the node a control plane node, if so, only allow draining if no other control plane node is already being drained.
+func (d *machineDrainController) isDrainAllowed(ctx context.Context, node *corev1.Node) error {
+	if node.Spec.Unschedulable {
+		// If the node has already been cordoned, continue to drain.
+		return nil
+	}
+
+	if !isControlPlaneNode(*node) {
+		// We always allow draining of worker nodes.
+		return nil
+	}
+
+	nodes := &corev1.NodeList{}
+	if err := d.Client.List(ctx, nodes); err != nil {
+		return fmt.Errorf("could not list control plane nodes: %v", err)
+	}
+
+	for _, otherNode := range nodes.Items {
+		if isControlPlaneNode(otherNode) && otherNode.Spec.Unschedulable {
+			klog.Warningf("Drain not permitted for node %q: found other control plane node (%s) already cordoned: other node may be being drained, do not continue until the other node is removed", node.Name, otherNode.Name)
+			return &RequeueAfterError{RequeueAfter: 20 * time.Second}
+		}
+	}
+
+	return nil
+}
+
+// isControlPlaneNode checks if the Node is labelled as a control plane node.
+func isControlPlaneNode(node corev1.Node) bool {
+	_, controlPlane := node.Labels[nodeControlPlaneLabel]
+	_, master := node.Labels[nodeMasterLabel]
+
+	return controlPlane || master
 }
