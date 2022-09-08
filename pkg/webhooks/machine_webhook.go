@@ -1805,7 +1805,9 @@ func validateMachineConfigurations(providerSpec *machinev1.PowerVSMachineProvide
 			errs = append(errs, field.Invalid(parentPath.Child("memoryGiB"), providerSpec.MemoryGiB, fmt.Sprintf("for %s systemtype the maximum supported memory value is %d", providerSpec.SystemType, val.maxMemoryGiB)))
 		}
 
-		if providerSpec.MemoryGiB < val.minMemoryGiB {
+		if providerSpec.MemoryGiB < 0 {
+			errs = append(errs, field.Invalid(parentPath.Child("memoryGiB"), providerSpec.MemoryGiB, "memory value cannot be negative"))
+		} else if providerSpec.MemoryGiB < val.minMemoryGiB {
 			warnings = append(warnings, fmt.Sprintf("providerspec.MemoryGiB %d is less than the minimum value %d", providerSpec.MemoryGiB, val.minMemoryGiB))
 		}
 
@@ -1818,15 +1820,12 @@ func validateMachineConfigurations(providerSpec *machinev1.PowerVSMachineProvide
 				errs = append(errs, field.Invalid(parentPath.Child("processor"), processor, fmt.Sprintf("for %s systemtype the maximum supported processor value is %f", providerSpec.SystemType, val.maxProcessor)))
 			}
 		}
-		// validate minimum processor values depending on ProcessorType
-		if providerSpec.ProcessorType == machinev1.PowerVSProcessorTypeDedicated {
-			if processor < val.minProcessorDedicated {
-				warnings = append(warnings, fmt.Sprintf("providerspec.Processor %f is less than the minimum value %f for providerSpec.ProcessorType: %s", processor, val.minProcessorDedicated, providerSpec.ProcessorType))
-			}
-		} else {
-			if processor < val.minProcessorSharedCapped {
-				warnings = append(warnings, fmt.Sprintf("providerspec.Processor %f is less than the minimum value %f for providerSpec.ProcessorType: %s", processor, val.minProcessorSharedCapped, providerSpec.ProcessorType))
-			}
+		if processor < 0 {
+			errs = append(errs, field.Invalid(parentPath.Child("processor"), processor, "processor value cannot be negative"))
+		} else if providerSpec.ProcessorType == machinev1.PowerVSProcessorTypeDedicated && processor < val.minProcessorDedicated {
+			warnings = append(warnings, fmt.Sprintf("providerspec.Processor %f is less than the minimum value %f for providerSpec.ProcessorType: %s", processor, val.minProcessorDedicated, providerSpec.ProcessorType))
+		} else if processor < val.minProcessorSharedCapped {
+			warnings = append(warnings, fmt.Sprintf("providerspec.Processor %f is less than the minimum value %f for providerSpec.ProcessorType: %s", processor, val.minProcessorSharedCapped, providerSpec.ProcessorType))
 		}
 	}
 	return

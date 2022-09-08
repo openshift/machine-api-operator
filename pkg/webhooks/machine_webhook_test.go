@@ -4168,6 +4168,14 @@ func TestValidatePowerVSProviderSpec(t *testing.T) {
 			expectedWarnings: []string{"providerspec.MemoryGiB 30 is less than the minimum value 32"},
 		},
 		{
+			testCase: "with negative memory value",
+			modifySpec: func(p *machinev1.PowerVSMachineProviderConfig) {
+				p.MemoryGiB = -10
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.memoryGiB: Invalid value: -10: memory value cannot be negative",
+		},
+		{
 			testCase: "with invalid processor value",
 			modifySpec: func(p *machinev1.PowerVSMachineProviderConfig) {
 				p.Processors = intstr.FromString("testProcessor")
@@ -4207,6 +4215,14 @@ func TestValidatePowerVSProviderSpec(t *testing.T) {
 			},
 			expectedOk:       true,
 			expectedWarnings: []string{"providerspec.Processor 0.400000 is less than the minimum value 0.500000 for providerSpec.ProcessorType: Shared"},
+		},
+		{
+			testCase: "with negative processor value",
+			modifySpec: func(p *machinev1.PowerVSMachineProviderConfig) {
+				p.Processors = intstr.FromInt(-2)
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.processor: Invalid value: -2: processor value cannot be negative",
 		},
 		{
 			testCase:      "with all required fields it succeeds",
