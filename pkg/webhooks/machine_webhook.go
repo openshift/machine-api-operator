@@ -935,7 +935,7 @@ func validateAzure(m *machinev1beta1.Machine, config *admissionConfig) (bool, []
 	}
 
 	if providerSpec.PublicIP && config.dnsDisconnected {
-		errs = append(errs, field.Forbidden(field.NewPath("providerSpec", "publicIP"), "publicIP is not allowed in Azure disconnected installation"))
+		errs = append(errs, field.Forbidden(field.NewPath("providerSpec", "publicIP"), "publicIP is not allowed in Azure disconnected installation with publish strategy as internal"))
 	}
 	// Vnet requires Subnet
 	if providerSpec.Vnet != "" && providerSpec.Subnet == "" {
