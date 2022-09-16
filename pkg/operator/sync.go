@@ -74,17 +74,17 @@ func (optr *Operator) syncAll(config *OperatorConfig) (reconcile.Result, error) 
 	errors := []error{}
 	// Sync webhook configuration
 	if err := optr.syncWebhookConfiguration(); err != nil {
-		errors = append(errors, fmt.Errorf("Error syncing machine API webhook configurations: %w", err))
+		errors = append(errors, fmt.Errorf("error syncing machine API webhook configurations: %w", err))
 	}
 
 	if err := optr.syncClusterAPIController(config); err != nil {
-		errors = append(errors, fmt.Errorf("Error syncing machine-api-controller: %w", err))
+		errors = append(errors, fmt.Errorf("error syncing machine-api-controller: %w", err))
 	}
 
 	// Sync Termination Handler DaemonSet if supported
 	if config.Controllers.TerminationHandler != clusterAPIControllerNoOp {
 		if err := optr.syncTerminationHandler(config); err != nil {
-			errors = append(errors, fmt.Errorf("Error syncing termination handler: %w", err))
+			errors = append(errors, fmt.Errorf("error syncing termination handler: %w", err))
 		}
 	}
 
@@ -287,7 +287,7 @@ func (optr *Operator) checkDeploymentRolloutStatus(resource *appsv1.Deployment) 
 	if c.LastTransitionTime.Time.Add(deploymentMinimumAvailabilityTime).After(time.Now()) {
 		klog.V(3).Infof("deployment %s has been available for less than %s", resource.Name, deploymentMinimumAvailabilityTime)
 		// Requeue at the deploymentMinimumAvailabilityTime mark so we don't spam retries
-		nextCheck := c.LastTransitionTime.Time.Add(deploymentMinimumAvailabilityTime).Sub(time.Now())
+		nextCheck := time.Until(c.LastTransitionTime.Time.Add(deploymentMinimumAvailabilityTime))
 		return reconcile.Result{Requeue: true, RequeueAfter: nextCheck}, nil
 	}
 
@@ -357,6 +357,9 @@ func (optr *Operator) checkRunningMachineSetMachines(machineSet machinev1beta1.M
 	machines, err := optr.machineClient.MachineV1beta1().Machines(optr.namespace).List(context.Background(), metav1.ListOptions{
 		LabelSelector: selector.String(),
 	})
+	if err != nil {
+		return 0, []string{}, fmt.Errorf("could not get a list of machines: %w", err)
+	}
 
 	if int32(len(machines.Items)) != replicas {
 		return 0, []string{}, fmt.Errorf("replicas not satisfied for MachineSet: expected %d replicas, got %d current replicas", replicas, len(machines.Items))
@@ -819,7 +822,7 @@ func newTerminationPodTemplateSpec(config *OperatorConfig) *corev1.PodTemplateSp
 				},
 			},
 			Tolerations: []corev1.Toleration{
-				corev1.Toleration{
+				{
 					Operator: corev1.TolerationOpExists,
 					Effect:   corev1.TaintEffectNoSchedule,
 				},

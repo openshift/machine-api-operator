@@ -30,12 +30,7 @@ import (
 )
 
 var (
-	nil1          *machinev1.Condition
-	true1         = TrueCondition("true1")
-	unknown1      = UnknownCondition("unknown1", "reason unknown1", "message unknown1")
-	falseInfo1    = FalseCondition("falseInfo1", "reason falseInfo1", machinev1.ConditionSeverityInfo, "message falseInfo1")
-	falseWarning1 = FalseCondition("falseWarning1", "reason falseWarning1", machinev1.ConditionSeverityWarning, "message falseWarning1")
-	falseError1   = FalseCondition("falseError1", "reason falseError1", machinev1.ConditionSeverityError, "message falseError1")
+	falseInfo1 = FalseCondition("falseInfo1", "reason falseInfo1", machinev1.ConditionSeverityInfo, "message falseInfo1")
 )
 
 func TestGet(t *testing.T) {

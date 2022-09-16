@@ -39,7 +39,9 @@ func TestMain(m *testing.M) {
 	t := &envtest.Environment{
 		CRDDirectoryPaths: []string{filepath.Join("..", "..", "..", "install")},
 	}
-	machinev1.AddToScheme(scheme.Scheme)
+	if err := machinev1.AddToScheme(scheme.Scheme); err != nil {
+		log.Fatalf("cannot add scheme: %v", err)
+	}
 
 	var err error
 	if cfg, err = t.Start(); err != nil {
@@ -47,7 +49,9 @@ func TestMain(m *testing.M) {
 	}
 
 	code := m.Run()
-	t.Stop()
+	if err = t.Stop(); err != nil {
+		log.Fatal(err)
+	}
 	os.Exit(code)
 }
 

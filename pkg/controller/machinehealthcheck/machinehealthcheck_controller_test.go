@@ -3068,9 +3068,7 @@ func assertBaseReconcile(t *testing.T, tc testCase, ctx context.Context, r *Reco
 		},
 	}
 	result, err := r.Reconcile(ctx, request)
-	if &result == nil {
-		t.Errorf("Test case: %s. Expected: non nil result error, got: nil", tc.node.Name)
-	}
+
 	assertEvents(t, tc.name, tc.expectedEvents, recorder.Events)
 	if tc.expected.error != (err != nil) {
 		var errorExpectation string

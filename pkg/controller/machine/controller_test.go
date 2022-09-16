@@ -498,9 +498,12 @@ func TestReconcileRequest(t *testing.T) {
 		t.Run(tc.request.Name, func(t *testing.T) {
 			act := newTestActuator()
 			act.ExistsValue = tc.existsValue
-			machinev1.AddToScheme(scheme.Scheme)
+			if err := machinev1.AddToScheme(scheme.Scheme); err != nil {
+				t.Fatalf("cannot add scheme: %v", err)
+			}
+
 			r := &ReconcileMachine{
-				Client: fake.NewFakeClientWithScheme(scheme.Scheme,
+				Client: fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(
 					&machineNoPhase,
 					&machineProvisioning,
 					&machineProvisioned,
@@ -511,7 +514,7 @@ func TestReconcileRequest(t *testing.T) {
 					&machineFailed,
 					&machineRunning,
 					&machineDeletingAlreadyDrained,
-				),
+				).Build(),
 				scheme:   scheme.Scheme,
 				actuator: act,
 			}
@@ -677,7 +680,7 @@ func TestUpdateStatus(t *testing.T) {
 
 			k8sClient, err := client.New(cfg, client.Options{})
 			g.Expect(err).ToNot(HaveOccurred())
-			machinev1.AddToScheme(scheme.Scheme)
+			g.Expect(machinev1.AddToScheme(scheme.Scheme)).ToNot(HaveOccurred())
 			reconciler := &ReconcileMachine{
 				Client: k8sClient,
 				scheme: scheme.Scheme,
@@ -701,7 +704,11 @@ func TestUpdateStatus(t *testing.T) {
 			}
 
 			g.Expect(k8sClient.Create(ctx, machine)).To(Succeed())
-			defer k8sClient.Delete(ctx, machine)
+			defer func() {
+				if err := k8sClient.Delete(ctx, machine); err != nil {
+					t.Fatalf("error deleting machine: %v", err)
+				}
+			}()
 
 			if tc.existingProviderStatus != "" {
 				machine.Status.ProviderStatus = &runtime.RawExtension{

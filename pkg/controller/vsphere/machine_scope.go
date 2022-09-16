@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	machinev1 "github.com/openshift/api/machine/v1beta1"
-	machineapierros "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
 	apicorev1 "k8s.io/api/core/v1"
@@ -59,12 +58,12 @@ func newMachineScope(params machineScopeParams) (*machineScope, error) {
 
 	providerSpec, err := ProviderSpecFromRawExtension(params.machine.Spec.ProviderSpec.Value)
 	if err != nil {
-		return nil, machineapierros.InvalidMachineConfiguration("failed to get machine config: %v", err)
+		return nil, machinecontroller.InvalidMachineConfiguration("failed to get machine config: %v", err)
 	}
 
 	providerStatus, err := ProviderStatusFromRawExtension(params.machine.Status.ProviderStatus)
 	if err != nil {
-		return nil, machineapierros.InvalidMachineConfiguration("failed to get machine provider status: %v", err.Error())
+		return nil, machinecontroller.InvalidMachineConfiguration("failed to get machine provider status: %v", err.Error())
 	}
 
 	user, password, err := getCredentialsSecret(params.client, params.machine.GetNamespace(), *providerSpec)
@@ -102,7 +101,7 @@ func (s *machineScope) PatchMachine() error {
 
 	providerStatus, err := RawExtensionFromProviderStatus(s.providerStatus)
 	if err != nil {
-		return machineapierros.InvalidMachineConfiguration("failed to get machine provider status: %v", err.Error())
+		return machinecontroller.InvalidMachineConfiguration("failed to get machine provider status: %v", err.Error())
 	}
 	s.machine.Status.ProviderStatus = providerStatus
 
@@ -224,7 +223,7 @@ func getCredentialsSecret(client runtimeclient.Client, namespace string, spec ma
 		&credentialsSecret); err != nil {
 
 		if apimachineryerrors.IsNotFound(err) {
-			return "", "", machineapierros.InvalidMachineConfiguration("credentials secret %v/%v not found: %v", namespace, spec.CredentialsSecret.Name, err.Error())
+			return "", "", machinecontroller.InvalidMachineConfiguration("credentials secret %v/%v not found: %v", namespace, spec.CredentialsSecret.Name, err.Error())
 		}
 		return "", "", fmt.Errorf("error getting credentials secret %v/%v: %v", namespace, spec.CredentialsSecret.Name, err)
 	}
@@ -239,12 +238,12 @@ func getCredentialsSecret(client runtimeclient.Client, namespace string, spec ma
 
 	user, exists := credentialsSecret.Data[credentialsSecretUser]
 	if !exists {
-		return "", "", machineapierros.InvalidMachineConfiguration("secret %v/%v does not have %q field set", namespace, spec.CredentialsSecret.Name, credentialsSecretUser)
+		return "", "", machinecontroller.InvalidMachineConfiguration("secret %v/%v does not have %q field set", namespace, spec.CredentialsSecret.Name, credentialsSecretUser)
 	}
 
 	password, exists := credentialsSecret.Data[credentialsSecretPassword]
 	if !exists {
-		return "", "", machineapierros.InvalidMachineConfiguration("secret %v/%v does not have %q field set", namespace, spec.CredentialsSecret.Name, credentialsSecretPassword)
+		return "", "", machinecontroller.InvalidMachineConfiguration("secret %v/%v does not have %q field set", namespace, spec.CredentialsSecret.Name, credentialsSecretPassword)
 	}
 
 	return string(user), string(password), nil

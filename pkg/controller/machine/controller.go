@@ -355,7 +355,7 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 			"Instance not found on provider",
 		))
 
-		if err := r.updateStatus(ctx, m, phaseFailed, errors.New("Can't find created instance."), originalConditions); err != nil {
+		if err := r.updateStatus(ctx, m, phaseFailed, errors.New("can't find created instance"), originalConditions); err != nil {
 			return reconcile.Result{}, err
 		}
 		return reconcile.Result{}, nil

@@ -33,7 +33,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/printer"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
 )
 
 func init() {
@@ -49,12 +48,10 @@ const (
 )
 
 var (
-	cfg        *rest.Config
-	k8sClient  client.Client
-	testEnv    *envtest.Environment
-	mgr        manager.Manager
-	ctx        = context.Background()
-	reconciler *ReconcileMachineSet
+	cfg       *rest.Config
+	k8sClient client.Client
+	testEnv   *envtest.Environment
+	ctx       = context.Background()
 )
 
 func TestMachinesetController(t *testing.T) {

@@ -188,7 +188,7 @@ func TestFindMachineFromNodeByProviderID(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		r := newFakeReconciler(fake.NewFakeClientWithScheme(scheme.Scheme, tc.machine), tc.machine, tc.node)
+		r := newFakeReconciler(fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(tc.machine).Build(), tc.machine, tc.node)
 
 		machine, err := r.findMachineFromNodeByProviderID(tc.node)
 		if err != nil {
@@ -249,7 +249,7 @@ func TestFindMachineFromNodeByIP(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		r := newFakeReconciler(fake.NewFakeClientWithScheme(scheme.Scheme, tc.machine), tc.machine, tc.node)
+		r := newFakeReconciler(fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(tc.machine).Build(), tc.machine, tc.node)
 		machine, err := r.findMachineFromNodeByIP(tc.node)
 		if err != nil {
 			t.Errorf("unexpected error finding machine from node by IP: %v", err)
@@ -284,7 +284,7 @@ func TestFindNodeFromMachineByProviderID(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		r := newFakeReconciler(fake.NewFakeClientWithScheme(scheme.Scheme, tc.node), tc.machine, tc.node)
+		r := newFakeReconciler(fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(tc.node).Build(), tc.machine, tc.node)
 
 		node, err := r.findNodeFromMachineByProviderID(tc.machine)
 		if err != nil {
@@ -350,7 +350,7 @@ func TestFindNodeFromMachineByIP(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		r := newFakeReconciler(fake.NewFakeClientWithScheme(scheme.Scheme, tc.node), tc.machine, tc.node)
+		r := newFakeReconciler(fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(tc.node).Build(), tc.machine, tc.node)
 		node, err := r.findNodeFromMachineByIP(tc.machine)
 		if err != nil {
 			t.Errorf("unexpected error finding node from machine by IP: %v", err)
@@ -479,7 +479,7 @@ func TestNodeRequestFromMachine(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		r := newFakeReconciler(fake.NewFakeClientWithScheme(scheme.Scheme, tc.machine), tc.machine, tc.node)
+		r := newFakeReconciler(fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(tc.machine).Build(), tc.machine, tc.node)
 		got := r.nodeRequestFromMachine(tc.machine)
 		if !reflect.DeepEqual(got, tc.expected) {
 			t.Errorf("expected: %v, got: %v", tc.expected, got)
@@ -526,7 +526,7 @@ func TestReconcile(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		r := newFakeReconciler(fake.NewFakeClientWithScheme(scheme.Scheme, tc.node, tc.machine), tc.machine, tc.node)
+		r := newFakeReconciler(fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(tc.node, tc.machine).Build(), tc.machine, tc.node)
 		request := reconcile.Request{
 			NamespacedName: client.ObjectKey{
 				Namespace: metav1.NamespaceNone,
@@ -762,7 +762,7 @@ func TestUpdateNodeRef(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		r := newFakeReconciler(fake.NewFakeClientWithScheme(scheme.Scheme, tc.machine), tc.machine, tc.node)
+		r := newFakeReconciler(fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(tc.machine).Build(), tc.machine, tc.node)
 		if tc.node.GetName() == "deleting" {
 			now := metav1.Now()
 			tc.node.DeletionTimestamp = &now
@@ -809,7 +809,7 @@ func TestFindMachineFromNodeDoesNotPanicBZ1747246(t *testing.T) {
 	// dereference when formatting the error message. This test is
 	// to ensure we don't regress having fixed it by deliberately
 	// failing in listMachinesByFieldFunc().
-	r := newFakeReconciler(fake.NewFakeClientWithScheme(scheme.Scheme, testMachine, testNode), testMachine, testNode)
+	r := newFakeReconciler(fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(testMachine, testNode).Build(), testMachine, testNode)
 
 	// Intercept to force a known failure.
 	errmsg := "BZ#1747246"

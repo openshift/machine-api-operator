@@ -15,7 +15,6 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
 	"github.com/openshift/machine-api-operator/pkg/util/external"
 	corev1 "k8s.io/api/core/v1"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	apimachineryerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -312,7 +311,7 @@ func (r *ReconcileMachineHealthCheck) cleanEMR(ctx context.Context, currentHealt
 		// Get remediation request object
 		obj, err := r.getExternalRemediationRequest(ctx, m, t.Machine.Name)
 		if err != nil {
-			if !apierrors.IsNotFound(err) {
+			if !apimachineryerrors.IsNotFound(err) {
 				klog.Errorf("failed to fetch remediation request for machine %q in namespace %q: %v", t.Machine.Name, t.Machine.Namespace, err)
 			}
 			continue
@@ -321,7 +320,7 @@ func (r *ReconcileMachineHealthCheck) cleanEMR(ctx context.Context, currentHealt
 		if obj.GetDeletionTimestamp() == nil {
 			klog.V(3).Infof("Target has passed health check, deleting the external remediation request", "remediation request name", obj.GetName(), "target", t.string())
 			// Issue a delete for remediation request.
-			if err := r.client.Delete(ctx, obj); err != nil && !apierrors.IsNotFound(err) {
+			if err := r.client.Delete(ctx, obj); err != nil && !apimachineryerrors.IsNotFound(err) {
 				klog.Errorf("failed to delete %v %q for Machine %q: %v", obj.GroupVersionKind(), obj.GetName(), t.Machine.Name, err)
 			}
 		}
@@ -394,7 +393,7 @@ func (r *ReconcileMachineHealthCheck) getExternalRemediationRequest(ctx context.
 // for the machine.
 func (r *ReconcileMachineHealthCheck) externalRemediationRequestExists(ctx context.Context, m *machinev1.MachineHealthCheck, machineName string) (bool, error) {
 	remediationReq, err := r.getExternalRemediationRequest(ctx, m, machineName)
-	if err != nil && !apierrors.IsNotFound(err) {
+	if err != nil && !apimachineryerrors.IsNotFound(err) {
 		return false, err
 	}
 	return remediationReq != nil, nil

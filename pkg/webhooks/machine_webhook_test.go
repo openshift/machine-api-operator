@@ -2167,7 +2167,7 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			Namespace: namespace.Name,
 		},
 	}
-	c := fake.NewFakeClientWithScheme(scheme.Scheme, secret)
+	c := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(secret).Build()
 
 	infra := plainInfra.DeepCopy()
 	infra.Status.InfrastructureName = "clusterID"
@@ -2648,7 +2648,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 					Namespace: namespace.Name,
 				},
 			}
-			c := fake.NewFakeClientWithScheme(scheme.Scheme, secret)
+			c := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(secret).Build()
 			infra := plainInfra.DeepCopy()
 			infra.Status.InfrastructureName = "clusterID"
 			infra.Status.PlatformStatus.Type = osconfigv1.AzurePlatformType
@@ -3217,7 +3217,7 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 			Namespace: namespace.Name,
 		},
 	}
-	c := fake.NewFakeClientWithScheme(scheme.Scheme, secret)
+	c := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(secret).Build()
 	infra := plainInfra.DeepCopy()
 	infra.Status.InfrastructureName = "clusterID"
 	infra.Status.PlatformStatus.Type = osconfigv1.GCPPlatformType
@@ -3660,7 +3660,7 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 			Namespace: namespace.Name,
 		},
 	}
-	c := fake.NewFakeClientWithScheme(scheme.Scheme, secret)
+	c := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(secret).Build()
 	infra := plainInfra.DeepCopy()
 	infra.Status.InfrastructureName = "clusterID"
 	infra.Status.PlatformStatus.Type = osconfigv1.VSpherePlatformType
@@ -3891,7 +3891,7 @@ func TestUpdateFinalizer(t *testing.T) {
 			Namespace: namespace.Name,
 		},
 	}
-	c := fake.NewFakeClientWithScheme(scheme.Scheme, secret)
+	c := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(secret).Build()
 
 	infra := plainInfra.DeepCopy()
 	infra.Status.InfrastructureName = "clusterID"
@@ -4321,7 +4321,7 @@ func TestValidatePowerVSProviderSpec(t *testing.T) {
 			Namespace: namespace.Name,
 		},
 	}
-	c := fake.NewFakeClientWithScheme(scheme.Scheme, secret)
+	c := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(secret).Build()
 	infra := plainInfra.DeepCopy()
 	infra.Status.InfrastructureName = "clusterID"
 	infra.Status.PlatformStatus.Type = osconfigv1.PowerVSPlatformType
@@ -4582,7 +4582,7 @@ func TestValidateNutanixProviderSpec(t *testing.T) {
 			Namespace: namespace.Name,
 		},
 	}
-	c := fake.NewFakeClientWithScheme(scheme.Scheme, secret)
+	c := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(secret).Build()
 	infra := plainInfra.DeepCopy()
 	infra.Status.InfrastructureName = "clusterID"
 	infra.Status.PlatformStatus.Type = osconfigv1.NutanixPlatformType

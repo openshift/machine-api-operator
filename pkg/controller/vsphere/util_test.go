@@ -50,8 +50,10 @@ func TestGetVSphereConfig(t *testing.T) {
 		},
 	}
 
-	configv1.AddToScheme(scheme.Scheme)
-	client := fake.NewFakeClientWithScheme(scheme.Scheme, infra, configMap)
+	if err := configv1.AddToScheme(scheme.Scheme); err != nil {
+		t.Fatalf("cannot add scheme: %v", err)
+	}
+	client := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(infra, configMap).Build()
 
 	vSphereConfig, err := getVSphereConfig(client)
 	if err != nil {

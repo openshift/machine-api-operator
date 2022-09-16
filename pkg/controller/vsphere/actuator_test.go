@@ -13,7 +13,6 @@ import (
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/vmware/govmomi/simulator"
 	corev1 "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -24,8 +23,13 @@ import (
 
 func init() {
 	// Add types to scheme
-	machinev1.AddToScheme(scheme.Scheme)
-	configv1.AddToScheme(scheme.Scheme)
+	if err := machinev1.AddToScheme(scheme.Scheme); err != nil {
+		panic(err)
+	}
+
+	if err := configv1.AddToScheme(scheme.Scheme); err != nil {
+		panic(err)
+	}
 }
 
 func TestMachineEvents(t *testing.T) {
@@ -166,79 +170,82 @@ func TestMachineEvents(t *testing.T) {
 		g.Expect(k8sClient.Delete(context.Background(), userDataSecret)).To(Succeed())
 	}()
 
-	createTagAndCategory(session, tagToCategoryName("CLUSTERID"), "CLUSTERID")
+	g.Expect(createTagAndCategory(session, tagToCategoryName("CLUSTERID"), "CLUSTERID")).To(Succeed())
 
 	ctx := context.Background()
 
 	cases := []struct {
 		name      string
 		error     string
-		operation func(actuator *Actuator, machine *machinev1.Machine)
+		operation func(actuator *Actuator, machine *machinev1.Machine) error
 		event     string
 	}{
 		{
 			name: "Create machine event failed on invalid machine scope",
-			operation: func(actuator *Actuator, machine *machinev1.Machine) {
-				actuator.Create(nil, machine)
+			operation: func(actuator *Actuator, machine *machinev1.Machine) error {
+				return actuator.Create(ctx, machine)
 			},
 			event: "test: failed to create scope for machine: test: machine scope require a context",
 		},
 		{
 			name: "Create machine event failed, reconciler's create failed",
-			operation: func(actuator *Actuator, machine *machinev1.Machine) {
+			operation: func(actuator *Actuator, machine *machinev1.Machine) error {
 				machine.Labels[machinev1.MachineClusterIDLabel] = ""
-				actuator.Create(ctx, machine)
+				return actuator.Create(ctx, machine)
 			},
 			event: "test: reconciler failed to Create machine: test: failed validating machine provider spec: test: missing \"machine.openshift.io/cluster-api-cluster\" label",
 		},
 		{
 			name: "Create machine event succeed",
-			operation: func(actuator *Actuator, machine *machinev1.Machine) {
-				actuator.Create(ctx, machine)
+			operation: func(actuator *Actuator, machine *machinev1.Machine) error {
+				return actuator.Create(ctx, machine)
 			},
 			event: "Created Machine test",
 		},
 		{
 			name: "Update machine event failed on invalid machine scope",
-			operation: func(actuator *Actuator, machine *machinev1.Machine) {
-				actuator.Update(nil, machine)
+			operation: func(actuator *Actuator, machine *machinev1.Machine) error {
+				return actuator.Update(ctx, machine)
 			},
 			event: "test: failed to create scope for machine: test: machine scope require a context",
 		},
 		{
 			name: "Update machine event failed, reconciler's update failed",
-			operation: func(actuator *Actuator, machine *machinev1.Machine) {
+			operation: func(actuator *Actuator, machine *machinev1.Machine) error {
 				machine.Labels[machinev1.MachineClusterIDLabel] = ""
-				actuator.Update(ctx, machine)
+				return actuator.Update(ctx, machine)
 			},
 			event: "test: reconciler failed to Update machine: test: failed validating machine provider spec: test: missing \"machine.openshift.io/cluster-api-cluster\" label",
 		},
 		{
 			name: "Update machine event succeed and only one event is created",
-			operation: func(actuator *Actuator, machine *machinev1.Machine) {
-				actuator.Update(ctx, machine)
-				actuator.Update(ctx, machine)
+			operation: func(actuator *Actuator, machine *machinev1.Machine) error {
+				err := actuator.Update(ctx, machine)
+				if err != nil {
+					return err
+				}
+				return actuator.Update(ctx, machine)
 			},
 			event: "Updated Machine test",
 		},
 		{
 			name: "Delete machine event failed on invalid machine scope",
-			operation: func(actuator *Actuator, machine *machinev1.Machine) {
-				actuator.Delete(nil, machine)
+			operation: func(actuator *Actuator, machine *machinev1.Machine) error {
+				return actuator.Delete(ctx, machine)
 			},
 			event: "test: failed to create scope for machine: test: machine scope require a context",
 		},
 		{
 			name: "Delete machine event failed, reconciler's delete failed",
-			operation: func(actuator *Actuator, machine *machinev1.Machine) {
-				actuator.Delete(ctx, machine)
+			operation: func(actuator *Actuator, machine *machinev1.Machine) error {
+				return actuator.Delete(ctx, machine)
 			},
 			event: "test: reconciler failed to Delete machine: destroying vm in progress, requeuing",
 		},
 		{
 			name: "Delete machine event succeed",
-			operation: func(actuator *Actuator, machine *machinev1.Machine) {
-				actuator.Delete(ctx, machine)
+			operation: func(actuator *Actuator, machine *machinev1.Machine) error {
+				return actuator.Delete(ctx, machine)
 			},
 			event: "Deleted machine test",
 		},
@@ -278,7 +285,7 @@ func TestMachineEvents(t *testing.T) {
 					},
 				},
 				Status: machinev1.MachineStatus{
-					NodeRef: &v1.ObjectReference{
+					NodeRef: &corev1.ObjectReference{
 						Name: "test",
 					},
 				},
@@ -297,7 +304,7 @@ func TestMachineEvents(t *testing.T) {
 			}
 			gs.Eventually(getMachine, timeout).Should(Succeed())
 
-			node := &v1.Node{
+			node := &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "test",
 					Namespace: "test",
@@ -305,9 +312,9 @@ func TestMachineEvents(t *testing.T) {
 						machinev1.MachineClusterIDLabel: "CLUSTERID",
 					},
 				},
-				Spec: v1.NodeSpec{},
-				Status: v1.NodeStatus{
-					VolumesAttached: []v1.AttachedVolume{},
+				Spec: corev1.NodeSpec{},
+				Status: corev1.NodeStatus{
+					VolumesAttached: []corev1.AttachedVolume{},
 				},
 			}
 
@@ -320,7 +327,7 @@ func TestMachineEvents(t *testing.T) {
 			// Ensure the node has synced to the cache
 			getNode := func() error {
 				nodeKey := types.NamespacedName{Name: node.Name}
-				return k8sClient.Get(ctx, nodeKey, &v1.Node{})
+				return k8sClient.Get(ctx, nodeKey, &corev1.Node{})
 			}
 			gs.Eventually(getNode, timeout).Should(Succeed())
 
@@ -333,9 +340,9 @@ func TestMachineEvents(t *testing.T) {
 			}
 
 			actuator := NewActuator(params)
-			tc.operation(actuator, machine)
+			gs.Expect(tc.operation(actuator, machine)).To(Succeed())
 
-			eventList := &v1.EventList{}
+			eventList := &corev1.EventList{}
 			waitForEvent := func() error {
 				err := k8sClient.List(ctx, eventList, client.InNamespace(machine.Namespace))
 				if err != nil {

@@ -105,13 +105,13 @@ func TestGetTag(t *testing.T) {
 
 			cleanupTagsAndCategories(ctx, m, g)
 
-			tag, err = m.GetTag(ctx, "fizz")
+			_, err = m.GetTag(ctx, "fizz")
 			// Cache should be invalidated and not found err returned
 			g.Expect(err.Error()).To(ContainSubstring("404 Not Found"))
-			cachedTagId, found = getOrCreateSessionCache(sessionObj.sessionKey).tags.Get("fizz")
+			_, found = getOrCreateSessionCache(sessionObj.sessionKey).tags.Get("fizz")
 			g.Expect(found).To(BeFalse())
 
-			tag, err = m.GetTag(ctx, "fizz")
+			_, err = m.GetTag(ctx, "fizz")
 			// Not found value should be landed to the cache after next call
 			g.Expect(err.Error()).To(ContainSubstring("404 Not Found"))
 			cachedTagId, found = getOrCreateSessionCache(sessionObj.sessionKey).tags.Get("fizz")
@@ -201,13 +201,13 @@ func TestGetCategory(t *testing.T) {
 
 			cleanupTagsAndCategories(ctx, m, g)
 
-			cat, err = m.GetCategory(ctx, "fizz")
+			_, err = m.GetCategory(ctx, "fizz")
 			// Cache should be invalidated and not found err returned
 			g.Expect(err.Error()).To(ContainSubstring("404 Not Found"))
-			cachedCatId, found = getOrCreateSessionCache(sessionObj.sessionKey).categories.Get("fizz")
+			_, found = getOrCreateSessionCache(sessionObj.sessionKey).categories.Get("fizz")
 			g.Expect(found).To(BeFalse())
 
-			cat, err = m.GetCategory(ctx, "fizz")
+			_, err = m.GetCategory(ctx, "fizz")
 			// Not found value should be landed to the cache after next call
 			g.Expect(err.Error()).To(ContainSubstring("404 Not Found"))
 			cachedCatId, found = getOrCreateSessionCache(sessionObj.sessionKey).categories.Get("fizz")
