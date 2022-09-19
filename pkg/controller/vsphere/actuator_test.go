@@ -14,6 +14,7 @@ import (
 	"github.com/vmware/govmomi/simulator"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -176,16 +177,24 @@ func TestMachineEvents(t *testing.T) {
 
 	cases := []struct {
 		name      string
-		error     string
+		errorMsg  string
 		operation func(actuator *Actuator, machine *machinev1.Machine) error
 		event     string
 	}{
 		{
 			name: "Create machine event failed on invalid machine scope",
 			operation: func(actuator *Actuator, machine *machinev1.Machine) error {
-				return actuator.Create(ctx, machine)
+				machine.Spec = machinev1.MachineSpec{
+					ProviderSpec: machinev1.ProviderSpec{
+						Value: &runtime.RawExtension{
+							Raw: []byte{'1'},
+						},
+					},
+				}
+				return actuator.Create(nil, machine) //nolint:staticcheck
 			},
-			event: "test: failed to create scope for machine: test: machine scope require a context",
+			errorMsg: "test: failed to create scope for machine: test: machine scope require a context",
+			event:    "test: failed to create scope for machine: test: machine scope require a context",
 		},
 		{
 			name: "Create machine event failed, reconciler's create failed",
@@ -193,7 +202,8 @@ func TestMachineEvents(t *testing.T) {
 				machine.Labels[machinev1.MachineClusterIDLabel] = ""
 				return actuator.Create(ctx, machine)
 			},
-			event: "test: reconciler failed to Create machine: test: failed validating machine provider spec: test: missing \"machine.openshift.io/cluster-api-cluster\" label",
+			errorMsg: "test: reconciler failed to Create machine: test: failed validating machine provider spec: test: missing \"machine.openshift.io/cluster-api-cluster\" label",
+			event:    "test: reconciler failed to Create machine: test: failed validating machine provider spec: test: missing \"machine.openshift.io/cluster-api-cluster\" label",
 		},
 		{
 			name: "Create machine event succeed",
@@ -205,9 +215,10 @@ func TestMachineEvents(t *testing.T) {
 		{
 			name: "Update machine event failed on invalid machine scope",
 			operation: func(actuator *Actuator, machine *machinev1.Machine) error {
-				return actuator.Update(ctx, machine)
+				return actuator.Update(nil, machine) //nolint:staticcheck
 			},
-			event: "test: failed to create scope for machine: test: machine scope require a context",
+			errorMsg: "test: failed to create scope for machine: test: machine scope require a context",
+			event:    "test: failed to create scope for machine: test: machine scope require a context",
 		},
 		{
 			name: "Update machine event failed, reconciler's update failed",
@@ -215,7 +226,8 @@ func TestMachineEvents(t *testing.T) {
 				machine.Labels[machinev1.MachineClusterIDLabel] = ""
 				return actuator.Update(ctx, machine)
 			},
-			event: "test: reconciler failed to Update machine: test: failed validating machine provider spec: test: missing \"machine.openshift.io/cluster-api-cluster\" label",
+			errorMsg: "test: reconciler failed to Update machine: test: failed validating machine provider spec: test: missing \"machine.openshift.io/cluster-api-cluster\" label",
+			event:    "test: reconciler failed to Update machine: test: failed validating machine provider spec: test: missing \"machine.openshift.io/cluster-api-cluster\" label",
 		},
 		{
 			name: "Update machine event succeed and only one event is created",
@@ -231,16 +243,18 @@ func TestMachineEvents(t *testing.T) {
 		{
 			name: "Delete machine event failed on invalid machine scope",
 			operation: func(actuator *Actuator, machine *machinev1.Machine) error {
-				return actuator.Delete(ctx, machine)
+				return actuator.Delete(nil, machine) //nolint:staticcheck
 			},
-			event: "test: failed to create scope for machine: test: machine scope require a context",
+			errorMsg: "test: failed to create scope for machine: test: machine scope require a context",
+			event:    "test: failed to create scope for machine: test: machine scope require a context",
 		},
 		{
 			name: "Delete machine event failed, reconciler's delete failed",
 			operation: func(actuator *Actuator, machine *machinev1.Machine) error {
 				return actuator.Delete(ctx, machine)
 			},
-			event: "test: reconciler failed to Delete machine: destroying vm in progress, requeuing",
+			errorMsg: "test: reconciler failed to Delete machine: destroying vm in progress, requeuing",
+			event:    "test: reconciler failed to Delete machine: destroying vm in progress, requeuing",
 		},
 		{
 			name: "Delete machine event succeed",
@@ -293,8 +307,16 @@ func TestMachineEvents(t *testing.T) {
 
 			// Create the machine
 			gs.Expect(k8sClient.Create(ctx, machine)).To(Succeed())
+
+			// Make sure the machine and its event are deleted when the test ends
 			defer func() {
-				gs.Expect(k8sClient.Delete(ctx, machine)).To(Succeed())
+				gs.Expect(k8sClient.Delete(context.Background(), machine)).To(Succeed())
+
+				eventList := &corev1.EventList{}
+				gs.Expect(k8sClient.List(context.Background(), eventList, client.InNamespace(machine.Namespace))).To(Succeed())
+				for i := range eventList.Items {
+					gs.Expect(k8sClient.Delete(context.Background(), &eventList.Items[i])).To(Succeed())
+				}
 			}()
 
 			// Ensure the machine has synced to the cache
@@ -340,7 +362,13 @@ func TestMachineEvents(t *testing.T) {
 			}
 
 			actuator := NewActuator(params)
-			gs.Expect(tc.operation(actuator, machine)).To(Succeed())
+
+			err = tc.operation(actuator, machine)
+			if tc.errorMsg == "" {
+				gs.Expect(err).ToNot(HaveOccurred())
+			} else {
+				gs.Expect(err.Error()).To(Equal(tc.errorMsg))
+			}
 
 			eventList := &corev1.EventList{}
 			waitForEvent := func() error {
@@ -362,10 +390,6 @@ func TestMachineEvents(t *testing.T) {
 			gs.Eventually(waitForEvent, timeout).Should(Succeed())
 
 			gs.Expect(eventList.Items[0].Message).To(Equal(tc.event))
-
-			for i := range eventList.Items {
-				gs.Expect(k8sClient.Delete(ctx, &eventList.Items[i])).To(Succeed())
-			}
 		})
 	}
 }

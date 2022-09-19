@@ -250,12 +250,12 @@ func TestAdoptOrphan(t *testing.T) {
 		t.Fatalf("cannot add scheme: %v", err)
 	}
 
-	r := &ReconcileMachineSet{
-		Client: fake.NewClientBuilder().WithRuntimeObjects(&m).Build(),
-		scheme: scheme.Scheme,
-	}
-	
 	for _, tc := range testCases {
+		r := &ReconcileMachineSet{
+			Client: fake.NewClientBuilder().WithRuntimeObjects(&tc.machineSet, &tc.machine).Build(),
+			scheme: scheme.Scheme,
+		}
+
 		if err := r.adoptOrphan(&tc.machineSet, &tc.machine); err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
