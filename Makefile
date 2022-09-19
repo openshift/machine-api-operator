@@ -4,6 +4,7 @@ VERSION     ?= $(shell git describe --always --abbrev=7)
 MUTABLE_TAG ?= latest
 IMAGE        = $(REGISTRY)machine-api-operator
 BUILD_IMAGE ?= registry.ci.openshift.org/openshift/release:golang-1.18
+GOLANGCI_LINT = go run ./vendor/github.com/golangci/golangci-lint/cmd/golangci-lint
 
 # Enable go modules and vendoring
 # https://github.com/golang/go/wiki/Modules#how-to-install-and-activate-module-support
@@ -115,8 +116,8 @@ push: ## Push image to docker registry
 	$(ENGINE) push "$(IMAGE):$(MUTABLE_TAG)"
 
 .PHONY: lint
-lint: ## Go lint your code
-	 $(DOCKER_CMD) hack/go-lint.sh -min_confidence 0.3 $(go list -f '{{ .ImportPath }}' ./...)
+lint: ## Run golangci-lint over the codebase.
+	 $(call ensure-home, ${GOLANGCI_LINT} run ./pkg/... --timeout=10m)
 
 .PHONY: fmt
 fmt: ## Update and show diff for import lines
@@ -128,7 +129,7 @@ goimports: ## Go fmt your code
 
 .PHONY: vet
 vet: ## Apply go vet to all go files
-	$(DOCKER_CMD) hack/go-vet.sh ./...
+	$(DOCKER_CMD) hack/go-vet.sh ./pkg/... ./cmd/...
 
 .PHONY: crds-sync
 crds-sync: ## Sync crds in install with the ones in the vendored oc/api
@@ -141,3 +142,11 @@ verify-crds-sync: ## Verify that the crds in install and the ones in vendored oc
 .PHONY: help
 help:
 	@grep -E '^[a-zA-Z0-9_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
+
+define ensure-home
+	@ export HOME=$${HOME:=/tmp/kubebuilder-testing}; \
+	if [ $${HOME} == "/" ]; then \
+	  export HOME=/tmp/kubebuilder-testing; \
+	fi; \
+	$(1)
+endef
