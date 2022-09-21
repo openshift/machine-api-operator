@@ -4,8 +4,11 @@ package fake
 
 import (
 	"context"
+	json "encoding/json"
+	"fmt"
 
 	v1beta1 "github.com/openshift/api/machine/v1beta1"
+	machinev1beta1 "github.com/openshift/client-go/machine/applyconfigurations/machine/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -118,6 +121,51 @@ func (c *FakeMachineHealthChecks) DeleteCollection(ctx context.Context, opts v1.
 func (c *FakeMachineHealthChecks) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.MachineHealthCheck, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(machinehealthchecksResource, c.ns, name, pt, data, subresources...), &v1beta1.MachineHealthCheck{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1beta1.MachineHealthCheck), err
+}
+
+// Apply takes the given apply declarative configuration, applies it and returns the applied machineHealthCheck.
+func (c *FakeMachineHealthChecks) Apply(ctx context.Context, machineHealthCheck *machinev1beta1.MachineHealthCheckApplyConfiguration, opts v1.ApplyOptions) (result *v1beta1.MachineHealthCheck, err error) {
+	if machineHealthCheck == nil {
+		return nil, fmt.Errorf("machineHealthCheck provided to Apply must not be nil")
+	}
+	data, err := json.Marshal(machineHealthCheck)
+	if err != nil {
+		return nil, err
+	}
+	name := machineHealthCheck.Name
+	if name == nil {
+		return nil, fmt.Errorf("machineHealthCheck.Name must be provided to Apply")
+	}
+	obj, err := c.Fake.
+		Invokes(testing.NewPatchSubresourceAction(machinehealthchecksResource, c.ns, *name, types.ApplyPatchType, data), &v1beta1.MachineHealthCheck{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1beta1.MachineHealthCheck), err
+}
+
+// ApplyStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
+func (c *FakeMachineHealthChecks) ApplyStatus(ctx context.Context, machineHealthCheck *machinev1beta1.MachineHealthCheckApplyConfiguration, opts v1.ApplyOptions) (result *v1beta1.MachineHealthCheck, err error) {
+	if machineHealthCheck == nil {
+		return nil, fmt.Errorf("machineHealthCheck provided to Apply must not be nil")
+	}
+	data, err := json.Marshal(machineHealthCheck)
+	if err != nil {
+		return nil, err
+	}
+	name := machineHealthCheck.Name
+	if name == nil {
+		return nil, fmt.Errorf("machineHealthCheck.Name must be provided to Apply")
+	}
+	obj, err := c.Fake.
+		Invokes(testing.NewPatchSubresourceAction(machinehealthchecksResource, c.ns, *name, types.ApplyPatchType, data, "status"), &v1beta1.MachineHealthCheck{})
 
 	if obj == nil {
 		return nil, err

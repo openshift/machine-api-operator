@@ -3,12 +3,17 @@
 package fake
 
 import (
+	v1 "github.com/openshift/client-go/machine/clientset/versioned/typed/machine/v1"
 	rest "k8s.io/client-go/rest"
 	testing "k8s.io/client-go/testing"
 )
 
 type FakeMachineV1 struct {
 	*testing.Fake
+}
+
+func (c *FakeMachineV1) ControlPlaneMachineSets(namespace string) v1.ControlPlaneMachineSetInterface {
+	return &FakeControlPlaneMachineSets{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

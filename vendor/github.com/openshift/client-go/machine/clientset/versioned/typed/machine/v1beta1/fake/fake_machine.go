@@ -4,8 +4,11 @@ package fake
 
 import (
 	"context"
+	json "encoding/json"
+	"fmt"
 
 	v1beta1 "github.com/openshift/api/machine/v1beta1"
+	machinev1beta1 "github.com/openshift/client-go/machine/applyconfigurations/machine/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
 	schema "k8s.io/apimachinery/pkg/runtime/schema"
@@ -118,6 +121,51 @@ func (c *FakeMachines) DeleteCollection(ctx context.Context, opts v1.DeleteOptio
 func (c *FakeMachines) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts v1.PatchOptions, subresources ...string) (result *v1beta1.Machine, err error) {
 	obj, err := c.Fake.
 		Invokes(testing.NewPatchSubresourceAction(machinesResource, c.ns, name, pt, data, subresources...), &v1beta1.Machine{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1beta1.Machine), err
+}
+
+// Apply takes the given apply declarative configuration, applies it and returns the applied machine.
+func (c *FakeMachines) Apply(ctx context.Context, machine *machinev1beta1.MachineApplyConfiguration, opts v1.ApplyOptions) (result *v1beta1.Machine, err error) {
+	if machine == nil {
+		return nil, fmt.Errorf("machine provided to Apply must not be nil")
+	}
+	data, err := json.Marshal(machine)
+	if err != nil {
+		return nil, err
+	}
+	name := machine.Name
+	if name == nil {
+		return nil, fmt.Errorf("machine.Name must be provided to Apply")
+	}
+	obj, err := c.Fake.
+		Invokes(testing.NewPatchSubresourceAction(machinesResource, c.ns, *name, types.ApplyPatchType, data), &v1beta1.Machine{})
+
+	if obj == nil {
+		return nil, err
+	}
+	return obj.(*v1beta1.Machine), err
+}
+
+// ApplyStatus was generated because the type contains a Status member.
+// Add a +genclient:noStatus comment above the type to avoid generating ApplyStatus().
+func (c *FakeMachines) ApplyStatus(ctx context.Context, machine *machinev1beta1.MachineApplyConfiguration, opts v1.ApplyOptions) (result *v1beta1.Machine, err error) {
+	if machine == nil {
+		return nil, fmt.Errorf("machine provided to Apply must not be nil")
+	}
+	data, err := json.Marshal(machine)
+	if err != nil {
+		return nil, err
+	}
+	name := machine.Name
+	if name == nil {
+		return nil, fmt.Errorf("machine.Name must be provided to Apply")
+	}
+	obj, err := c.Fake.
+		Invokes(testing.NewPatchSubresourceAction(machinesResource, c.ns, *name, types.ApplyPatchType, data, "status"), &v1beta1.Machine{})
 
 	if obj == nil {
 		return nil, err
