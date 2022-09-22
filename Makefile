@@ -98,7 +98,7 @@ test: ## Run tests
 	$(DOCKER_CMD) hack/ci-test.sh
 
 unit:
-	$(DOCKER_CMD) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(PROJECT_DIR)/bin)" go test ./pkg/... ./cmd/...
+	$(DOCKER_CMD) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(PROJECT_DIR)/bin)" go test $(GOTEST_FLAGS) ./pkg/... ./cmd/...
 
 .PHONY: image
 image: ## Build docker image

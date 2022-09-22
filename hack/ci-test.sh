@@ -29,7 +29,7 @@ function runTestsCI() {
     JUNIT_LOCATION="$ARTIFACT_DIR"/junit_machine_api_operator.xml
     echo "jUnit location: $JUNIT_LOCATION"
     go install -mod= github.com/jstemmer/go-junit-report@latest
-    go test -p 1 -v ./pkg/... ./cmd/... | tee >(go-junit-report > "$JUNIT_LOCATION")
+    make unit GOTEST_FLAGS="-p 1 -v" | tee >(go-junit-report > "$JUNIT_LOCATION")
   else
     echo "\$ARTIFACT_DIR not set or does not exists, no jUnit will be published"
     make unit
