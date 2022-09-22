@@ -36,11 +36,6 @@ function runTestsCI() {
   fi
 }
 
-
-cd $REPO_ROOT && \
-  source ./hack/fetch_ext_bins.sh && \
-  fetch_tools && \
-  setup_envs && \
 if [ "$OPENSHIFT_CI" == "true" ]; then # detect ci environment there
   runTestsCI
 else
