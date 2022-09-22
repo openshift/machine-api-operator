@@ -823,6 +823,12 @@ func newTerminationPodTemplateSpec(config *OperatorConfig) *corev1.PodTemplateSp
 					},
 				},
 			},
+			Tolerations: []corev1.Toleration{
+				corev1.Toleration{
+					Operator: corev1.TolerationOpExists,
+					Effect:   corev1.TaintEffectNoSchedule,
+				},
+			},
 		},
 	}
 }
