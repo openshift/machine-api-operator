@@ -270,7 +270,7 @@ func TestMachineCreation(t *testing.T) {
 				},
 			},
 			disconnected:  true,
-			expectedError: "providerSpec.publicIP: Forbidden: publicIP is not allowed in Azure disconnected installation",
+			expectedError: "providerSpec.publicIP: Forbidden: publicIP is not allowed in Azure disconnected installation with publish strategy as internal",
 		},
 		{
 			name:         "with Azure disconnected installation success",
