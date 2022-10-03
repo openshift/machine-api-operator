@@ -145,7 +145,7 @@ func newClusterOperatorStatusCondition(conditionType osconfigv1.ClusterStatusCon
 	}
 }
 
-//syncStatus applies the new condition to the mao ClusterOperator object.
+// syncStatus applies the new condition to the mao ClusterOperator object.
 func (optr *Operator) syncStatus(co *osconfigv1.ClusterOperator, conds []osconfigv1.ClusterOperatorStatusCondition) error {
 	for _, c := range conds {
 		v1helpers.SetStatusCondition(&co.Status.Conditions, c)

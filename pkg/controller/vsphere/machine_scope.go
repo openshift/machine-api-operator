@@ -203,15 +203,16 @@ func (s *machineScope) GetUserData() ([]byte, error) {
 //
 // Assuming the vcenter is our dev server vcsa.vmware.devcluster.openshift.com,
 // the secret would be in this format:
-//apiVersion: v1
-//kind: Secret
-//metadata:
-//  name: vsphere
-//  namespace: openshift-machine-api
-//type: Opaque
-//data:
-//  vcsa.vmware.devcluster.openshift.com.username: base64 string
-//  vcsa.vmware.devcluster.openshift.com.password: base64 string
+//
+//	apiVersion: v1
+//	kind: Secret
+//	metadata:
+//	  name: vsphere
+//	  namespace: openshift-machine-api
+//	type: Opaque
+//	data:
+//	  vcsa.vmware.devcluster.openshift.com.username: base64 string
+//	  vcsa.vmware.devcluster.openshift.com.password: base64 string
 func getCredentialsSecret(client runtimeclient.Client, namespace string, spec machinev1.VSphereMachineProviderSpec) (string, string, error) {
 	if spec.CredentialsSecret == nil {
 		return "", "", nil
