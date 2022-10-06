@@ -33,6 +33,8 @@ require (
 	sigs.k8s.io/yaml v1.3.0
 )
 
+require github.com/metal3-io/cluster-api-provider-metal3/api v0.0.0-20220923112407-137605a494c1
+
 require (
 	github.com/golangci/golangci-lint v1.49.0
 	golang.org/x/time v0.0.0-20220609170525-579cf78fd858
@@ -156,6 +158,7 @@ require (
 	github.com/mbilski/exhaustivestruct v1.2.0 // indirect
 	github.com/mgechev/revive v1.2.3 // indirect
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
+	github.com/metal3-io/ip-address-manager/api v0.0.0-20220919121103-31c03f129143 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/moby/spdystream v0.2.0 // indirect
@@ -246,6 +249,7 @@ require (
 	k8s.io/component-base v0.25.1 // indirect
 	k8s.io/kube-aggregator v0.25.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20221012153701-172d655c2280 // indirect
+	sigs.k8s.io/cluster-api v1.2.2 // indirect
 	mvdan.cc/gofumpt v0.3.1 // indirect
 	mvdan.cc/interfacer v0.0.0-20180901003855-c20040233aed // indirect
 	mvdan.cc/lint v0.0.0-20170908181259-adc824a0674b // indirect
