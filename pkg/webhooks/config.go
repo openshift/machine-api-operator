@@ -1,6 +1,7 @@
 package webhooks
 
 import (
+	capm3apis "github.com/metal3-io/cluster-api-provider-metal3/api/v1beta1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -8,15 +9,23 @@ import (
 )
 
 const (
-	DefaultMachineMutatingHookPath      = "/mutate-machine-openshift-io-v1beta1-machine"
-	DefaultMachineValidatingHookPath    = "/validate-machine-openshift-io-v1beta1-machine"
-	DefaultMachineSetMutatingHookPath   = "/mutate-machine-openshift-io-v1beta1-machineset"
-	DefaultMachineSetValidatingHookPath = "/validate-machine-openshift-io-v1beta1-machineset"
+	DefaultMachineMutatingHookPath                     = "/mutate-machine-openshift-io-v1beta1-machine"
+	DefaultMachineValidatingHookPath                   = "/validate-machine-openshift-io-v1beta1-machine"
+	DefaultMachineSetMutatingHookPath                  = "/mutate-machine-openshift-io-v1beta1-machineset"
+	DefaultMachineSetValidatingHookPath                = "/validate-machine-openshift-io-v1beta1-machineset"
+	DefaultMetal3RemediationMutatingHookPath           = "/mutate-infrastructure-cluster-x-k8s-io-v1beta1-metal3remediation"
+	DefaultMetal3RemediationValidatingHookPath         = "/validate-infrastructure-cluster-x-k8s-io-v1beta1-metal3remediation"
+	DefaultMetal3RemediationTemplateMutatingHookPath   = "/mutate-infrastructure-cluster-x-k8s-io-v1beta1-metal3remediationtemplate"
+	DefaultMetal3RemediationTemplateValidatingHookPath = "/validate-infrastructure-cluster-x-k8s-io-v1beta1-metal3remediationtemplate"
 
 	defaultWebhookConfigurationName = "machine-api"
-	defaultWebhookServiceName       = "machine-api-operator-webhook"
 	defaultWebhookServiceNamespace  = "openshift-machine-api"
 	defaultWebhookServicePort       = 443
+	// Name and port of the webhook service pointing to the machineset-controller container
+	defaultWebhookServiceName = "machine-api-operator-webhook"
+	// Name and port of the webhook service pointing to the machine-controller / provider container
+	// Used by metal3 remediation webhooks in the CAPBM image
+	defaultProviderWebhookServiceName = "machine-api-operator-machine-webhook"
 )
 
 var (
@@ -38,6 +47,8 @@ func NewValidatingWebhookConfiguration() *admissionregistrationv1.ValidatingWebh
 		Webhooks: []admissionregistrationv1.ValidatingWebhook{
 			MachineValidatingWebhook(),
 			MachineSetValidatingWebhook(),
+			Metal3RemediationValidatingWebhook(),
+			Metal3RemediationTemplateValidatingWebhook(),
 		},
 	}
 
@@ -111,6 +122,70 @@ func MachineSetValidatingWebhook() admissionregistrationv1.ValidatingWebhook {
 	}
 }
 
+// Metal3RemediationValidatingWebhook returns validating webhooks for metal3remediation to populate the configuration
+func Metal3RemediationValidatingWebhook() admissionregistrationv1.ValidatingWebhook {
+	serviceReference := admissionregistrationv1.ServiceReference{
+		Namespace: defaultWebhookServiceNamespace,
+		Name:      defaultProviderWebhookServiceName,
+		Path:      pointer.StringPtr(DefaultMetal3RemediationValidatingHookPath),
+		Port:      pointer.Int32Ptr(defaultWebhookServicePort),
+	}
+	return admissionregistrationv1.ValidatingWebhook{
+		AdmissionReviewVersions: []string{"v1"},
+		Name:                    "validation.metal3remediation.k8s.io",
+		FailurePolicy:           &webhookFailurePolicy,
+		SideEffects:             &webhookSideEffects,
+		ClientConfig: admissionregistrationv1.WebhookClientConfig{
+			Service: &serviceReference,
+		},
+		Rules: []admissionregistrationv1.RuleWithOperations{
+			{
+				Rule: admissionregistrationv1.Rule{
+					APIGroups:   []string{capm3apis.GroupVersion.Group},
+					APIVersions: []string{capm3apis.GroupVersion.Version},
+					Resources:   []string{"metal3remediations"},
+				},
+				Operations: []admissionregistrationv1.OperationType{
+					admissionregistrationv1.Create,
+					admissionregistrationv1.Update,
+				},
+			},
+		},
+	}
+}
+
+// Metal3RemediationTemplateValidatingWebhook returns validating webhooks for metal3remediationtemplate to populate the configuration
+func Metal3RemediationTemplateValidatingWebhook() admissionregistrationv1.ValidatingWebhook {
+	serviceReference := admissionregistrationv1.ServiceReference{
+		Namespace: defaultWebhookServiceNamespace,
+		Name:      defaultProviderWebhookServiceName,
+		Path:      pointer.StringPtr(DefaultMetal3RemediationTemplateValidatingHookPath),
+		Port:      pointer.Int32Ptr(defaultWebhookServicePort),
+	}
+	return admissionregistrationv1.ValidatingWebhook{
+		AdmissionReviewVersions: []string{"v1"},
+		Name:                    "validation.metal3remediationtemplate.k8s.io",
+		FailurePolicy:           &webhookFailurePolicy,
+		SideEffects:             &webhookSideEffects,
+		ClientConfig: admissionregistrationv1.WebhookClientConfig{
+			Service: &serviceReference,
+		},
+		Rules: []admissionregistrationv1.RuleWithOperations{
+			{
+				Rule: admissionregistrationv1.Rule{
+					APIGroups:   []string{capm3apis.GroupVersion.Group},
+					APIVersions: []string{capm3apis.GroupVersion.Version},
+					Resources:   []string{"metal3remediationtemplates"},
+				},
+				Operations: []admissionregistrationv1.OperationType{
+					admissionregistrationv1.Create,
+					admissionregistrationv1.Update,
+				},
+			},
+		},
+	}
+}
+
 // NewMutatingWebhookConfiguration creates a mutating webhook configuration with configured Machine and MachineSet webhooks
 func NewMutatingWebhookConfiguration() *admissionregistrationv1.MutatingWebhookConfiguration {
 	mutatingWebhookConfiguration := &admissionregistrationv1.MutatingWebhookConfiguration{
@@ -123,6 +198,8 @@ func NewMutatingWebhookConfiguration() *admissionregistrationv1.MutatingWebhookC
 		Webhooks: []admissionregistrationv1.MutatingWebhook{
 			MachineMutatingWebhook(),
 			MachineSetMutatingWebhook(),
+			Metal3RemediationMutatingWebhook(),
+			Metal3RemediationTemplateMutatingWebhook(),
 		},
 	}
 
@@ -188,6 +265,70 @@ func MachineSetMutatingWebhook() admissionregistrationv1.MutatingWebhook {
 				},
 				Operations: []admissionregistrationv1.OperationType{
 					admissionregistrationv1.Create,
+				},
+			},
+		},
+	}
+}
+
+// Metal3RemediationMutatingWebhook returns mutating webhook for metal3remediation to apply in configuration
+func Metal3RemediationMutatingWebhook() admissionregistrationv1.MutatingWebhook {
+	serviceReference := admissionregistrationv1.ServiceReference{
+		Namespace: defaultWebhookServiceNamespace,
+		Name:      defaultProviderWebhookServiceName,
+		Path:      pointer.StringPtr(DefaultMetal3RemediationMutatingHookPath),
+		Port:      pointer.Int32Ptr(defaultWebhookServicePort),
+	}
+	return admissionregistrationv1.MutatingWebhook{
+		AdmissionReviewVersions: []string{"v1"},
+		Name:                    "default.metal3remediation.k8s.io",
+		FailurePolicy:           &webhookFailurePolicy,
+		SideEffects:             &webhookSideEffects,
+		ClientConfig: admissionregistrationv1.WebhookClientConfig{
+			Service: &serviceReference,
+		},
+		Rules: []admissionregistrationv1.RuleWithOperations{
+			{
+				Rule: admissionregistrationv1.Rule{
+					APIGroups:   []string{capm3apis.GroupVersion.Group},
+					APIVersions: []string{capm3apis.GroupVersion.Version},
+					Resources:   []string{"metal3remediations"},
+				},
+				Operations: []admissionregistrationv1.OperationType{
+					admissionregistrationv1.Create,
+					admissionregistrationv1.Update,
+				},
+			},
+		},
+	}
+}
+
+// Metal3RemediationTemplateMutatingWebhook returns mutating webhook for metal3remediationtemplate to apply in configuration
+func Metal3RemediationTemplateMutatingWebhook() admissionregistrationv1.MutatingWebhook {
+	serviceReference := admissionregistrationv1.ServiceReference{
+		Namespace: defaultWebhookServiceNamespace,
+		Name:      defaultProviderWebhookServiceName,
+		Path:      pointer.StringPtr(DefaultMetal3RemediationTemplateMutatingHookPath),
+		Port:      pointer.Int32Ptr(defaultWebhookServicePort),
+	}
+	return admissionregistrationv1.MutatingWebhook{
+		AdmissionReviewVersions: []string{"v1"},
+		Name:                    "default.metal3remediationtemplate.k8s.io",
+		FailurePolicy:           &webhookFailurePolicy,
+		SideEffects:             &webhookSideEffects,
+		ClientConfig: admissionregistrationv1.WebhookClientConfig{
+			Service: &serviceReference,
+		},
+		Rules: []admissionregistrationv1.RuleWithOperations{
+			{
+				Rule: admissionregistrationv1.Rule{
+					APIGroups:   []string{capm3apis.GroupVersion.Group},
+					APIVersions: []string{capm3apis.GroupVersion.Version},
+					Resources:   []string{"metal3remediationtemplates"},
+				},
+				Operations: []admissionregistrationv1.OperationType{
+					admissionregistrationv1.Create,
+					admissionregistrationv1.Update,
 				},
 			},
 		},

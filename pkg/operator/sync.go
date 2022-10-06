@@ -30,6 +30,8 @@ const (
 	checkStatusRequeuePeriod            = 5 * time.Second
 	deploymentMinimumAvailabilityTime   = 3 * time.Minute
 	machineAPITerminationHandler        = "machine-api-termination-handler"
+	MachineWebhookPort                  = 8440
+	MachineSetWebhookPort               = 8443
 	machineExposeMetricsPort            = 8441
 	machineSetExposeMetricsPort         = 8442
 	machineHealthCheckExposeMetricsPort = 8444
@@ -42,6 +44,8 @@ const (
 	hostKubeConfigPath                  = "/var/lib/kubelet/kubeconfig"
 	hostKubePKIPath                     = "/var/lib/kubelet/pki"
 	operatorStatusNoOpMessage           = "Cluster Machine API Operator is in NoOp mode"
+	machineSetWebhookVolumeName         = "machineset-webhook-cert"
+	machineWebhookVolumeName            = "machine-webhook-cert"
 	kubernetesOSlabel                   = "kubernetes.io/os"
 	kubernetesOSlabelLinux              = "linux"
 
@@ -475,11 +479,32 @@ func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev
 	var readOnly int32 = 420
 	volumes := []corev1.Volume{
 		{
-			Name: "cert",
+			Name: machineSetWebhookVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
+					// keep this aligned with service.beta.openshift.io/serving-cert-secret-name annotation on its services
 					SecretName:  "machine-api-operator-webhook-cert",
 					DefaultMode: pointer.Int32(readOnly),
+					Items: []corev1.KeyToPath{
+						{
+							Key:  "tls.crt",
+							Path: "tls.crt",
+						},
+						{
+							Key:  "tls.key",
+							Path: "tls.key",
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: machineWebhookVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					// keep this aligned with service.beta.openshift.io/serving-cert-secret-name annotation on its services
+					SecretName:  "machine-api-operator-machine-webhook-cert",
+					DefaultMode: pointer.Int32Ptr(readOnly),
 					Items: []corev1.KeyToPath{
 						{
 							Key:  "tls.crt",
@@ -585,7 +610,7 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 			Ports: []corev1.ContainerPort{
 				{
 					Name:          "webhook-server",
-					ContainerPort: 8443,
+					ContainerPort: MachineSetWebhookPort,
 				},
 				{
 					Name:          "healthz",
@@ -611,7 +636,7 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 			VolumeMounts: []corev1.VolumeMount{
 				{
 					MountPath: "/etc/machine-api-operator/tls",
-					Name:      "cert",
+					Name:      machineSetWebhookVolumeName,
 					ReadOnly:  true,
 				},
 			},
@@ -630,10 +655,16 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 					},
 				},
 			}),
-			Ports: []corev1.ContainerPort{{
-				Name:          "healthz",
-				ContainerPort: defaultMachineHealthPort,
-			}},
+			Ports: []corev1.ContainerPort{
+				{
+					Name:          "machine-webhook",
+					ContainerPort: MachineWebhookPort,
+				},
+				{
+					Name:          "healthz",
+					ContainerPort: defaultMachineHealthPort,
+				},
+			},
 			ReadinessProbe: &corev1.Probe{
 				ProbeHandler: corev1.ProbeHandler{
 					HTTPGet: &corev1.HTTPGetAction{
@@ -659,6 +690,11 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 				{
 					MountPath: "/var/run/secrets/openshift/serviceaccount",
 					Name:      "bound-sa-token",
+					ReadOnly:  true,
+				},
+				{
+					MountPath: "/etc/machine-api-operator/tls",
+					Name:      machineWebhookVolumeName,
 					ReadOnly:  true,
 				},
 			},

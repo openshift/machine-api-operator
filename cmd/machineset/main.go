@@ -28,6 +28,7 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/controller"
 	"github.com/openshift/machine-api-operator/pkg/controller/machineset"
 	"github.com/openshift/machine-api-operator/pkg/metrics"
+	"github.com/openshift/machine-api-operator/pkg/operator"
 	"github.com/openshift/machine-api-operator/pkg/util"
 	mapiwebhooks "github.com/openshift/machine-api-operator/pkg/webhooks"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,7 +42,7 @@ import (
 )
 
 const (
-	defaultWebhookPort    = 8443
+	defaultWebhookPort    = operator.MachineSetWebhookPort
 	defaultWebhookCertdir = "/etc/machine-api-operator/tls"
 )
 
