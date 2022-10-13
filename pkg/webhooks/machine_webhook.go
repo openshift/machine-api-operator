@@ -53,7 +53,10 @@ var (
 		return fmt.Sprintf("%s-rg", clusterID)
 	}
 	defaultAzureImageResourceID = func(clusterID string) string {
-		return fmt.Sprintf("/resourceGroups/%s/providers/Microsoft.Compute/images/%s", clusterID+"-rg", clusterID)
+		// image gallery names cannot have dashes
+		galleryName := strings.Replace(clusterID, "-", "_", -1)
+
+		return fmt.Sprintf("/resourceGroups/%s/providers/Microsoft.Compute/galleries/gallery_%s/images/%s/versions/%s", clusterID+"-rg", galleryName, clusterID, azureRHCOSVersion)
 	}
 	defaultAzureManagedIdentiy = func(clusterID string) string {
 		return fmt.Sprintf("%s-identity", clusterID)
@@ -132,6 +135,7 @@ const (
 	azureCachingTypeNone               = "None"
 	azureCachingTypeReadOnly           = "ReadOnly"
 	azureCachingTypeReadWrite          = "ReadWrite"
+	azureRHCOSVersion                  = "latest" // The installer only sets up one version but its name may vary, using latest will pull it no matter the name.
 
 	// GCP Defaults
 	defaultGCPMachineType       = "n1-standard-4"
