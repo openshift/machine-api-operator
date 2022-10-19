@@ -18,9 +18,10 @@ const (
 	DefaultMetal3RemediationTemplateMutatingHookPath   = "/mutate-infrastructure-cluster-x-k8s-io-v1beta1-metal3remediationtemplate"
 	DefaultMetal3RemediationTemplateValidatingHookPath = "/validate-infrastructure-cluster-x-k8s-io-v1beta1-metal3remediationtemplate"
 
-	defaultWebhookConfigurationName = "machine-api"
-	defaultWebhookServiceNamespace  = "openshift-machine-api"
-	defaultWebhookServicePort       = 443
+	machineWebhookConfigurationName           = "machine-api"
+	metal3RemediationWebhookConfigurationName = "machine-api-metal3-remediation"
+	defaultWebhookServiceNamespace            = "openshift-machine-api"
+	defaultWebhookServicePort                 = 443
 	// Name and port of the webhook service pointing to the machineset-controller container
 	defaultWebhookServiceName = "machine-api-operator-webhook"
 	// Name and port of the webhook service pointing to the machine-controller / provider container
@@ -35,11 +36,11 @@ var (
 	webhookSideEffects   = admissionregistrationv1.SideEffectClassNone
 )
 
-// NewValidatingWebhookConfiguration creates a validation webhook configuration with configured Machine and MachineSet webhooks
-func NewValidatingWebhookConfiguration() *admissionregistrationv1.ValidatingWebhookConfiguration {
+// NewMachineValidatingWebhookConfiguration creates a validation webhook configuration with configured Machine and MachineSet webhooks
+func NewMachineValidatingWebhookConfiguration() *admissionregistrationv1.ValidatingWebhookConfiguration {
 	validatingWebhookConfiguration := &admissionregistrationv1.ValidatingWebhookConfiguration{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: defaultWebhookConfigurationName,
+			Name: machineWebhookConfigurationName,
 			Annotations: map[string]string{
 				"service.beta.openshift.io/inject-cabundle": "true",
 			},
@@ -47,8 +48,6 @@ func NewValidatingWebhookConfiguration() *admissionregistrationv1.ValidatingWebh
 		Webhooks: []admissionregistrationv1.ValidatingWebhook{
 			MachineValidatingWebhook(),
 			MachineSetValidatingWebhook(),
-			Metal3RemediationValidatingWebhook(),
-			Metal3RemediationTemplateValidatingWebhook(),
 		},
 	}
 
@@ -122,6 +121,28 @@ func MachineSetValidatingWebhook() admissionregistrationv1.ValidatingWebhook {
 	}
 }
 
+// NewMetal3RemediationValidatingWebhookConfiguration creates a validation webhook configuration with configured
+// metal3remediation(template) webhooks
+func NewMetal3RemediationValidatingWebhookConfiguration() *admissionregistrationv1.ValidatingWebhookConfiguration {
+	validatingWebhookConfiguration := &admissionregistrationv1.ValidatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: metal3RemediationWebhookConfigurationName,
+			Annotations: map[string]string{
+				"service.beta.openshift.io/inject-cabundle": "true",
+			},
+		},
+		Webhooks: []admissionregistrationv1.ValidatingWebhook{
+			Metal3RemediationValidatingWebhook(),
+			Metal3RemediationTemplateValidatingWebhook(),
+		},
+	}
+
+	// Setting group version is required for testEnv to create unstructured objects, as the new structure sets it on empty strings
+	// Usual way to populate those values, is to create the resource in the cluster first, which we can't yet do.
+	validatingWebhookConfiguration.SetGroupVersionKind(admissionregistrationv1.SchemeGroupVersion.WithKind("ValidatingWebhookConfiguration"))
+	return validatingWebhookConfiguration
+}
+
 // Metal3RemediationValidatingWebhook returns validating webhooks for metal3remediation to populate the configuration
 func Metal3RemediationValidatingWebhook() admissionregistrationv1.ValidatingWebhook {
 	serviceReference := admissionregistrationv1.ServiceReference{
@@ -186,11 +207,11 @@ func Metal3RemediationTemplateValidatingWebhook() admissionregistrationv1.Valida
 	}
 }
 
-// NewMutatingWebhookConfiguration creates a mutating webhook configuration with configured Machine and MachineSet webhooks
-func NewMutatingWebhookConfiguration() *admissionregistrationv1.MutatingWebhookConfiguration {
+// NewMachineMutatingWebhookConfiguration creates a mutating webhook configuration with configured Machine and MachineSet webhooks
+func NewMachineMutatingWebhookConfiguration() *admissionregistrationv1.MutatingWebhookConfiguration {
 	mutatingWebhookConfiguration := &admissionregistrationv1.MutatingWebhookConfiguration{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: defaultWebhookConfigurationName,
+			Name: machineWebhookConfigurationName,
 			Annotations: map[string]string{
 				"service.beta.openshift.io/inject-cabundle": "true",
 			},
@@ -198,8 +219,6 @@ func NewMutatingWebhookConfiguration() *admissionregistrationv1.MutatingWebhookC
 		Webhooks: []admissionregistrationv1.MutatingWebhook{
 			MachineMutatingWebhook(),
 			MachineSetMutatingWebhook(),
-			Metal3RemediationMutatingWebhook(),
-			Metal3RemediationTemplateMutatingWebhook(),
 		},
 	}
 
@@ -269,6 +288,28 @@ func MachineSetMutatingWebhook() admissionregistrationv1.MutatingWebhook {
 			},
 		},
 	}
+}
+
+// NewMetal3RemediationMutatingWebhookConfiguration creates a mutating webhook configuration with configured
+// metal3remediation(template) webhooks
+func NewMetal3RemediationMutatingWebhookConfiguration() *admissionregistrationv1.MutatingWebhookConfiguration {
+	mutatingWebhookConfiguration := &admissionregistrationv1.MutatingWebhookConfiguration{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: metal3RemediationWebhookConfigurationName,
+			Annotations: map[string]string{
+				"service.beta.openshift.io/inject-cabundle": "true",
+			},
+		},
+		Webhooks: []admissionregistrationv1.MutatingWebhook{
+			Metal3RemediationMutatingWebhook(),
+			Metal3RemediationTemplateMutatingWebhook(),
+		},
+	}
+
+	// Setting group version is required for testEnv to create unstructured objects, as the new structure sets it on empty strings
+	// Usual way to populate those values, is to create the resource in the cluster first, which we can't yet do.
+	mutatingWebhookConfiguration.SetGroupVersionKind(admissionregistrationv1.SchemeGroupVersion.WithKind("MutatingWebhookConfiguration"))
+	return mutatingWebhookConfiguration
 }
 
 // Metal3RemediationMutatingWebhook returns mutating webhook for metal3remediation to apply in configuration

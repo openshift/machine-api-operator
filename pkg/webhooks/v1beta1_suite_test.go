@@ -58,8 +58,8 @@ func TestMain(m *testing.M) {
 			filepath.Join("..", "..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1"),
 		},
 		WebhookInstallOptions: envtest.WebhookInstallOptions{
-			MutatingWebhooks:   []*admissionregistrationv1.MutatingWebhookConfiguration{NewMutatingWebhookConfiguration()},
-			ValidatingWebhooks: []*admissionregistrationv1.ValidatingWebhookConfiguration{NewValidatingWebhookConfiguration()},
+			MutatingWebhooks:   []*admissionregistrationv1.MutatingWebhookConfiguration{NewMachineMutatingWebhookConfiguration()},
+			ValidatingWebhooks: []*admissionregistrationv1.ValidatingWebhookConfiguration{NewMachineValidatingWebhookConfiguration()},
 		},
 	}
 

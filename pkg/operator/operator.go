@@ -65,13 +65,15 @@ type Operator struct {
 	proxyLister       configlistersv1.ProxyLister
 	proxyListerSynced cache.InformerSynced
 
-	validatingWebhookCache        resourceapply.ResourceCache
-	validatingWebhookLister       admissionlisterv1.ValidatingWebhookConfigurationLister
-	validatingWebhookListerSynced cache.InformerSynced
+	validatingMachineWebhookCache           resourceapply.ResourceCache
+	validatingMetal3RemediationWebhookCache resourceapply.ResourceCache
+	validatingWebhookLister                 admissionlisterv1.ValidatingWebhookConfigurationLister
+	validatingWebhookListerSynced           cache.InformerSynced
 
-	mutatingWebhookCache        resourceapply.ResourceCache
-	mutatingWebhookLister       admissionlisterv1.MutatingWebhookConfigurationLister
-	mutatingWebhookListerSynced cache.InformerSynced
+	mutatingMachineWebhookCache           resourceapply.ResourceCache
+	mutatingMetal3RemediationWebhookCache resourceapply.ResourceCache
+	mutatingWebhookLister                 admissionlisterv1.MutatingWebhookConfigurationLister
+	mutatingWebhookListerSynced           cache.InformerSynced
 
 	featureGateLister      configlistersv1.FeatureGateLister
 	featureGateCacheSynced cache.InformerSynced
@@ -141,11 +143,13 @@ func New(
 	optr.proxyLister = proxyInformer.Lister()
 	optr.proxyListerSynced = proxyInformer.Informer().HasSynced
 
-	optr.validatingWebhookCache = resourceapply.NewResourceCache()
+	optr.validatingMachineWebhookCache = resourceapply.NewResourceCache()
+	optr.validatingMetal3RemediationWebhookCache = resourceapply.NewResourceCache()
 	optr.validatingWebhookLister = validatingWebhookInformer.Lister()
 	optr.validatingWebhookListerSynced = validatingWebhookInformer.Informer().HasSynced
 
-	optr.mutatingWebhookCache = resourceapply.NewResourceCache()
+	optr.mutatingMachineWebhookCache = resourceapply.NewResourceCache()
+	optr.mutatingMetal3RemediationWebhookCache = resourceapply.NewResourceCache()
 	optr.mutatingWebhookLister = mutatingWebhookInformer.Lister()
 	optr.mutatingWebhookListerSynced = mutatingWebhookInformer.Informer().HasSynced
 

@@ -224,18 +224,23 @@ func (optr *Operator) syncTerminationHandler(config *OperatorConfig) error {
 }
 
 func (optr *Operator) syncWebhookConfiguration() error {
-	if err := optr.syncValidatingWebhook(); err != nil {
+	if err := optr.syncMachineValidatingWebhook(); err != nil {
 		return err
 	}
-
-	return optr.syncMutatingWebhook()
+	if err := optr.syncMachineMutatingWebhook(); err != nil {
+		return err
+	}
+	if err := optr.syncMetal3RemediationValidatingWebhook(); err != nil {
+		return err
+	}
+	return optr.syncMetal3RemediationMutatingWebhook()
 }
 
-func (optr *Operator) syncValidatingWebhook() error {
+func (optr *Operator) syncMachineValidatingWebhook() error {
 	validatingWebhook, updated, err := resourceapply.ApplyValidatingWebhookConfigurationImproved(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
 		events.NewLoggingEventRecorder(optr.name),
-		mapiwebhooks.NewValidatingWebhookConfiguration(),
-		optr.validatingWebhookCache)
+		mapiwebhooks.NewMachineValidatingWebhookConfiguration(),
+		optr.validatingMachineWebhookCache)
 	if err != nil {
 		return err
 	}
@@ -246,16 +251,46 @@ func (optr *Operator) syncValidatingWebhook() error {
 	return nil
 }
 
-func (optr *Operator) syncMutatingWebhook() error {
-	validatingWebhook, updated, err := resourceapply.ApplyMutatingWebhookConfigurationImproved(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
+func (optr *Operator) syncMachineMutatingWebhook() error {
+	mutatingWebhook, updated, err := resourceapply.ApplyMutatingWebhookConfigurationImproved(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
 		events.NewLoggingEventRecorder(optr.name),
-		mapiwebhooks.NewMutatingWebhookConfiguration(),
-		optr.mutatingWebhookCache)
+		mapiwebhooks.NewMachineMutatingWebhookConfiguration(),
+		optr.mutatingMachineWebhookCache)
 	if err != nil {
 		return err
 	}
 	if updated {
-		resourcemerge.SetMutatingWebhooksConfigurationGeneration(&optr.generations, validatingWebhook)
+		resourcemerge.SetMutatingWebhooksConfigurationGeneration(&optr.generations, mutatingWebhook)
+	}
+
+	return nil
+}
+
+func (optr *Operator) syncMetal3RemediationValidatingWebhook() error {
+	validatingWebhook, updated, err := resourceapply.ApplyValidatingWebhookConfigurationImproved(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
+		events.NewLoggingEventRecorder(optr.name),
+		mapiwebhooks.NewMetal3RemediationValidatingWebhookConfiguration(),
+		optr.validatingMetal3RemediationWebhookCache)
+	if err != nil {
+		return err
+	}
+	if updated {
+		resourcemerge.SetValidatingWebhooksConfigurationGeneration(&optr.generations, validatingWebhook)
+	}
+
+	return nil
+}
+
+func (optr *Operator) syncMetal3RemediationMutatingWebhook() error {
+	mutatingWebhook, updated, err := resourceapply.ApplyMutatingWebhookConfigurationImproved(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
+		events.NewLoggingEventRecorder(optr.name),
+		mapiwebhooks.NewMetal3RemediationMutatingWebhookConfiguration(),
+		optr.mutatingMetal3RemediationWebhookCache)
+	if err != nil {
+		return err
+	}
+	if updated {
+		resourcemerge.SetMutatingWebhooksConfigurationGeneration(&optr.generations, mutatingWebhook)
 	}
 
 	return nil
