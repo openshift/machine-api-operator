@@ -336,15 +336,10 @@ func (optr *Operator) checkMinimumWorkerMachines() error {
 		nonRunningMachines = append(nonRunningMachines, nonRunningMachineSetMachines...)
 	}
 
-	if expectedReplicas == 0 {
-		// This means there are no MachineSets in the cluster, so we are ok to proceed.
-		return nil
-	}
-
 	// If any MachineSet doesn't have the correct number of replicas, we error before this point.
 	// So the running replicas should be (total replicas) - (non-running replicas).
 	runningReplicas := expectedReplicas - int32(len(nonRunningMachines))
-	if runningReplicas < minimumWorkerReplicas {
+	if runningReplicas < expectedReplicas && runningReplicas < minimumWorkerReplicas {
 		return fmt.Errorf("minimum worker replica count (%d) not yet met: current running replicas %d, waiting for %v", minimumWorkerReplicas, runningReplicas, nonRunningMachines)
 	}
 

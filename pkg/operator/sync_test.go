@@ -329,6 +329,16 @@ func TestCheckMinimumWorkerMachines(t *testing.T) {
 			expectedError: errors.New("could not determine running Machines in MachineSet \"no-machines\": replicas not satisfied for MachineSet: expected 3 replicas, got 0 current replicas"),
 		},
 		{
+			name: "with a single-machine MachineSet with one Machine",
+			machineSets: []runtime.Object{
+				newMachineSet("one-machines", 1, workerSelector),
+			},
+			machines: []runtime.Object{
+				newMachine("running-0", workerLabels, "Running"),
+			},
+			expectedError: nil,
+		},
+		{
 			name: "with a MachineSet with not enough Machines",
 			machineSets: []runtime.Object{
 				newMachineSet("no-machines", 3, workerSelector),
