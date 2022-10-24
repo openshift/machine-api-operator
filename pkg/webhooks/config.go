@@ -122,7 +122,8 @@ func MachineSetValidatingWebhook() admissionregistrationv1.ValidatingWebhook {
 }
 
 // NewMetal3RemediationValidatingWebhookConfiguration creates a validation webhook configuration with configured
-// metal3remediation(template) webhooks
+// metal3remediation(template) webhooks. Metal3Remediation(Templates) were backported from metal3, their CRDs and the
+// actual webhook implementation can be found in cluster-api-provider-baremetal
 func NewMetal3RemediationValidatingWebhookConfiguration() *admissionregistrationv1.ValidatingWebhookConfiguration {
 	validatingWebhookConfiguration := &admissionregistrationv1.ValidatingWebhookConfiguration{
 		ObjectMeta: metav1.ObjectMeta{
@@ -291,7 +292,8 @@ func MachineSetMutatingWebhook() admissionregistrationv1.MutatingWebhook {
 }
 
 // NewMetal3RemediationMutatingWebhookConfiguration creates a mutating webhook configuration with configured
-// metal3remediation(template) webhooks
+// metal3remediation(template) webhooks. Metal3Remediation(Templates) were backported from metal3, their CRDs and the
+// actual webhook implementation can be found in cluster-api-provider-baremetal
 func NewMetal3RemediationMutatingWebhookConfiguration() *admissionregistrationv1.MutatingWebhookConfiguration {
 	mutatingWebhookConfiguration := &admissionregistrationv1.MutatingWebhookConfiguration{
 		ObjectMeta: metav1.ObjectMeta{

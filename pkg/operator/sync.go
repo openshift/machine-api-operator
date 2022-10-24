@@ -272,6 +272,8 @@ func (optr *Operator) syncMachineMutatingWebhook() error {
 	return nil
 }
 
+// Metal3Remediation(Templates) were backported from metal3, their CRDs and the
+// actual webhook implementation can be found in cluster-api-provider-baremetal
 func (optr *Operator) syncMetal3RemediationValidatingWebhook() error {
 	validatingWebhook, updated, err := resourceapply.ApplyValidatingWebhookConfigurationImproved(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
 		events.NewLoggingEventRecorder(optr.name),
@@ -287,6 +289,8 @@ func (optr *Operator) syncMetal3RemediationValidatingWebhook() error {
 	return nil
 }
 
+// Metal3Remediation(Templates) were backported from metal3, their CRDs and the
+// actual webhook implementation can be found in cluster-api-provider-baremetal
 func (optr *Operator) syncMetal3RemediationMutatingWebhook() error {
 	mutatingWebhook, updated, err := resourceapply.ApplyMutatingWebhookConfigurationImproved(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
 		events.NewLoggingEventRecorder(optr.name),
