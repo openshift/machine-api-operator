@@ -240,7 +240,7 @@ func (optr *Operator) syncMachineValidatingWebhook() error {
 	validatingWebhook, updated, err := resourceapply.ApplyValidatingWebhookConfigurationImproved(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
 		events.NewLoggingEventRecorder(optr.name),
 		mapiwebhooks.NewMachineValidatingWebhookConfiguration(),
-		optr.validatingMachineWebhookCache)
+		optr.cache)
 	if err != nil {
 		return err
 	}
@@ -255,7 +255,7 @@ func (optr *Operator) syncMachineMutatingWebhook() error {
 	mutatingWebhook, updated, err := resourceapply.ApplyMutatingWebhookConfigurationImproved(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
 		events.NewLoggingEventRecorder(optr.name),
 		mapiwebhooks.NewMachineMutatingWebhookConfiguration(),
-		optr.mutatingMachineWebhookCache)
+		optr.cache)
 	if err != nil {
 		return err
 	}
@@ -270,7 +270,7 @@ func (optr *Operator) syncMetal3RemediationValidatingWebhook() error {
 	validatingWebhook, updated, err := resourceapply.ApplyValidatingWebhookConfigurationImproved(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
 		events.NewLoggingEventRecorder(optr.name),
 		mapiwebhooks.NewMetal3RemediationValidatingWebhookConfiguration(),
-		optr.validatingMetal3RemediationWebhookCache)
+		optr.cache)
 	if err != nil {
 		return err
 	}
@@ -285,7 +285,7 @@ func (optr *Operator) syncMetal3RemediationMutatingWebhook() error {
 	mutatingWebhook, updated, err := resourceapply.ApplyMutatingWebhookConfigurationImproved(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
 		events.NewLoggingEventRecorder(optr.name),
 		mapiwebhooks.NewMetal3RemediationMutatingWebhookConfiguration(),
-		optr.mutatingMetal3RemediationWebhookCache)
+		optr.cache)
 	if err != nil {
 		return err
 	}

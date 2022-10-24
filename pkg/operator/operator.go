@@ -65,15 +65,11 @@ type Operator struct {
 	proxyLister       configlistersv1.ProxyLister
 	proxyListerSynced cache.InformerSynced
 
-	validatingMachineWebhookCache           resourceapply.ResourceCache
-	validatingMetal3RemediationWebhookCache resourceapply.ResourceCache
-	validatingWebhookLister                 admissionlisterv1.ValidatingWebhookConfigurationLister
-	validatingWebhookListerSynced           cache.InformerSynced
-
-	mutatingMachineWebhookCache           resourceapply.ResourceCache
-	mutatingMetal3RemediationWebhookCache resourceapply.ResourceCache
-	mutatingWebhookLister                 admissionlisterv1.MutatingWebhookConfigurationLister
-	mutatingWebhookListerSynced           cache.InformerSynced
+	cache                         resourceapply.ResourceCache
+	validatingWebhookLister       admissionlisterv1.ValidatingWebhookConfigurationLister
+	validatingWebhookListerSynced cache.InformerSynced
+	mutatingWebhookLister         admissionlisterv1.MutatingWebhookConfigurationLister
+	mutatingWebhookListerSynced   cache.InformerSynced
 
 	featureGateLister      configlistersv1.FeatureGateLister
 	featureGateCacheSynced cache.InformerSynced
@@ -143,13 +139,9 @@ func New(
 	optr.proxyLister = proxyInformer.Lister()
 	optr.proxyListerSynced = proxyInformer.Informer().HasSynced
 
-	optr.validatingMachineWebhookCache = resourceapply.NewResourceCache()
-	optr.validatingMetal3RemediationWebhookCache = resourceapply.NewResourceCache()
+	optr.cache = resourceapply.NewResourceCache()
 	optr.validatingWebhookLister = validatingWebhookInformer.Lister()
 	optr.validatingWebhookListerSynced = validatingWebhookInformer.Informer().HasSynced
-
-	optr.mutatingMachineWebhookCache = resourceapply.NewResourceCache()
-	optr.mutatingMetal3RemediationWebhookCache = resourceapply.NewResourceCache()
 	optr.mutatingWebhookLister = mutatingWebhookInformer.Lister()
 	optr.mutatingWebhookListerSynced = mutatingWebhookInformer.Informer().HasSynced
 
