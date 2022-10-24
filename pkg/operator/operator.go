@@ -408,5 +408,6 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 			KubeRBACProxy:      kubeRBACProxy,
 			TerminationHandler: terminationHandlerImage,
 		},
+		PlatformType: provider,
 	}, nil
 }

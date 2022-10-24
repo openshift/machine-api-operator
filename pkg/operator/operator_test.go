@@ -338,6 +338,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: images.ClusterAPIControllerAWS,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				PlatformType: openshiftv1.AWSPlatformType,
 			},
 		},
 		{
@@ -356,6 +357,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: images.ClusterAPIControllerAlibaba,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				PlatformType: openshiftv1.AlibabaCloudPlatformType,
 			},
 		},
 		{
@@ -374,6 +376,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: clusterAPIControllerNoOp,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				PlatformType: openshiftv1.LibvirtPlatformType,
 			},
 		},
 		{
@@ -392,6 +395,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: clusterAPIControllerNoOp,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				PlatformType: openshiftv1.OpenStackPlatformType,
 			},
 		},
 		{
@@ -410,6 +414,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: images.ClusterAPIControllerAzure,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				PlatformType: openshiftv1.AzurePlatformType,
 			},
 		},
 		{
@@ -428,6 +433,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: clusterAPIControllerNoOp,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				PlatformType: openshiftv1.BareMetalPlatformType,
 			},
 		},
 		{
@@ -446,6 +452,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: images.ClusterAPIControllerGCP,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				PlatformType: openshiftv1.GCPPlatformType,
 			},
 		},
 		{
@@ -464,6 +471,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: clusterAPIControllerNoOp,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				PlatformType: kubemarkPlatform,
 			},
 		},
 		{
@@ -482,6 +490,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: clusterAPIControllerNoOp,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				PlatformType: openshiftv1.VSpherePlatformType,
 			},
 		},
 		{
@@ -500,6 +509,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: clusterAPIControllerNoOp,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				PlatformType: openshiftv1.OvirtPlatformType,
 			},
 		},
 		{
@@ -518,6 +528,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: clusterAPIControllerNoOp,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				PlatformType: openshiftv1.NonePlatformType,
 			},
 		},
 		{
@@ -536,6 +547,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: clusterAPIControllerNoOp,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				PlatformType: "bad-platform",
 			},
 		},
 		{

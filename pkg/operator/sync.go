@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	v1 "github.com/openshift/api/config/v1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
@@ -79,7 +80,7 @@ func (optr *Operator) syncAll(config *OperatorConfig) (reconcile.Result, error) 
 
 	errors := []error{}
 	// Sync webhook configuration
-	if err := optr.syncWebhookConfiguration(); err != nil {
+	if err := optr.syncWebhookConfiguration(config); err != nil {
 		errors = append(errors, fmt.Errorf("error syncing machine API webhook configurations: %w", err))
 	}
 
@@ -223,17 +224,22 @@ func (optr *Operator) syncTerminationHandler(config *OperatorConfig) error {
 	return nil
 }
 
-func (optr *Operator) syncWebhookConfiguration() error {
+func (optr *Operator) syncWebhookConfiguration(config *OperatorConfig) error {
 	if err := optr.syncMachineValidatingWebhook(); err != nil {
 		return err
 	}
 	if err := optr.syncMachineMutatingWebhook(); err != nil {
 		return err
 	}
-	if err := optr.syncMetal3RemediationValidatingWebhook(); err != nil {
-		return err
+	if config.PlatformType == v1.BareMetalPlatformType {
+		if err := optr.syncMetal3RemediationValidatingWebhook(); err != nil {
+			return err
+		}
+		if err := optr.syncMetal3RemediationMutatingWebhook(); err != nil {
+			return err
+		}
 	}
-	return optr.syncMetal3RemediationMutatingWebhook()
+	return nil
 }
 
 func (optr *Operator) syncMachineValidatingWebhook() error {
