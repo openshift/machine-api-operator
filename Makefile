@@ -45,6 +45,11 @@ else
   IMAGE_BUILD_CMD = $(ENGINE) build
 endif
 
+PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
+ENVTEST = go run ${PROJECT_DIR}/vendor/sigs.k8s.io/controller-runtime/tools/setup-envtest
+# ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
+ENVTEST_K8S_VERSION = 1.25
+
 .PHONY: vendor
 vendor:
 	$(DOCKER_CMD) ./hack/go-mod.sh
@@ -93,7 +98,7 @@ test: ## Run tests
 	$(DOCKER_CMD) hack/ci-test.sh
 
 unit:
-	$(DOCKER_CMD) go test ./pkg/... ./cmd/...
+	$(DOCKER_CMD) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(PROJECT_DIR)/bin)" go test $(GOTEST_FLAGS) ./pkg/... ./cmd/...
 
 .PHONY: image
 image: ## Build docker image
