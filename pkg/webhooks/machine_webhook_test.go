@@ -2142,6 +2142,15 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			expectedOk:    false,
 			expectedError: "providerSpec.metadataServiceOptions.authentication: Invalid value: \"Boom\": Allowed values are either 'Optional' or 'Required'",
 		},
+		{
+			testCase: "with invalid GroupVersionKind",
+			modifySpec: func(p *machinev1beta1.AWSMachineProviderConfig) {
+				p.Kind = "INVALID"
+				p.APIVersion = "INVALID/v1"
+			},
+			expectedOk:       true,
+			expectedWarnings: []string{"incorrect GroupVersionKind for AWSMachineProviderConfig object: INVALID/v1, Kind=INVALID"},
+		},
 	}
 
 	secret := &corev1.Secret{
@@ -2183,6 +2192,10 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 				},
 				Subnet: machinev1beta1.AWSResourceReference{
 					ID: pointer.StringPtr("subnet"),
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "AWSMachineProviderConfig",
+					APIVersion: "awsproviderconfig.openshift.io/v1beta1",
 				},
 			}
 			if tc.modifySpec != nil {
@@ -2600,6 +2613,15 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 			expectedOk:    false,
 			expectedError: "providerSpec.diagnostics.boot.storageAccountType: Invalid value: \"invalid\": storageAccountType must be one of: AzureManaged, CustomerManaged",
 		},
+		{
+			testCase: "with invalid GroupVersionKind",
+			modifySpec: func(p *machinev1beta1.AzureMachineProviderSpec) {
+				p.Kind = "INVALID"
+				p.APIVersion = "INVALID/v1"
+			},
+			expectedOk:       true,
+			expectedWarnings: []string{"incorrect GroupVersionKind for AzureMachineProviderSpec object: INVALID/v1, Kind=INVALID"},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -2633,6 +2655,10 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 				},
 				OSDisk: machinev1beta1.OSDisk{
 					DiskSizeGB: 1,
+				},
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "AzureMachineProviderSpec",
+					APIVersion: "azureproviderconfig.openshift.io/v1beta1",
 				},
 			}
 			if tc.modifySpec != nil {
@@ -3150,6 +3176,15 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 			expectedOk:    false,
 			expectedError: "providerSpec.onHostMaintenance: Forbidden: When GPUs are specified or using machineType with pre-attached GPUs(A2 machine family), onHostMaintenance must be set to Terminate.",
 		},
+		{
+			testCase: "with invalid GroupVersionKind",
+			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
+				p.Kind = "INVALID"
+				p.APIVersion = "INVALID/v1"
+			},
+			expectedOk:       true,
+			expectedWarnings: []string{"incorrect GroupVersionKind for GCPMachineProviderSpec object: INVALID/v1, Kind=INVALID"},
+		},
 	}
 
 	secret := &corev1.Secret{
@@ -3198,6 +3233,10 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 			},
 			CredentialsSecret: &corev1.LocalObjectReference{
 				Name: "name",
+			},
+			TypeMeta: metav1.TypeMeta{
+				Kind:       "GCPMachineProviderSpec",
+				APIVersion: "gcpprovider.openshift.io/v1beta1",
 			},
 		}
 		if tc.modifySpec != nil {
@@ -3572,6 +3611,15 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 			expectedOk:       true,
 			expectedWarnings: []string{"linkedClone clone mode is set. DiskGiB parameter will be ignored, disk size from template will be used."},
 		},
+		{
+			testCase: "with invalid GroupVersionKind",
+			modifySpec: func(p *machinev1beta1.VSphereMachineProviderSpec) {
+				p.Kind = "INVALID"
+				p.APIVersion = "INVALID/v1"
+			},
+			expectedOk:       true,
+			expectedWarnings: []string{"incorrect GroupVersionKind for VSphereMachineProviderSpec object: INVALID/v1, Kind=INVALID"},
+		},
 	}
 
 	secret := &corev1.Secret{
@@ -3610,6 +3658,10 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 				NumCPUs:   minVSphereCPU,
 				MemoryMiB: minVSphereMemoryMiB,
 				DiskGiB:   minVSphereDiskGiB,
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "VSphereMachineProviderSpec",
+					APIVersion: "vsphereprovider.openshift.io/v1beta1",
+				},
 			}
 			if tc.modifySpec != nil {
 				tc.modifySpec(providerSpec)

@@ -21,6 +21,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	kruntime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -717,6 +718,10 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 		return false, warnings, utilerrors.NewAggregate(errs)
 	}
 
+	if !validateGVK(providerSpec.GroupVersionKind(), osconfigv1.AWSPlatformType) {
+		warnings = append(warnings, fmt.Sprintf("incorrect GroupVersionKind for AWSMachineProviderConfig object: %s", providerSpec.GroupVersionKind()))
+	}
+
 	if providerSpec.AMI.ID == nil {
 		errs = append(
 			errs,
@@ -932,6 +937,10 @@ func validateAzure(m *machinev1beta1.Machine, config *admissionConfig) (bool, []
 	if err := unmarshalInto(m, providerSpec); err != nil {
 		errs = append(errs, err)
 		return false, warnings, utilerrors.NewAggregate(errs)
+	}
+
+	if !validateGVK(providerSpec.GroupVersionKind(), osconfigv1.AzurePlatformType) {
+		warnings = append(warnings, fmt.Sprintf("incorrect GroupVersionKind for AzureMachineProviderSpec object: %s", providerSpec.GroupVersionKind()))
 	}
 
 	if providerSpec.VMSize == "" {
@@ -1166,6 +1175,10 @@ func validateGCP(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 		return false, warnings, utilerrors.NewAggregate(errs)
 	}
 
+	if !validateGVK(providerSpec.GroupVersionKind(), osconfigv1.GCPPlatformType) {
+		warnings = append(warnings, fmt.Sprintf("incorrect GroupVersionKind for GCPMachineProviderSpec object: %s", providerSpec.GroupVersionKind()))
+	}
+
 	if providerSpec.Region == "" {
 		errs = append(errs, field.Required(field.NewPath("providerSpec", "region"), "region is required"))
 	}
@@ -1357,6 +1370,10 @@ func validateVSphere(m *machinev1beta1.Machine, config *admissionConfig) (bool, 
 	if err := unmarshalInto(m, providerSpec); err != nil {
 		errs = append(errs, err)
 		return false, warnings, utilerrors.NewAggregate(errs)
+	}
+
+	if !validateGVK(providerSpec.GroupVersionKind(), osconfigv1.VSpherePlatformType) {
+		warnings = append(warnings, fmt.Sprintf("incorrect GroupVersionKind for VSphereMachineProviderSpec object: %s", providerSpec.GroupVersionKind()))
 	}
 
 	if providerSpec.Template == "" {
@@ -1865,4 +1882,19 @@ func isFinalizerOnlyRemoval(m, oldM *machinev1beta1.Machine) (bool, error) {
 	}
 
 	return string(data) == `{"metadata":{"finalizers":null}}`, nil
+}
+
+func validateGVK(gvk schema.GroupVersionKind, platform osconfigv1.PlatformType) bool {
+	switch platform {
+	case osconfigv1.AWSPlatformType:
+		return gvk.Kind == "AWSMachineProviderConfig" && gvk.Group == "awsproviderconfig.openshift.io" && (gvk.Version == "v1beta1" || gvk.Version == "v1")
+	case osconfigv1.AzurePlatformType:
+		return gvk.Kind == "AzureMachineProviderSpec" && gvk.Group == "azureproviderconfig.openshift.io" && (gvk.Version == "v1beta1" || gvk.Version == "v1")
+	case osconfigv1.GCPPlatformType:
+		return gvk.Kind == "GCPMachineProviderSpec" && gvk.Group == "gcpprovider.openshift.io" && (gvk.Version == "v1beta1" || gvk.Version == "v1")
+	case osconfigv1.VSpherePlatformType:
+		return gvk.Kind == "VSphereMachineProviderSpec" && gvk.Group == "vsphereprovider.openshift.io" && (gvk.Version == "v1beta1" || gvk.Version == "v1")
+	default:
+		return true
+	}
 }
