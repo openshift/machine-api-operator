@@ -901,6 +901,50 @@ func testGetNetworkDevicesWithSimulator(t *testing.T, model *simulator.Model, se
 				return true
 			},
 		},
+		{
+			testCase: "two Networks with non existed first one",
+			providerSpec: &machinev1.VSphereMachineProviderSpec{
+				Network: machinev1.NetworkSpec{
+					Devices: []machinev1.NetworkDeviceSpec{
+						{
+							NetworkName: "Not Existed",
+						},
+						{
+							NetworkName: "VM Network",
+						},
+					},
+				},
+			},
+			expected: func(gotDevices []types.BaseVirtualDeviceConfigSpec, err error) bool {
+				if err == nil {
+					t.Fatal("Error expected")
+					return false
+				}
+				return true
+			},
+		},
+		{
+			testCase: "two Networks with non existed second one",
+			providerSpec: &machinev1.VSphereMachineProviderSpec{
+				Network: machinev1.NetworkSpec{
+					Devices: []machinev1.NetworkDeviceSpec{
+						{
+							NetworkName: "VM Network",
+						},
+						{
+							NetworkName: "Non Existed",
+						},
+					},
+				},
+			},
+			expected: func(gotDevices []types.BaseVirtualDeviceConfigSpec, err error) bool {
+				if err == nil {
+					t.Fatal("Error expected")
+					return false
+				}
+				return true
+			},
+		},
 	}
 	// TODO: verify GetVirtualDeviceConfigSpec().Device values
 
