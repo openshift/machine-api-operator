@@ -737,7 +737,7 @@ func clone(s *machineScope) (string, error) {
 	klog.V(3).Infof("Getting network devices")
 	networkDevices, err := getNetworkDevices(s, resourcepool, devices)
 	if err != nil {
-		return "", fmt.Errorf("error getting network specs: %v", err)
+		return "", fmt.Errorf("error getting network specs: %w", err)
 	}
 
 	deviceSpecs = append(deviceSpecs, networkDevices...)
@@ -841,7 +841,6 @@ func getDiskSpec(s *machineScope, devices object.VirtualDeviceList) (types.BaseV
 
 func getNetworkDevices(s *machineScope, resourcepool *object.ResourcePool, devices object.VirtualDeviceList) ([]types.BaseVirtualDeviceConfigSpec, error) {
 	var networkDevices []types.BaseVirtualDeviceConfigSpec
-	var backing types.BaseVirtualDeviceBackingInfo
 	// Remove any existing NICs
 	for _, dev := range devices.SelectByType((*types.VirtualEthernetCard)(nil)) {
 		networkDevices = append(networkDevices, &types.VirtualDeviceConfigSpec{
@@ -853,6 +852,7 @@ func getNetworkDevices(s *machineScope, resourcepool *object.ResourcePool, devic
 	// Add new NICs based on the machine config.
 	for i := range s.providerSpec.Network.Devices {
 		var ccrMo mo.ClusterComputeResource
+		var backing types.BaseVirtualDeviceBackingInfo
 
 		netSpec := &s.providerSpec.Network.Devices[i]
 		klog.V(3).Infof("Adding device: %v", netSpec.NetworkName)
@@ -892,7 +892,7 @@ func getNetworkDevices(s *machineScope, resourcepool *object.ResourcePool, devic
 		}
 
 		if backing == nil {
-			return nil, fmt.Errorf("unable to get network for %q", netSpec.NetworkName)
+			return nil, machineapierros.InvalidMachineConfiguration("unable to get network for %q", netSpec.NetworkName)
 		}
 
 		dev, err := object.EthernetCardTypes().CreateEthernetCard(ethCardType, backing)
