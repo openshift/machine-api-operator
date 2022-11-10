@@ -51,7 +51,7 @@ func getMachine(name string, phase string) *machinev1.Machine {
 	}
 
 	machine.Status.Phase = pointer.StringPtr(phase)
-	if phase == phaseDeleting {
+	if phase == machinev1.PhaseDeleting {
 		machine.ObjectMeta.DeletionTimestamp = &now
 	}
 
@@ -80,10 +80,10 @@ func TestDrainControllerReconcileRequest(t *testing.T) {
 		cases := []struct {
 			phase string
 		}{
-			{phase: phaseRunning},
-			{phase: phaseFailed},
-			{phase: phaseProvisioning},
-			{phase: phaseProvisioned},
+			{phase: machinev1.PhaseRunning},
+			{phase: machinev1.PhaseFailed},
+			{phase: machinev1.PhaseProvisioning},
+			{phase: machinev1.PhaseProvisioned},
 			{phase: "some_random_thing_there"},
 		}
 		for _, tc := range cases {
@@ -106,7 +106,7 @@ func TestDrainControllerReconcileRequest(t *testing.T) {
 	t.Run("hold machine with pre-drain hook", func(t *testing.T) {
 		g := NewGomegaWithT(t)
 
-		machine := getMachine("deleting", phaseDeleting)
+		machine := getMachine("deleting", machinev1.PhaseDeleting)
 		machine.Spec.LifecycleHooks.PreDrain = []machinev1.LifecycleHook{{Name: "stop", Owner: "drain"}}
 
 		drainController, recorder := getDrainControllerReconciler(machine)
@@ -124,7 +124,7 @@ func TestDrainControllerReconcileRequest(t *testing.T) {
 	t.Run("skip machine without node", func(t *testing.T) {
 		g := NewGomegaWithT(t)
 
-		machine := getMachine("no-node", phaseDeleting)
+		machine := getMachine("no-node", machinev1.PhaseDeleting)
 		machine.Status.NodeRef = nil
 
 		drainController, recorder := getDrainControllerReconciler(machine)
@@ -143,7 +143,7 @@ func TestDrainControllerReconcileRequest(t *testing.T) {
 	t.Run("skip machine with proper annotation", func(t *testing.T) {
 		g := NewGomegaWithT(t)
 
-		machine := getMachine("annotated", phaseDeleting)
+		machine := getMachine("annotated", machinev1.PhaseDeleting)
 		machine.ObjectMeta.Annotations[ExcludeNodeDrainingAnnotation] = "here"
 
 		drainController, recorder := getDrainControllerReconciler(machine)
@@ -162,7 +162,7 @@ func TestDrainControllerReconcileRequest(t *testing.T) {
 	t.Run("ignore already drained machine", func(t *testing.T) {
 		g := NewGomegaWithT(t)
 
-		machine := getMachine("drained", phaseDeleting)
+		machine := getMachine("drained", machinev1.PhaseDeleting)
 		machine.Status.Conditions = getDrainedConditions("Drained")
 
 		drainController, recorder := getDrainControllerReconciler(machine)

@@ -67,30 +67,6 @@ const (
 	// MachineInterruptibleInstanceLabelName as annotaiton name for interruptible instances
 	MachineInterruptibleInstanceLabelName = "machine.openshift.io/interruptible-instance"
 
-	// https://github.com/openshift/enhancements/blob/master/enhancements/machine-instance-lifecycle.md
-	// This is not a transient error, but
-	// indicates a state that will likely need to be fixed before progress can be made
-	// e.g Instance does NOT exist but Machine has providerID/address
-	// e.g Cloud service returns a 4xx response
-	phaseFailed = "Failed"
-
-	// Instance does NOT exist
-	// Machine has NOT been given providerID/address
-	phaseProvisioning = "Provisioning"
-
-	// Instance exists
-	// Machine has been given providerID/address
-	// Machine has NOT been given nodeRef
-	phaseProvisioned = "Provisioned"
-
-	// Instance exists
-	// Machine has been given providerID/address
-	// Machine has been given a nodeRef
-	phaseRunning = "Running"
-
-	// Machine has a deletion timestamp
-	phaseDeleting = "Deleting"
-
 	// Hardcoded instance state set on machine failure
 	unknownInstanceState = "Unknown"
 
@@ -211,7 +187,7 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 	}
 
 	if !m.ObjectMeta.DeletionTimestamp.IsZero() {
-		if err := r.updateStatus(ctx, m, phaseDeleting, nil, originalConditions); err != nil {
+		if err := r.updateStatus(ctx, m, machinev1.PhaseDeleting, nil, originalConditions); err != nil {
 			return reconcile.Result{}, err
 		}
 
@@ -281,7 +257,7 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 	}
 
 	if machineIsFailed(m) {
-		klog.Warningf("%v: machine has gone %q phase. It won't reconcile", machineName, phaseFailed)
+		klog.Warningf("%v: machine has gone %q phase. It won't reconcile", machineName, machinev1.PhaseFailed)
 		return reconcile.Result{}, nil
 	}
 
@@ -328,14 +304,14 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 
 		if !machineHasNode(m) {
 			// Requeue until we reach running phase
-			if err := r.updateStatus(ctx, m, phaseProvisioned, nil, originalConditions); err != nil {
+			if err := r.updateStatus(ctx, m, machinev1.PhaseProvisioned, nil, originalConditions); err != nil {
 				return reconcile.Result{}, err
 			}
 			klog.Infof("%v: has no node yet, requeuing", machineName)
 			return reconcile.Result{RequeueAfter: requeueAfter}, nil
 		}
 
-		return reconcile.Result{}, r.updateStatus(ctx, m, phaseRunning, nil, originalConditions)
+		return reconcile.Result{}, r.updateStatus(ctx, m, machinev1.PhaseRunning, nil, originalConditions)
 	}
 
 	// Instance does not exist but the machine has been given a providerID/address.
@@ -348,7 +324,7 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 			"Instance not found on provider",
 		))
 
-		if err := r.updateStatus(ctx, m, phaseFailed, errors.New("can't find created instance"), originalConditions); err != nil {
+		if err := r.updateStatus(ctx, m, machinev1.PhaseFailed, errors.New("can't find created instance"), originalConditions); err != nil {
 			return reconcile.Result{}, err
 		}
 		return reconcile.Result{}, nil
@@ -364,7 +340,7 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 	// Machine resource created and instance does not exist yet.
 	if pointer.StringDeref(m.Status.Phase, "") == "" {
 		klog.V(2).Infof("%v: setting phase to Provisioning and requeuing", machineName)
-		if err := r.updateStatus(ctx, m, phaseProvisioning, nil, originalConditions); err != nil {
+		if err := r.updateStatus(ctx, m, machinev1.PhaseProvisioning, nil, originalConditions); err != nil {
 			return reconcile.Result{}, err
 		}
 		return reconcile.Result{}, nil
@@ -374,7 +350,7 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 	if err := r.actuator.Create(ctx, m); err != nil {
 		klog.Warningf("%v: failed to create machine: %v", machineName, err)
 		if isInvalidMachineConfigurationError(err) {
-			if err := r.updateStatus(ctx, m, phaseFailed, err, originalConditions); err != nil {
+			if err := r.updateStatus(ctx, m, machinev1.PhaseFailed, err, originalConditions); err != nil {
 				return reconcile.Result{}, err
 			}
 			return reconcile.Result{}, nil
@@ -440,7 +416,7 @@ func (r *ReconcileMachine) updateStatus(ctx context.Context, machine *machinev1.
 	// A call to Patch will mutate our local copy of the machine to match what is stored in the API.
 	// Before we make any changes to the status subresource on our local copy, we need to patch the object first,
 	// otherwise our local changes to the status subresource will be lost.
-	if phase == phaseFailed {
+	if phase == machinev1.PhaseFailed {
 		err := r.patchFailedMachineInstanceAnnotation(ctx, machine)
 		if err != nil {
 			klog.Errorf("Failed to update machine %q: %v", machine.GetName(), err)
@@ -458,7 +434,7 @@ func (r *ReconcileMachine) updateStatus(ctx context.Context, machine *machinev1.
 	// Any updates to the status must be done after this point.
 	baseToPatch := client.MergeFrom(baseMachine)
 
-	if phase == phaseFailed {
+	if phase == machinev1.PhaseFailed {
 		if err := r.overrideFailedMachineProviderStatusState(machine); err != nil {
 			klog.Errorf("Failed to update machine provider status %q: %v", machine.GetName(), err)
 			return err
@@ -468,7 +444,7 @@ func (r *ReconcileMachine) updateStatus(ctx context.Context, machine *machinev1.
 	machine.Status.Phase = &phase
 	machine.Status.ErrorReason = nil
 	machine.Status.ErrorMessage = nil
-	if phase == phaseFailed && failureCause != nil {
+	if phase == machinev1.PhaseFailed && failureCause != nil {
 		var machineError *MachineError
 		if errors.As(failureCause, &machineError) {
 			machine.Status.ErrorReason = &machineError.Reason
@@ -494,7 +470,7 @@ func (r *ReconcileMachine) updateStatus(ctx context.Context, machine *machinev1.
 	// entries when there are failures.
 	// Only update when there is a change to the phase to avoid duplicating entries for
 	// individual machines.
-	if phaseChanged && phase != phaseDeleting {
+	if phaseChanged && phase != machinev1.PhaseDeleting {
 		// Apart from deleting, update the transition metric
 		// Deleting would always end up in the infinite bucket
 		timeElapsed := r.now().Sub(machine.GetCreationTimestamp().Time).Seconds()
@@ -614,7 +590,7 @@ func machineHasNode(machine *machinev1.Machine) bool {
 }
 
 func machineIsFailed(machine *machinev1.Machine) bool {
-	return pointer.StringDeref(machine.Status.Phase, "") == phaseFailed
+	return pointer.StringDeref(machine.Status.Phase, "") == machinev1.PhaseFailed
 }
 
 func nodeIsUnreachable(node *corev1.Node) bool {

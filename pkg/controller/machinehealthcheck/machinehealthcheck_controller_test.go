@@ -1537,7 +1537,7 @@ func TestGetNodeFromMachine(t *testing.T) {
 
 func TestNeedsRemediation(t *testing.T) {
 	knownDate := metav1.Time{Time: time.Date(1985, 06, 03, 0, 0, 0, 0, time.Local)}
-	machineFailed := machinePhaseFailed
+	machineFailed := machinev1.PhaseFailed
 	testCases := []struct {
 		testCase                    string
 		target                      *target

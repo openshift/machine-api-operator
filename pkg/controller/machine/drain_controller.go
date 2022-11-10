@@ -79,7 +79,7 @@ func (d *machineDrainController) Reconcile(ctx context.Context, request reconcil
 	existingDrainedCondition := conditions.Get(m, machinev1.MachineDrained)
 	alreadyDrained := existingDrainedCondition != nil && existingDrainedCondition.Status == corev1.ConditionTrue
 
-	if !m.ObjectMeta.DeletionTimestamp.IsZero() && pointer.StringDeref(m.Status.Phase, "") == phaseDeleting && !alreadyDrained {
+	if !m.ObjectMeta.DeletionTimestamp.IsZero() && pointer.StringDeref(m.Status.Phase, "") == machinev1.PhaseDeleting && !alreadyDrained {
 		drainFinishedCondition := conditions.TrueCondition(machinev1.MachineDrained)
 
 		if _, exists := m.ObjectMeta.Annotations[ExcludeNodeDrainingAnnotation]; !exists && m.Status.NodeRef != nil {
