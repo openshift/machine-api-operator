@@ -83,7 +83,7 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Status: machinev1.MachineStatus{
-			Phase: pointer.StringPtr(phaseProvisioning),
+			Phase: pointer.StringPtr(PhaseProvisioning),
 		},
 	}
 	machineProvisioned := machinev1.Machine{
@@ -346,7 +346,7 @@ func TestReconcileRequest(t *testing.T) {
 				deleteCallCount: 0,
 				result:          reconcile.Result{},
 				error:           false,
-				phase:           phaseProvisioning,
+				phase:           PhaseProvisioning,
 			},
 		},
 		{
@@ -359,7 +359,7 @@ func TestReconcileRequest(t *testing.T) {
 				deleteCallCount: 0,
 				result:          reconcile.Result{RequeueAfter: requeueAfter},
 				error:           false,
-				phase:           phaseProvisioning,
+				phase:           PhaseProvisioning,
 			},
 		},
 		{
@@ -372,7 +372,7 @@ func TestReconcileRequest(t *testing.T) {
 				deleteCallCount: 0,
 				result:          reconcile.Result{RequeueAfter: requeueAfter},
 				error:           false,
-				phase:           phaseProvisioned,
+				phase:           PhaseProvisioned,
 			},
 		},
 		{
@@ -385,7 +385,7 @@ func TestReconcileRequest(t *testing.T) {
 				deleteCallCount: 0,
 				result:          reconcile.Result{},
 				error:           false,
-				phase:           phaseDeleting,
+				phase:           PhaseDeleting,
 			},
 		},
 		{
@@ -398,7 +398,7 @@ func TestReconcileRequest(t *testing.T) {
 				deleteCallCount: 0,
 				result:          reconcile.Result{},
 				error:           false,
-				phase:           phaseDeleting,
+				phase:           PhaseDeleting,
 			},
 		},
 		{
@@ -411,7 +411,7 @@ func TestReconcileRequest(t *testing.T) {
 				deleteCallCount: 0,
 				result:          reconcile.Result{},
 				error:           false,
-				phase:           phaseDeleting,
+				phase:           PhaseDeleting,
 			},
 		},
 		{
@@ -424,7 +424,7 @@ func TestReconcileRequest(t *testing.T) {
 				deleteCallCount: 0,
 				result:          reconcile.Result{},
 				error:           false,
-				phase:           phaseDeleting,
+				phase:           PhaseDeleting,
 			},
 		},
 		{
@@ -437,7 +437,7 @@ func TestReconcileRequest(t *testing.T) {
 				deleteCallCount: 0,
 				result:          reconcile.Result{},
 				error:           false,
-				phase:           phaseDeleting,
+				phase:           PhaseDeleting,
 			},
 		},
 		{
@@ -450,7 +450,7 @@ func TestReconcileRequest(t *testing.T) {
 				deleteCallCount: 1,
 				result:          reconcile.Result{RequeueAfter: requeueAfter},
 				error:           false,
-				phase:           phaseDeleting,
+				phase:           PhaseDeleting,
 			},
 		},
 		{
@@ -463,7 +463,7 @@ func TestReconcileRequest(t *testing.T) {
 				deleteCallCount: 1,
 				result:          reconcile.Result{},
 				error:           false,
-				phase:           phaseDeleting,
+				phase:           PhaseDeleting,
 			},
 		},
 		{
@@ -476,7 +476,7 @@ func TestReconcileRequest(t *testing.T) {
 				deleteCallCount: 0,
 				result:          reconcile.Result{},
 				error:           false,
-				phase:           phaseFailed, // A machine which does not exist but has providerID or addresses
+				phase:           PhaseFailed, // A machine which does not exist but has providerID or addresses
 			},
 		},
 		{
@@ -489,7 +489,7 @@ func TestReconcileRequest(t *testing.T) {
 				deleteCallCount: 0,
 				result:          reconcile.Result{},
 				error:           false,
-				phase:           phaseRunning,
+				phase:           PhaseRunning,
 			},
 		},
 	}
@@ -576,27 +576,27 @@ func TestUpdateStatus(t *testing.T) {
 	}{
 		{
 			name:        "when the status is not changed",
-			phase:       phaseRunning,
+			phase:       PhaseRunning,
 			err:         nil,
 			annotations: nil,
 			conditions:  defaultLifecycleConditions,
 		},
 		{
 			name:  "when updating the phase to Failed",
-			phase: phaseFailed,
+			phase: PhaseFailed,
 			err:   errors.New("test"),
 			annotations: map[string]string{
-				MachineInstanceStateAnnotationName: unknownInstanceState,
+				MachineInstanceStateAnnotationName: UnknownInstanceState,
 			},
 			updated:    true,
 			conditions: defaultLifecycleConditions,
 		},
 		{
 			name:  "when updating the phase to Failed with instanceState Set",
-			phase: phaseFailed,
+			phase: PhaseFailed,
 			err:   errors.New("test"),
 			annotations: map[string]string{
-				MachineInstanceStateAnnotationName: unknownInstanceState,
+				MachineInstanceStateAnnotationName: UnknownInstanceState,
 			},
 			existingProviderStatus: `{"instanceState":"Running"}`,
 			expectedProviderStatus: `{"instanceState":"Unknown"}`,
@@ -605,10 +605,10 @@ func TestUpdateStatus(t *testing.T) {
 		},
 		{
 			name:  "when updating the phase to Failed with vmState Set",
-			phase: phaseFailed,
+			phase: PhaseFailed,
 			err:   errors.New("test"),
 			annotations: map[string]string{
-				MachineInstanceStateAnnotationName: unknownInstanceState,
+				MachineInstanceStateAnnotationName: UnknownInstanceState,
 			},
 			existingProviderStatus: `{"vmState":"Running"}`,
 			expectedProviderStatus: `{"vmState":"Unknown"}`,
@@ -617,10 +617,10 @@ func TestUpdateStatus(t *testing.T) {
 		},
 		{
 			name:  "when updating the phase to Failed with state Set",
-			phase: phaseFailed,
+			phase: PhaseFailed,
 			err:   errors.New("test"),
 			annotations: map[string]string{
-				MachineInstanceStateAnnotationName: unknownInstanceState,
+				MachineInstanceStateAnnotationName: UnknownInstanceState,
 			},
 			existingProviderStatus: `{"state":"Running"}`,
 			expectedProviderStatus: `{"state":"Running"}`,
@@ -629,7 +629,7 @@ func TestUpdateStatus(t *testing.T) {
 		},
 		{
 			name:        "when adding a condition",
-			phase:       phaseRunning,
+			phase:       PhaseRunning,
 			err:         nil,
 			annotations: nil,
 			conditions: machinev1.Conditions{
@@ -641,7 +641,7 @@ func TestUpdateStatus(t *testing.T) {
 		},
 		{
 			name:        "when updating a condition",
-			phase:       phaseRunning,
+			phase:       PhaseRunning,
 			err:         nil,
 			annotations: nil,
 			conditions: machinev1.Conditions{
@@ -656,7 +656,7 @@ func TestUpdateStatus(t *testing.T) {
 		},
 		{
 			name:        "when the conditions do not change",
-			phase:       phaseRunning,
+			phase:       PhaseRunning,
 			err:         nil,
 			annotations: nil,
 			conditions: machinev1.Conditions{
@@ -722,18 +722,18 @@ func TestUpdateStatus(t *testing.T) {
 			}
 
 			// Set the phase to Running initially
-			g.Expect(reconciler.updateStatus(context.TODO(), machine, phaseRunning, nil, machinev1.Conditions{})).To(Succeed())
+			g.Expect(reconciler.updateStatus(context.TODO(), machine, PhaseRunning, nil, machinev1.Conditions{})).To(Succeed())
 			// validate persisted object
 			got := machinev1.Machine{}
 			g.Expect(reconciler.Client.Get(context.TODO(), namespacedName, &got)).To(Succeed())
 			g.Expect(got.Status.Phase).ToNot(BeNil())
-			g.Expect(*got.Status.Phase).To(Equal(phaseRunning))
+			g.Expect(*got.Status.Phase).To(Equal(PhaseRunning))
 			lastUpdated := got.Status.LastUpdated
 			gotConditions := got.Status.Conditions
 			g.Expect(lastUpdated).ToNot(BeNil())
 			// validate passed object
 			g.Expect(machine.Status.Phase).ToNot(BeNil())
-			g.Expect(*machine.Status.Phase).To(Equal(phaseRunning))
+			g.Expect(*machine.Status.Phase).To(Equal(PhaseRunning))
 			objectLastUpdated := machine.Status.LastUpdated
 			g.Expect(objectLastUpdated).ToNot(BeNil())
 
