@@ -1887,13 +1887,13 @@ func isFinalizerOnlyRemoval(m, oldM *machinev1beta1.Machine) (bool, error) {
 func validateGVK(gvk schema.GroupVersionKind, platform osconfigv1.PlatformType) bool {
 	switch platform {
 	case osconfigv1.AWSPlatformType:
-		return gvk.Kind == "AWSMachineProviderConfig" && gvk.Group == "awsproviderconfig.openshift.io" && (gvk.Version == "v1beta1" || gvk.Version == "v1")
+		return gvk.Kind == "AWSMachineProviderConfig" && (gvk.Group == "awsproviderconfig.openshift.io" || gvk.Group == "machine.openshift.io") && (gvk.Version == "v1beta1" || gvk.Version == "v1")
 	case osconfigv1.AzurePlatformType:
-		return gvk.Kind == "AzureMachineProviderSpec" && gvk.Group == "azureproviderconfig.openshift.io" && (gvk.Version == "v1beta1" || gvk.Version == "v1")
+		return gvk.Kind == "AzureMachineProviderSpec" && (gvk.Group == "azureproviderconfig.openshift.io" || gvk.Group == "machine.openshift.io") && (gvk.Version == "v1beta1" || gvk.Version == "v1")
 	case osconfigv1.GCPPlatformType:
-		return gvk.Kind == "GCPMachineProviderSpec" && gvk.Group == "gcpprovider.openshift.io" && (gvk.Version == "v1beta1" || gvk.Version == "v1")
+		return gvk.Kind == "GCPMachineProviderSpec" && (gvk.Group == "gcpprovider.openshift.io" || gvk.Group == "machine.openshift.io") && (gvk.Version == "v1beta1" || gvk.Version == "v1")
 	case osconfigv1.VSpherePlatformType:
-		return gvk.Kind == "VSphereMachineProviderSpec" && gvk.Group == "vsphereprovider.openshift.io" && (gvk.Version == "v1beta1" || gvk.Version == "v1")
+		return gvk.Kind == "VSphereMachineProviderSpec" && (gvk.Group == "vsphereprovider.openshift.io" || gvk.Group == "machine.openshift.io") && (gvk.Version == "v1beta1" || gvk.Version == "v1")
 	default:
 		return true
 	}
