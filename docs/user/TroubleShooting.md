@@ -76,7 +76,7 @@ Next, check the Machine object's status.  There may be status conditions that ex
 If the phase is "Provisioning" it means that the cloud provider has not created the corresponding instance yet for one reason or another.  This could be quota, misconfiguration, or some other problem.  Check the ```machine-controller```'s logs; refer to the section [Important Pod Logs](#important-pod-logs) above for exact steps.
 
 ## Machine Status: Phase Provisioned
-Next, if the phase is "Provisioned" that means the instance was created successfully in the cloud provider.  Two things need to happen at this point for the Machine to successfully become a Node: First, ignition needs to run successfully, contact the ```machine-config-server```, and the kubelet will issue a ```certificate signing request``` (CSR).  This CSR must be approved by the cluster-machine-approver.
+Next, if the phase is "Provisioned" that means the instance was created successfully in the cloud provider.  Two things need to happen at this point for the Machine to successfully become a Node: First, ignition needs to run successfully, contact the [```machine-config-server```](https://github.com/openshift/machine-config-operator/blob/master/docs/MachineConfigServer.md), and the kubelet will issue a ```certificate signing request``` (CSR).  This CSR must be approved by the cluster-machine-approver.
 
 First, check if there are any pending CSRs:
 ```sh
