@@ -124,13 +124,6 @@ func newReconciler(mgr manager.Manager, actuator Actuator) reconcile.Reconciler 
 	return r
 }
 
-func stringPointerDeref(stringPointer *string) string {
-	if stringPointer != nil {
-		return *stringPointer
-	}
-	return ""
-}
-
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
 func add(mgr manager.Manager, r reconcile.Reconciler, controllerName string) error {
 	return addWithOpts(mgr, controller.Options{Reconciler: r}, controllerName)
@@ -369,7 +362,7 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 	))
 
 	// Machine resource created and instance does not exist yet.
-	if stringPointerDeref(m.Status.Phase) == "" {
+	if pointer.StringDeref(m.Status.Phase, "") == "" {
 		klog.V(2).Infof("%v: setting phase to Provisioning and requeuing", machineName)
 		if err := r.updateStatus(ctx, m, phaseProvisioning, nil, originalConditions); err != nil {
 			return reconcile.Result{}, err
@@ -431,7 +424,7 @@ func isInvalidMachineConfigurationError(err error) bool {
 // machine conditions so that the diff can be calculated properly within this function.
 func (r *ReconcileMachine) updateStatus(ctx context.Context, machine *machinev1.Machine, phase string, failureCause error, originalConditions []machinev1.Condition) error {
 	phaseChanged := false
-	if stringPointerDeref(machine.Status.Phase) != phase {
+	if pointer.StringDeref(machine.Status.Phase, "") != phase {
 		klog.V(3).Infof("%v: going into phase %q", machine.GetName(), phase)
 
 		phaseChanged = true
@@ -613,7 +606,7 @@ func (r *ReconcileMachine) now() time.Time {
 }
 
 func machineIsProvisioned(machine *machinev1.Machine) bool {
-	return len(machine.Status.Addresses) > 0 || stringPointerDeref(machine.Spec.ProviderID) != ""
+	return len(machine.Status.Addresses) > 0 || pointer.StringDeref(machine.Spec.ProviderID, "") != ""
 }
 
 func machineHasNode(machine *machinev1.Machine) bool {
@@ -621,7 +614,7 @@ func machineHasNode(machine *machinev1.Machine) bool {
 }
 
 func machineIsFailed(machine *machinev1.Machine) bool {
-	return stringPointerDeref(machine.Status.Phase) == phaseFailed
+	return pointer.StringDeref(machine.Status.Phase, "") == phaseFailed
 }
 
 func nodeIsUnreachable(node *corev1.Node) bool {
