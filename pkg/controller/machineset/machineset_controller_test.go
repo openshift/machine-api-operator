@@ -18,6 +18,7 @@ package machineset
 
 import (
 	"context"
+	"time"
 
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -71,7 +72,7 @@ var _ = Describe("MachineSet Reconciler", func() {
 
 		By("Closing the manager")
 		mgrCtxCancel()
-		Eventually(mgrStopped, timeout).Should(BeClosed())
+		Eventually(mgrStopped, timeout).WithTimeout(20 * time.Second).Should(BeClosed())
 	})
 
 	It("Should reconcile a MachineSet", func() {
