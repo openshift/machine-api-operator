@@ -551,8 +551,8 @@ func TestReconcileRequest(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			if tc.expected.phase != stringPointerDeref(machine.Status.Phase) {
-				t.Errorf("Case %s. Got: %v, expected: %v", tc.request.Name, stringPointerDeref(machine.Status.Phase), tc.expected.phase)
+			if tc.expected.phase != pointer.StringDeref(machine.Status.Phase, "") {
+				t.Errorf("Case %s. Got: %v, expected: %v", tc.request.Name, pointer.StringDeref(machine.Status.Phase, ""), tc.expected.phase)
 			}
 		})
 	}
@@ -837,28 +837,6 @@ func TestMachineIsProvisioned(t *testing.T) {
 
 	for _, tc := range testCases {
 		if got := machineIsProvisioned(tc.machine); got != tc.expected {
-			t.Errorf("Got: %v, expected: %v", got, tc.expected)
-		}
-	}
-}
-
-func TestStringPointerDeref(t *testing.T) {
-	value := "test"
-	testCases := []struct {
-		stringPointer *string
-		expected      string
-	}{
-		{
-			stringPointer: nil,
-			expected:      "",
-		},
-		{
-			stringPointer: &value,
-			expected:      value,
-		},
-	}
-	for _, tc := range testCases {
-		if got := stringPointerDeref(tc.stringPointer); got != tc.expected {
 			t.Errorf("Got: %v, expected: %v", got, tc.expected)
 		}
 	}

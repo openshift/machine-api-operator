@@ -2014,28 +2014,6 @@ func TestMinDuration(t *testing.T) {
 	}
 }
 
-func TestStringPointerDeref(t *testing.T) {
-	value := "test"
-	testCases := []struct {
-		stringPointer *string
-		expected      string
-	}{
-		{
-			stringPointer: nil,
-			expected:      "",
-		},
-		{
-			stringPointer: &value,
-			expected:      value,
-		},
-	}
-	for _, tc := range testCases {
-		if got := derefStringPointer(tc.stringPointer); got != tc.expected {
-			t.Errorf("Got: %v, expected: %v", got, tc.expected)
-		}
-	}
-}
-
 func TestRemediate(t *testing.T) {
 	testCases := []struct {
 		testCase       string
