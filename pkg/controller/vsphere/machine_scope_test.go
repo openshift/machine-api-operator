@@ -118,7 +118,7 @@ func TestGetUserData(t *testing.T) {
 				clientObjs = append(clientObjs, tc.userDataSecret)
 			}
 
-			client := fake.NewFakeClient(clientObjs...)
+			client := fake.NewClientBuilder().WithRuntimeObjects(clientObjs...).Build()
 
 			// Can't use newMachineScope because it tries to create an API
 			// session, and other things unrelated to these tests.
@@ -262,7 +262,7 @@ func TestGetCredentialsSecret(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
-			client := fake.NewFakeClientWithScheme(scheme.Scheme, tc.secret)
+			client := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(tc.secret).Build()
 			gotUser, gotPassword, err := getCredentialsSecret(client, TestNamespace, *tc.providerSpec)
 			if (err != nil) != tc.expectError {
 				t.Errorf("Expected error: %v, got %v", tc.expectError, err)
@@ -284,8 +284,8 @@ func TestPatchMachine(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.Background()
 
-	configv1.AddToScheme(scheme.Scheme)
-	machinev1.AddToScheme(scheme.Scheme)
+	g.Expect(configv1.AddToScheme(scheme.Scheme)).ToNot(HaveOccurred())
+	g.Expect(machinev1.AddToScheme(scheme.Scheme)).ToNot(HaveOccurred())
 
 	testEnv := &envtest.Environment{
 		CRDDirectoryPaths: []string{

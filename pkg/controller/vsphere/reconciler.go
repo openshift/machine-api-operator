@@ -27,7 +27,6 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 
-	machineapierros "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
 	"github.com/openshift/machine-api-operator/pkg/metrics"
@@ -97,7 +96,7 @@ func (r *Reconciler) create() error {
 			conditionFailed.Message = err.Error()
 			statusError := setProviderStatus(task, conditionFailed, r.machineScope, nil)
 			if statusError != nil {
-				return fmt.Errorf("Failed to set provider status: %w", err)
+				return fmt.Errorf("failed to set provider status: %w", err)
 			}
 			return err
 		}
@@ -117,7 +116,7 @@ func (r *Reconciler) create() error {
 	if moTask == nil {
 		// Possible eventual consistency problem from vsphere
 		// TODO: change error message here to indicate this might be expected.
-		return fmt.Errorf("Unexpected moTask nil")
+		return fmt.Errorf("unexpected moTask nil")
 	}
 
 	if taskIsFinished, err := taskIsFinished(moTask); err != nil {
@@ -131,11 +130,11 @@ func (r *Reconciler) create() error {
 			conditionFailed.Message = err.Error()
 			statusError := setProviderStatus(moTask.Reference().Value, conditionFailed, r.machineScope, nil)
 			if statusError != nil {
-				return fmt.Errorf("Failed to set provider status: %w", statusError)
+				return fmt.Errorf("failed to set provider status: %w", statusError)
 			}
-			return machineapierros.CreateMachine(err.Error())
+			return machinecontroller.CreateMachine(err.Error())
 		} else {
-			return fmt.Errorf("Failed to check task status: %w", err)
+			return fmt.Errorf("failed to check task status: %w", err)
 		}
 	} else if !taskIsFinished {
 		return fmt.Errorf("%v task %v has not finished", moTask.Info.DescriptionId, moTask.Reference().Value)
@@ -155,7 +154,7 @@ func (r *Reconciler) create() error {
 			conditionFailed.Message = err.Error()
 			statusError := setProviderStatus(task, conditionFailed, r.machineScope, nil)
 			if statusError != nil {
-				return fmt.Errorf("Failed to set provider status: %w", err)
+				return fmt.Errorf("failed to set provider status: %w", err)
 			}
 			return err
 		}
@@ -264,6 +263,9 @@ func (r *Reconciler) exists() (bool, error) {
 			Ref:     vmRef,
 		}
 		powerState, err = vm.getPowerState()
+		if err != nil {
+			return false, fmt.Errorf("%v: failed checking machine's power state: %w", r.machine.GetName(), err)
+		}
 	}
 
 	if pointer.StringDeref(r.machine.Status.Phase, "") == machinePhaseProvisioning && powerState == types.VirtualMachinePowerStatePoweredOff {
@@ -375,7 +377,7 @@ func (r *Reconciler) delete() error {
 	}
 
 	if err := setProviderStatus(task.Reference().Value, conditionSuccess(), r.machineScope, vm); err != nil {
-		return fmt.Errorf("Failed to set provider status: %w", err)
+		return fmt.Errorf("failed to set provider status: %w", err)
 	}
 
 	// TODO: consider returning an error to specify retry time here
@@ -627,12 +629,12 @@ func clone(s *machineScope) (string, error) {
 
 	hwVersion, err := getHwVersion(s.Context, vmTemplate)
 	if err != nil {
-		return "", machineapierros.InvalidMachineConfiguration(
+		return "", machinecontroller.InvalidMachineConfiguration(
 			"Unable to detect machine template HW version for machine '%s': %v", s.machine.GetName(), err,
 		)
 	}
 	if hwVersion < minimumHWVersion {
-		return "", machineapierros.InvalidMachineConfiguration(
+		return "", machinecontroller.InvalidMachineConfiguration(
 			fmt.Sprintf(
 				"Hardware lower than %d is not supported, clone stopped. "+
 					"Detected machine template version is %d. "+
@@ -827,7 +829,7 @@ func getDiskSpec(s *machineScope, devices object.VirtualDeviceList) (types.BaseV
 	disk := disks[0].(*types.VirtualDisk)
 	cloneCapacityKB := int64(s.providerSpec.DiskGiB) * 1024 * 1024
 	if disk.CapacityInKB > cloneCapacityKB {
-		return nil, machineapierros.InvalidMachineConfiguration(
+		return nil, machinecontroller.InvalidMachineConfiguration(
 			"can't resize template disk down, initial capacity is larger: %dKiB > %dKiB",
 			disk.CapacityInKB, cloneCapacityKB)
 	}
@@ -892,7 +894,7 @@ func getNetworkDevices(s *machineScope, resourcepool *object.ResourcePool, devic
 		}
 
 		if backing == nil {
-			return nil, machineapierros.InvalidMachineConfiguration("unable to get network for %q", netSpec.NetworkName)
+			return nil, machinecontroller.InvalidMachineConfiguration("unable to get network for %q", netSpec.NetworkName)
 		}
 
 		dev, err := object.EthernetCardTypes().CreateEthernetCard(ethCardType, backing)

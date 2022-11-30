@@ -6,7 +6,6 @@ import (
 	"os"
 	"time"
 
-	configv1 "github.com/openshift/api/config/v1"
 	osconfigv1 "github.com/openshift/api/config/v1"
 	osoperatorv1 "github.com/openshift/api/operator/v1"
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
@@ -343,7 +342,7 @@ func (optr *Operator) sync(key string) (reconcile.Result, error) {
 	return optr.syncAll(operatorConfig)
 }
 
-func getFeatureGate(lister configlistersv1.FeatureGateLister) (*configv1.FeatureGate, error) {
+func getFeatureGate(lister configlistersv1.FeatureGateLister) (*osconfigv1.FeatureGate, error) {
 	featureGate, err := lister.Get("cluster")
 	if errors.IsNotFound(err) {
 		// No feature gate is set, therefore cannot be external.

@@ -50,7 +50,10 @@ func createImagesJSONFromManifest() (path string, err error) {
 		err = f.Close()
 	}()
 
-	f.Write(imagesJSONData)
+	_, err = f.Write(imagesJSONData)
+	if err != nil {
+		return "", fmt.Errorf("failed to write data to file: %w", err)
+	}
 	return f.Name(), nil
 }
 
@@ -224,7 +227,11 @@ func TestGetImagesFromJSONFile(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(imagesJSONFile)
+	defer func() {
+		if err := os.Remove(imagesJSONFile); err != nil {
+			t.Fatal(err)
+		}
+	}()
 
 	img, err := getImagesFromJSONFile(imagesJSONFile)
 	if err != nil {
@@ -327,7 +334,11 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(imagesJSONFile)
+	defer func() {
+		if err := os.Remove(imagesJSONFile); err != nil {
+			t.Fatal(err)
+		}
+	}()
 
 	img, err := getImagesFromJSONFile(imagesJSONFile)
 	if err != nil {
@@ -408,7 +419,11 @@ func TestGetTerminationHandlerFromImages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(imagesJSONFile)
+	defer func() {
+		if err := os.Remove(imagesJSONFile); err != nil {
+			t.Fatal(err)
+		}
+	}()
 
 	img, err := getImagesFromJSONFile(imagesJSONFile)
 	if err != nil {
@@ -431,7 +446,11 @@ func TestGetMachineAPIOperatorFromImages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(imagesJSONFile)
+	defer func() {
+		if err := os.Remove(imagesJSONFile); err != nil {
+			t.Fatal(err)
+		}
+	}()
 
 	img, err := getImagesFromJSONFile(imagesJSONFile)
 	if err != nil {
@@ -452,7 +471,11 @@ func TestGetKubeRBACProxyFromImages(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer os.Remove(imagesJSONFile)
+	defer func() {
+		if err := os.Remove(imagesJSONFile); err != nil {
+			t.Fatal(err)
+		}
+	}()
 
 	img, err := getImagesFromJSONFile(imagesJSONFile)
 	if err != nil {

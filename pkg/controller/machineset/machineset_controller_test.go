@@ -65,7 +65,7 @@ var _ = Describe("MachineSet Reconciler", func() {
 
 	AfterEach(func() {
 		By("Deleting the machinesets")
-		cleanResources()
+		Expect(cleanResources()).To(Succeed())
 
 		By("Deleting the namespace")
 		Expect(k8sClient.Delete(ctx, namespace)).To(Succeed())

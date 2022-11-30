@@ -20,12 +20,10 @@ import (
 	"context"
 	"crypto/tls"
 	"log"
-	"math/rand"
 	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -39,8 +37,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 )
 
-const alphabet = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
 var (
 	cfg                *rest.Config
 	c                  client.Client
@@ -53,7 +49,6 @@ var (
 			},
 		},
 	}
-	seedgedRand *rand.Rand = rand.New(rand.NewSource(time.Now().UnixNano()))
 )
 
 func TestMain(m *testing.M) {
@@ -98,6 +93,8 @@ func TestMain(m *testing.M) {
 	}
 
 	code := m.Run()
-	testEnv.Stop()
+	if err = testEnv.Stop(); err != nil {
+		log.Fatal(err)
+	}
 	os.Exit(code)
 }

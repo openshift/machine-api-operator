@@ -94,7 +94,8 @@ func TestOperatorStatusProgressing(t *testing.T) {
 		co.Status.Versions = tc.desiredVersion
 		optr.osClient = fakeconfigclientset.NewSimpleClientset(co)
 
-		optr.statusProgressing()
+		err := optr.statusProgressing()
+		assert.NoError(t, err)
 
 		gotCO, err := optr.getClusterOperator()
 		if err != nil {
@@ -121,8 +122,12 @@ func TestOperatorStatusProgressing(t *testing.T) {
 			}
 		}
 
-		optr.statusProgressing()
-		gotCO, _ = optr.osClient.ConfigV1().ClusterOperators().Get(context.Background(), clusterOperatorName, metav1.GetOptions{})
+		err = optr.statusProgressing()
+		assert.NoError(t, err)
+
+		gotCO, err = optr.osClient.ConfigV1().ClusterOperators().Get(context.Background(), clusterOperatorName, metav1.GetOptions{})
+		assert.NoError(t, err)
+
 		var conditionAfterAnotherSync osconfigv1.ClusterOperatorStatusCondition
 		for _, coCondition := range gotCO.Status.Conditions {
 			if coCondition.Type == osconfigv1.OperatorProgressing {

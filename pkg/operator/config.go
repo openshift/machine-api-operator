@@ -3,7 +3,7 @@ package operator
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -62,7 +62,7 @@ func getProviderFromInfrastructure(infra *configv1.Infrastructure) (configv1.Pla
 }
 
 func getImagesFromJSONFile(filePath string) (*Images, error) {
-	data, err := ioutil.ReadFile(filepath.Clean(filePath))
+	data, err := os.ReadFile(filepath.Clean(filePath))
 	if err != nil {
 		return nil, err
 	}

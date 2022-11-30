@@ -126,9 +126,12 @@ func TestMachineSetToMachines(t *testing.T) {
 		},
 	}
 
-	machinev1.AddToScheme(scheme.Scheme)
+	if err := machinev1.AddToScheme(scheme.Scheme); err != nil {
+		t.Fatalf("cannot add scheme: %v", err)
+	}
+
 	r := &ReconcileMachineSet{
-		Client: fake.NewFakeClient(&m, &m2, &m3, machineSetList),
+		Client: fake.NewClientBuilder().WithRuntimeObjects(&m, &m2, &m3, machineSetList).Build(),
 		scheme: scheme.Scheme,
 	}
 
@@ -243,13 +246,20 @@ func TestAdoptOrphan(t *testing.T) {
 		},
 	}
 
-	machinev1.AddToScheme(scheme.Scheme)
-	r := &ReconcileMachineSet{
-		Client: fake.NewFakeClient(&m),
-		scheme: scheme.Scheme,
+	if err := machinev1.AddToScheme(scheme.Scheme); err != nil {
+		t.Fatalf("cannot add scheme: %v", err)
 	}
+
 	for _, tc := range testCases {
-		r.adoptOrphan(&tc.machineSet, &tc.machine)
+		r := &ReconcileMachineSet{
+			Client: fake.NewClientBuilder().WithRuntimeObjects(&tc.machineSet, &tc.machine).Build(),
+			scheme: scheme.Scheme,
+		}
+
+		if err := r.adoptOrphan(&tc.machineSet, &tc.machine); err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
 		got := tc.machine.GetOwnerReferences()
 		if !reflect.DeepEqual(got, tc.expected) {
 			t.Errorf("Case %s. Got: %+v, expected: %+v", tc.machine.Name, got, tc.expected)
@@ -292,7 +302,7 @@ var _ = Describe("MachineSet Reconcile", func() {
 					Template: machinev1.MachineTemplateSpec{},
 				}}
 
-			r.Client = fake.NewFakeClientWithScheme(scheme.Scheme, ms)
+			r.Client = fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(ms).Build()
 		})
 
 		It("returns an empty result", func() {
@@ -321,7 +331,7 @@ var _ = Describe("MachineSet Reconcile", func() {
 				"--$-invalid": "true",
 			}
 
-			r.Client = fake.NewFakeClientWithScheme(scheme.Scheme, ms)
+			r.Client = fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(ms).Build()
 		})
 
 		It("did something with events", func() {

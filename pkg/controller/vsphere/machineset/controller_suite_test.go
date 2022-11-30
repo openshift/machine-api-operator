@@ -55,7 +55,7 @@ var _ = BeforeSuite(func() {
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{filepath.Join("..", "..", "..", "..", "install")},
 	}
-	machinev1.AddToScheme(scheme.Scheme)
+	Expect(machinev1.AddToScheme(scheme.Scheme)).ToNot(HaveOccurred())
 
 	var err error
 	cfg, err = testEnv.Start()

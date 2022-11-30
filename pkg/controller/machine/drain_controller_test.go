@@ -63,7 +63,7 @@ func TestDrainControllerReconcileRequest(t *testing.T) {
 	getDrainControllerReconciler := func(fakeObjs ...runtime.Object) (*machineDrainController, *record.FakeRecorder) {
 		recorder := record.NewFakeRecorder(10)
 		return &machineDrainController{
-			Client:        fake.NewFakeClientWithScheme(scheme.Scheme, fakeObjs...),
+			Client:        fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(fakeObjs...).Build(),
 			scheme:        scheme.Scheme,
 			eventRecorder: recorder,
 		}, recorder
@@ -303,7 +303,7 @@ func TestIsDrainAllowed(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			g := NewGomegaWithT(t)
 
-			fakeClient := fake.NewFakeClientWithScheme(scheme.Scheme, tc.nodes...)
+			fakeClient := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(tc.nodes...).Build()
 
 			d := &machineDrainController{
 				Client: fakeClient,

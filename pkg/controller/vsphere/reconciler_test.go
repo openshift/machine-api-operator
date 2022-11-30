@@ -19,8 +19,8 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"net"
+	"os"
 	"reflect"
 	"testing"
 
@@ -52,7 +52,9 @@ const (
 
 func init() {
 	// Add types to scheme
-	configv1.AddToScheme(scheme.Scheme)
+	if err := configv1.AddToScheme(scheme.Scheme); err != nil {
+		panic(fmt.Sprintf("cannot add scheme: %v", err))
+	}
 }
 
 type simulatorModelOption func(m *simulator.Model)
@@ -186,7 +188,7 @@ func TestClone(t *testing.T) {
 			providerSpec:   providerSpec,
 			session:        session,
 			providerStatus: &machinev1.VSphereMachineProviderStatus{},
-			client:         fake.NewFakeClientWithScheme(scheme.Scheme, &credentialsSecret, &userDataSecret),
+			client:         fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(&credentialsSecret, &userDataSecret).Build(),
 		}
 	}
 
@@ -414,7 +416,7 @@ func TestClone(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				dir, err := ioutil.TempDir("", fmt.Sprintf("tmpdir"))
+				dir, err := os.MkdirTemp("", "tmpdir")
 				if err != nil {
 					return err
 				}
@@ -575,7 +577,7 @@ func TestPowerOn(t *testing.T) {
 			providerSpec:   providerSpec,
 			session:        simSession,
 			providerStatus: &machinev1.VSphereMachineProviderStatus{},
-			client:         fake.NewFakeClientWithScheme(scheme.Scheme),
+			client:         fake.NewClientBuilder().WithScheme(scheme.Scheme).Build(),
 		}
 	}
 
@@ -1183,7 +1185,7 @@ func TestReconcileTags(t *testing.T) {
 		name          string
 		expectedError bool
 		attachTag     bool
-		testCondition func(tagName string)
+		testCondition func(tagName string) error
 		tagName       string
 	}{
 		{
@@ -1196,16 +1198,16 @@ func TestReconcileTags(t *testing.T) {
 			expectedError: false,
 			attachTag:     true,
 			tagName:       "BAAAAAAR",
-			testCondition: func(tagName string) {
-				createTagAndCategory(sessionObj, tagToCategoryName(tagName), tagName)
+			testCondition: func(tagName string) error {
+				return createTagAndCategory(sessionObj, tagToCategoryName(tagName), tagName)
 			},
 		},
 		{
 			name:          "Fail on vSphere API error",
 			expectedError: false,
 			tagName:       "BAAAAAZ",
-			testCondition: func(tagName string) {
-				sessionObj.Logout(context.Background())
+			testCondition: func(tagName string) error {
+				return sessionObj.Logout(context.Background())
 			},
 		},
 	}
@@ -1213,7 +1215,10 @@ func TestReconcileTags(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			if tc.testCondition != nil {
-				tc.testCondition(tc.tagName)
+				err := tc.testCondition(tc.tagName)
+				if err != nil {
+					t.Fatalf("Not expected error %v", err)
+				}
 			}
 
 			err := vm.reconcileTags(context.TODO(), sessionObj, &machinev1.Machine{
@@ -1662,18 +1667,21 @@ func TestDelete(t *testing.T) {
 		},
 	}
 
-	machinev1.AddToScheme(scheme.Scheme)
+	if err := machinev1.AddToScheme(scheme.Scheme); err != nil {
+		t.Fatalf("cannot add scheme: %v", err)
+	}
+
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
 			vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
 			vm.Config.InstanceUuid = instanceUUID
 
-			client := fake.NewFakeClientWithScheme(scheme.Scheme,
+			client := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(
 				&credentialsSecret,
 				tc.machine(t),
 				configMap,
 				infra,
-				tc.node(t))
+				tc.node(t)).Build()
 			machineScope, err := newMachineScope(machineScopeParams{
 				client:    client,
 				Context:   context.Background(),
@@ -1698,7 +1706,11 @@ func TestDelete(t *testing.T) {
 				}
 			}
 			task := object.NewTask(reconciler.session.Client.Client, powerOffTask.Reference())
-			task.Wait(context.TODO())
+			err = task.Wait(context.TODO())
+			if err != nil {
+				t.Fatal(err)
+			}
+
 			// first run should schedule power off
 			if powerOffTask.Info.DescriptionId != powerOffVmTaskDescriptionId {
 				t.Errorf("task description expected: %v, got: %v", powerOffVmTaskDescriptionId, powerOffTask.Info.DescriptionId)
@@ -1714,7 +1726,10 @@ func TestDelete(t *testing.T) {
 				}
 			}
 			task = object.NewTask(reconciler.session.Client.Client, destroyTask.Reference())
-			task.Wait(context.TODO())
+			err = task.Wait(context.TODO())
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			// second run should destroy vm
 			if destroyTask.Info.DescriptionId != destroyVmTaskDescriptionId {
@@ -1865,11 +1880,11 @@ func TestCreate(t *testing.T) {
 				session.Client.ServiceContent.About.ApiType = ""
 			}
 
-			client := fake.NewFakeClientWithScheme(scheme.Scheme,
+			client := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(
 				credentialsSecret,
 				configMap,
 				infra,
-				userDataSecret)
+				userDataSecret).Build()
 
 			rawProviderSpec, err := RawExtensionFromProviderSpec(&tc.providerSpec)
 			if err != nil {
@@ -1921,7 +1936,10 @@ func TestCreate(t *testing.T) {
 				}
 
 				taskObj := object.NewTask(session.Client.Client, task.Reference())
-				taskObj.Wait(context.TODO())
+				err = taskObj.Wait(context.TODO())
+				if err != nil {
+					t.Fatal(err)
+				}
 			}
 		})
 	}
@@ -1979,7 +1997,9 @@ func TestUpdate(t *testing.T) {
 		},
 	}
 
-	createTagAndCategory(session, tagToCategoryName("CLUSTERID"), "CLUSTERID")
+	if err := createTagAndCategory(session, tagToCategoryName("CLUSTERID"), "CLUSTERID"); err != nil {
+		t.Fatalf("cannot create tag and category: %v", err)
+	}
 
 	cases := []struct {
 		name          string
@@ -2041,10 +2061,10 @@ func TestUpdate(t *testing.T) {
 				labels = tc.labels
 			}
 
-			client := fake.NewFakeClientWithScheme(scheme.Scheme,
+			client := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(
 				credentialsSecret,
 				configMap,
-				infra)
+				infra).Build()
 
 			rawProviderSpec, err := RawExtensionFromProviderSpec(&tc.providerSpec)
 			if err != nil {
@@ -2184,7 +2204,7 @@ func TestExists(t *testing.T) {
 					TaskRef:       task.Reference().Value,
 					InstanceState: &tc.instanceState,
 				},
-				client: fake.NewFakeClientWithScheme(scheme.Scheme, &credentialsSecret),
+				client: fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(&credentialsSecret).Build(),
 			}
 
 			reconciler := newReconciler(&machineScope)
@@ -2220,8 +2240,13 @@ func TestReconcileMachineWithCloudState(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	createTagAndCategory(session, zoneKey, testZone)
-	createTagAndCategory(session, regionKey, testRegion)
+	if err := createTagAndCategory(session, zoneKey, testZone); err != nil {
+		t.Fatalf("cannot create tag and category: %v", err)
+	}
+
+	if err := createTagAndCategory(session, regionKey, testRegion); err != nil {
+		t.Fatalf("cannot create tag and category: %v", err)
+	}
 
 	if err := session.WithRestClient(context.TODO(), func(c *rest.Client) error {
 		tagsMgr := tags.NewManager(c)

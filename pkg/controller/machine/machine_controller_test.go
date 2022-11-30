@@ -78,7 +78,11 @@ func TestReconcile(t *testing.T) {
 	if err := c.Create(context.TODO(), instance); err != nil {
 		t.Fatalf("error creating instance: %v", err)
 	}
-	defer c.Delete(context.TODO(), instance)
+	defer func() {
+		if err := c.Delete(context.TODO(), instance); err != nil {
+			t.Fatalf("error deleting instance: %v", err)
+		}
+	}()
 	g := NewWithT(t)
 	g.Eventually(func() (machinev1.MachineStatus, error) {
 		machine := &machinev1.Machine{}

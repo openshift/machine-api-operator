@@ -25,7 +25,7 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
 )
 
-// MatchMachineHealthCheckStatus returns a custom matcher to check equality of machinev1..MachineHealthCheckStatus
+// MatchMachineHealthCheckStatus returns a custom matcher to check equality of machinev1.MachineHealthCheckStatus
 func MatchMachineHealthCheckStatus(expected *machinev1.MachineHealthCheckStatus) types.GomegaMatcher {
 	return &machineHealthCheckStatusMatcher{
 		expected: expected,
