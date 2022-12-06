@@ -476,7 +476,7 @@ func TestSyncWebhookConfiguration(t *testing.T) {
 
 			nrMutatingWebhooks := 0
 			nrValidatingWebhooks := 0
-			optr.syncWebhookConfiguration(&OperatorConfig{PlatformType: tc.platformType})
+			_ = optr.syncWebhookConfiguration(&OperatorConfig{PlatformType: tc.platformType})
 			for _, gen := range optr.generations {
 				switch gen.Resource {
 				case "mutatingwebhookconfigurations":
