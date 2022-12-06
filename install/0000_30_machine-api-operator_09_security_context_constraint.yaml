@@ -8,7 +8,7 @@ metadata:
       machine-api-termination-handler service account to run as root, access host
       paths and access the host network. This SCC is limited and should not be used
       for any other service.'
-      capability.openshift.io/name: MachineAPI
+    capability.openshift.io/name: MachineAPI
   name: machine-api-termination-handler
 allowHostDirVolumePlugin: true
 allowHostNetwork: true
