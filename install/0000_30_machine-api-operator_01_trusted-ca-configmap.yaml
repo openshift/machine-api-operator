@@ -6,6 +6,7 @@ metadata:
     include.release.openshift.io/self-managed-high-availability: "true"
     include.release.openshift.io/single-node-developer: "true"
     release.openshift.io/create-only: "true"
+    capability.openshift.io/name: MachineAPI
   labels:
     config.openshift.io/inject-trusted-cabundle: "true"
   name: mao-trusted-ca

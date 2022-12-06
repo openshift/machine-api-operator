@@ -10,6 +10,7 @@ metadata:
   annotations:
     include.release.openshift.io/self-managed-high-availability: "true"
     exclude.release.openshift.io/internal-openshift-hosted: "true"
+    capability.openshift.io/name: MachineAPI
 spec:
   selector:
     matchLabels:
