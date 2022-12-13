@@ -58,10 +58,6 @@ const (
 	powerOffVmTaskDescriptionId = "VirtualMachine.powerOff"
 )
 
-const (
-	machinePhaseProvisioning = "Provisioning"
-)
-
 // Reconciler runs the logic to reconciles a machine resource towards its desired state
 type Reconciler struct {
 	*machineScope
@@ -268,7 +264,7 @@ func (r *Reconciler) exists() (bool, error) {
 		}
 	}
 
-	if pointer.StringDeref(r.machine.Status.Phase, "") == machinePhaseProvisioning && powerState == types.VirtualMachinePowerStatePoweredOff {
+	if pointer.StringDeref(r.machine.Status.Phase, "") == machinev1.PhaseProvisioning && powerState == types.VirtualMachinePowerStatePoweredOff {
 		klog.Infof("%v: already exists, but was not powered on after clone, requeue ", r.machine.GetName())
 		return false, nil
 	}

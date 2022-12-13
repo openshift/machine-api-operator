@@ -40,7 +40,6 @@ const (
 	nodeMasterLabel               = "node-role.kubernetes.io/master"
 	machineRoleLabel              = "machine.openshift.io/cluster-api-machine-role"
 	machineMasterRole             = "master"
-	machinePhaseFailed            = "Failed"
 	remediationStrategyAnnotation = "machine.openshift.io/remediation-strategy"
 	remediationStrategyExternal   = machinev1.RemediationStrategyType("external-baremetal")
 	defaultNodeStartupTimeout     = 10 * time.Minute
@@ -627,7 +626,7 @@ func (r *ReconcileMachineHealthCheck) mhcRequestsFromMachine(o client.Object) []
 
 func (r *ReconcileMachineHealthCheck) internalRemediation(t target) error {
 	klog.Infof(" %s: start remediation logic", t.string())
-	if derefStringPointer(t.Machine.Status.Phase) != machinePhaseFailed {
+	if derefStringPointer(t.Machine.Status.Phase) != machinev1.PhaseFailed {
 		if remediationStrategy, ok := t.MHC.Annotations[remediationStrategyAnnotation]; ok {
 			if machinev1.RemediationStrategyType(remediationStrategy) == remediationStrategyExternal {
 				return t.remediationStrategyExternal(r)
@@ -762,8 +761,8 @@ func (t *target) needsRemediation(timeoutForMachineToHaveNode time.Duration) (bo
 	now := time.Now()
 
 	// machine has failed
-	if derefStringPointer(t.Machine.Status.Phase) == machinePhaseFailed {
-		klog.V(3).Infof("%s: unhealthy: machine phase is %q", t.string(), machinePhaseFailed)
+	if derefStringPointer(t.Machine.Status.Phase) == machinev1.PhaseFailed {
+		klog.V(3).Infof("%s: unhealthy: machine phase is %q", t.string(), machinev1.PhaseFailed)
 		return true, time.Duration(0), nil
 	}
 
