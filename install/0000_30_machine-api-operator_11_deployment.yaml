@@ -18,6 +18,7 @@ spec:
     metadata:
       annotations:
         target.workload.openshift.io/management: '{"effect": "PreferredDuringScheduling"}'
+        kubectl.kubernetes.io/default-container: machine-api-operator
       labels:
         k8s-app: machine-api-operator
     spec:
