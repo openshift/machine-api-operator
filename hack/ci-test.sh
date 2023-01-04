@@ -23,6 +23,8 @@ REPO_ROOT=$(dirname "${BASH_SOURCE}")/..
 OPENSHIFT_CI=${OPENSHIFT_CI:-""}
 ARTIFACT_DIR=${ARTIFACT_DIR:-""}
 
+TEST_RESULT=$?
+
 function runTestsCI() {
   echo "CI env detected, run tests with jUnit report extraction"
   if [ -n "$ARTIFACT_DIR" ] && [ -d "$ARTIFACT_DIR" ]; then
@@ -41,3 +43,5 @@ if [ "$OPENSHIFT_CI" == "true" ]; then # detect ci environment there
 else
   make unit
 fi
+
+exit ${TEST_RESULT}
