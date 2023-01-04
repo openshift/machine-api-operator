@@ -42,6 +42,8 @@ const (
 	hostKubeConfigPath                  = "/var/lib/kubelet/kubeconfig"
 	hostKubePKIPath                     = "/var/lib/kubelet/pki"
 	operatorStatusNoOpMessage           = "Cluster Machine API Operator is in NoOp mode"
+	kubernetesOSlabel                   = "kubernetes.io/os"
+	kubernetesOSlabelLinux              = "linux"
 
 	minimumWorkerReplicas = int32(2)
 )
@@ -797,9 +799,12 @@ func newTerminationPodTemplateSpec(config *OperatorConfig) *corev1.PodTemplateSp
 			},
 		},
 		Spec: corev1.PodSpec{
-			Containers:                   containers,
-			PriorityClassName:            "system-node-critical",
-			NodeSelector:                 map[string]string{machinecontroller.MachineInterruptibleInstanceLabelName: ""},
+			Containers:        containers,
+			PriorityClassName: "system-node-critical",
+			NodeSelector: map[string]string{
+				machinecontroller.MachineInterruptibleInstanceLabelName: "",
+				kubernetesOSlabel: kubernetesOSlabelLinux,
+			},
 			ServiceAccountName:           machineAPITerminationHandler,
 			AutomountServiceAccountToken: pointer.BoolPtr(false),
 			HostNetwork:                  true,
