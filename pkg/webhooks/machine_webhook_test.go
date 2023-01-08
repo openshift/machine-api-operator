@@ -3201,6 +3201,58 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 			expectedError: "providerSpec.restartPolicy: Invalid value: \"invalid-value\": restartPolicy must be either Never or Always.",
 		},
 		{
+			testCase: "with valid shieldedInstanceConfig",
+			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
+				p.ShieldedInstanceConfig = machinev1beta1.GCPShieldedInstanceConfig{
+					SecureBoot:                       machinev1beta1.SecureBootPolicyEnabled,
+					IntegrityMonitoring:              machinev1beta1.IntegrityMonitoringPolicyEnabled,
+					VirtualizedTrustedPlatformModule: machinev1beta1.VirtualizedTrustedPlatformModulePolicyEnabled,
+				}
+			},
+			expectedOk: true,
+		},
+		{
+			testCase: "with invalid secureBoot",
+			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
+				p.ShieldedInstanceConfig = machinev1beta1.GCPShieldedInstanceConfig{
+					SecureBoot: "invalid-value",
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.shieldedInstanceConfig.secureBoot: Invalid value: \"invalid-value\": secureBoot must be either Enabled or Disabled.",
+		},
+		{
+			testCase: "with invalid integrityMonitoring",
+			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
+				p.ShieldedInstanceConfig = machinev1beta1.GCPShieldedInstanceConfig{
+					IntegrityMonitoring: "invalid-value",
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.shieldedInstanceConfig.integrityMonitoring: Invalid value: \"invalid-value\": integrityMonitoring must be either Enabled or Disabled.",
+		},
+		{
+			testCase: "with invalid virtualizedTrustedPlatformModule",
+			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
+				p.ShieldedInstanceConfig = machinev1beta1.GCPShieldedInstanceConfig{
+					VirtualizedTrustedPlatformModule: "invalid-value",
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.shieldedInstanceConfig.virtualizedTrustedPlatformModule: Invalid value: \"invalid-value\": virtualizedTrustedPlatformModule must be either Enabled or Disabled.",
+		},
+		{
+			testCase: "with virtualizedTrustedPlatformModule disabled while integrityMonitoring is enabled",
+			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
+				p.ShieldedInstanceConfig = machinev1beta1.GCPShieldedInstanceConfig{
+					VirtualizedTrustedPlatformModule: machinev1beta1.VirtualizedTrustedPlatformModulePolicyDisabled,
+					IntegrityMonitoring:              machinev1beta1.IntegrityMonitoringPolicyEnabled,
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.shieldedInstanceConfig.virtualizedTrustedPlatformModule: Invalid value: \"Disabled\": integrityMonitoring requires virtualizedTrustedPlatformModule Enabled.",
+		},
+		{
 			testCase: "with GPUs and Migrate onHostMaintenance",
 			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
 				p.OnHostMaintenance = machinev1beta1.MigrateHostMaintenanceType
