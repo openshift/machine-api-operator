@@ -2151,6 +2151,14 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			expectedOk:       true,
 			expectedWarnings: []string{"incorrect GroupVersionKind for AWSMachineProviderConfig object: INVALID/v1, Kind=INVALID"},
 		},
+		{
+			testCase: "with machine.openshift.io API group",
+			modifySpec: func(p *machinev1beta1.AWSMachineProviderConfig) {
+				p.Kind = "AWSMachineProviderConfig"
+				p.APIVersion = "machine.openshift.io/v1beta1"
+			},
+			expectedOk: true,
+		},
 	}
 
 	secret := &corev1.Secret{
@@ -2621,6 +2629,14 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 			},
 			expectedOk:       true,
 			expectedWarnings: []string{"incorrect GroupVersionKind for AzureMachineProviderSpec object: INVALID/v1, Kind=INVALID"},
+		},
+		{
+			testCase: "with machine.openshift.io API group",
+			modifySpec: func(p *machinev1beta1.AzureMachineProviderSpec) {
+				p.Kind = "AzureMachineProviderSpec"
+				p.APIVersion = "machine.openshift.io/v1beta1"
+			},
+			expectedOk: true,
 		},
 	}
 
@@ -3185,6 +3201,14 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 			expectedOk:       true,
 			expectedWarnings: []string{"incorrect GroupVersionKind for GCPMachineProviderSpec object: INVALID/v1, Kind=INVALID"},
 		},
+		{
+			testCase: "with machine.openshift.io API group",
+			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
+				p.Kind = "GCPMachineProviderSpec"
+				p.APIVersion = "machine.openshift.io/v1beta1"
+			},
+			expectedOk: true,
+		},
 	}
 
 	secret := &corev1.Secret{
@@ -3619,6 +3643,14 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 			},
 			expectedOk:       true,
 			expectedWarnings: []string{"incorrect GroupVersionKind for VSphereMachineProviderSpec object: INVALID/v1, Kind=INVALID"},
+		},
+		{
+			testCase: "with machine.openshift.io API group",
+			modifySpec: func(p *machinev1beta1.VSphereMachineProviderSpec) {
+				p.Kind = "VSphereMachineProviderSpec"
+				p.APIVersion = "machine.openshift.io/v1beta1"
+			},
+			expectedOk: true,
 		},
 	}
 
