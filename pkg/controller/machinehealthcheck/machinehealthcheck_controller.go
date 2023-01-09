@@ -171,6 +171,8 @@ func (r *ReconcileMachineHealthCheck) Reconcile(ctx context.Context, request rec
 			// Request object not found, could have been deleted after reconcile request.
 			// In the event that this was a deletion, we need to remove the associated metric label
 			metrics.DeleteMachineHealthCheckNodesCovered(request.NamespacedName.Name, request.NamespacedName.Namespace)
+			// We also need to revert short circuiting of such object so it doesn't overflow to a new object.
+			metrics.ObserveMachineHealthCheckShortCircuitDisabled(request.NamespacedName.Name, request.NamespacedName.Namespace)
 			return reconcile.Result{}, nil
 		}
 		klog.Errorf("Reconciling %s: failed to get MHC: %v", request.String(), err)
