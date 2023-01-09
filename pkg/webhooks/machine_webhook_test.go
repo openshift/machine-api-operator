@@ -1932,6 +1932,7 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 	testCases := []struct {
 		testCase         string
 		modifySpec       func(*machinev1beta1.AWSMachineProviderConfig)
+		overrideRawBytes []byte
 		expectedError    string
 		expectedOk       bool
 		expectedWarnings []string
@@ -2159,6 +2160,12 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			},
 			expectedOk: true,
 		},
+		{
+			testCase:         "with unknown fields in the providerSpec",
+			overrideRawBytes: []byte(`{"kind":"AWSMachineProviderConfig","apiVersion":"machine.openshift.io/v1beta1","metadata":{"creationTimestamp":null},"ami":{"id":"ami"},"instanceType":"m5.large","iamInstanceProfile":{"id":"profileID"},"userDataSecret":{"name":"secret"},"credentialsSecret":{"name":"secret"},"deviceIndex":0,"securityGroups":[{"id":"sg"}],"subnet":{"id":"subnet"},"placement":{"region":"region"},"metadataServiceOptions":{},"randomField-1": "something"}`),
+			expectedOk:       true,
+			expectedWarnings: []string{"providerSpec.value: Unsupported value: \"randomField-1\": Unknown field (randomField-1) will be ignored"},
+		},
 	}
 
 	secret := &corev1.Secret{
@@ -2220,6 +2227,9 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 				t.Fatal(err)
 			}
 			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
+			if tc.overrideRawBytes != nil {
+				m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: tc.overrideRawBytes}
+			}
 
 			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
@@ -2339,6 +2349,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 	testCases := []struct {
 		testCase            string
 		modifySpec          func(providerSpec *machinev1beta1.AzureMachineProviderSpec)
+		overrideRawBytes    []byte
 		azurePlatformStatus *osconfigv1.AzurePlatformStatus
 		expectedError       string
 		expectedOk          bool
@@ -2638,6 +2649,12 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 			},
 			expectedOk: true,
 		},
+		{
+			testCase:         "with unknown fields in the providerSpec",
+			overrideRawBytes: []byte(`{"kind":"AzureMachineProviderSpec","apiVersion":"machine.openshift.io/v1beta1","metadata":{"creationTimestamp":null},"userDataSecret":{"name":"name"},"credentialsSecret":{"name":"name","namespace":"azure-validation-test"},"vmSize":"vmSize","image":{"publisher":"","offer":"","sku":"","version":"","resourceID":"resourceID"},"osDisk":{"osType":"","managedDisk":{"storageAccountType":""},"diskSizeGB":1,"diskSettings":{}},"publicIP":false,"subnet":"","diagnostics":{},"randomField-1": "something"}`),
+			expectedOk:       true,
+			expectedWarnings: []string{"providerSpec.value: Unsupported value: \"randomField-1\": Unknown field (randomField-1) will be ignored"},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -2691,6 +2708,9 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 				t.Fatal(err)
 			}
 			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
+			if tc.overrideRawBytes != nil {
+				m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: tc.overrideRawBytes}
+			}
 
 			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
@@ -2881,6 +2901,7 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 	testCases := []struct {
 		testCase         string
 		modifySpec       func(*machinev1beta1.GCPMachineProviderSpec)
+		overrideRawBytes []byte
 		expectedError    string
 		expectedOk       bool
 		expectedWarnings []string
@@ -3209,6 +3230,13 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 			},
 			expectedOk: true,
 		},
+		{
+			testCase:         "with unknown fields in the providerSpec",
+			overrideRawBytes: []byte(`{"kind":"GCPMachineProviderSpec","apiVersion":"gcpprovider.openshift.io/v1beta1","metadata":{"creationTimestamp":null},"userDataSecret":{"name":"name"},"credentialsSecret":{"name":"name"},"canIPForward":false,"deletionProtection":false,"disks":[{"autoDelete":false,"boot":false,"sizeGb":16,"type":"","image":"","labels":null}],"networkInterfaces":[{"network":"network","subnetwork":"subnetwork"}],"serviceAccounts":[{"email":"email","scopes":["scope"]}],"machineType":"machineType","region":"region","zone":"region-zone","projectID":"projectID","gpus":[{"count":0,"type":"type"}],"onHostMaintenance":"Terminate","randomField-1": "something"}`),
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: []string{"providerSpec.value: Unsupported value: \"randomField-1\": Unknown field (randomField-1) will be ignored"},
+		},
 	}
 
 	secret := &corev1.Secret{
@@ -3263,6 +3291,7 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 				APIVersion: "gcpprovider.openshift.io/v1beta1",
 			},
 		}
+
 		if tc.modifySpec != nil {
 			tc.modifySpec(providerSpec)
 		}
@@ -3278,6 +3307,9 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 				t.Fatal(err)
 			}
 			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
+			if tc.overrideRawBytes != nil {
+				m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: tc.overrideRawBytes}
+			}
 
 			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {

@@ -707,6 +707,21 @@ func unmarshalInto(m *machinev1beta1.Machine, providerSpec interface{}) error {
 	return nil
 }
 
+func validateUnknownFields(m *machinev1beta1.Machine, providerSpec interface{}) error {
+	if err := yaml.Unmarshal(m.Spec.ProviderSpec.Value.Raw, &providerSpec, yaml.DisallowUnknownFields); err != nil {
+		if strings.Contains(err.Error(), "unknown field") {
+			unknownField := strings.Replace(strings.Split(err.Error(), "unknown field ")[1], "\"", "", -1)
+			return &field.Error{
+				Type:     field.ErrorTypeNotSupported,
+				Field:    field.NewPath("providerSpec", "value").String(),
+				BadValue: unknownField,
+				Detail:   fmt.Sprintf("Unknown field (%s) will be ignored", unknownField),
+			}
+		}
+	}
+	return nil
+}
+
 func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, utilerrors.Aggregate) {
 	klog.V(3).Infof("Validating AWS providerSpec")
 
@@ -716,6 +731,10 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 	if err := unmarshalInto(m, providerSpec); err != nil {
 		errs = append(errs, err)
 		return false, warnings, utilerrors.NewAggregate(errs)
+	}
+
+	if err := validateUnknownFields(m, providerSpec); err != nil {
+		warnings = append(warnings, err.Error())
 	}
 
 	if !validateGVK(providerSpec.GroupVersionKind(), osconfigv1.AWSPlatformType) {
@@ -937,6 +956,10 @@ func validateAzure(m *machinev1beta1.Machine, config *admissionConfig) (bool, []
 	if err := unmarshalInto(m, providerSpec); err != nil {
 		errs = append(errs, err)
 		return false, warnings, utilerrors.NewAggregate(errs)
+	}
+
+	if err := validateUnknownFields(m, providerSpec); err != nil {
+		warnings = append(warnings, err.Error())
 	}
 
 	if !validateGVK(providerSpec.GroupVersionKind(), osconfigv1.AzurePlatformType) {
@@ -1175,6 +1198,10 @@ func validateGCP(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 		return false, warnings, utilerrors.NewAggregate(errs)
 	}
 
+	if err := validateUnknownFields(m, providerSpec); err != nil {
+		warnings = append(warnings, err.Error())
+	}
+
 	if !validateGVK(providerSpec.GroupVersionKind(), osconfigv1.GCPPlatformType) {
 		warnings = append(warnings, fmt.Sprintf("incorrect GroupVersionKind for GCPMachineProviderSpec object: %s", providerSpec.GroupVersionKind()))
 	}
@@ -1372,6 +1399,10 @@ func validateVSphere(m *machinev1beta1.Machine, config *admissionConfig) (bool, 
 		return false, warnings, utilerrors.NewAggregate(errs)
 	}
 
+	if err := validateUnknownFields(m, providerSpec); err != nil {
+		warnings = append(warnings, err.Error())
+	}
+
 	if !validateGVK(providerSpec.GroupVersionKind(), osconfigv1.VSpherePlatformType) {
 		warnings = append(warnings, fmt.Sprintf("incorrect GroupVersionKind for VSphereMachineProviderSpec object: %s", providerSpec.GroupVersionKind()))
 	}
@@ -1504,6 +1535,10 @@ func validateNutanix(m *machinev1beta1.Machine, config *admissionConfig) (bool, 
 	if err := unmarshalInto(m, providerSpec); err != nil {
 		errs = append(errs, err)
 		return false, warnings, utilerrors.NewAggregate(errs)
+	}
+
+	if err := validateUnknownFields(m, providerSpec); err != nil {
+		warnings = append(warnings, err.Error())
 	}
 
 	if err := validateNutanixResourceIdentifier("cluster", providerSpec.Cluster); err != nil {
@@ -1738,6 +1773,10 @@ func validatePowerVS(m *machinev1beta1.Machine, config *admissionConfig) (bool, 
 	if err := unmarshalInto(m, providerSpec); err != nil {
 		errs = append(errs, err)
 		return false, warnings, utilerrors.NewAggregate(errs)
+	}
+
+	if err := validateUnknownFields(m, providerSpec); err != nil {
+		warnings = append(warnings, err.Error())
 	}
 
 	if providerSpec.KeyPairName == "" {
