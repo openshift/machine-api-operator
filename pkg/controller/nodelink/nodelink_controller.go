@@ -230,10 +230,6 @@ func (r *ReconcileNodeLink) Reconcile(ctx context.Context, request reconcile.Req
 		modNode.Annotations = map[string]string{}
 	}
 	modNode.Annotations[machineAnnotationKey] = fmt.Sprintf("%s/%s", machine.GetNamespace(), machine.GetName())
-	for k, v := range machine.Spec.Annotations {
-		klog.V(4).Infof("Copying annotation %s = %s", k, v)
-		modNode.Annotations[k] = v
-	}
 
 	if modNode.Labels == nil {
 		modNode.Labels = map[string]string{}
