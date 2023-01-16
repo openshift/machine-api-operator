@@ -1222,6 +1222,8 @@ func validateGCP(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "onHostMaintenance"), providerSpec.OnHostMaintenance, fmt.Sprintf("onHostMaintenance must be either %s or %s.", machinev1beta1.MigrateHostMaintenanceType, machinev1beta1.TerminateHostMaintenanceType)))
 	}
 
+	errs = append(errs, validateShieldedInstanceConfig(providerSpec)...)
+
 	if providerSpec.RestartPolicy != "" && providerSpec.RestartPolicy != machinev1beta1.RestartPolicyAlways && providerSpec.RestartPolicy != machinev1beta1.RestartPolicyNever {
 		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "restartPolicy"), providerSpec.RestartPolicy, fmt.Sprintf("restartPolicy must be either %s or %s.", machinev1beta1.RestartPolicyNever, machinev1beta1.RestartPolicyAlways)))
 	}
@@ -1264,6 +1266,35 @@ func validateGCP(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 		return false, warnings, utilerrors.NewAggregate(errs)
 	}
 	return true, warnings, nil
+}
+
+func validateShieldedInstanceConfig(providerSpec *machinev1beta1.GCPMachineProviderSpec) (errs []error) {
+	if providerSpec.ShieldedInstanceConfig != (machinev1beta1.GCPShieldedInstanceConfig{}) {
+
+		if providerSpec.ShieldedInstanceConfig.SecureBoot != "" && providerSpec.ShieldedInstanceConfig.SecureBoot != machinev1beta1.SecureBootPolicyEnabled && providerSpec.ShieldedInstanceConfig.SecureBoot != machinev1beta1.SecureBootPolicyDisabled {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "shieldedInstanceConfig", "secureBoot"),
+				providerSpec.ShieldedInstanceConfig.SecureBoot,
+				fmt.Sprintf("secureBoot must be either %s or %s.", machinev1beta1.SecureBootPolicyEnabled, machinev1beta1.SecureBootPolicyDisabled)))
+		}
+
+		if providerSpec.ShieldedInstanceConfig.IntegrityMonitoring != "" && providerSpec.ShieldedInstanceConfig.IntegrityMonitoring != machinev1beta1.IntegrityMonitoringPolicyEnabled && providerSpec.ShieldedInstanceConfig.IntegrityMonitoring != machinev1beta1.IntegrityMonitoringPolicyDisabled {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "shieldedInstanceConfig", "integrityMonitoring"),
+				providerSpec.ShieldedInstanceConfig.IntegrityMonitoring,
+				fmt.Sprintf("integrityMonitoring must be either %s or %s.", machinev1beta1.IntegrityMonitoringPolicyEnabled, machinev1beta1.IntegrityMonitoringPolicyDisabled)))
+		}
+
+		if providerSpec.ShieldedInstanceConfig.VirtualizedTrustedPlatformModule != "" && providerSpec.ShieldedInstanceConfig.VirtualizedTrustedPlatformModule != machinev1beta1.VirtualizedTrustedPlatformModulePolicyEnabled && providerSpec.ShieldedInstanceConfig.VirtualizedTrustedPlatformModule != machinev1beta1.VirtualizedTrustedPlatformModulePolicyDisabled {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "shieldedInstanceConfig", "virtualizedTrustedPlatformModule"),
+				providerSpec.ShieldedInstanceConfig.VirtualizedTrustedPlatformModule,
+				fmt.Sprintf("virtualizedTrustedPlatformModule must be either %s or %s.", machinev1beta1.VirtualizedTrustedPlatformModulePolicyEnabled, machinev1beta1.VirtualizedTrustedPlatformModulePolicyDisabled)))
+		}
+		if providerSpec.ShieldedInstanceConfig.VirtualizedTrustedPlatformModule == machinev1beta1.VirtualizedTrustedPlatformModulePolicyDisabled && providerSpec.ShieldedInstanceConfig.IntegrityMonitoring != machinev1beta1.IntegrityMonitoringPolicyDisabled {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "shieldedInstanceConfig", "virtualizedTrustedPlatformModule"),
+				providerSpec.ShieldedInstanceConfig.VirtualizedTrustedPlatformModule,
+				fmt.Sprintf("integrityMonitoring requires virtualizedTrustedPlatformModule %s.", machinev1beta1.VirtualizedTrustedPlatformModulePolicyEnabled)))
+		}
+	}
+	return errs
 }
 
 func validateGCPNetworkInterfaces(networkInterfaces []*machinev1beta1.GCPNetworkInterface, parentPath *field.Path) []error {
