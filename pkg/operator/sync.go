@@ -317,10 +317,11 @@ func (optr *Operator) checkDaemonSetRolloutStatus(resource *appsv1.DaemonSet) (r
 	return reconcile.Result{}, nil
 }
 
-// checkMinimumWorkerMachines looks at the worker Machines in the cluster and checks if they are running.
-// If fewer than 2 worker Machines are Running, it will return an error.
-// This is used during initialization of the cluster to prevent the operator from being Available
-// until the minimum required number of worker Machines have started working correctly.
+// checkMinimumWorkerMachines looks at the worker Machines in the cluster and checks if they are
+// running. If fewer than 2 worker Machines are Running and the expected number is higher than 1, it
+// will return an error. This is used during initialization of the cluster to prevent the operator
+// from being Available until the minimum required number of worker Machines have started working
+// correctly.
 func (optr *Operator) checkMinimumWorkerMachines() error {
 	machineSets, err := optr.machineClient.MachineV1beta1().MachineSets(optr.namespace).List(context.Background(), metav1.ListOptions{})
 	if err != nil {
@@ -340,8 +341,12 @@ func (optr *Operator) checkMinimumWorkerMachines() error {
 
 	// If any MachineSet doesn't have the correct number of replicas, we error before this point.
 	// So the running replicas should be (total replicas) - (non-running replicas).
+	// Only error if the number of expected replicas is higher than 1. This is because masters are
+	// epxected to be schedulable when there are fewer than 2 workers expected. A better test would
+	// be to check if masters are schedulable but this favors the worker count over querying the API
+	// Kubernetes API again.
 	runningReplicas := expectedReplicas - int32(len(nonRunningMachines))
-	if runningReplicas < expectedReplicas && runningReplicas < minimumWorkerReplicas {
+	if expectedReplicas > 1 && runningReplicas < minimumWorkerReplicas {
 		return fmt.Errorf("minimum worker replica count (%d) not yet met: current running replicas %d, waiting for %v", minimumWorkerReplicas, runningReplicas, nonRunningMachines)
 	}
 

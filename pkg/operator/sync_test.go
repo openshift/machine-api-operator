@@ -366,6 +366,16 @@ func TestCheckMinimumWorkerMachines(t *testing.T) {
 			expectedError: errors.New("minimum worker replica count (2) not yet met: current running replicas 1, waiting for [provisioned-0 provisioned-1]"),
 		},
 		{
+			name: "with a MachineSet with 1 Machine Provisioned",
+			machineSets: []runtime.Object{
+				newMachineSet("1-provisioned-machine", 1, workerSelector),
+			},
+			machines: []runtime.Object{
+				newMachine("provisioned-0", workerLabels, "Provisioned"),
+			},
+			expectedError: nil,
+		},
+		{
 			name: "with a MachineSet with 2 Machines Running, 1 Machine Provisioned",
 			machineSets: []runtime.Object{
 				newMachineSet("1-running-machine", 3, workerSelector),
