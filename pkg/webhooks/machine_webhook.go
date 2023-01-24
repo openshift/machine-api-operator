@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
+	"k8s.io/utils/strings/slices"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
@@ -176,6 +177,10 @@ const (
 	powerVSSystemTypeE880           = "e880"
 	powerVSSystemTypeE980           = "e980"
 )
+
+// GCP Confidential VM supports Compute Engine machine types in the following series:
+// reference: https://cloud.google.com/compute/confidential-vm/docs/os-and-machine-type#machine-type
+var gcpConfidentialComputeSupportedMachineSeries = []string{"n2d", "c2d"}
 
 var (
 	// webhookFailurePolicy is ignore so we don't want to block machine lifecycle on the webhook operational aspects.
@@ -1224,6 +1229,8 @@ func validateGCP(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 
 	errs = append(errs, validateShieldedInstanceConfig(providerSpec)...)
 
+	errs = append(errs, validateGCPConfidentialComputing(providerSpec)...)
+
 	if providerSpec.RestartPolicy != "" && providerSpec.RestartPolicy != machinev1beta1.RestartPolicyAlways && providerSpec.RestartPolicy != machinev1beta1.RestartPolicyNever {
 		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "restartPolicy"), providerSpec.RestartPolicy, fmt.Sprintf("restartPolicy must be either %s or %s.", machinev1beta1.RestartPolicyNever, machinev1beta1.RestartPolicyAlways)))
 	}
@@ -1294,6 +1301,33 @@ func validateShieldedInstanceConfig(providerSpec *machinev1beta1.GCPMachineProvi
 				fmt.Sprintf("integrityMonitoring requires virtualizedTrustedPlatformModule %s.", machinev1beta1.VirtualizedTrustedPlatformModulePolicyEnabled)))
 		}
 	}
+	return errs
+}
+
+func validateGCPConfidentialComputing(providerSpec *machinev1beta1.GCPMachineProviderSpec) (errs []error) {
+	switch providerSpec.ConfidentialCompute {
+	case machinev1beta1.ConfidentialComputePolicyEnabled:
+		// Check on host maintenance
+		if providerSpec.OnHostMaintenance != machinev1beta1.TerminateHostMaintenanceType {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "onHostMaintenance"),
+				providerSpec.OnHostMaintenance,
+				fmt.Sprintf("ConfidentialCompute require OnHostMaintenance to be set to %s, the current value is: %s", machinev1beta1.TerminateHostMaintenanceType, providerSpec.OnHostMaintenance)))
+		}
+		// Check machine series supports confidential computing
+		machineSeries := strings.Split(providerSpec.MachineType, "-")[0]
+		if !slices.Contains(gcpConfidentialComputeSupportedMachineSeries, machineSeries) {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "machineType"),
+				providerSpec.MachineType,
+				fmt.Sprintf("ConfidentialCompute require machine type in the following series: %s", strings.Join(gcpConfidentialComputeSupportedMachineSeries, `,`))),
+			)
+		}
+	case machinev1beta1.ConfidentialComputePolicyDisabled, "":
+	default:
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "confidentialCompute"),
+			providerSpec.ConfidentialCompute,
+			fmt.Sprintf("ConfidentialCompute must be either %s or %s.", machinev1beta1.ConfidentialComputePolicyEnabled, machinev1beta1.ConfidentialComputePolicyDisabled)))
+	}
+
 	return errs
 }
 

@@ -3253,6 +3253,44 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 			expectedError: "providerSpec.shieldedInstanceConfig.virtualizedTrustedPlatformModule: Invalid value: \"Disabled\": integrityMonitoring requires virtualizedTrustedPlatformModule Enabled.",
 		},
 		{
+			testCase: "with ConfidentialCompute",
+			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
+				p.ConfidentialCompute = machinev1beta1.ConfidentialComputePolicyEnabled
+				p.OnHostMaintenance = machinev1beta1.TerminateHostMaintenanceType
+				p.MachineType = "n2d-standard-4"
+			},
+			expectedOk: true,
+		},
+		{
+			testCase: "with ConfidentialCompute invalid value",
+			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
+				p.ConfidentialCompute = "invalid-value"
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.confidentialCompute: Invalid value: \"invalid-value\": ConfidentialCompute must be either Enabled or Disabled.",
+		},
+		{
+			testCase: "with ConfidentialCompute enabled while onHostMaintenance is set to Migrate",
+			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
+				p.ConfidentialCompute = machinev1beta1.ConfidentialComputePolicyEnabled
+				p.OnHostMaintenance = machinev1beta1.MigrateHostMaintenanceType
+				p.MachineType = "n2d-standard-4"
+				p.GPUs = []machinev1beta1.GCPGPUConfig{}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.onHostMaintenance: Invalid value: \"Migrate\": ConfidentialCompute require OnHostMaintenance to be set to Terminate, the current value is: Migrate",
+		},
+		{
+			testCase: "with ConfidentialCompute enabled and unsupported machineType",
+			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
+				p.ConfidentialCompute = machinev1beta1.ConfidentialComputePolicyEnabled
+				p.OnHostMaintenance = machinev1beta1.TerminateHostMaintenanceType
+				p.MachineType = "e2-standard-4"
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.machineType: Invalid value: \"e2-standard-4\": ConfidentialCompute require machine type in the following series: n2d,c2d",
+		},
+		{
 			testCase: "with GPUs and Migrate onHostMaintenance",
 			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
 				p.OnHostMaintenance = machinev1beta1.MigrateHostMaintenanceType
