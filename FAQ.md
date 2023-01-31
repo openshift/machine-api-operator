@@ -99,6 +99,8 @@ MachineSets can be used to help mark the Machines and Nodes that are created fro
 Setting Labels or Annotations in a MachineSet in its `.spec.template.metadata` field will cause them to be applied to every Machine object created from that MachineSet. Specifically these Labels and Annotations will end up in the Machine object's `.metadata` field.
 
 Setting Labels or Annotations in the MachineSet resource's `.spec.template.spec.metadata` field will cause them to be applied to every Machine and Node object created from the MachineSet. In the case of Machine objects, these Labels and Annotations will be applied in resource's `.spec.metadata` field. For Node objects, these values will be applied to `.metadata` field.
+![image](https://user-images.githubusercontent.com/59862091/215680405-2bf9a396-1ec7-40c8-aae9-d96d58b9b766.png)
+
 
 ### Which Annotations and Labels won't get added to Nodes?
 There are two other areas for Annotations and Labels that won't result in them being added to
