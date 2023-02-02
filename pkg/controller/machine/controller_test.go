@@ -83,7 +83,7 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Status: machinev1.MachineStatus{
-			Phase: pointer.StringPtr(machinev1.PhaseProvisioning),
+			Phase: pointer.String(machinev1.PhaseProvisioning),
 		},
 	}
 	machineProvisioned := machinev1.Machine{
@@ -241,7 +241,7 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Spec: machinev1.MachineSpec{
-			ProviderID: pointer.StringPtr("providerID"),
+			ProviderID: pointer.String("providerID"),
 			ProviderSpec: machinev1.ProviderSpec{
 				Value: &runtime.RawExtension{
 					Raw: []byte("{}"),
@@ -270,7 +270,7 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Spec: machinev1.MachineSpec{
-			ProviderID: pointer.StringPtr("providerID"),
+			ProviderID: pointer.String("providerID"),
 			ProviderSpec: machinev1.ProviderSpec{
 				Value: &runtime.RawExtension{
 					Raw: []byte("{}"),

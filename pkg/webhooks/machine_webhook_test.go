@@ -144,7 +144,7 @@ func TestMachineCreation(t *testing.T) {
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AWSMachineProviderConfig{
 					AMI: machinev1beta1.AWSResourceReference{
-						ID: pointer.StringPtr("ami"),
+						ID: pointer.String("ami"),
 					},
 				},
 			},
@@ -836,11 +836,11 @@ func TestMachineCreation(t *testing.T) {
 					KeyPairName: "TestKeyPair",
 					Image: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.StringPtr("TestNetworkName"),
+						Name: pointer.String("TestNetworkName"),
 					},
 					Network: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.StringPtr("TestNetworkName"),
+						Name: pointer.String("TestNetworkName"),
 					},
 				},
 			},
@@ -854,16 +854,16 @@ func TestMachineCreation(t *testing.T) {
 				Object: &machinev1.PowerVSMachineProviderConfig{
 					ServiceInstance: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeID,
-						ID:   pointer.StringPtr("TestServiceInstanceID"),
+						ID:   pointer.String("TestServiceInstanceID"),
 					},
 					KeyPairName: "TestKeyPair",
 					Image: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.StringPtr("TestNetworkName"),
+						Name: pointer.String("TestNetworkName"),
 					},
 					Network: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.StringPtr("TestNetworkName"),
+						Name: pointer.String("TestNetworkName"),
 					},
 				},
 			},
@@ -877,16 +877,16 @@ func TestMachineCreation(t *testing.T) {
 				Object: &machinev1.PowerVSMachineProviderConfig{
 					ServiceInstance: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.StringPtr("TestServiceInstanceID"),
+						Name: pointer.String("TestServiceInstanceID"),
 					},
 					KeyPairName: "TestKeyPair",
 					Image: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.StringPtr("TestNetworkName"),
+						Name: pointer.String("TestNetworkName"),
 					},
 					Network: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.StringPtr("TestNetworkName"),
+						Name: pointer.String("TestNetworkName"),
 					},
 				},
 			},
@@ -900,16 +900,16 @@ func TestMachineCreation(t *testing.T) {
 				Object: &machinev1.PowerVSMachineProviderConfig{
 					ServiceInstance: machinev1.PowerVSResource{
 						Type:  machinev1.PowerVSResourceTypeRegEx,
-						RegEx: pointer.StringPtr("TestServiceInstanceID"),
+						RegEx: pointer.String("TestServiceInstanceID"),
 					},
 					KeyPairName: "TestKeyPair",
 					Image: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.StringPtr("TestNetworkName"),
+						Name: pointer.String("TestNetworkName"),
 					},
 					Network: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.StringPtr("TestNetworkName"),
+						Name: pointer.String("TestNetworkName"),
 					},
 				},
 			},
@@ -923,15 +923,15 @@ func TestMachineCreation(t *testing.T) {
 				Object: &machinev1.PowerVSMachineProviderConfig{
 					ServiceInstance: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.StringPtr("TestServiceInstanceID"),
+						Name: pointer.String("TestServiceInstanceID"),
 					},
 					Image: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.StringPtr("TestNetworkName"),
+						Name: pointer.String("TestNetworkName"),
 					},
 					Network: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.StringPtr("TestNetworkName"),
+						Name: pointer.String("TestNetworkName"),
 					},
 				},
 			},
@@ -946,11 +946,11 @@ func TestMachineCreation(t *testing.T) {
 					KeyPairName: "TestKeyPair",
 					ServiceInstance: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.StringPtr("TestServiceInstanceID"),
+						Name: pointer.String("TestServiceInstanceID"),
 					},
 					Network: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.StringPtr("TestNetworkName"),
+						Name: pointer.String("TestNetworkName"),
 					},
 				},
 			},
@@ -965,11 +965,11 @@ func TestMachineCreation(t *testing.T) {
 					KeyPairName: "TestKeyPair",
 					ServiceInstance: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.StringPtr("TestServiceInstanceID"),
+						Name: pointer.String("TestServiceInstanceID"),
 					},
 					Image: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.StringPtr("TestNetworkName"),
+						Name: pointer.String("TestNetworkName"),
 					},
 				},
 			},
@@ -984,15 +984,15 @@ func TestMachineCreation(t *testing.T) {
 					KeyPairName: "TestKeyPair",
 					ServiceInstance: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.StringPtr("TestServiceInstanceID"),
+						Name: pointer.String("TestServiceInstanceID"),
 					},
 					Image: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.StringPtr("TestNetworkName"),
+						Name: pointer.String("TestNetworkName"),
 					},
 					Network: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeID,
-						ID:   pointer.StringPtr("TestNetworkID"),
+						ID:   pointer.String("TestNetworkID"),
 					},
 				},
 			},
@@ -1007,15 +1007,15 @@ func TestMachineCreation(t *testing.T) {
 					KeyPairName: "TestKeyPair",
 					ServiceInstance: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.StringPtr("TestServiceInstanceID"),
+						Name: pointer.String("TestServiceInstanceID"),
 					},
 					Image: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.StringPtr("TestNetworkName"),
+						Name: pointer.String("TestNetworkName"),
 					},
 					Network: machinev1.PowerVSResource{
 						Type:  machinev1.PowerVSResourceTypeRegEx,
-						RegEx: pointer.StringPtr("DHCP"),
+						RegEx: pointer.String("DHCP"),
 					},
 				},
 			},
@@ -1030,15 +1030,15 @@ func TestMachineCreation(t *testing.T) {
 					KeyPairName: "TestKeyPair",
 					ServiceInstance: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.StringPtr("TestServiceInstanceID"),
+						Name: pointer.String("TestServiceInstanceID"),
 					},
 					Image: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.StringPtr("TestNetworkName"),
+						Name: pointer.String("TestNetworkName"),
 					},
 					Network: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.StringPtr("TestNetworkName"),
+						Name: pointer.String("TestNetworkName"),
 					},
 				},
 			},
@@ -1181,7 +1181,7 @@ func TestMachineUpdate(t *testing.T) {
 	awsRegion := "region"
 	defaultAWSProviderSpec := &machinev1beta1.AWSMachineProviderConfig{
 		AMI: machinev1beta1.AWSResourceReference{
-			ID: pointer.StringPtr("ami"),
+			ID: pointer.String("ami"),
 		},
 		InstanceType:      defaultAWSX86InstanceType,
 		UserDataSecret:    &corev1.LocalObjectReference{Name: defaultUserDataSecret},
@@ -1278,15 +1278,15 @@ func TestMachineUpdate(t *testing.T) {
 	defaultPowerVSProviderSpec := &machinev1.PowerVSMachineProviderConfig{
 		ServiceInstance: machinev1.PowerVSResource{
 			Type: machinev1.PowerVSResourceTypeName,
-			Name: pointer.StringPtr("testServiceInstanceID"),
+			Name: pointer.String("testServiceInstanceID"),
 		},
 		Image: machinev1.PowerVSResource{
 			Type: machinev1.PowerVSResourceTypeName,
-			Name: pointer.StringPtr("testImageName"),
+			Name: pointer.String("testImageName"),
 		},
 		Network: machinev1.PowerVSResource{
 			Type: machinev1.PowerVSResourceTypeName,
-			Name: pointer.StringPtr("testNetworkName"),
+			Name: pointer.String("testNetworkName"),
 		},
 		UserDataSecret: &machinev1.PowerVSSecretReference{
 			Name: defaultUserDataSecret,
@@ -2091,8 +2091,8 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			testCase: "with AMI ARN set",
 			modifySpec: func(p *machinev1beta1.AWSMachineProviderConfig) {
 				p.AMI = machinev1beta1.AWSResourceReference{
-					ID:  pointer.StringPtr("ami"),
-					ARN: pointer.StringPtr("arn"),
+					ID:  pointer.String("ami"),
+					ARN: pointer.String("arn"),
 				}
 			},
 			expectedOk:       true,
@@ -2102,7 +2102,7 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			testCase: "with AMI filters set",
 			modifySpec: func(p *machinev1beta1.AWSMachineProviderConfig) {
 				p.AMI = machinev1beta1.AWSResourceReference{
-					ID: pointer.StringPtr("ami"),
+					ID: pointer.String("ami"),
 					Filters: []machinev1beta1.Filter{
 						{
 							Name: "filter",
@@ -2185,14 +2185,14 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 		t.Run(tc.testCase, func(t *testing.T) {
 			providerSpec := &machinev1beta1.AWSMachineProviderConfig{
 				AMI: machinev1beta1.AWSResourceReference{
-					ID: pointer.StringPtr("ami"),
+					ID: pointer.String("ami"),
 				},
 				Placement: machinev1beta1.Placement{
 					Region: "region",
 				},
 				InstanceType: "m5.large",
 				IAMInstanceProfile: &machinev1beta1.AWSResourceReference{
-					ID: pointer.StringPtr("profileID"),
+					ID: pointer.String("profileID"),
 				},
 				UserDataSecret: &corev1.LocalObjectReference{
 					Name: "secret",
@@ -2202,11 +2202,11 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 				},
 				SecurityGroups: []machinev1beta1.AWSResourceReference{
 					{
-						ID: pointer.StringPtr("sg"),
+						ID: pointer.String("sg"),
 					},
 				},
 				Subnet: machinev1beta1.AWSResourceReference{
-					ID: pointer.StringPtr("subnet"),
+					ID: pointer.String("subnet"),
 				},
 				TypeMeta: metav1.TypeMeta{
 					Kind:       "AWSMachineProviderConfig",
@@ -3984,14 +3984,14 @@ func TestUpdateFinalizer(t *testing.T) {
 
 	providerSpec := &machinev1beta1.AWSMachineProviderConfig{
 		AMI: machinev1beta1.AWSResourceReference{
-			ID: pointer.StringPtr("ami"),
+			ID: pointer.String("ami"),
 		},
 		Placement: machinev1beta1.Placement{
 			Region: "region",
 		},
 		InstanceType: "m5.large",
 		IAMInstanceProfile: &machinev1beta1.AWSResourceReference{
-			ID: pointer.StringPtr("profileID"),
+			ID: pointer.String("profileID"),
 		},
 		UserDataSecret: &corev1.LocalObjectReference{
 			Name: "secret",
@@ -4001,11 +4001,11 @@ func TestUpdateFinalizer(t *testing.T) {
 		},
 		SecurityGroups: []machinev1beta1.AWSResourceReference{
 			{
-				ID: pointer.StringPtr("sg"),
+				ID: pointer.String("sg"),
 			},
 		},
 		Subnet: machinev1beta1.AWSResourceReference{
-			ID: pointer.StringPtr("subnet"),
+			ID: pointer.String("subnet"),
 		},
 	}
 
@@ -4234,7 +4234,7 @@ func TestValidatePowerVSProviderSpec(t *testing.T) {
 			testCase: "with regex for serviceInstanceID",
 			modifySpec: func(p *machinev1.PowerVSMachineProviderConfig) {
 				p.ServiceInstance.Type = machinev1.PowerVSResourceTypeRegEx
-				p.ServiceInstance.RegEx = pointer.StringPtr("DHCP")
+				p.ServiceInstance.RegEx = pointer.String("DHCP")
 			},
 			expectedOk:    false,
 			expectedError: "providerSpec.serviceInstance: Invalid value: \"RegEx\": serviceInstance identifier is specified as RegEx but only ID and Name are valid resource identifiers",
@@ -4275,7 +4275,7 @@ func TestValidatePowerVSProviderSpec(t *testing.T) {
 			testCase: "with regex for image",
 			modifySpec: func(p *machinev1.PowerVSMachineProviderConfig) {
 				p.Image.Type = machinev1.PowerVSResourceTypeRegEx
-				p.Image.RegEx = pointer.StringPtr("DHCP")
+				p.Image.RegEx = pointer.String("DHCP")
 			},
 			expectedOk:    false,
 			expectedError: "providerSpec.image: Invalid value: \"RegEx\": image identifier is specified as RegEx but only ID and Name are valid resource identifiers",
@@ -4416,15 +4416,15 @@ func TestValidatePowerVSProviderSpec(t *testing.T) {
 			providerSpec := &machinev1.PowerVSMachineProviderConfig{
 				ServiceInstance: machinev1.PowerVSResource{
 					Type: machinev1.PowerVSResourceTypeName,
-					Name: pointer.StringPtr("testServiceInstanceID"),
+					Name: pointer.String("testServiceInstanceID"),
 				},
 				Image: machinev1.PowerVSResource{
 					Type: machinev1.PowerVSResourceTypeName,
-					Name: pointer.StringPtr("testImageName"),
+					Name: pointer.String("testImageName"),
 				},
 				Network: machinev1.PowerVSResource{
 					Type: machinev1.PowerVSResourceTypeName,
-					Name: pointer.StringPtr("testNetworkName"),
+					Name: pointer.String("testNetworkName"),
 				},
 				UserDataSecret: &machinev1.PowerVSSecretReference{
 					Name: defaultUserDataSecret,

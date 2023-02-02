@@ -50,7 +50,7 @@ func getMachine(name string, phase string) *machinev1.Machine {
 		},
 	}
 
-	machine.Status.Phase = pointer.StringPtr(phase)
+	machine.Status.Phase = pointer.String(phase)
 	if phase == machinev1.PhaseDeleting {
 		machine.ObjectMeta.DeletionTimestamp = &now
 	}
