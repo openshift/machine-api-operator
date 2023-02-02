@@ -116,7 +116,7 @@ func NewMachine(name string, nodeName string) *machinev1.Machine {
 			OwnerReferences: []metav1.OwnerReference{
 				{
 					Kind:       "MachineSet",
-					Controller: pointer.BoolPtr(true),
+					Controller: pointer.Bool(true),
 				},
 			},
 			// the following line is to account for a change in the fake client, see https://github.com/kubernetes-sigs/controller-runtime/pull/1306

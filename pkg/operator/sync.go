@@ -418,7 +418,7 @@ func newRBACConfigVolumes() []corev1.Volume {
 					LocalObjectReference: corev1.LocalObjectReference{
 						Name: "kube-rbac-proxy",
 					},
-					DefaultMode: pointer.Int32Ptr(readOnly),
+					DefaultMode: pointer.Int32(readOnly),
 				},
 			},
 		},
@@ -427,7 +427,7 @@ func newRBACConfigVolumes() []corev1.Volume {
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName:  certStoreName,
-					DefaultMode: pointer.Int32Ptr(readOnly),
+					DefaultMode: pointer.Int32(readOnly),
 				},
 			},
 		},
@@ -439,7 +439,7 @@ func newRBACConfigVolumes() []corev1.Volume {
 					LocalObjectReference: corev1.LocalObjectReference{
 						Name: externalTrustBundleConfigMapName,
 					},
-					Optional: pointer.BoolPtr(true),
+					Optional: pointer.Bool(true),
 				},
 			},
 		},
@@ -462,13 +462,13 @@ func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev
 			Key:               "node.kubernetes.io/not-ready",
 			Effect:            corev1.TaintEffectNoExecute,
 			Operator:          corev1.TolerationOpExists,
-			TolerationSeconds: pointer.Int64Ptr(120),
+			TolerationSeconds: pointer.Int64(120),
 		},
 		{
 			Key:               "node.kubernetes.io/unreachable",
 			Effect:            corev1.TaintEffectNoExecute,
 			Operator:          corev1.TolerationOpExists,
-			TolerationSeconds: pointer.Int64Ptr(120),
+			TolerationSeconds: pointer.Int64(120),
 		},
 	}
 
@@ -479,7 +479,7 @@ func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName:  "machine-api-operator-webhook-cert",
-					DefaultMode: pointer.Int32Ptr(readOnly),
+					DefaultMode: pointer.Int32(readOnly),
 					Items: []corev1.KeyToPath{
 						{
 							Key:  "tls.crt",
@@ -806,7 +806,7 @@ func newTerminationPodTemplateSpec(config *OperatorConfig) *corev1.PodTemplateSp
 				kubernetesOSlabel: kubernetesOSlabelLinux,
 			},
 			ServiceAccountName:           machineAPITerminationHandler,
-			AutomountServiceAccountToken: pointer.BoolPtr(false),
+			AutomountServiceAccountToken: pointer.Bool(false),
 			HostNetwork:                  true,
 			Volumes: []corev1.Volume{
 				{

@@ -271,7 +271,7 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 			"Failed to check if machine exists: %v", err,
 		))
 
-		if patchErr := r.updateStatus(ctx, m, pointer.StringPtrDerefOr(m.Status.Phase, ""), nil, originalConditions); patchErr != nil {
+		if patchErr := r.updateStatus(ctx, m, pointer.StringDeref(m.Status.Phase, ""), nil, originalConditions); patchErr != nil {
 			klog.Errorf("%v: error patching status: %v", machineName, patchErr)
 		}
 
@@ -283,7 +283,7 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 		if err := r.actuator.Update(ctx, m); err != nil {
 			klog.Errorf("%v: error updating machine: %v, retrying in %v seconds", machineName, err, requeueAfter)
 
-			if patchErr := r.updateStatus(ctx, m, pointer.StringPtrDerefOr(m.Status.Phase, ""), nil, originalConditions); patchErr != nil {
+			if patchErr := r.updateStatus(ctx, m, pointer.StringDeref(m.Status.Phase, ""), nil, originalConditions); patchErr != nil {
 				klog.Errorf("%v: error patching status: %v", machineName, patchErr)
 			}
 
@@ -295,7 +295,7 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 
 		if !machineIsProvisioned(m) {
 			klog.Errorf("%v: instance exists but providerID or addresses has not been given to the machine yet, requeuing", machineName)
-			if patchErr := r.updateStatus(ctx, m, pointer.StringPtrDerefOr(m.Status.Phase, ""), nil, originalConditions); patchErr != nil {
+			if patchErr := r.updateStatus(ctx, m, pointer.StringDeref(m.Status.Phase, ""), nil, originalConditions); patchErr != nil {
 				klog.Errorf("%v: error patching status: %v", machineName, patchErr)
 			}
 

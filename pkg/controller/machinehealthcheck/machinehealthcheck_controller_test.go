@@ -599,7 +599,7 @@ func TestHasControllerOwner(t *testing.T) {
 	machineWithAnyControllerOwner.OwnerReferences = []metav1.OwnerReference{
 		{
 			Kind:       "Any",
-			Controller: pointer.BoolPtr(true),
+			Controller: pointer.Bool(true),
 		},
 	}
 
@@ -2038,7 +2038,7 @@ func TestRemediate(t *testing.T) {
 						OwnerReferences: []metav1.OwnerReference{
 							{
 								Kind:       "MachineSet",
-								Controller: pointer.BoolPtr(true),
+								Controller: pointer.Bool(true),
 							},
 						},
 					},
@@ -2081,7 +2081,7 @@ func TestRemediate(t *testing.T) {
 						OwnerReferences: []metav1.OwnerReference{
 							{
 								Kind:       "MachineSet",
-								Controller: pointer.BoolPtr(true),
+								Controller: pointer.Bool(true),
 							},
 						},
 						UID: "uid",
@@ -2129,7 +2129,7 @@ func TestRemediate(t *testing.T) {
 						OwnerReferences: []metav1.OwnerReference{
 							{
 								Kind:       "MachineSet",
-								Controller: pointer.BoolPtr(true),
+								Controller: pointer.Bool(true),
 							},
 						},
 					},
