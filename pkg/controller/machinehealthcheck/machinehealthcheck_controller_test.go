@@ -1044,7 +1044,10 @@ func TestMHCRequestsFromNode(t *testing.T) {
 				objects = append(objects, runtime.Object(tc.mhcs[i]))
 			}
 
-			requests := newFakeReconciler(objects...).mhcRequestsFromNode(tc.node)
+			fakeClientBuilder := fake.NewClientBuilder().
+				WithIndex(&machinev1.Machine{}, machineNodeNameIndex, indexMachineByNodeName).
+				WithRuntimeObjects(objects...)
+			requests := newFakeReconcilerBuilder().WithFakeClientBuilder(fakeClientBuilder).Build().mhcRequestsFromNode(tc.node)
 			if !reflect.DeepEqual(requests, tc.expectedRequests) {
 				t.Errorf("Expected: %v, got: %v", tc.expectedRequests, requests)
 			}
@@ -3024,6 +3027,51 @@ func assertEvents(t *testing.T, testCase string, expectedEvents []string, realEv
 // newFakeReconciler returns a new reconcile.Reconciler with a fake client
 func newFakeReconciler(initObjects ...runtime.Object) *ReconcileMachineHealthCheck {
 	return newFakeReconcilerWithCustomRecorder(nil, initObjects...)
+}
+
+type fakeReconcilerBuilder struct {
+	fakeClientBuilder *fake.ClientBuilder
+	scheme            *runtime.Scheme
+	namespace         string
+	recorder          record.EventRecorder
+}
+
+func newFakeReconcilerBuilder() fakeReconcilerBuilder {
+	return fakeReconcilerBuilder{
+		fakeClientBuilder: fake.NewClientBuilder(),
+		scheme:            scheme.Scheme,
+		namespace:         namespace,
+		recorder:          nil,
+	}
+}
+
+func (f fakeReconcilerBuilder) WithFakeClientBuilder(fakeClientBuilder *fake.ClientBuilder) fakeReconcilerBuilder {
+	f.fakeClientBuilder = fakeClientBuilder
+	return f
+}
+
+func (f fakeReconcilerBuilder) WithRecorder(recorder record.EventRecorder) fakeReconcilerBuilder {
+	f.recorder = recorder
+	return f
+}
+
+func (f fakeReconcilerBuilder) WithNamespace(namespace string) fakeReconcilerBuilder {
+	f.namespace = namespace
+	return f
+}
+
+func (f fakeReconcilerBuilder) WithScheme(scheme *runtime.Scheme) fakeReconcilerBuilder {
+	f.scheme = scheme
+	return f
+}
+
+func (f fakeReconcilerBuilder) Build() *ReconcileMachineHealthCheck {
+	return &ReconcileMachineHealthCheck{
+		client:    f.fakeClientBuilder.Build(),
+		scheme:    f.scheme,
+		namespace: f.namespace,
+		recorder:  f.recorder,
+	}
 }
 
 func newFakeReconcilerWithCustomRecorder(recorder record.EventRecorder, initObjects ...runtime.Object) *ReconcileMachineHealthCheck {

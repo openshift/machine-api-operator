@@ -124,7 +124,7 @@ func initRecorder(kubeClient kubernetes.Interface) record.EventRecorder {
 func startControllers(ctx *ControllerContext) {
 	kubeClient := ctx.ClientBuilder.KubeClientOrDie(componentName)
 	recorder := initRecorder(kubeClient)
-	go operator.New(
+	optr, err := operator.New(
 		componentNamespace, componentName,
 		startOpts.imagesFile,
 		config,
@@ -139,7 +139,12 @@ func startControllers(ctx *ControllerContext) {
 		ctx.ClientBuilder.MachineClientOrDie(componentName),
 		ctx.ClientBuilder.DynamicClientOrDie(componentName),
 		recorder,
-	).Run(1, ctx.Stop)
+	)
+	if err != nil {
+		panic(fmt.Errorf("error creating operator: %v", err))
+	}
+
+	go optr.Run(1, ctx.Stop)
 }
 
 func startMetricsCollectionAndServer(ctx *ControllerContext) {

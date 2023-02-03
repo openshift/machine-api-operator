@@ -100,7 +100,7 @@ func New(
 	dynamicClient dynamic.Interface,
 
 	recorder record.EventRecorder,
-) *Operator {
+) (*Operator, error) {
 	// we must report the version from the release payload when we report available at that level
 	// TODO we will report the version of the operands (so our machine api implementation version)
 	operandVersions := []osconfigv1.OperandVersion{}
@@ -121,11 +121,26 @@ func New(
 		operandVersions: operandVersions,
 	}
 
-	_, _ = deployInformer.Informer().AddEventHandler(optr.eventHandlerDeployments())
-	_, _ = daemonsetInformer.Informer().AddEventHandler(optr.eventHandler())
-	_, _ = validatingWebhookInformer.Informer().AddEventHandler(optr.eventHandlerSingleton(isMachineWebhook))
-	_, _ = mutatingWebhookInformer.Informer().AddEventHandler(optr.eventHandlerSingleton(isMachineWebhook))
-	_, _ = featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
+	_, err := deployInformer.Informer().AddEventHandler(optr.eventHandlerDeployments())
+	if err != nil {
+		return nil, fmt.Errorf("error adding event handler to deployments informer: %v", err)
+	}
+	_, err = daemonsetInformer.Informer().AddEventHandler(optr.eventHandler())
+	if err != nil {
+		return nil, fmt.Errorf("error adding event handler to daemonsets informer: %v", err)
+	}
+	_, err = validatingWebhookInformer.Informer().AddEventHandler(optr.eventHandlerSingleton(isMachineWebhook))
+	if err != nil {
+		return nil, fmt.Errorf("error adding event handler to validatingwebhook informer: %v", err)
+	}
+	_, err = mutatingWebhookInformer.Informer().AddEventHandler(optr.eventHandlerSingleton(isMachineWebhook))
+	if err != nil {
+		return nil, fmt.Errorf("error adding event handler to mutatingwebhook informer: %v", err)
+	}
+	_, err = featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
+	if err != nil {
+		return nil, fmt.Errorf("error adding event handler to featuregates informer: %v", err)
+	}
 
 	optr.config = config
 	optr.syncHandler = optr.sync
@@ -148,7 +163,7 @@ func New(
 	optr.featureGateLister = featureGateInformer.Lister()
 	optr.featureGateCacheSynced = featureGateInformer.Informer().HasSynced
 
-	return optr
+	return optr, nil
 }
 
 // Run runs the machine config operator.
