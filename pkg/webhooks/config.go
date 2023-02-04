@@ -62,8 +62,8 @@ func MachineValidatingWebhook() admissionregistrationv1.ValidatingWebhook {
 	serviceReference := admissionregistrationv1.ServiceReference{
 		Namespace: defaultWebhookServiceNamespace,
 		Name:      defaultWebhookServiceName,
-		Path:      pointer.StringPtr(DefaultMachineValidatingHookPath),
-		Port:      pointer.Int32Ptr(defaultWebhookServicePort),
+		Path:      pointer.String(DefaultMachineValidatingHookPath),
+		Port:      pointer.Int32(defaultWebhookServicePort),
 	}
 	return admissionregistrationv1.ValidatingWebhook{
 		AdmissionReviewVersions: []string{"v1"},
@@ -94,8 +94,8 @@ func MachineSetValidatingWebhook() admissionregistrationv1.ValidatingWebhook {
 	machinesetServiceReference := admissionregistrationv1.ServiceReference{
 		Namespace: defaultWebhookServiceNamespace,
 		Name:      defaultWebhookServiceName,
-		Path:      pointer.StringPtr(DefaultMachineSetValidatingHookPath),
-		Port:      pointer.Int32Ptr(defaultWebhookServicePort),
+		Path:      pointer.String(DefaultMachineSetValidatingHookPath),
+		Port:      pointer.Int32(defaultWebhookServicePort),
 	}
 	return admissionregistrationv1.ValidatingWebhook{
 		AdmissionReviewVersions: []string{"v1"},
@@ -149,8 +149,8 @@ func Metal3RemediationValidatingWebhook() admissionregistrationv1.ValidatingWebh
 	serviceReference := admissionregistrationv1.ServiceReference{
 		Namespace: defaultWebhookServiceNamespace,
 		Name:      defaultProviderWebhookServiceName,
-		Path:      pointer.StringPtr(DefaultMetal3RemediationValidatingHookPath),
-		Port:      pointer.Int32Ptr(defaultWebhookServicePort),
+		Path:      pointer.String(DefaultMetal3RemediationValidatingHookPath),
+		Port:      pointer.Int32(defaultWebhookServicePort),
 	}
 	return admissionregistrationv1.ValidatingWebhook{
 		AdmissionReviewVersions: []string{"v1"},
@@ -181,8 +181,8 @@ func Metal3RemediationTemplateValidatingWebhook() admissionregistrationv1.Valida
 	serviceReference := admissionregistrationv1.ServiceReference{
 		Namespace: defaultWebhookServiceNamespace,
 		Name:      defaultProviderWebhookServiceName,
-		Path:      pointer.StringPtr(DefaultMetal3RemediationTemplateValidatingHookPath),
-		Port:      pointer.Int32Ptr(defaultWebhookServicePort),
+		Path:      pointer.String(DefaultMetal3RemediationTemplateValidatingHookPath),
+		Port:      pointer.Int32(defaultWebhookServicePort),
 	}
 	return admissionregistrationv1.ValidatingWebhook{
 		AdmissionReviewVersions: []string{"v1"},
@@ -234,8 +234,8 @@ func MachineMutatingWebhook() admissionregistrationv1.MutatingWebhook {
 	machineServiceReference := admissionregistrationv1.ServiceReference{
 		Namespace: defaultWebhookServiceNamespace,
 		Name:      defaultWebhookServiceName,
-		Path:      pointer.StringPtr(DefaultMachineMutatingHookPath),
-		Port:      pointer.Int32Ptr(defaultWebhookServicePort),
+		Path:      pointer.String(DefaultMachineMutatingHookPath),
+		Port:      pointer.Int32(defaultWebhookServicePort),
 	}
 	return admissionregistrationv1.MutatingWebhook{
 		AdmissionReviewVersions: []string{"v1"},
@@ -265,8 +265,8 @@ func MachineSetMutatingWebhook() admissionregistrationv1.MutatingWebhook {
 	machineSetServiceReference := admissionregistrationv1.ServiceReference{
 		Namespace: defaultWebhookServiceNamespace,
 		Name:      defaultWebhookServiceName,
-		Path:      pointer.StringPtr(DefaultMachineSetMutatingHookPath),
-		Port:      pointer.Int32Ptr(defaultWebhookServicePort),
+		Path:      pointer.String(DefaultMachineSetMutatingHookPath),
+		Port:      pointer.Int32(defaultWebhookServicePort),
 	}
 	return admissionregistrationv1.MutatingWebhook{
 		AdmissionReviewVersions: []string{"v1"},
@@ -319,8 +319,8 @@ func Metal3RemediationMutatingWebhook() admissionregistrationv1.MutatingWebhook 
 	serviceReference := admissionregistrationv1.ServiceReference{
 		Namespace: defaultWebhookServiceNamespace,
 		Name:      defaultProviderWebhookServiceName,
-		Path:      pointer.StringPtr(DefaultMetal3RemediationMutatingHookPath),
-		Port:      pointer.Int32Ptr(defaultWebhookServicePort),
+		Path:      pointer.String(DefaultMetal3RemediationMutatingHookPath),
+		Port:      pointer.Int32(defaultWebhookServicePort),
 	}
 	return admissionregistrationv1.MutatingWebhook{
 		AdmissionReviewVersions: []string{"v1"},
@@ -351,8 +351,8 @@ func Metal3RemediationTemplateMutatingWebhook() admissionregistrationv1.Mutating
 	serviceReference := admissionregistrationv1.ServiceReference{
 		Namespace: defaultWebhookServiceNamespace,
 		Name:      defaultProviderWebhookServiceName,
-		Path:      pointer.StringPtr(DefaultMetal3RemediationTemplateMutatingHookPath),
-		Port:      pointer.Int32Ptr(defaultWebhookServicePort),
+		Path:      pointer.String(DefaultMetal3RemediationTemplateMutatingHookPath),
+		Port:      pointer.Int32(defaultWebhookServicePort),
 	}
 	return admissionregistrationv1.MutatingWebhook{
 		AdmissionReviewVersions: []string{"v1"},

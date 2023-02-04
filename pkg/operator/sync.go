@@ -549,7 +549,7 @@ func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev
 				Secret: &corev1.SecretVolumeSource{
 					// keep this aligned with service.beta.openshift.io/serving-cert-secret-name annotation on its services
 					SecretName:  "machine-api-operator-machine-webhook-cert",
-					DefaultMode: pointer.Int32Ptr(readOnly),
+					DefaultMode: pointer.Int32(readOnly),
 					Items: []corev1.KeyToPath{
 						{
 							Key:  "tls.crt",

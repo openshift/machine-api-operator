@@ -121,11 +121,11 @@ func New(
 		operandVersions: operandVersions,
 	}
 
-	deployInformer.Informer().AddEventHandler(optr.eventHandlerDeployments())
-	daemonsetInformer.Informer().AddEventHandler(optr.eventHandler())
-	validatingWebhookInformer.Informer().AddEventHandler(optr.eventHandlerSingleton(isMachineWebhook))
-	mutatingWebhookInformer.Informer().AddEventHandler(optr.eventHandlerSingleton(isMachineWebhook))
-	featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
+	_, _ = deployInformer.Informer().AddEventHandler(optr.eventHandlerDeployments())
+	_, _ = daemonsetInformer.Informer().AddEventHandler(optr.eventHandler())
+	_, _ = validatingWebhookInformer.Informer().AddEventHandler(optr.eventHandlerSingleton(isMachineWebhook))
+	_, _ = mutatingWebhookInformer.Informer().AddEventHandler(optr.eventHandlerSingleton(isMachineWebhook))
+	_, _ = featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
 
 	optr.config = config
 	optr.syncHandler = optr.sync

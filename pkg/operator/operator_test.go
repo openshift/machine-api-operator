@@ -80,8 +80,8 @@ func newFakeOperator(kubeObjects, osObjects, machineObjects []runtime.Object, im
 	kubeNamespacedSharedInformer.Start(stopCh)
 
 	optr.syncHandler = optr.sync
-	deployInformer.Informer().AddEventHandler(optr.eventHandlerDeployments())
-	featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
+	_, _ = deployInformer.Informer().AddEventHandler(optr.eventHandlerDeployments())
+	_, _ = featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
 
 	optr.operandVersions = []openshiftv1.OperandVersion{
 		{Name: "operator", Version: releaseVersion},
