@@ -59,9 +59,9 @@ const (
 
 const (
 	// ControlPlaneInitializedCondition reports if the cluster's control plane has been initialized such that the
-	// cluster's apiserver is reachable and at least one control plane Machine has a node reference. Once this
-	// condition is marked true, its value is never changed. See the ControlPlaneReady condition for an indication of
-	// the current readiness of the cluster's control plane.
+	// cluster's apiserver is reachable. If no Control Plane provider is in use this condition reports that at least one
+	// control plane Machine has a node reference. Once this Condition is marked true, its value is never changed. See
+	// the ControlPlaneReady condition for an indication of the current readiness of the cluster's control plane.
 	ControlPlaneInitializedCondition ConditionType = "ControlPlaneInitialized"
 
 	// MissingNodeRefReason (Severity=Info) documents a cluster waiting for at least one control plane Machine to have
@@ -136,11 +136,6 @@ const (
 	// In the event that the health check fails it will be set to False.
 	MachineHealthCheckSucceededCondition ConditionType = "HealthCheckSucceeded"
 
-	// MachineHealthCheckSuccededCondition is set on machines that have passed a healthcheck by the MachineHealthCheck controller.
-	// In the event that the health check fails it will be set to False.
-	// Deprecated: This const is going to be removed in a next release. Use MachineHealthCheckSucceededCondition instead.
-	MachineHealthCheckSuccededCondition ConditionType = "HealthCheckSucceeded"
-
 	// MachineHasFailureReason is the reason used when a machine has either a FailureReason or a FailureMessage set on its status.
 	MachineHasFailureReason = "MachineHasFailure"
 
@@ -165,19 +160,19 @@ const (
 	// RemediationInProgressReason is the reason used when an unhealthy machine is being remediated by the remediation owner.
 	RemediationInProgressReason = "RemediationInProgress"
 
-	// ExternalRemediationTemplateAvailable is set on machinehealthchecks when MachineHealthCheck controller uses external remediation.
-	// ExternalRemediationTemplateAvailable is set to false if external remediation template is not found.
-	ExternalRemediationTemplateAvailable ConditionType = "ExternalRemediationTemplateAvailable"
+	// ExternalRemediationTemplateAvailableCondition is set on machinehealthchecks when MachineHealthCheck controller uses external remediation.
+	// ExternalRemediationTemplateAvailableCondition is set to false if external remediation template is not found.
+	ExternalRemediationTemplateAvailableCondition ConditionType = "ExternalRemediationTemplateAvailable"
 
-	// ExternalRemediationTemplateNotFound is the reason used when a machine health check fails to find external remediation template.
-	ExternalRemediationTemplateNotFound = "ExternalRemediationTemplateNotFound"
+	// ExternalRemediationTemplateNotFoundReason is the reason used when a machine health check fails to find external remediation template.
+	ExternalRemediationTemplateNotFoundReason = "ExternalRemediationTemplateNotFound"
 
-	// ExternalRemediationRequestAvailable is set on machinehealthchecks when MachineHealthCheck controller uses external remediation.
-	// ExternalRemediationRequestAvailable is set to false if creating external remediation request fails.
-	ExternalRemediationRequestAvailable ConditionType = "ExternalRemediationRequestAvailable"
+	// ExternalRemediationRequestAvailableCondition is set on machinehealthchecks when MachineHealthCheck controller uses external remediation.
+	// ExternalRemediationRequestAvailableCondition is set to false if creating external remediation request fails.
+	ExternalRemediationRequestAvailableCondition ConditionType = "ExternalRemediationRequestAvailable"
 
-	// ExternalRemediationRequestCreationFailed is the reason used when a machine health check fails to create external remediation request.
-	ExternalRemediationRequestCreationFailed = "ExternalRemediationRequestCreationFailed"
+	// ExternalRemediationRequestCreationFailedReason is the reason used when a machine health check fails to create external remediation request.
+	ExternalRemediationRequestCreationFailedReason = "ExternalRemediationRequestCreationFailed"
 )
 
 // Conditions and condition Reasons for the Machine's Node object.
@@ -281,4 +276,17 @@ const (
 	// TopologyReconciledHookBlockingReason (Severity=Info) documents reconciliation of a Cluster topology
 	// not yet completed because at least one of the lifecycle hooks is blocking.
 	TopologyReconciledHookBlockingReason = "LifecycleHookBlocking"
+)
+
+// Conditions and condition reasons for ClusterClass.
+const (
+	// ClusterClassRefVersionsUpToDateCondition documents if the references in the ClusterClass are
+	// up-to-date (i.e. they are using the latest apiVersion of the current Cluster API contract from
+	// the corresponding CRD).
+	ClusterClassRefVersionsUpToDateCondition ConditionType = "RefVersionsUpToDate"
+
+	// ClusterClassOutdatedRefVersionsReason (Severity=Warning) that the references in the ClusterClass are not
+	// up-to-date (i.e. they are not using the latest apiVersion of the current Cluster API contract from
+	// the corresponding CRD).
+	ClusterClassOutdatedRefVersionsReason = "OutdatedRefVersions"
 )
