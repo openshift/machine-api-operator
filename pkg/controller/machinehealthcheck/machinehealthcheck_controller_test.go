@@ -3027,7 +3027,10 @@ func newFakeReconciler(initObjects ...runtime.Object) *ReconcileMachineHealthChe
 }
 
 func newFakeReconcilerWithCustomRecorder(recorder record.EventRecorder, initObjects ...runtime.Object) *ReconcileMachineHealthCheck {
-	fakeClient := fake.NewClientBuilder().WithRuntimeObjects(initObjects...).Build()
+	fakeClient := fake.NewClientBuilder().
+		WithIndex(&machinev1.Machine{}, machineNodeNameIndex, indexMachineByNodeName).
+		WithRuntimeObjects(initObjects...).
+		Build()
 	return &ReconcileMachineHealthCheck{
 		client:    fakeClient,
 		scheme:    scheme.Scheme,
