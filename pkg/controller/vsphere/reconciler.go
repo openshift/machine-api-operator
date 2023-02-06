@@ -8,10 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	apimachineryutilerrors "k8s.io/apimachinery/pkg/util/errors"
-
 	"github.com/google/uuid"
-	machinev1 "github.com/openshift/api/machine/v1beta1"
+
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/property"
@@ -20,12 +18,16 @@ import (
 	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
+	apimachineryutilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
+
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
@@ -325,28 +327,6 @@ func (r *Reconciler) delete() error {
 		Ref:     vmRef,
 	}
 
-	if r.machineScope.isNodeLinked() {
-		isNodeReachable, err := r.machineScope.checkNodeReachable()
-		if err != nil {
-			return fmt.Errorf("%v: Can't check node status before vm destroy: %w", r.machine.GetName(), err)
-		}
-		if !isNodeReachable {
-			klog.Infof("%v: node not ready, kubelet unreachable for some reason. Detaching disks before vm destroy.", r.machine.GetName())
-			if err := vm.detachPVDisks(); err != nil {
-				return fmt.Errorf("%v: Failed to detach virtual disks related to pvs: %w", r.machine.GetName(), err)
-			}
-		}
-
-		// After node draining, make sure volumes are detached before deleting the Node.
-		attached, err := r.nodeHasVolumesAttached(r.Context, r.machine.Status.NodeRef.Name, r.machine.Name)
-		if err != nil {
-			return fmt.Errorf("failed to determine if node %v has attached volumes: %w", r.machine.Status.NodeRef.Name, err)
-		}
-		if attached {
-			return fmt.Errorf("node %v has attached volumes, requeuing", r.machine.Status.NodeRef.Name)
-		}
-	}
-
 	powerState, err := vm.getPowerState()
 	if err != nil {
 		return fmt.Errorf("can not determine %v vm power state: %w", r.machine.GetName(), err)
@@ -360,6 +340,56 @@ func (r *Reconciler) delete() error {
 			return fmt.Errorf("failed to set provider status: %w", err)
 		}
 		return fmt.Errorf("powering off vm is in progress, requeuing")
+	}
+
+	// At this point node should be drained and vm powered off already.
+	// We need to check attached disks and ensure that all disks potentially related to PVs were detached
+	// to prevent possible data loss.
+	// Destroying a VM with attached disks might lead to data loss in case pvs are handled by the intree storage driver.
+
+	_, drainSkipped := r.machine.ObjectMeta.Annotations[machinecontroller.ExcludeNodeDrainingAnnotation]
+
+	// If node linked to the machine, and node was drained checking node status first
+	if r.machineScope.isNodeLinked() && !drainSkipped {
+		// After node draining, make sure volumes are detached before deleting the Node.
+		attached, err := r.nodeHasVolumesAttached(r.Context, r.machine.Status.NodeRef.Name, r.machine.Name)
+		if err != nil {
+			return fmt.Errorf("failed to determine if node %v has attached volumes: %w", r.machine.Status.NodeRef.Name, err)
+		}
+		if attached {
+			return fmt.Errorf("node %v has attached volumes, requeuing", r.machine.Status.NodeRef.Name)
+		}
+	}
+
+	klog.V(3).Infof("Checking attached disks before vm destroy")
+	disks, err := vm.getAttachedDisks()
+	if err != nil {
+		return fmt.Errorf("%v: can not obtain virtual disks attached to the vm: %w", r.machine.GetName(), err)
+	}
+	// Currently, MAPI does not provide any API knobs to configure additional volumes for a VM.
+	// So, we are expecting the VM to have only one disk, which is OS disk.
+	if len(disks) > 1 {
+		// If node drain was skipped we need to detach disks forcefully to prevent possible data corruption.
+		if drainSkipped {
+			klog.V(1).Infof(
+				"%s: drain was skipped for the machine, detaching disks before vm destruction to prevent data loss",
+				r.machine.GetName(),
+			)
+			if err := vm.detachDisks(filterOutVmOsDisk(disks, r.machine)); err != nil {
+				return fmt.Errorf("failed to detach disks: %w", err)
+			}
+			klog.V(1).Infof(
+				"%s: disks were detached", r.machine.GetName(),
+			)
+			return errors.New(
+				"disks were detached, vm will be attempted to destroy in next reconciliation, requeuing",
+			)
+		}
+
+		// Block vm destruction till attach-detach controller has properly detached disks
+		return errors.New(
+			"additional attached disks detected, block vm destruction and wait for disks to be detached",
+		)
 	}
 
 	task, err := vm.Obj.Destroy(r.Context)
@@ -1241,6 +1271,22 @@ type attachedDisk struct {
 	diskMode string
 }
 
+// Filters out disks that look like vm OS disk.
+// VM os disks filename contains the machine name in it
+// and has the format like "[DATASTORE] path-within-datastore/machine-name.vmdk".
+// This is based on vSphere behavior, an OS disk file gets a name that equals the target VM name during the clone operation.
+func filterOutVmOsDisk(attachedDisks []attachedDisk, machine *machinev1.Machine) []attachedDisk {
+	var disks []attachedDisk
+
+	for _, disk := range attachedDisks {
+		if strings.HasSuffix(disk.fileName, fmt.Sprintf("/%s.vmdk", machine.GetName())) {
+			continue
+		}
+		disks = append(disks, disk)
+	}
+	return disks
+}
+
 func (vm *virtualMachine) getAttachedDisks() ([]attachedDisk, error) {
 	var attachedDiskList []attachedDisk
 	devices, err := vm.Obj.Device(vm.Context)
@@ -1260,22 +1306,16 @@ func (vm *virtualMachine) getAttachedDisks() ([]attachedDisk, error) {
 	return attachedDiskList, nil
 }
 
-func (vm *virtualMachine) detachPVDisks() error {
+func (vm *virtualMachine) detachDisks(disks []attachedDisk) error {
 	var errList []error
-	disks, err := vm.getAttachedDisks()
-	if err != nil {
-		return err
-	}
+
 	for _, disk := range disks {
-		// TODO (dmoiseev): should be enough, but maybe worth to check if its PV for sure
-		if disk.diskMode != string(types.VirtualDiskModePersistent) {
-			klog.V(3).Infof("Detaching disk associated with file %v", disk.fileName)
-			if err := vm.Obj.RemoveDevice(vm.Context, true, disk.device); err != nil {
-				errList = append(errList, err)
-				klog.Errorf("Failed to detach disk associated with file %v ", disk.fileName)
-			} else {
-				klog.V(3).Infof("Disk associated with file %v have been detached", disk.fileName)
-			}
+		klog.V(3).Infof("Detaching disk associated with file %v", disk.fileName)
+		if err := vm.Obj.RemoveDevice(vm.Context, true, disk.device); err != nil {
+			errList = append(errList, err)
+			klog.Errorf("Failed to detach disk associated with file %v ", disk.fileName)
+		} else {
+			klog.V(3).Infof("Disk associated with file %v has been detached", disk.fileName)
 		}
 	}
 	if len(errList) > 0 {
