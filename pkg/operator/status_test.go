@@ -6,14 +6,16 @@ import (
 	"time"
 
 	. "github.com/onsi/gomega"
-	osconfigv1 "github.com/openshift/api/config/v1"
-	fakeconfigclientset "github.com/openshift/client-go/config/clientset/versioned/fake"
-	"github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers"
 	"github.com/stretchr/testify/assert"
+
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
+
+	osconfigv1 "github.com/openshift/api/config/v1"
+	fakeconfigclientset "github.com/openshift/client-go/config/clientset/versioned/fake"
+	"github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers"
 )
 
 func TestPrintOperandVersions(t *testing.T) {

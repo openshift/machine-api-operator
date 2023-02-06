@@ -2,10 +2,12 @@ package webhooks
 
 import (
 	capm3apis "github.com/metal3-io/cluster-api-provider-metal3/api/v1beta1"
-	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
+
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/pointer"
+
+	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 )
 
 const (
