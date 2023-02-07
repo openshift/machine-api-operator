@@ -4692,6 +4692,23 @@ func TestValidateNutanixProviderSpec(t *testing.T) {
 			expectedError: "providerSpec.credentialsSecret: Required value: credentialsSecret must be provided",
 		},
 		{
+			testCase: "with invalid bootType provided",
+			modifySpec: func(p *machinev1.NutanixMachineProviderConfig) {
+				p.BootType = "invalid"
+			},
+			expectedOk:    false,
+			expectedError: fmt.Sprintf("providerSpec.bootType: Invalid value: \"invalid\": valid bootType values are: \"\", %q, %q, %q.", machinev1.NutanixLegacyBoot, machinev1.NutanixUEFIBoot, machinev1.NutanixSecureBoot),
+		},
+		{
+			testCase: "with invalid categories provided",
+			modifySpec: func(p *machinev1.NutanixMachineProviderConfig) {
+				p.Categories = append(p.Categories, machinev1.NutanixCategory{Key: "key1",
+					Value: "val0123456789012345678901234567890123456789012345678901234567890123456789"})
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.categories.value: Invalid value: \"val0123456789012345678901234567890123456789012345678901234567890123456789\": value must be a string with length between 1 and 64.",
+		},
+		{
 			testCase:      "with all required fields it succeeds",
 			expectedOk:    true,
 			expectedError: "",
