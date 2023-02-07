@@ -117,7 +117,7 @@ push: ## Push image to docker registry
 
 .PHONY: lint
 lint: ## Run golangci-lint over the codebase.
-	 $(call ensure-home, ${GOLANGCI_LINT} run ./pkg/... --timeout=10m)
+	 $(call ensure-home, ${GOLANGCI_LINT} run ./pkg/... ./cmd/... --timeout=10m)
 
 .PHONY: fmt
 fmt: ## Update and show diff for import lines

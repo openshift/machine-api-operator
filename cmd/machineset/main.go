@@ -54,8 +54,10 @@ func main() {
 		"", "",
 	)
 
-	flag.Set("logtostderr", "true")
 	klog.InitFlags(nil)
+	if err := flag.Set("logtostderr", "true"); err != nil {
+		klog.Fatalf("failed to set logtostderr flag: %v", err)
+	}
 	watchNamespace := flag.String("namespace", "",
 		"Namespace that the controller watches to reconcile cluster-api objects. If unspecified, the controller watches for cluster-api objects across all namespaces.")
 	metricsAddress := flag.String("metrics-bind-address", metrics.DefaultMachineSetMetricsAddress, "Address for hosting metrics")

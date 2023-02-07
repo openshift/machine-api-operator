@@ -60,7 +60,9 @@ func main() {
 	)
 
 	klog.InitFlags(nil)
-	flag.Set("logtostderr", "true")
+	if err := flag.Set("logtostderr", "true"); err != nil {
+		klog.Fatalf("failed to set logtostderr flag: %v", err)
+	}
 	flag.Parse()
 
 	// Get a config to talk to the apiserver

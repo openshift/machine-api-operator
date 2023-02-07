@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"net/http"
@@ -33,11 +34,16 @@ const (
 )
 
 var (
+	// errImagesJsonEmpty is and Error when --images-json option is empty
+	errImagesJsonEmpty = errors.New("--images-json should not be empty")
+)
+
+var (
 	startCmd = &cobra.Command{
 		Use:   "start",
 		Short: "Starts Machine API Operator",
 		Long:  "",
-		Run:   runStartCmd,
+		RunE:  runStartCmd,
 	}
 
 	startOpts struct {
@@ -56,19 +62,21 @@ func init() {
 	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
 }
 
-func runStartCmd(cmd *cobra.Command, args []string) {
-	flag.Set("logtostderr", "true")
+func runStartCmd(cmd *cobra.Command, args []string) error {
+	if err := flag.Set("logtostderr", "true"); err != nil {
+		return fmt.Errorf("failed to set logtostderr flag: %v", err)
+	}
 
 	// To help debugging, immediately log version
 	klog.Infof("Version: %+v", version.Version)
 
 	if startOpts.imagesFile == "" {
-		klog.Fatalf("--images-json should not be empty")
+		return errImagesJsonEmpty
 	}
 
 	cb, err := NewClientBuilder(startOpts.kubeconfig)
 	if err != nil {
-		klog.Fatalf("error creating clients: %v", err)
+		return fmt.Errorf("error creating clients: %v", err)
 	}
 	stopCh := make(chan struct{})
 
@@ -82,7 +90,7 @@ func runStartCmd(cmd *cobra.Command, args []string) {
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				ctrlCtx := CreateControllerContext(cb, stopCh, componentNamespace)
-				startControllers(ctrlCtx)
+				startControllersOrDie(ctrlCtx)
 				ctrlCtx.KubeNamespacedInformerFactory.Start(ctrlCtx.Stop)
 				ctrlCtx.ConfigInformerFactory.Start(ctrlCtx.Stop)
 				initMachineAPIInformers(ctrlCtx)
@@ -112,18 +120,23 @@ func initMachineAPIInformers(ctx *ControllerContext) {
 	klog.Info("Synced up machine api informer caches")
 }
 
-func initRecorder(kubeClient kubernetes.Interface) record.EventRecorder {
+func initRecorder(kubeClient kubernetes.Interface) (record.EventRecorder, error) {
 	eventRecorderScheme := runtime.NewScheme()
-	osconfigv1.Install(eventRecorderScheme)
+	if err := osconfigv1.Install(eventRecorderScheme); err != nil {
+		return nil, fmt.Errorf("failed to create event recorder scheme: %v", err)
+	}
 	eventBroadcaster := record.NewBroadcaster()
 	eventBroadcaster.StartLogging(klog.Infof)
 	eventBroadcaster.StartRecordingToSink(&coreclientsetv1.EventSinkImpl{Interface: kubeClient.CoreV1().Events("")})
-	return eventBroadcaster.NewRecorder(eventRecorderScheme, v1.EventSource{Component: "machineapioperator"})
+	return eventBroadcaster.NewRecorder(eventRecorderScheme, v1.EventSource{Component: "machineapioperator"}), nil
 }
 
-func startControllers(ctx *ControllerContext) {
+func startControllersOrDie(ctx *ControllerContext) {
 	kubeClient := ctx.ClientBuilder.KubeClientOrDie(componentName)
-	recorder := initRecorder(kubeClient)
+	recorder, err := initRecorder(kubeClient)
+	if err != nil {
+		klog.Fatalf("failed to create event recorder: %v", err)
+	}
 	optr, err := operator.New(
 		componentNamespace, componentName,
 		startOpts.imagesFile,
