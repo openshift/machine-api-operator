@@ -5,15 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
-	"github.com/openshift/library-go/pkg/operator/events"
-	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
-	"github.com/openshift/library-go/pkg/operator/resource/resourcehash"
-	"github.com/openshift/library-go/pkg/operator/resource/resourcemerge"
-	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
-	"github.com/openshift/machine-api-operator/pkg/metrics"
-	"github.com/openshift/machine-api-operator/pkg/util/conditions"
-	mapiwebhooks "github.com/openshift/machine-api-operator/pkg/webhooks"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -24,12 +15,25 @@ import (
 	"k8s.io/klog/v2"
 	"k8s.io/utils/pointer"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
+
+	v1 "github.com/openshift/api/config/v1"
+	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
+	"github.com/openshift/library-go/pkg/operator/events"
+	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
+	"github.com/openshift/library-go/pkg/operator/resource/resourcehash"
+	"github.com/openshift/library-go/pkg/operator/resource/resourcemerge"
+	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
+	"github.com/openshift/machine-api-operator/pkg/metrics"
+	"github.com/openshift/machine-api-operator/pkg/util/conditions"
+	mapiwebhooks "github.com/openshift/machine-api-operator/pkg/webhooks"
 )
 
 const (
 	checkStatusRequeuePeriod            = 5 * time.Second
 	deploymentMinimumAvailabilityTime   = 3 * time.Minute
 	machineAPITerminationHandler        = "machine-api-termination-handler"
+	MachineWebhookPort                  = 8440
+	MachineSetWebhookPort               = 8443
 	machineExposeMetricsPort            = 8441
 	machineSetExposeMetricsPort         = 8442
 	machineHealthCheckExposeMetricsPort = 8444
@@ -42,6 +46,8 @@ const (
 	hostKubeConfigPath                  = "/var/lib/kubelet/kubeconfig"
 	hostKubePKIPath                     = "/var/lib/kubelet/pki"
 	operatorStatusNoOpMessage           = "Cluster Machine API Operator is in NoOp mode"
+	machineSetWebhookVolumeName         = "machineset-webhook-cert"
+	machineWebhookVolumeName            = "machine-webhook-cert"
 	kubernetesOSlabel                   = "kubernetes.io/os"
 	kubernetesOSlabelLinux              = "linux"
 
@@ -75,7 +81,7 @@ func (optr *Operator) syncAll(config *OperatorConfig) (reconcile.Result, error) 
 
 	errors := []error{}
 	// Sync webhook configuration
-	if err := optr.syncWebhookConfiguration(); err != nil {
+	if err := optr.syncWebhookConfiguration(config); err != nil {
 		errors = append(errors, fmt.Errorf("error syncing machine API webhook configurations: %w", err))
 	}
 
@@ -219,19 +225,29 @@ func (optr *Operator) syncTerminationHandler(config *OperatorConfig) error {
 	return nil
 }
 
-func (optr *Operator) syncWebhookConfiguration() error {
-	if err := optr.syncValidatingWebhook(); err != nil {
+func (optr *Operator) syncWebhookConfiguration(config *OperatorConfig) error {
+	if err := optr.syncMachineValidatingWebhook(); err != nil {
 		return err
 	}
-
-	return optr.syncMutatingWebhook()
+	if err := optr.syncMachineMutatingWebhook(); err != nil {
+		return err
+	}
+	if config.PlatformType == v1.BareMetalPlatformType {
+		if err := optr.syncMetal3RemediationValidatingWebhook(); err != nil {
+			return err
+		}
+		if err := optr.syncMetal3RemediationMutatingWebhook(); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
-func (optr *Operator) syncValidatingWebhook() error {
+func (optr *Operator) syncMachineValidatingWebhook() error {
 	validatingWebhook, updated, err := resourceapply.ApplyValidatingWebhookConfigurationImproved(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
 		events.NewLoggingEventRecorder(optr.name),
-		mapiwebhooks.NewValidatingWebhookConfiguration(),
-		optr.validatingWebhookCache)
+		mapiwebhooks.NewMachineValidatingWebhookConfiguration(),
+		optr.cache)
 	if err != nil {
 		return err
 	}
@@ -242,16 +258,50 @@ func (optr *Operator) syncValidatingWebhook() error {
 	return nil
 }
 
-func (optr *Operator) syncMutatingWebhook() error {
-	validatingWebhook, updated, err := resourceapply.ApplyMutatingWebhookConfigurationImproved(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
+func (optr *Operator) syncMachineMutatingWebhook() error {
+	mutatingWebhook, updated, err := resourceapply.ApplyMutatingWebhookConfigurationImproved(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
 		events.NewLoggingEventRecorder(optr.name),
-		mapiwebhooks.NewMutatingWebhookConfiguration(),
-		optr.mutatingWebhookCache)
+		mapiwebhooks.NewMachineMutatingWebhookConfiguration(),
+		optr.cache)
 	if err != nil {
 		return err
 	}
 	if updated {
-		resourcemerge.SetMutatingWebhooksConfigurationGeneration(&optr.generations, validatingWebhook)
+		resourcemerge.SetMutatingWebhooksConfigurationGeneration(&optr.generations, mutatingWebhook)
+	}
+
+	return nil
+}
+
+// Metal3Remediation(Templates) were backported from metal3, their CRDs and the
+// actual webhook implementation can be found in cluster-api-provider-baremetal
+func (optr *Operator) syncMetal3RemediationValidatingWebhook() error {
+	validatingWebhook, updated, err := resourceapply.ApplyValidatingWebhookConfigurationImproved(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
+		events.NewLoggingEventRecorder(optr.name),
+		mapiwebhooks.NewMetal3RemediationValidatingWebhookConfiguration(),
+		optr.cache)
+	if err != nil {
+		return err
+	}
+	if updated {
+		resourcemerge.SetValidatingWebhooksConfigurationGeneration(&optr.generations, validatingWebhook)
+	}
+
+	return nil
+}
+
+// Metal3Remediation(Templates) were backported from metal3, their CRDs and the
+// actual webhook implementation can be found in cluster-api-provider-baremetal
+func (optr *Operator) syncMetal3RemediationMutatingWebhook() error {
+	mutatingWebhook, updated, err := resourceapply.ApplyMutatingWebhookConfigurationImproved(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
+		events.NewLoggingEventRecorder(optr.name),
+		mapiwebhooks.NewMetal3RemediationMutatingWebhookConfiguration(),
+		optr.cache)
+	if err != nil {
+		return err
+	}
+	if updated {
+		resourcemerge.SetMutatingWebhooksConfigurationGeneration(&optr.generations, mutatingWebhook)
 	}
 
 	return nil
@@ -475,10 +525,31 @@ func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev
 	var readOnly int32 = 420
 	volumes := []corev1.Volume{
 		{
-			Name: "cert",
+			Name: machineSetWebhookVolumeName,
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
+					// keep this aligned with service.beta.openshift.io/serving-cert-secret-name annotation on its services
 					SecretName:  "machine-api-operator-webhook-cert",
+					DefaultMode: pointer.Int32(readOnly),
+					Items: []corev1.KeyToPath{
+						{
+							Key:  "tls.crt",
+							Path: "tls.crt",
+						},
+						{
+							Key:  "tls.key",
+							Path: "tls.key",
+						},
+					},
+				},
+			},
+		},
+		{
+			Name: machineWebhookVolumeName,
+			VolumeSource: corev1.VolumeSource{
+				Secret: &corev1.SecretVolumeSource{
+					// keep this aligned with service.beta.openshift.io/serving-cert-secret-name annotation on its services
+					SecretName:  "machine-api-operator-machine-webhook-cert",
 					DefaultMode: pointer.Int32(readOnly),
 					Items: []corev1.KeyToPath{
 						{
@@ -585,7 +656,7 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 			Ports: []corev1.ContainerPort{
 				{
 					Name:          "webhook-server",
-					ContainerPort: 8443,
+					ContainerPort: MachineSetWebhookPort,
 				},
 				{
 					Name:          "healthz",
@@ -611,7 +682,7 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 			VolumeMounts: []corev1.VolumeMount{
 				{
 					MountPath: "/etc/machine-api-operator/tls",
-					Name:      "cert",
+					Name:      machineSetWebhookVolumeName,
 					ReadOnly:  true,
 				},
 			},
@@ -630,10 +701,16 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 					},
 				},
 			}),
-			Ports: []corev1.ContainerPort{{
-				Name:          "healthz",
-				ContainerPort: defaultMachineHealthPort,
-			}},
+			Ports: []corev1.ContainerPort{
+				{
+					Name:          "machine-webhook",
+					ContainerPort: MachineWebhookPort,
+				},
+				{
+					Name:          "healthz",
+					ContainerPort: defaultMachineHealthPort,
+				},
+			},
 			ReadinessProbe: &corev1.Probe{
 				ProbeHandler: corev1.ProbeHandler{
 					HTTPGet: &corev1.HTTPGetAction{
@@ -659,6 +736,11 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 				{
 					MountPath: "/var/run/secrets/openshift/serviceaccount",
 					Name:      "bound-sa-token",
+					ReadOnly:  true,
+				},
+				{
+					MountPath: "/etc/machine-api-operator/tls",
+					Name:      machineWebhookVolumeName,
 					ReadOnly:  true,
 				},
 			},

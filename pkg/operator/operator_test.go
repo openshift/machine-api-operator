@@ -71,9 +71,8 @@ func newFakeOperator(kubeObjects, osObjects, machineObjects []runtime.Object, im
 		proxyListerSynced:             proxyInformer.Informer().HasSynced,
 		daemonsetListerSynced:         daemonsetInformer.Informer().HasSynced,
 		featureGateCacheSynced:        featureGateInformer.Informer().HasSynced,
-		mutatingWebhookCache:          resourceapply.NewResourceCache(),
+		cache:                         resourceapply.NewResourceCache(),
 		mutatingWebhookListerSynced:   mutatingWebhookInformer.Informer().HasSynced,
-		validatingWebhookCache:        resourceapply.NewResourceCache(),
 		validatingWebhookListerSynced: validatingWebhookInformer.Informer().HasSynced,
 	}
 
@@ -81,8 +80,8 @@ func newFakeOperator(kubeObjects, osObjects, machineObjects []runtime.Object, im
 	kubeNamespacedSharedInformer.Start(stopCh)
 
 	optr.syncHandler = optr.sync
-	deployInformer.Informer().AddEventHandler(optr.eventHandlerDeployments())
-	featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
+	_, _ = deployInformer.Informer().AddEventHandler(optr.eventHandlerDeployments())
+	_, _ = featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
 
 	optr.operandVersions = []openshiftv1.OperandVersion{
 		{Name: "operator", Version: releaseVersion},
@@ -339,6 +338,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: images.ClusterAPIControllerAWS,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				PlatformType: openshiftv1.AWSPlatformType,
 			},
 		},
 		{
@@ -357,6 +357,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: images.ClusterAPIControllerAlibaba,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				PlatformType: openshiftv1.AlibabaCloudPlatformType,
 			},
 		},
 		{
@@ -375,6 +376,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: clusterAPIControllerNoOp,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				PlatformType: openshiftv1.LibvirtPlatformType,
 			},
 		},
 		{
@@ -393,6 +395,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: clusterAPIControllerNoOp,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				PlatformType: openshiftv1.OpenStackPlatformType,
 			},
 		},
 		{
@@ -411,6 +414,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: images.ClusterAPIControllerAzure,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				PlatformType: openshiftv1.AzurePlatformType,
 			},
 		},
 		{
@@ -429,6 +433,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: clusterAPIControllerNoOp,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				PlatformType: openshiftv1.BareMetalPlatformType,
 			},
 		},
 		{
@@ -447,6 +452,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: images.ClusterAPIControllerGCP,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				PlatformType: openshiftv1.GCPPlatformType,
 			},
 		},
 		{
@@ -465,6 +471,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: clusterAPIControllerNoOp,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				PlatformType: kubemarkPlatform,
 			},
 		},
 		{
@@ -483,6 +490,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: clusterAPIControllerNoOp,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				PlatformType: openshiftv1.VSpherePlatformType,
 			},
 		},
 		{
@@ -501,6 +509,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: clusterAPIControllerNoOp,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				PlatformType: openshiftv1.OvirtPlatformType,
 			},
 		},
 		{
@@ -519,6 +528,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: clusterAPIControllerNoOp,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				PlatformType: openshiftv1.NonePlatformType,
 			},
 		},
 		{
@@ -537,6 +547,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					TerminationHandler: clusterAPIControllerNoOp,
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
+				PlatformType: "bad-platform",
 			},
 		},
 		{

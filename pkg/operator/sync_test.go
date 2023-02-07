@@ -7,6 +7,7 @@ import (
 	"time"
 
 	. "github.com/onsi/gomega"
+	v1 "github.com/openshift/api/config/v1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -438,6 +439,56 @@ func TestCheckMinimumWorkerMachines(t *testing.T) {
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
 			}
+		})
+	}
+}
+
+func TestSyncWebhookConfiguration(t *testing.T) {
+
+	testCases := []struct {
+		name                         string
+		platformType                 v1.PlatformType
+		expectedNrMutatingWebhooks   int
+		expectedNrValidatingWebhooks int
+	}{
+		{
+			name: "webhooks on non baremetal",
+			// using AWS as random non baremetal platform
+			platformType:                 v1.AWSPlatformType,
+			expectedNrMutatingWebhooks:   1,
+			expectedNrValidatingWebhooks: 1,
+		},
+		{
+			name:                         "webhooks on baremetal",
+			platformType:                 v1.BareMetalPlatformType,
+			expectedNrMutatingWebhooks:   2,
+			expectedNrValidatingWebhooks: 2,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			stopCh := make(chan struct{})
+			defer close(stopCh)
+			optr := newFakeOperator(nil, nil, nil, "", stopCh)
+
+			nrMutatingWebhooks := 0
+			nrValidatingWebhooks := 0
+			_ = optr.syncWebhookConfiguration(&OperatorConfig{PlatformType: tc.platformType})
+			for _, gen := range optr.generations {
+				switch gen.Resource {
+				case "mutatingwebhookconfigurations":
+					nrMutatingWebhooks++
+				case "validatingwebhookconfigurations":
+					nrValidatingWebhooks++
+				}
+			}
+			g.Expect(nrMutatingWebhooks).To(BeNumerically("==", tc.expectedNrMutatingWebhooks),
+				"wrong nr of mutating webhooks")
+			g.Expect(nrValidatingWebhooks).To(BeNumerically("==", tc.expectedNrValidatingWebhooks),
+				"wrong nr of validating webhooks")
 		})
 	}
 }

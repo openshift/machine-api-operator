@@ -65,13 +65,11 @@ type Operator struct {
 	proxyLister       configlistersv1.ProxyLister
 	proxyListerSynced cache.InformerSynced
 
-	validatingWebhookCache        resourceapply.ResourceCache
+	cache                         resourceapply.ResourceCache
 	validatingWebhookLister       admissionlisterv1.ValidatingWebhookConfigurationLister
 	validatingWebhookListerSynced cache.InformerSynced
-
-	mutatingWebhookCache        resourceapply.ResourceCache
-	mutatingWebhookLister       admissionlisterv1.MutatingWebhookConfigurationLister
-	mutatingWebhookListerSynced cache.InformerSynced
+	mutatingWebhookLister         admissionlisterv1.MutatingWebhookConfigurationLister
+	mutatingWebhookListerSynced   cache.InformerSynced
 
 	featureGateLister      configlistersv1.FeatureGateLister
 	featureGateCacheSynced cache.InformerSynced
@@ -123,11 +121,11 @@ func New(
 		operandVersions: operandVersions,
 	}
 
-	deployInformer.Informer().AddEventHandler(optr.eventHandlerDeployments())
-	daemonsetInformer.Informer().AddEventHandler(optr.eventHandler())
-	validatingWebhookInformer.Informer().AddEventHandler(optr.eventHandlerSingleton(isMachineWebhook))
-	mutatingWebhookInformer.Informer().AddEventHandler(optr.eventHandlerSingleton(isMachineWebhook))
-	featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
+	_, _ = deployInformer.Informer().AddEventHandler(optr.eventHandlerDeployments())
+	_, _ = daemonsetInformer.Informer().AddEventHandler(optr.eventHandler())
+	_, _ = validatingWebhookInformer.Informer().AddEventHandler(optr.eventHandlerSingleton(isMachineWebhook))
+	_, _ = mutatingWebhookInformer.Informer().AddEventHandler(optr.eventHandlerSingleton(isMachineWebhook))
+	_, _ = featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
 
 	optr.config = config
 	optr.syncHandler = optr.sync
@@ -141,11 +139,9 @@ func New(
 	optr.proxyLister = proxyInformer.Lister()
 	optr.proxyListerSynced = proxyInformer.Informer().HasSynced
 
-	optr.validatingWebhookCache = resourceapply.NewResourceCache()
+	optr.cache = resourceapply.NewResourceCache()
 	optr.validatingWebhookLister = validatingWebhookInformer.Lister()
 	optr.validatingWebhookListerSynced = validatingWebhookInformer.Informer().HasSynced
-
-	optr.mutatingWebhookCache = resourceapply.NewResourceCache()
 	optr.mutatingWebhookLister = mutatingWebhookInformer.Lister()
 	optr.mutatingWebhookListerSynced = mutatingWebhookInformer.Informer().HasSynced
 
@@ -412,5 +408,6 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 			KubeRBACProxy:      kubeRBACProxy,
 			TerminationHandler: terminationHandlerImage,
 		},
+		PlatformType: provider,
 	}, nil
 }

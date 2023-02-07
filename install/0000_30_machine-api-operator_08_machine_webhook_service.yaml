@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: machine-api-operator-machine-webhook
+  namespace: openshift-machine-api
+  labels:
+    k8s-app: machine-api-operator-machine-webhook
+  annotations:
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
+    include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
+    service.beta.openshift.io/serving-cert-secret-name: machine-api-operator-machine-webhook-cert
+spec:
+  type: ClusterIP
+  ports:
+    - name: https
+      port: 443
+      protocol: TCP
+      targetPort: machine-webhook
+  selector:
+    k8s-app: controller
+    api: clusterapi
+  sessionAffinity: None

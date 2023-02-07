@@ -22,14 +22,6 @@ import (
 	"log"
 	"time"
 
-	osconfigv1 "github.com/openshift/api/config/v1"
-	machinev1 "github.com/openshift/api/machine/v1beta1"
-	"github.com/openshift/library-go/pkg/config/leaderelection"
-	"github.com/openshift/machine-api-operator/pkg/controller"
-	"github.com/openshift/machine-api-operator/pkg/controller/machineset"
-	"github.com/openshift/machine-api-operator/pkg/metrics"
-	"github.com/openshift/machine-api-operator/pkg/util"
-	mapiwebhooks "github.com/openshift/machine-api-operator/pkg/webhooks"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/klog/v2"
@@ -38,10 +30,20 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+
+	osconfigv1 "github.com/openshift/api/config/v1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
+	"github.com/openshift/library-go/pkg/config/leaderelection"
+	"github.com/openshift/machine-api-operator/pkg/controller"
+	"github.com/openshift/machine-api-operator/pkg/controller/machineset"
+	"github.com/openshift/machine-api-operator/pkg/metrics"
+	"github.com/openshift/machine-api-operator/pkg/operator"
+	"github.com/openshift/machine-api-operator/pkg/util"
+	mapiwebhooks "github.com/openshift/machine-api-operator/pkg/webhooks"
 )
 
 const (
-	defaultWebhookPort    = 8443
+	defaultWebhookPort    = operator.MachineSetWebhookPort
 	defaultWebhookCertdir = "/etc/machine-api-operator/tls"
 )
 
