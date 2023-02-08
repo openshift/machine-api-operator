@@ -577,7 +577,7 @@ func (r *ReconcileMachineHealthCheck) mhcRequestsFromNode(o client.Object) []rec
 
 	machine, err := r.getMachineFromNode(node.Name)
 	if machine == nil || err != nil {
-		klog.Errorf("No-op: Unable to retrieve machine from node %q: %v", namespacedName(node).String(), err)
+		klog.Warningf("No-op: Unable to retrieve machine from node %q: %v", namespacedName(node).String(), err)
 		return nil
 	}
 
