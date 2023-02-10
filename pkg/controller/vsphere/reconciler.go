@@ -359,6 +359,18 @@ func (r *Reconciler) delete() error {
 			return fmt.Errorf("failed to determine if node %v has attached volumes: %w", r.machine.Status.NodeRef.Name, err)
 		}
 		if attached {
+			// If there are volumes still attached, it's possible that node draining did not fully finish,
+			// this might happen if the kubelet was non-functional during the draining procedure.
+			// Try forcefully deleting pods in the "Terminating" state to trigger persistent volumes detachment.
+			klog.Warningf(
+				"Attached volumes detected on a powered off node, node draining may not succeed. " +
+					"Attempting to delete unevicted pods",
+			)
+			numPodsDeleted, err := r.machineScope.deleteUnevictedPods()
+			klog.Warningf("Deleted %d pods", numPodsDeleted)
+			if err != nil {
+				return fmt.Errorf("unable to fully drain node, can not delete unevicted pods: %w", err)
+			}
 			return fmt.Errorf("node %v has attached volumes, requeuing", r.machine.Status.NodeRef.Name)
 		}
 	}
