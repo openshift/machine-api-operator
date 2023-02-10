@@ -100,12 +100,10 @@ test-sec:
 	$(DOCKER_CMD) hack/gosec.sh ./...
 
 .PHONY: test
-test: ## Run tests
-	@echo -e "\033[32mTesting...\033[0m"
-	$(DOCKER_CMD) hack/ci-test.sh
+test: unit
 
 unit:
-	$(DOCKER_CMD) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(PROJECT_DIR)/bin)" go test $(GOTEST_FLAGS) ./pkg/... ./cmd/...
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(PROJECT_DIR)/bin)" ./hack/ci-test.sh
 
 .PHONY: image
 image: ## Build docker image

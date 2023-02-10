@@ -18,13 +18,14 @@ var rxDupSlashes = regexp.MustCompile(`/{2,}`)
 // NormalizeURL will normalize the specified URL
 // This was added to replace a previous call to the no longer maintained purell library:
 // The call that was used looked like the following:
-//   url.Parse(purell.NormalizeURL(parsed, purell.FlagsSafe|purell.FlagRemoveDuplicateSlashes))
+//
+//	url.Parse(purell.NormalizeURL(parsed, purell.FlagsSafe|purell.FlagRemoveDuplicateSlashes))
 //
 // To explain all that was included in the call above, purell.FlagsSafe was really just the following:
-//	  - FlagLowercaseScheme
-//	  - FlagLowercaseHost
-//	  - FlagRemoveDefaultPort
-//	  - FlagRemoveDuplicateSlashes (and this was mixed in with the |)
+//   - FlagLowercaseScheme
+//   - FlagLowercaseHost
+//   - FlagRemoveDefaultPort
+//   - FlagRemoveDuplicateSlashes (and this was mixed in with the |)
 func NormalizeURL(u *url.URL) {
 	lowercaseScheme(u)
 	lowercaseHost(u)
