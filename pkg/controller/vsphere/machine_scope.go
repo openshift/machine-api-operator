@@ -10,6 +10,7 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
 	apicorev1 "k8s.io/api/core/v1"
 	apimachineryerrors "k8s.io/apimachinery/pkg/api/errors"
+	apimachineryutilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/klog/v2"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -162,12 +163,58 @@ func (s *machineScope) checkNodeReachable() (bool, error) {
 		}
 		return false, err
 	}
-	for _, condition := range node.Status.Conditions {
-		if condition.Type == apicorev1.NodeReady && condition.Status == apicorev1.ConditionUnknown {
-			return false, nil
+	return nodeReachable(node), nil
+}
+
+// deleteUnevictedPods checks respective node for reachability,
+// if the node is not reachable it tries to remove pods in the 'Terminating' state.
+// Returns the number of deleted pods and errors if there were any.
+// Returns error, if the node is operational.
+func (s *machineScope) deleteUnevictedPods() (int, error) {
+	node, err := s.getNode()
+	if err != nil {
+		// do not return error if node object not found, treat it as unreachable
+		if apimachineryerrors.IsNotFound(err) {
+			return 0, nil
+		}
+		return 0, err
+	}
+	if nodeReachable(node) {
+		return 0, fmt.Errorf("node is in operational state, won't proceed with pods deletion")
+	}
+
+	terminatingPods, err := getPodList(s.Context, s.apiReader, node, []podPredicate{isTerminating})
+	if err != nil {
+		return 0, err
+	}
+
+	gracePeriodSeconds := int64(0)
+	deleteOptions := &runtimeclient.DeleteOptions{
+		GracePeriodSeconds: &gracePeriodSeconds,
+	}
+	deletedPods := 0
+	var deleteErrList []error
+	for _, pod := range terminatingPods.Items {
+		err := s.client.Delete(s.Context, &pod, deleteOptions)
+		if err != nil {
+			deleteErrList = append(deleteErrList, err)
+		} else {
+			deletedPods += 1
 		}
 	}
-	return true, nil
+	if len(deleteErrList) > 0 {
+		return deletedPods, apimachineryutilerrors.NewAggregate(deleteErrList)
+	}
+	return deletedPods, nil
+}
+
+func nodeReachable(node *apicorev1.Node) bool {
+	for _, condition := range node.Status.Conditions {
+		if condition.Type == apicorev1.NodeReady && condition.Status == apicorev1.ConditionUnknown {
+			return false
+		}
+	}
+	return true
 }
 
 // GetUserData fetches the user-data from the secret referenced in the Machine's
