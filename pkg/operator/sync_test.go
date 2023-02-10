@@ -131,7 +131,10 @@ func TestCheckDeploymentRolloutStatus(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			stopCh := make(chan struct{})
 			defer close(stopCh)
-			optr := newFakeOperator([]runtime.Object{tc.deployment}, nil, nil, imagesJSONFile, stopCh)
+			optr, err := newFakeOperator([]runtime.Object{tc.deployment}, nil, nil, imagesJSONFile, stopCh)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			result, gotErr := optr.checkDeploymentRolloutStatus(tc.deployment)
 			if tc.expectedError != nil && gotErr != nil {
@@ -431,9 +434,12 @@ func TestCheckMinimumWorkerMachines(t *testing.T) {
 			machineObjects = append(machineObjects, tc.machineSets...)
 			machineObjects = append(machineObjects, tc.machines...)
 
-			optr := newFakeOperator(nil, nil, machineObjects, imagesJSONFile, stopCh)
+			optr, err := newFakeOperator(nil, nil, machineObjects, imagesJSONFile, stopCh)
+			if err != nil {
+				t.Fatal(err)
+			}
 
-			err := optr.checkMinimumWorkerMachines()
+			err = optr.checkMinimumWorkerMachines()
 			if tc.expectedError != nil {
 				g.Expect(err).To(MatchError(tc.expectedError.Error()))
 			} else {
@@ -472,7 +478,10 @@ func TestSyncWebhookConfiguration(t *testing.T) {
 
 			stopCh := make(chan struct{})
 			defer close(stopCh)
-			optr := newFakeOperator(nil, nil, nil, "", stopCh)
+			optr, err := newFakeOperator(nil, nil, nil, "", stopCh)
+			if err != nil {
+				t.Fatal(err)
+			}
 
 			nrMutatingWebhooks := 0
 			nrValidatingWebhooks := 0

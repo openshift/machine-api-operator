@@ -6,6 +6,7 @@ import (
 
 	"github.com/openshift/machine-api-operator/pkg/version"
 	"github.com/spf13/cobra"
+	"k8s.io/klog/v2"
 )
 
 var (
@@ -22,7 +23,9 @@ func init() {
 }
 
 func runVersionCmd(cmd *cobra.Command, args []string) {
-	flag.Set("logtostderr", "true")
+	if err := flag.Set("logtostderr", "true"); err != nil {
+		klog.Fatalf("failed to set logtostderr flag: %v", err)
+	}
 	flag.Parse()
 
 	program := "MachineAPIOperator"

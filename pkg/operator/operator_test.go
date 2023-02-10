@@ -38,7 +38,7 @@ const (
 	releaseVersion   = "0.0.0.test-unit"
 )
 
-func newFakeOperator(kubeObjects, osObjects, machineObjects []runtime.Object, imagesFile string, stopCh <-chan struct{}) *Operator {
+func newFakeOperator(kubeObjects, osObjects, machineObjects []runtime.Object, imagesFile string, stopCh <-chan struct{}) (*Operator, error) {
 	kubeClient := fakekube.NewSimpleClientset(kubeObjects...)
 	osClient := fakeos.NewSimpleClientset(osObjects...)
 	machineClient := fakemachine.NewSimpleClientset(machineObjects...)
@@ -80,14 +80,20 @@ func newFakeOperator(kubeObjects, osObjects, machineObjects []runtime.Object, im
 	kubeNamespacedSharedInformer.Start(stopCh)
 
 	optr.syncHandler = optr.sync
-	_, _ = deployInformer.Informer().AddEventHandler(optr.eventHandlerDeployments())
-	_, _ = featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
+	_, err := deployInformer.Informer().AddEventHandler(optr.eventHandlerDeployments())
+	if err != nil {
+		return nil, fmt.Errorf("error adding event handler to deployments informer: %v", err)
+	}
+	_, err = featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
+	if err != nil {
+		return nil, fmt.Errorf("error adding event handler to featuregate informer: %v", err)
+	}
 
 	optr.operandVersions = []openshiftv1.OperandVersion{
 		{Name: "operator", Version: releaseVersion},
 	}
 
-	return optr
+	return optr, nil
 }
 
 // TestOperatorSync_NoOp tests syncing to ensure that the mao reports available
@@ -181,7 +187,10 @@ func TestOperatorSync_NoOp(t *testing.T) {
 
 			stopCh := make(chan struct{})
 			defer close(stopCh)
-			optr := newFakeOperator(nil, []runtime.Object{infra, proxy}, nil, imagesJSONFile, stopCh)
+			optr, err := newFakeOperator(nil, []runtime.Object{infra, proxy}, nil, imagesJSONFile, stopCh)
+			if err != nil {
+				t.Fatal(err)
+			}
 			optr.queue.Add("trigger")
 			go optr.Run(1, stopCh)
 
@@ -611,7 +620,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 
 			stopCh := make(chan struct{})
 			defer close(stopCh)
-			optr := newFakeOperator(nil, objects, nil, imagesJSONFile, stopCh)
+			optr, err := newFakeOperator(nil, objects, nil, imagesJSONFile, stopCh)
+			if err != nil {
+				t.Fatal(err)
+			}
 			optr.queue.Add("trigger")
 
 			if tc.imagesFile != "" {

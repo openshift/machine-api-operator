@@ -67,7 +67,10 @@ func main() {
 		"Address for hosting metrics",
 	)
 
-	flag.Set("logtostderr", "true")
+	if err := flag.Set("logtostderr", "true"); err != nil {
+		klog.Fatalf("failed to set logtostderr flag: %v", err)
+	}
+
 	healthAddr := flag.String(
 		"health-addr",
 		":9440",
@@ -135,7 +138,9 @@ func main() {
 		klog.Fatal(err)
 	}
 
-	capimachine.AddWithActuator(mgr, machineActuator)
+	if err := capimachine.AddWithActuator(mgr, machineActuator); err != nil {
+		klog.Fatal(err)
+	}
 
 	ctrl.SetLogger(klogr.New())
 	setupLog := ctrl.Log.WithName("setup")
