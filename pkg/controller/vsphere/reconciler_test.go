@@ -38,6 +38,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
+	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	configv1 "github.com/openshift/api/config/v1"
@@ -1869,7 +1870,7 @@ func TestDelete(t *testing.T) {
 			errMessage: "disks were detached, vm will be attempted to destroy in next reconciliation, requeuing",
 		},
 		{
-			name:        "node status contains attached volumes",
+			name:        "node status contains attached volumes, node ready",
 			attachDisks: true,
 			machine: func(t *testing.T, simServerHost string) *machinev1.Machine {
 				machine := getMachineWithStatus(t, machinev1.MachineStatus{
@@ -1884,6 +1885,38 @@ func TestDelete(t *testing.T) {
 					{
 						Type:   corev1.NodeReady,
 						Status: corev1.ConditionTrue,
+					},
+				})
+				node.Status.VolumesAttached = []corev1.AttachedVolume{
+					{
+						Name:       "foo",
+						DevicePath: "bar",
+					},
+					{
+						Name:       "fizz",
+						DevicePath: "bazzz",
+					},
+				}
+				return node
+			},
+			errMessage: "node is in operational state, won't proceed with pods deletion",
+		},
+		{
+			name:        "node status contains attached volumes, node does not reporting ready",
+			attachDisks: true,
+			machine: func(t *testing.T, simServerHost string) *machinev1.Machine {
+				machine := getMachineWithStatus(t, machinev1.MachineStatus{
+					NodeRef: &corev1.ObjectReference{
+						Name: nodeName,
+					},
+				}, simServerHost)
+				return machine
+			},
+			node: func(t *testing.T) *corev1.Node {
+				node := getNodeWithConditions([]corev1.NodeCondition{
+					{
+						Type:   corev1.NodeReady,
+						Status: corev1.ConditionUnknown,
 					},
 				})
 				node.Status.VolumesAttached = []corev1.AttachedVolume{
@@ -1952,17 +1985,25 @@ func TestDelete(t *testing.T) {
 				g.Expect(addDiskToVm(context.TODO(), vm, fmt.Sprintf("%s-%s", vm.Name, tc.name), simClient)).To(Succeed())
 			}
 
-			client := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(
+			nodeNameIndexExtractor := func(rawObj runtimeclient.Object) []string {
+				pod := rawObj.(*corev1.Pod)
+				return []string{pod.Spec.NodeName}
+			}
+
+			cl := fake.NewClientBuilder().WithScheme(
+				scheme.Scheme,
+			).WithIndex(&corev1.Pod{}, "spec.nodeName", nodeNameIndexExtractor).WithRuntimeObjects(
 				simParams.secret,
 				tc.machine(t, simParams.host),
 				simParams.configMap,
 				simParams.infra,
-				tc.node(t)).Build()
+				tc.node(t),
+			).Build()
 			mScope, err := newMachineScope(machineScopeParams{
-				client:    client,
+				client:    cl,
 				Context:   context.Background(),
 				machine:   tc.machine(t, simParams.host),
-				apiReader: client,
+				apiReader: cl,
 			})
 			g.Expect(err).NotTo(HaveOccurred())
 
