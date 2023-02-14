@@ -59,7 +59,7 @@ func TestMachinesetController(t *testing.T) {
 	RunSpecs(t, "MachineSet Controller Suite")
 }
 
-var _ = BeforeSuite(func(done Done) {
+var _ = BeforeSuite(func(ctx SpecContext) {
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{filepath.Join("..", "..", "..", "install")},
@@ -70,7 +70,6 @@ var _ = BeforeSuite(func(done Done) {
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
 
-	close(done)
 })
 
 var _ = AfterSuite(func() {
