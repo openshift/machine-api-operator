@@ -4,6 +4,7 @@ metadata:
   name: openshift-machine-api
   namespace: openshift-cloud-credential-operator
   annotations:
+    capability.openshift.io/name: MachineAPI
     include.release.openshift.io/self-managed-high-availability: "true"
     release.openshift.io/delete: "true"
 ---
@@ -12,6 +13,7 @@ kind: CustomResourceDefinition
 metadata:
   name: machinehealthchecks.healthchecking.openshift.io
   annotations:
+    capability.openshift.io/name: MachineAPI
     include.release.openshift.io/self-managed-high-availability: "true"
     release.openshift.io/delete: "true"
 ---
@@ -20,6 +22,7 @@ kind: CustomResourceDefinition
 metadata:
   name: machinedisruptionbudgets.healthchecking.openshift.io
   annotations:
+    capability.openshift.io/name: MachineAPI
     include.release.openshift.io/self-managed-high-availability: "true"
     release.openshift.io/delete: "true"
 ---
@@ -28,6 +31,7 @@ kind: ClusterRole
 metadata:
   name: machine-api-manager
   annotations:
+    capability.openshift.io/name: MachineAPI
     include.release.openshift.io/self-managed-high-availability: "true"
     release.openshift.io/delete: "true"
 ---
@@ -36,6 +40,7 @@ kind: ClusterRoleBinding
 metadata:
   name: machine-api-manager-rolebinding
   annotations:
+    capability.openshift.io/name: MachineAPI
     include.release.openshift.io/self-managed-high-availability: "true"
     release.openshift.io/delete: "true"
 ---
@@ -45,6 +50,7 @@ metadata:
   name: machine-api-termination-handler
   namespace: openshift-machine-api
   annotations:
+    capability.openshift.io/name: MachineAPI
     include.release.openshift.io/self-managed-high-availability: "true"
     release.openshift.io/delete: "true"
 ---
@@ -54,6 +60,7 @@ metadata:
   name: machine-api-termination-handler
   namespace: openshift-machine-api
   annotations:
+    capability.openshift.io/name: MachineAPI
     include.release.openshift.io/self-managed-high-availability: "true"
     release.openshift.io/delete: "true"
 ---
@@ -63,6 +70,7 @@ metadata:
   name: cloud-provider-config-reader
   namespace: openshift-config
   annotations:
+    capability.openshift.io/name: MachineAPI
     include.release.openshift.io/self-managed-high-availability: "true"
     release.openshift.io/delete: "true"
 ---
@@ -72,5 +80,6 @@ metadata:
   name: machine-api-cloud-provider-config-reader
   namespace: openshift-config
   annotations:
+    capability.openshift.io/name: MachineAPI
     include.release.openshift.io/self-managed-high-availability: "true"
     release.openshift.io/delete: "true"
