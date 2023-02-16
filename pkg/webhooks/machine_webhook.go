@@ -1484,6 +1484,32 @@ func validateNutanix(m *machinev1beta1.Machine, config *admissionConfig) (bool, 
 		}
 	}
 
+	// validate bootType
+	if err = validateNutanixBootType(providerSpec.BootType); err != nil {
+		errs = append(errs, err)
+	}
+
+	// validate project if configured
+	if len(providerSpec.Project.Type) != 0 {
+		if err := validateNutanixResourceIdentifier("project", providerSpec.Project); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	// validate categories if configured
+	if len(providerSpec.Categories) > 0 {
+		for _, category := range providerSpec.Categories {
+			if len(category.Key) < 1 || len(category.Key) > 64 {
+				err = field.Invalid(field.NewPath("providerSpec", "categories", "key"), category.Key, "key must be a string with length between 1 and 64.")
+				errs = append(errs, err)
+			}
+			if len(category.Value) < 1 || len(category.Value) > 64 {
+				err = field.Invalid(field.NewPath("providerSpec", "categories", "value"), category.Value, "value must be a string with length between 1 and 64.")
+				errs = append(errs, err)
+			}
+		}
+	}
+
 	if len(errs) > 0 {
 		return false, warnings, utilerrors.NewAggregate(errs)
 	}
@@ -1502,6 +1528,22 @@ func validateNutanixResourceIdentifier(resource string, identifier machinev1.Nut
 		}
 	} else {
 		return field.Invalid(parentPath.Child(resource).Child("type"), identifier.Type, fmt.Sprintf("%s type must be one of %s or %s", resource, machinev1.NutanixIdentifierName, machinev1.NutanixIdentifierUUID))
+	}
+
+	return nil
+}
+
+func validateNutanixBootType(bootType machinev1.NutanixBootType) error {
+	parentPath := field.NewPath("providerSpec")
+	// verify the bootType configurations
+	// Type bootType field is optional, and valid values include: "", Legacy, UEFI, SecureBoot
+	switch bootType {
+	case "", machinev1.NutanixLegacyBoot, machinev1.NutanixUEFIBoot, machinev1.NutanixSecureBoot:
+		// valid bootType
+	default:
+		errMsg := fmt.Sprintf("valid bootType values are: \"\", %q, %q, %q.",
+			machinev1.NutanixLegacyBoot, machinev1.NutanixUEFIBoot, machinev1.NutanixSecureBoot)
+		return field.Invalid(parentPath.Child("bootType"), bootType, errMsg)
 	}
 
 	return nil
