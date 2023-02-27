@@ -188,6 +188,9 @@ rules:
       - get
       - list
       - watch
+      # Delete is needed for the case when eviction did not finish properly due to the kubelet is not operational on a node
+      # see https://github.com/openshift/machine-api-operator/pull/1118 for the context.
+      - delete
 
   - apiGroups:
       - ""
