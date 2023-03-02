@@ -103,6 +103,8 @@ func getProviderControllerFromImages(platform configv1.PlatformType, featureGate
 		return images.ClusterAPIControllerNutanix, nil
 	case kubemarkPlatform:
 		return clusterAPIControllerKubemark, nil
+	case configv1.NonePlatformType, configv1.ExternalPlatformType:
+		return clusterAPIControllerNoOp, nil
 	default:
 		return clusterAPIControllerNoOp, nil
 	}

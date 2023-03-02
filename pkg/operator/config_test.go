@@ -328,6 +328,10 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 			provider:      configv1.NutanixPlatformType,
 			expectedImage: expectedNutanixImage,
 		},
+		{
+			provider:      configv1.ExternalPlatformType,
+			expectedImage: clusterAPIControllerNoOp,
+		},
 	}
 
 	imagesJSONFile, err := createImagesJSONFromManifest()
