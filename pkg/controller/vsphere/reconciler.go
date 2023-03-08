@@ -13,8 +13,6 @@ import (
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/property"
-	"github.com/vmware/govmomi/vapi/rest"
-	"github.com/vmware/govmomi/vapi/tags"
 	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
@@ -484,7 +482,7 @@ func (r *Reconciler) reconcileRegionAndZoneLabels(vm *virtualMachine) error {
 
 	var res map[string]string
 
-	err := r.session.WithRestClient(vm.Context, func(c *rest.Client) error {
+	err := r.session.WithCachingTagsManager(vm.Context, func(c *session.CachingTagsManager) error {
 		var err error
 		res, err = vm.getRegionAndZone(c, regionLabel, zoneLabel)
 
@@ -1033,20 +1031,26 @@ type virtualMachine struct {
 	Obj *object.VirtualMachine
 }
 
-func (vm *virtualMachine) getAncestors() ([]mo.ManagedEntity, error) {
+// getHostSystemAncestors looks up and returns vm's host system ancestors, such as "Cluster" and "Datacenter".
+// Host system is using there because in vCenter cluster is an ancestor of the hypervisor host but not the vm.
+func (vm *virtualMachine) getHostSystemAncestors() ([]mo.ManagedEntity, error) {
 	client := vm.Obj.Client()
 	pc := client.ServiceContent.PropertyCollector
 
-	return mo.Ancestors(vm.Context, client, pc, vm.Ref)
+	host, err := vm.Obj.HostSystem(vm.Context)
+	if err != nil {
+		return nil, err
+	}
+
+	return mo.Ancestors(vm.Context, client, pc, host.Reference())
 }
 
 // getRegionAndZone checks the virtual machine and each of its ancestors for the
 // given region and zone labels and returns their values if found.
-func (vm *virtualMachine) getRegionAndZone(c *rest.Client, regionLabel, zoneLabel string) (map[string]string, error) {
+func (vm *virtualMachine) getRegionAndZone(tagsMgr *session.CachingTagsManager, regionLabel, zoneLabel string) (map[string]string, error) {
 	result := make(map[string]string)
-	tagsMgr := tags.NewManager(c)
 
-	objects, err := vm.getAncestors()
+	objects, err := vm.getHostSystemAncestors()
 	if err != nil {
 		klog.Errorf("Failed to get ancestors for %s: %v", vm.Ref, err)
 		return nil, err
