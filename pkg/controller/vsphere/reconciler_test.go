@@ -2511,6 +2511,9 @@ func TestReconcileMachineWithCloudState(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	cluster := simulator.Map.Any("ClusterComputeResource").(*simulator.ClusterComputeResource)
+	dc := simulator.Map.Any("Datacenter").(*simulator.Datacenter)
+
 	if err := createTagAndCategory(session, zoneKey, testZone); err != nil {
 		t.Fatalf("cannot create tag and category: %v", err)
 	}
@@ -2522,12 +2525,12 @@ func TestReconcileMachineWithCloudState(t *testing.T) {
 	if err := session.WithRestClient(context.TODO(), func(c *rest.Client) error {
 		tagsMgr := tags.NewManager(c)
 
-		err = tagsMgr.AttachTag(context.TODO(), testZone, vmObj.Reference())
+		err = tagsMgr.AttachTag(context.TODO(), testZone, cluster.Reference())
 		if err != nil {
 			return err
 		}
 
-		err = tagsMgr.AttachTag(context.TODO(), testRegion, vmObj.Reference())
+		err = tagsMgr.AttachTag(context.TODO(), testRegion, dc.Reference())
 		if err != nil {
 			return err
 		}
