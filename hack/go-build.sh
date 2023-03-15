@@ -15,8 +15,13 @@ eval $(go env | grep -e "GOHOSTOS" -e "GOHOSTARCH")
 cd "$(git rev-parse --show-cdup)"
 
 if [ -z ${VERSION_OVERRIDE+a} ]; then
-	echo "Using version from git..."
-	VERSION_OVERRIDE=$(git describe --abbrev=8 --dirty --always)
+	if [ -n "${BUILD_VERSION+a}" ] && [ -n "${BUILD_RELEASE+a}" ]; then
+		echo "Using version from the build system..."
+		VERSION_OVERRIDE="${BUILD_VERSION}-${BUILD_RELEASE}"
+	else
+		echo "Using version from git..."
+		VERSION_OVERRIDE=$(git describe --abbrev=8 --dirty --always)
+	fi
 fi
 
 GLDFLAGS+="-extldflags '-static' -X ${REPO}/pkg/version.Raw=${VERSION_OVERRIDE}"
