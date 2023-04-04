@@ -25,19 +25,23 @@ import (
 	"testing"
 
 	. "github.com/onsi/gomega"
-	configv1 "github.com/openshift/api/config/v1"
-	machinev1 "github.com/openshift/api/machine/v1beta1"
+
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/simulator"
 	"github.com/vmware/govmomi/vapi/rest"
 	"github.com/vmware/govmomi/vapi/tags"
+	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+
+	configv1 "github.com/openshift/api/config/v1"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
 
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
@@ -1435,6 +1439,20 @@ func TestConvertUUIDToProviderID(t *testing.T) {
 }
 
 func TestDelete(t *testing.T) {
+	type vCenterSimConfig struct {
+		infra     *configv1.Infrastructure
+		secret    *corev1.Secret
+		configMap *corev1.ConfigMap
+
+		host string
+		port string
+
+		username string
+		pwd      string
+
+		simServer *simulator.Server
+	}
+
 	withMoreVms := func(vmsCount int) simulatorModelOption {
 		return func(m *simulator.Model) {
 			m.Machine = vmsCount
@@ -1444,62 +1462,76 @@ func TestDelete(t *testing.T) {
 	model, server := initSimulatorCustom(t, withMoreVms(5))
 	defer model.Remove()
 	defer server.Close()
-	host, port, err := net.SplitHostPort(server.URL.Host)
-	if err != nil {
-		t.Fatal(err)
-	}
 
-	credentialsSecretUsername := fmt.Sprintf("%s.username", host)
-	credentialsSecretPassword := fmt.Sprintf("%s.password", host)
-
-	password, _ := server.URL.User.Password()
 	namespace := "test"
 
 	instanceUUID := "a5764857-ae35-34dc-8f25-a9c9e73aa898"
 
-	credentialsSecret := corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test",
-			Namespace: namespace,
-		},
-		Data: map[string][]byte{
-			credentialsSecretUsername: []byte(server.URL.User.Username()),
-			credentialsSecretPassword: []byte(password),
-		},
-	}
+	getVcenterSimParams := func(server *simulator.Server, ns string) (*vCenterSimConfig, error) {
+		host, port, err := net.SplitHostPort(server.URL.Host)
+		if err != nil {
+			return nil, err
+		}
+		unameKey := fmt.Sprintf("%s.username", host)
+		pwdKey := fmt.Sprintf("%s.password", host)
 
-	testConfig := fmt.Sprintf(testConfigFmt, port)
-	configMap := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "testName",
-			Namespace: openshiftConfigNamespace,
-		},
-		Data: map[string]string{
-			"testKey": testConfig,
-		},
-	}
+		password, _ := server.URL.User.Password()
 
-	infra := &configv1.Infrastructure{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: globalInfrastuctureName,
-		},
-		Spec: configv1.InfrastructureSpec{
-			CloudConfig: configv1.ConfigMapFileReference{
-				Name: "testName",
-				Key:  "testKey",
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "test",
+				Namespace: ns,
 			},
-		},
+			Data: map[string][]byte{
+				unameKey: []byte(server.URL.User.Username()),
+				pwdKey:   []byte(password),
+			},
+		}
+
+		testConfig := fmt.Sprintf(testConfigFmt, port)
+		configMap := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      "testName",
+				Namespace: openshiftConfigNamespace,
+			},
+			Data: map[string]string{
+				"testKey": testConfig,
+			},
+		}
+
+		infra := &configv1.Infrastructure{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: globalInfrastuctureName,
+			},
+			Spec: configv1.InfrastructureSpec{
+				CloudConfig: configv1.ConfigMapFileReference{
+					Name: "testName",
+					Key:  "testKey",
+				},
+			},
+		}
+
+		return &vCenterSimConfig{
+			infra:     infra,
+			secret:    secret,
+			configMap: configMap,
+			host:      host,
+			port:      port,
+			username:  server.URL.User.Username(),
+			pwd:       password,
+			simServer: server,
+		}, nil
 	}
 
 	nodeName := "somenodename"
 
-	getMachineWithStatus := func(t *testing.T, status machinev1.MachineStatus) *machinev1.Machine {
+	getMachineWithStatus := func(t *testing.T, status machinev1.MachineStatus, simHost string) *machinev1.Machine {
 		providerSpec := machinev1.VSphereMachineProviderSpec{
 			CredentialsSecret: &corev1.LocalObjectReference{
 				Name: "test",
 			},
 			Workspace: &machinev1.Workspace{
-				Server: host,
+				Server: simHost,
 			},
 		}
 		raw, err := RawExtensionFromProviderSpec(&providerSpec)
@@ -1541,17 +1573,17 @@ func TestDelete(t *testing.T) {
 
 	testCases := []struct {
 		testCase string
-		machine  func(t *testing.T) *machinev1.Machine
+		machine  func(t *testing.T, simServerHost string) *machinev1.Machine
 		node     func(t *testing.T) *corev1.Node
 	}{
 		{
 			testCase: "all good deletion",
-			machine: func(t *testing.T) *machinev1.Machine {
+			machine: func(t *testing.T, simServerHost string) *machinev1.Machine {
 				return getMachineWithStatus(t, machinev1.MachineStatus{
 					NodeRef: &corev1.ObjectReference{
 						Name: nodeName,
 					},
-				})
+				}, simServerHost)
 			},
 			node: func(t *testing.T) *corev1.Node {
 				return getNodeWithConditions([]corev1.NodeCondition{
@@ -1564,8 +1596,8 @@ func TestDelete(t *testing.T) {
 		},
 		{
 			testCase: "all good, no node linked",
-			machine: func(t *testing.T) *machinev1.Machine {
-				return getMachineWithStatus(t, machinev1.MachineStatus{})
+			machine: func(t *testing.T, simServerHost string) *machinev1.Machine {
+				return getMachineWithStatus(t, machinev1.MachineStatus{}, simServerHost)
 			},
 			node: func(t *testing.T) *corev1.Node {
 				return &corev1.Node{}
@@ -1573,12 +1605,12 @@ func TestDelete(t *testing.T) {
 		},
 		{
 			testCase: "all good, node unreachable",
-			machine: func(t *testing.T) *machinev1.Machine {
+			machine: func(t *testing.T, simServerHost string) *machinev1.Machine {
 				return getMachineWithStatus(t, machinev1.MachineStatus{
 					NodeRef: &corev1.ObjectReference{
 						Name: nodeName,
 					},
-				})
+				}, simServerHost)
 			},
 			node: func(t *testing.T) *corev1.Node {
 				return getNodeWithConditions([]corev1.NodeCondition{
@@ -1591,12 +1623,12 @@ func TestDelete(t *testing.T) {
 		},
 		{
 			testCase: "all good, node not found",
-			machine: func(t *testing.T) *machinev1.Machine {
+			machine: func(t *testing.T, simServerHost string) *machinev1.Machine {
 				return getMachineWithStatus(t, machinev1.MachineStatus{
 					NodeRef: &corev1.ObjectReference{
 						Name: "not-exists",
 					},
-				})
+				}, simServerHost)
 			},
 			node: func(t *testing.T) *corev1.Node {
 				return &corev1.Node{}
@@ -1610,16 +1642,21 @@ func TestDelete(t *testing.T) {
 			vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
 			vm.Config.InstanceUuid = instanceUUID
 
+			simParams, err := getVcenterSimParams(server, namespace)
+			if err != nil {
+				t.Fatal(err)
+			}
+
 			client := fake.NewFakeClientWithScheme(scheme.Scheme,
-				&credentialsSecret,
-				tc.machine(t),
-				configMap,
-				infra,
+				simParams.secret,
+				tc.machine(t, simParams.host),
+				simParams.configMap,
+				simParams.infra,
 				tc.node(t))
 			machineScope, err := newMachineScope(machineScopeParams{
 				client:    client,
 				Context:   context.Background(),
-				machine:   tc.machine(t),
+				machine:   tc.machine(t, simParams.host),
 				apiReader: client,
 			})
 			if err != nil {
@@ -1627,8 +1664,8 @@ func TestDelete(t *testing.T) {
 			}
 			reconciler := newReconciler(machineScope)
 
-			// expect the first call to delete to make the vSphere destroy request
-			// and always return error to let it reconcile and monitor the destroy tasks until completion
+			// expect the first call to delete to make the vSphere power off request
+			// and always return error to let it reconcile and monitor power off tasks until completion
 			if err := reconciler.delete(); err == nil {
 				t.Errorf("expected error on the first call to delete")
 			}
@@ -1646,6 +1683,8 @@ func TestDelete(t *testing.T) {
 				t.Errorf("task description expected: %v, got: %v", powerOffVmTaskDescriptionId, powerOffTask.Info.DescriptionId)
 			}
 
+			// expect second 'delete' call to make the vSphere destroy request
+			// and return an error to let it reconcile and monitor destroy tasks until completion
 			if err := reconciler.delete(); err == nil {
 				t.Errorf("expected error on the second call to delete")
 			}
@@ -1671,6 +1710,232 @@ func TestDelete(t *testing.T) {
 			if model.Machine != model.Count().Machine {
 				t.Errorf("Unexpected number of machines. Expected: %v, got: %v", model.Machine, model.Count().Machine)
 			}
+		})
+	}
+
+	addDiskToVm := func(ctx context.Context, simVm *simulator.VirtualMachine, diskName string, simClient *vim25.Client) error {
+		managedObjRef := simVm.VirtualMachine.Reference()
+		vmObj := object.NewVirtualMachine(simClient, managedObjRef)
+		devices, err := vmObj.Device(ctx)
+		if err != nil {
+			return err
+		}
+		scsi := devices.SelectByType((*types.VirtualSCSIController)(nil))[0]
+
+		additionalDisk := &types.VirtualDisk{
+			VirtualDevice: types.VirtualDevice{
+				Backing: &types.VirtualDiskFlatVer2BackingInfo{
+					DiskMode:        string(types.VirtualDiskModePersistent),
+					ThinProvisioned: types.NewBool(true),
+					VirtualDeviceFileBackingInfo: types.VirtualDeviceFileBackingInfo{
+						FileName:  fmt.Sprintf("[LocalDS_0] %s/%s.vmdk", simVm.Name, diskName),
+						Datastore: &simVm.Datastore[0],
+					},
+				},
+			},
+		}
+		additionalDisk.CapacityInKB = 1024
+		devices.AssignController(additionalDisk, scsi.(types.BaseVirtualController))
+
+		err = vmObj.AddDevice(ctx, additionalDisk)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	extraDisksAttachedTestCases := []struct {
+		name        string
+		machine     func(t *testing.T, simServerHost string) *machinev1.Machine
+		node        func(t *testing.T) *corev1.Node
+		attachDisks bool
+		errMessage  string
+	}{
+		{
+			name:        "extra disk attached",
+			attachDisks: true,
+			machine: func(t *testing.T, simServerHost string) *machinev1.Machine {
+				return getMachineWithStatus(t, machinev1.MachineStatus{
+					NodeRef: &corev1.ObjectReference{
+						Name: nodeName,
+					},
+				}, simServerHost)
+			},
+			node: func(t *testing.T) *corev1.Node {
+				return getNodeWithConditions([]corev1.NodeCondition{
+					{
+						Type:   corev1.NodeReady,
+						Status: corev1.ConditionTrue,
+					},
+				})
+			},
+			errMessage: "additional attached disks detected, block vm destruction and wait for disks to be detached",
+		},
+		{
+			name:        "extra disk attached with no drain annotation",
+			attachDisks: true,
+			machine: func(t *testing.T, simServerHost string) *machinev1.Machine {
+				machine := getMachineWithStatus(t, machinev1.MachineStatus{
+					NodeRef: &corev1.ObjectReference{
+						Name: nodeName,
+					},
+				}, simServerHost)
+				machine.ObjectMeta.Annotations = map[string]string{
+					machinecontroller.ExcludeNodeDrainingAnnotation: "",
+				}
+				return machine
+			},
+			node: func(t *testing.T) *corev1.Node {
+				return getNodeWithConditions([]corev1.NodeCondition{
+					{
+						Type:   corev1.NodeReady,
+						Status: corev1.ConditionTrue,
+					},
+				})
+			},
+			errMessage: "disks were detached, vm will be attempted to destroy in next reconciliation, requeuing",
+		},
+		{
+			name:        "node status contains attached volumes, node ready",
+			attachDisks: true,
+			machine: func(t *testing.T, simServerHost string) *machinev1.Machine {
+				machine := getMachineWithStatus(t, machinev1.MachineStatus{
+					NodeRef: &corev1.ObjectReference{
+						Name: nodeName,
+					},
+				}, simServerHost)
+				return machine
+			},
+			node: func(t *testing.T) *corev1.Node {
+				node := getNodeWithConditions([]corev1.NodeCondition{
+					{
+						Type:   corev1.NodeReady,
+						Status: corev1.ConditionTrue,
+					},
+				})
+				node.Status.VolumesAttached = []corev1.AttachedVolume{
+					{
+						Name:       "foo",
+						DevicePath: "bar",
+					},
+					{
+						Name:       "fizz",
+						DevicePath: "bazzz",
+					},
+				}
+				return node
+			},
+			errMessage: "node is in operational state, won't proceed with pods deletion",
+		},
+		{
+			name:        "node status contains attached volumes, node does not reporting ready",
+			attachDisks: true,
+			machine: func(t *testing.T, simServerHost string) *machinev1.Machine {
+				machine := getMachineWithStatus(t, machinev1.MachineStatus{
+					NodeRef: &corev1.ObjectReference{
+						Name: nodeName,
+					},
+				}, simServerHost)
+				return machine
+			},
+			node: func(t *testing.T) *corev1.Node {
+				node := getNodeWithConditions([]corev1.NodeCondition{
+					{
+						Type:   corev1.NodeReady,
+						Status: corev1.ConditionUnknown,
+					},
+				})
+				node.Status.VolumesAttached = []corev1.AttachedVolume{
+					{
+						Name:       "foo",
+						DevicePath: "bar",
+					},
+					{
+						Name:       "fizz",
+						DevicePath: "bazzz",
+					},
+				}
+				return node
+			},
+			errMessage: "node somenodename has attached volumes, requeuing",
+		},
+		{
+			name:        "node status contains attached volumes, but drain skipped",
+			attachDisks: true,
+			machine: func(t *testing.T, simServerHost string) *machinev1.Machine {
+				machine := getMachineWithStatus(t, machinev1.MachineStatus{
+					NodeRef: &corev1.ObjectReference{
+						Name: nodeName,
+					},
+				}, simServerHost)
+				machine.ObjectMeta.Annotations = map[string]string{
+					machinecontroller.ExcludeNodeDrainingAnnotation: "",
+				}
+				return machine
+			},
+			node: func(t *testing.T) *corev1.Node {
+				node := getNodeWithConditions([]corev1.NodeCondition{
+					{
+						Type:   corev1.NodeReady,
+						Status: corev1.ConditionTrue,
+					},
+				})
+				node.Status.VolumesAttached = []corev1.AttachedVolume{
+					{
+						Name:       "foo",
+						DevicePath: "bar",
+					},
+					{
+						Name:       "fizz",
+						DevicePath: "bazzz",
+					},
+				}
+				return node
+			},
+			errMessage: "disks were detached, vm will be attempted to destroy in next reconciliation, requeuing",
+		},
+	}
+	for _, tc := range extraDisksAttachedTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			_, sess, srv := initSimulator(t)
+			simParams, err := getVcenterSimParams(srv, namespace)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+			vm.Config.InstanceUuid = instanceUUID
+
+			if tc.attachDisks {
+				simClient := sess.Client.Client
+				g.Expect(addDiskToVm(context.TODO(), vm, fmt.Sprintf("%s-%s", vm.Name, tc.name), simClient)).To(Succeed())
+			}
+
+			cl := fake.NewClientBuilder().WithScheme(
+				scheme.Scheme,
+			).WithRuntimeObjects(
+				simParams.secret,
+				tc.machine(t, simParams.host),
+				simParams.configMap,
+				simParams.infra,
+				tc.node(t),
+			).Build()
+			mScope, err := newMachineScope(machineScopeParams{
+				client:    cl,
+				Context:   context.Background(),
+				machine:   tc.machine(t, simParams.host),
+				apiReader: cl,
+			})
+			g.Expect(err).NotTo(HaveOccurred())
+
+			reconciler := newReconciler(mScope)
+
+			// expect the first call to delete to make the vSphere power off request
+			// and always return error to let it reconcile and monitor power off tasks until completion
+			g.Expect(reconciler.delete()).To(MatchError(ContainSubstring("powering off vm is in progress, requeuing")))
+
+			// second reconciliation should block vm destruction with an err
+			g.Expect(reconciler.delete()).To(MatchError(ContainSubstring(tc.errMessage)))
 		})
 	}
 }
@@ -2294,19 +2559,24 @@ func TestVmDisksManipulation(t *testing.T) {
 	simulatorVM := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
 	managedObjRef := simulatorVM.VirtualMachine.Reference()
 	vmObj := object.NewVirtualMachine(session.Client.Client, managedObjRef)
+	machineObj := &machinev1.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "myCoolMachine",
+		},
+	}
 
-	addDiskToVm := func(vm *object.VirtualMachine, diskNum int, diskMode string, gmgAssert *GomegaWithT) {
-		devices, err := vmObj.Device(ctx)
+	addDiskToVm := func(vm *object.VirtualMachine, diskName string, gmgAssert *GomegaWithT) {
+		devices, err := vm.Device(ctx)
 		gmgAssert.Expect(err).ToNot(HaveOccurred())
 		scsi := devices.SelectByType((*types.VirtualSCSIController)(nil))[0]
 
 		additionalDisk := &types.VirtualDisk{
 			VirtualDevice: types.VirtualDevice{
 				Backing: &types.VirtualDiskFlatVer2BackingInfo{
-					DiskMode:        diskMode,
+					DiskMode:        string(types.VirtualDiskModePersistent),
 					ThinProvisioned: types.NewBool(true),
 					VirtualDeviceFileBackingInfo: types.VirtualDeviceFileBackingInfo{
-						FileName:  fmt.Sprintf("[LocalDS_0] %s/disk%d.vmdk", simulatorVM.Name, diskNum),
+						FileName:  fmt.Sprintf("[LocalDS_0] %s/%s.vmdk", simulatorVM.Name, diskName),
 						Datastore: &simulatorVM.Datastore[0],
 					},
 				},
@@ -2315,7 +2585,7 @@ func TestVmDisksManipulation(t *testing.T) {
 		additionalDisk.CapacityInKB = 1024
 		devices.AssignController(additionalDisk, scsi.(types.BaseVirtualController))
 
-		err = vmObj.AddDevice(ctx, additionalDisk)
+		err = vm.AddDevice(ctx, additionalDisk)
 		gmgAssert.Expect(err).ToNot(HaveOccurred())
 	}
 
@@ -2325,52 +2595,86 @@ func TestVmDisksManipulation(t *testing.T) {
 		Ref:     managedObjRef,
 	}
 
+	addDiskToVm(vmObj, machineObj.Name, NewWithT(t))
+	addDiskToVm(vmObj, "foo", NewWithT(t))
+
 	t.Run("Test getAttachedDisks", func(t *testing.T) {
 		g := NewWithT(t)
 
 		disks, err := vm.getAttachedDisks()
 		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(disks[0].fileName).Should(ContainSubstring("disk1.vmdk"))
-		g.Expect(disks[0].diskMode).Should(Equal("persistent"))
+
+		g.Expect(disks[0].fileName).Should(ContainSubstring("disk1.vmdk")) // sim default
+		g.Expect(disks[1].fileName).Should(ContainSubstring("myCoolMachine.vmdk"))
+		g.Expect(disks[2].fileName).Should(ContainSubstring("foo.vmdk"))
 	})
 
-	t.Run("detachPVDisks should detach only non persistent disks", func(t *testing.T) {
-		g := NewWithT(t)
+	t.Run("Test filter OS disk", func(t *testing.T) {
+		mockDisksTestCases := []struct {
+			name              string
+			vmdkFilenames     []string
+			expectedFilenames []string
+		}{
+			{
+				name: "No disks",
+			},
+			{
+				name: "filename is suffixed with machine name",
+				vmdkFilenames: []string{
+					fmt.Sprintf("[DS] foo/foo-%s.vmdk", machineObj.Name),
+				},
+				expectedFilenames: []string{
+					fmt.Sprintf("[DS] foo/foo-%s.vmdk", machineObj.Name),
+				},
+			},
+			{
+				name: "filename pointing to the DS root",
+				vmdkFilenames: []string{
+					fmt.Sprintf("[DS] %s.vmdk", machineObj.Name),
+				},
+				expectedFilenames: []string{
+					fmt.Sprintf("[DS] %s.vmdk", machineObj.Name),
+				},
+			},
+			{
+				name: "vmdk name equals to machine name should be filtered out",
+				vmdkFilenames: []string{
+					fmt.Sprintf("[DS] foo/%s.vmdk", machineObj.Name),
+				},
+			},
+			{
+				name: "vmdk name equals to machine name should be filtered out",
+				vmdkFilenames: []string{
+					"[DS] foo.vmdk",
+					fmt.Sprintf("[DS] foo/%s.vmdk", machineObj.Name),
+					"[DS] bar.vmdk",
+					"some nonsense",
+				},
+				expectedFilenames: []string{
+					"[DS] foo.vmdk",
+					"[DS] bar.vmdk",
+					"some nonsense",
+				},
+			},
+		}
+		for _, tc := range mockDisksTestCases {
+			t.Run(tc.name, func(t *testing.T) {
+				g := NewWithT(t)
 
-		addDiskToVm(vmObj, 2, string(types.VirtualDiskModeIndependent_persistent), g)
-		addDiskToVm(vmObj, 3, string(types.VirtualDiskModeNonpersistent), g)
-		addDiskToVm(vmObj, 4, string(types.VirtualDiskModeUndoable), g)
+				mockedDisksSlice := *new([]attachedDisk)
+				for _, filename := range tc.vmdkFilenames {
+					mockedDisksSlice = append(mockedDisksSlice, attachedDisk{fileName: filename})
+				}
+				actualDisksSlice := filterOutVmOsDisk(mockedDisksSlice, machineObj)
+				g.Expect(len(actualDisksSlice)).To(Equal(len(tc.expectedFilenames)))
 
-		disks, err := vm.getAttachedDisks()
-		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(len(disks)).Should(Equal(4))
-		g.Expect(disks[0].fileName).Should(ContainSubstring("disk1.vmdk"))
-		g.Expect(disks[0].diskMode).Should(Equal("persistent"))
-
-		g.Expect(disks[1].fileName).Should(ContainSubstring("disk2.vmdk"))
-
-		g.Expect(disks[1].diskMode).Should(Equal("independent_persistent"))
-		g.Expect(disks[2].diskMode).Should(Equal("nonpersistent"))
-		g.Expect(disks[3].diskMode).Should(Equal("undoable"))
-
-		err = vm.detachPVDisks()
-		g.Expect(err).ToNot(HaveOccurred())
-		disks, err = vm.getAttachedDisks()
-		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(len(disks)).Should(Equal(1))
-	})
-
-	t.Run("detachPVDisks do not detach persistent disks", func(t *testing.T) {
-		// Do not touch persistent disks
-		g := NewWithT(t)
-
-		addDiskToVm(vmObj, 5, string(types.VirtualDiskModePersistent), g)
-		disks, err := vm.getAttachedDisks()
-		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(len(disks)).Should(Equal(2))
-		err = vm.detachPVDisks()
-		g.Expect(err).ToNot(HaveOccurred())
-		g.Expect(len(disks)).Should(Equal(2))
+				filteredDisksFilenames := *new([]string)
+				for _, mockedDisk := range actualDisksSlice {
+					filteredDisksFilenames = append(filteredDisksFilenames, mockedDisk.fileName)
+				}
+				g.Expect(filteredDisksFilenames).To(ConsistOf(tc.expectedFilenames))
+			})
+		}
 	})
 }
 
