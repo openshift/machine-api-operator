@@ -249,5 +249,5 @@ sudo $GOPATH/bin/imagebuilder  -t "origin-aws-machine-controllers:$(git describe
 TODO
 
 ## Where to file an issue
-- Login to bugzilla https://bugzilla.redhat.com/
-- Create a new bug for OpenShift Container Platform product, our component is called Cloud Compute.
+- Login to Red Hat's Jira issues tracker - https://issues.redhat.com/projects/OCPBUGS/issues 
+- Create a new bug by clicking on the `Create` button on the top of the page 
