@@ -237,6 +237,8 @@ rules:
     resources:
     - infrastructures
     - dnses
+    - clusterversions
+    - featuregates
     verbs:
     - get
     - list
