@@ -847,7 +847,7 @@ func TestMHCRequestsFromMachine(t *testing.T) {
 				objects = append(objects, runtime.Object(tc.mhcs[i]))
 			}
 
-			requests := newFakeReconciler(objects...).mhcRequestsFromMachine(tc.machine)
+			requests := newFakeReconciler(objects...).mhcRequestsFromMachine(context.Background(), tc.machine)
 			if !reflect.DeepEqual(requests, tc.expectedRequests) {
 				t.Errorf("Expected: %v, got: %v", tc.expectedRequests, requests)
 			}
@@ -1047,7 +1047,7 @@ func TestMHCRequestsFromNode(t *testing.T) {
 			fakeClientBuilder := fake.NewClientBuilder().
 				WithIndex(&machinev1.Machine{}, machineNodeNameIndex, indexMachineByNodeName).
 				WithRuntimeObjects(objects...)
-			requests := newFakeReconcilerBuilder().WithFakeClientBuilder(fakeClientBuilder).Build().mhcRequestsFromNode(tc.node)
+			requests := newFakeReconcilerBuilder().WithFakeClientBuilder(fakeClientBuilder).Build().mhcRequestsFromNode(context.Background(), tc.node)
 			if !reflect.DeepEqual(requests, tc.expectedRequests) {
 				t.Errorf("Expected: %v, got: %v", tc.expectedRequests, requests)
 			}

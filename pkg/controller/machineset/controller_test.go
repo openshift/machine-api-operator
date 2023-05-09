@@ -17,6 +17,7 @@ limitations under the License.
 package machineset
 
 import (
+	"context"
 	"reflect"
 	"testing"
 	"time"
@@ -136,7 +137,7 @@ func TestMachineSetToMachines(t *testing.T) {
 	}
 
 	for _, tc := range testsCases {
-		got := r.MachineToMachineSets(tc.object)
+		got := r.MachineToMachineSets(context.Background(), tc.object)
 		if !reflect.DeepEqual(got, tc.expected) {
 			t.Errorf("Case %s. Got: %v, expected: %v", tc.machine.Name, got, tc.expected)
 		}

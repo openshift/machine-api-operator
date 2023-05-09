@@ -80,7 +80,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler, mapFn handler.MapFunc) err
 
 	// Watch for changes to MachineSet.
 	err = c.Watch(
-		&source.Kind{Type: &machinev1.MachineSet{}},
+		source.Kind(mgr.GetCache(), &machinev1.MachineSet{}),
 		&handler.EnqueueRequestForObject{},
 	)
 	if err != nil {
@@ -89,8 +89,8 @@ func add(mgr manager.Manager, r reconcile.Reconciler, mapFn handler.MapFunc) err
 
 	// Map Machine changes to MachineSets using ControllerRef.
 	err = c.Watch(
-		&source.Kind{Type: &machinev1.Machine{}},
-		&handler.EnqueueRequestForOwner{IsController: true, OwnerType: &machinev1.MachineSet{}},
+		source.Kind(mgr.GetCache(), &machinev1.Machine{}),
+		handler.EnqueueRequestForOwner(mgr.GetScheme(), mgr.GetRESTMapper(), &machinev1.MachineSet{}, handler.OnlyControllerOwner()),
 	)
 	if err != nil {
 		return err
@@ -98,7 +98,7 @@ func add(mgr manager.Manager, r reconcile.Reconciler, mapFn handler.MapFunc) err
 
 	// Map Machine changes to MachineSets by machining labels.
 	return c.Watch(
-		&source.Kind{Type: &machinev1.Machine{}},
+		source.Kind(mgr.GetCache(), &machinev1.Machine{}),
 		handler.EnqueueRequestsFromMapFunc(mapFn),
 	)
 }
@@ -110,11 +110,11 @@ type ReconcileMachineSet struct {
 	recorder record.EventRecorder
 }
 
-func (r *ReconcileMachineSet) MachineToMachineSets(o client.Object) []reconcile.Request {
+func (r *ReconcileMachineSet) MachineToMachineSets(ctx context.Context, o client.Object) []reconcile.Request {
 	result := []reconcile.Request{}
 	m := &machinev1.Machine{}
 	key := client.ObjectKey{Namespace: o.GetNamespace(), Name: o.GetName()}
-	err := r.Client.Get(context.Background(), key, m)
+	err := r.Client.Get(ctx, key, m)
 	if err != nil {
 		klog.Errorf("Unable to retrieve Machine %v from store: %v", key, err)
 		return nil
@@ -126,7 +126,7 @@ func (r *ReconcileMachineSet) MachineToMachineSets(o client.Object) []reconcile.
 		}
 	}
 
-	mss := r.getMachineSetsForMachine(m)
+	mss := r.getMachineSetsForMachine(ctx, m)
 	if len(mss) == 0 {
 		klog.V(4).Infof("Found no machine set for machine: %v", m.Name)
 		return nil

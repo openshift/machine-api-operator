@@ -122,14 +122,14 @@ func newFakeReconciler(client client.Client, machine *machinev1.Machine, node *c
 		fakeNodeIndexer:    make(map[string]corev1.Node),
 		fakeMachineIndexer: make(map[string]machinev1.Machine),
 	}
-	r.listNodesByFieldFunc = func(_, value string) ([]corev1.Node, error) {
+	r.listNodesByFieldFunc = func(_ context.Context, _, value string) ([]corev1.Node, error) {
 		_, ok := r.fakeNodeIndexer[value]
 		if ok {
 			return []corev1.Node{r.fakeNodeIndexer[value]}, nil
 		}
 		return nil, nil
 	}
-	r.listMachinesByFieldFunc = func(_, value string) ([]machinev1.Machine, error) {
+	r.listMachinesByFieldFunc = func(_ context.Context, _, value string) ([]machinev1.Machine, error) {
 		_, ok := r.fakeMachineIndexer[value]
 		if ok {
 			return []machinev1.Machine{r.fakeMachineIndexer[value]}, nil
@@ -190,7 +190,7 @@ func TestFindMachineFromNodeByProviderID(t *testing.T) {
 	for _, tc := range testCases {
 		r := newFakeReconciler(fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(tc.machine).Build(), tc.machine, tc.node)
 
-		machine, err := r.findMachineFromNodeByProviderID(tc.node)
+		machine, err := r.findMachineFromNodeByProviderID(context.Background(), tc.node)
 		if err != nil {
 			t.Errorf("unexpected error finding machine from node by providerID: %v", err)
 		}
@@ -250,7 +250,7 @@ func TestFindMachineFromNodeByIP(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		r := newFakeReconciler(fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(tc.machine).Build(), tc.machine, tc.node)
-		machine, err := r.findMachineFromNodeByIP(tc.node)
+		machine, err := r.findMachineFromNodeByIP(context.Background(), tc.node)
 		if err != nil {
 			t.Errorf("unexpected error finding machine from node by IP: %v", err)
 		}
@@ -286,7 +286,7 @@ func TestFindNodeFromMachineByProviderID(t *testing.T) {
 	for _, tc := range testCases {
 		r := newFakeReconciler(fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(tc.node).Build(), tc.machine, tc.node)
 
-		node, err := r.findNodeFromMachineByProviderID(tc.machine)
+		node, err := r.findNodeFromMachineByProviderID(context.Background(), tc.machine)
 		if err != nil {
 			t.Errorf("unexpected error finding machine from node by providerID: %v", err)
 		}
@@ -351,7 +351,7 @@ func TestFindNodeFromMachineByIP(t *testing.T) {
 	}
 	for _, tc := range testCases {
 		r := newFakeReconciler(fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(tc.node).Build(), tc.machine, tc.node)
-		node, err := r.findNodeFromMachineByIP(tc.machine)
+		node, err := r.findNodeFromMachineByIP(context.Background(), tc.machine)
 		if err != nil {
 			t.Errorf("unexpected error finding node from machine by IP: %v", err)
 		}
@@ -480,7 +480,7 @@ func TestNodeRequestFromMachine(t *testing.T) {
 
 	for _, tc := range testCases {
 		r := newFakeReconciler(fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(tc.machine).Build(), tc.machine, tc.node)
-		got := r.nodeRequestFromMachine(tc.machine)
+		got := r.nodeRequestFromMachine(context.Background(), tc.machine)
 		if !reflect.DeepEqual(got, tc.expected) {
 			t.Errorf("expected: %v, got: %v", tc.expected, got)
 		}
@@ -813,11 +813,11 @@ func TestFindMachineFromNodeDoesNotPanicBZ1747246(t *testing.T) {
 
 	// Intercept to force a known failure.
 	errmsg := "BZ#1747246"
-	r.listMachinesByFieldFunc = func(key, value string) ([]machinev1.Machine, error) {
+	r.listMachinesByFieldFunc = func(_ context.Context, key, value string) ([]machinev1.Machine, error) {
 		return nil, errors.New(errmsg)
 	}
 
-	_, err := r.findMachineFromNode(testNode)
+	_, err := r.findMachineFromNode(context.Background(), testNode)
 	if err == nil || !strings.Contains(err.Error(), errmsg) {
 		t.Errorf("expected error to contain %q, got %v", errmsg, err)
 	}

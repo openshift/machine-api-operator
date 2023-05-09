@@ -26,14 +26,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
-func (c *ReconcileMachineSet) getMachineSetsForMachine(m *machinev1.Machine) []*machinev1.MachineSet {
+func (c *ReconcileMachineSet) getMachineSetsForMachine(ctx context.Context, m *machinev1.Machine) []*machinev1.MachineSet {
 	if len(m.Labels) == 0 {
 		klog.Warningf("No machine sets found for Machine %v because it has no labels", m.Name)
 		return nil
 	}
 
 	msList := &machinev1.MachineSetList{}
-	err := c.Client.List(context.Background(), msList, client.InNamespace(m.Namespace))
+	err := c.Client.List(ctx, msList, client.InNamespace(m.Namespace))
 	if err != nil {
 		klog.Errorf("Failed to list machine sets, %v", err)
 		return nil

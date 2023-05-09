@@ -128,6 +128,11 @@ func main() {
 		RenewDeadline:           &le.RenewDeadline.Duration,
 	}
 
+	if *webhookEnabled {
+		opts.Port = *webhookPort
+		opts.CertDir = *webhookCertdir
+	}
+
 	mgr, err := manager.New(cfg, opts)
 	if err != nil {
 		log.Fatal(err)
@@ -155,8 +160,6 @@ func main() {
 	}
 
 	if *webhookEnabled {
-		mgr.GetWebhookServer().Port = *webhookPort
-		mgr.GetWebhookServer().CertDir = *webhookCertdir
 		mgr.GetWebhookServer().Register(mapiwebhooks.DefaultMachineMutatingHookPath, &webhook.Admission{Handler: machineDefaulter})
 		mgr.GetWebhookServer().Register(mapiwebhooks.DefaultMachineValidatingHookPath, &webhook.Admission{Handler: machineValidator})
 		mgr.GetWebhookServer().Register(mapiwebhooks.DefaultMachineSetMutatingHookPath, &webhook.Admission{Handler: machineSetDefaulter})
