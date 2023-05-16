@@ -100,10 +100,9 @@ func newReconciler(mgr manager.Manager, opts manager.Options) (*ReconcileMachine
 	}
 
 	return &ReconcileMachineHealthCheck{
-		client:    mgr.GetClient(),
-		scheme:    mgr.GetScheme(),
-		namespace: opts.Namespace,
-		recorder:  mgr.GetEventRecorderFor(controllerName),
+		client:   mgr.GetClient(),
+		scheme:   mgr.GetScheme(),
+		recorder: mgr.GetEventRecorderFor(controllerName),
 	}, nil
 }
 
@@ -147,10 +146,9 @@ var _ reconcile.Reconciler = &ReconcileMachineHealthCheck{}
 type ReconcileMachineHealthCheck struct {
 	// This client, initialized using mgr.Client() above, is a split client
 	// that reads objects from the cache and writes to the apiserver
-	client    client.Client
-	scheme    *runtime.Scheme
-	namespace string
-	recorder  record.EventRecorder
+	client   client.Client
+	scheme   *runtime.Scheme
+	recorder record.EventRecorder
 }
 
 type target struct {

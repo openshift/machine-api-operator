@@ -3076,10 +3076,9 @@ func (f fakeReconcilerBuilder) WithScheme(scheme *runtime.Scheme) fakeReconciler
 
 func (f fakeReconcilerBuilder) Build() *ReconcileMachineHealthCheck {
 	return &ReconcileMachineHealthCheck{
-		client:    f.fakeClientBuilder.Build(),
-		scheme:    f.scheme,
-		namespace: f.namespace,
-		recorder:  f.recorder,
+		client:   f.fakeClientBuilder.Build(),
+		scheme:   f.scheme,
+		recorder: f.recorder,
 	}
 }
 
@@ -3090,10 +3089,9 @@ func newFakeReconcilerWithCustomRecorder(recorder record.EventRecorder, initObje
 		WithStatusSubresource(&machinev1.MachineHealthCheck{}).
 		Build()
 	return &ReconcileMachineHealthCheck{
-		client:    fakeClient,
-		scheme:    scheme.Scheme,
-		namespace: namespace,
-		recorder:  recorder,
+		client:   fakeClient,
+		scheme:   scheme.Scheme,
+		recorder: recorder,
 	}
 }
 
