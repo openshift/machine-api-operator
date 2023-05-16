@@ -106,7 +106,10 @@ func NewNode(name string, ready bool) *corev1.Node {
 // NewMachine returns new machine object that can be used for testing
 func NewMachine(name string, nodeName string) *machinev1.Machine {
 	m := &machinev1.Machine{
-		TypeMeta: metav1.TypeMeta{Kind: "Machine"},
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "machine.openshift.io/v1beta1",
+			Kind:       "Machine",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Annotations: make(map[string]string),
 			Name:        name,
@@ -145,7 +148,8 @@ func NewMachineHealthCheck(name string) *machinev1.MachineHealthCheck {
 			ResourceVersion: "999",
 		},
 		TypeMeta: metav1.TypeMeta{
-			Kind: "MachineHealthCheck",
+			APIVersion: "machine.openshift.io/v1beta1",
+			Kind:       "MachineHealthCheck",
 		},
 		Spec: machinev1.MachineHealthCheckSpec{
 			Selector: *NewSelectorFooBar(),

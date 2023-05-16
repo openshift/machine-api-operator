@@ -87,7 +87,8 @@ func machine(name, providerID string, addresses []corev1.NodeAddress, taints []c
 			ResourceVersion: "999",
 		},
 		TypeMeta: metav1.TypeMeta{
-			Kind: "Machine",
+			APIVersion: "machine.openshift.io/v1beta1",
+			Kind:       "Machine",
 		},
 		Spec: machinev1.MachineSpec{},
 	}
@@ -188,7 +189,7 @@ func TestFindMachineFromNodeByProviderID(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		r := newFakeReconciler(fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(tc.machine).Build(), tc.machine, tc.node)
+		r := newFakeReconciler(fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(tc.machine).WithStatusSubresource(&machinev1.Machine{}).Build(), tc.machine, tc.node)
 
 		machine, err := r.findMachineFromNodeByProviderID(context.Background(), tc.node)
 		if err != nil {
@@ -526,7 +527,7 @@ func TestReconcile(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		r := newFakeReconciler(fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(tc.node, tc.machine).Build(), tc.machine, tc.node)
+		r := newFakeReconciler(fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(tc.node, tc.machine).WithStatusSubresource(&machinev1.Machine{}).Build(), tc.machine, tc.node)
 		request := reconcile.Request{
 			NamespacedName: client.ObjectKey{
 				Namespace: metav1.NamespaceNone,
@@ -762,7 +763,7 @@ func TestUpdateNodeRef(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		r := newFakeReconciler(fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(tc.machine).Build(), tc.machine, tc.node)
+		r := newFakeReconciler(fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(tc.machine).WithStatusSubresource(&machinev1.Machine{}).Build(), tc.machine, tc.node)
 		if tc.node.GetName() == "deleting" {
 			now := metav1.Now()
 			tc.node.DeletionTimestamp = &now
