@@ -3,6 +3,7 @@ package webhooks
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"reflect"
 	"runtime"
@@ -28,6 +29,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 	"sigs.k8s.io/yaml"
 )
 
@@ -1058,9 +1060,7 @@ func TestMachineCreation(t *testing.T) {
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1.NutanixMachineProviderConfig{},
 			},
-			expectedError: "[providerSpec.cluster.type: Invalid value: \"\": cluster type must be one of name or uuid," +
-				" providerSpec.image.type: Invalid value: \"\": image type must be one of name or uuid," +
-				" providerSpec.subnets: missing subnets: nodes may fail to start if no subnets are configured]",
+			expectedError: "[providerSpec.cluster.type: Invalid value: \"\": cluster type must be one of name or uuid, providerSpec.image.type: Invalid value: \"\": image type must be one of name or uuid, providerSpec.subnets: Invalid value: \"null\": missing subnets: nodes may fail to start if no subnets are configured]",
 		},
 		{
 			name:            "with nutanix and the required fields set",
@@ -1112,8 +1112,8 @@ func TestMachineCreation(t *testing.T) {
 			if !tc.disconnected {
 				dns.Spec.PublicZone = &osconfigv1.DNSZone{}
 			}
-			machineDefaulter := createMachineDefaulter(platformStatus, tc.clusterID)
-			machineValidator := createMachineValidator(infra, c, dns)
+			machineDefaulter := admission.WithCustomDefaulter(scheme.Scheme, &machinev1beta1.Machine{}, createMachineDefaulter(platformStatus, tc.clusterID))
+			machineValidator := admission.WithCustomValidator(scheme.Scheme, &machinev1beta1.Machine{}, createMachineValidator(infra, c, dns))
 			mgr.GetWebhookServer().Register(DefaultMachineMutatingHookPath, &webhook.Admission{Handler: machineDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineValidatingHookPath, &webhook.Admission{Handler: machineValidator})
 
@@ -1163,7 +1163,11 @@ func TestMachineCreation(t *testing.T) {
 
 			if tc.expectedError != "" {
 				gs.Expect(err).ToNot(BeNil())
-				gs.Expect(apierrors.ReasonForError(err)).To(BeEquivalentTo(tc.expectedError))
+
+				statusError := &apierrors.StatusError{}
+				gs.Expect(errors.As(err, &statusError)).To(BeTrue())
+
+				gs.Expect(statusError.Status().Message).To(ContainSubstring(tc.expectedError))
 			} else {
 				if tc.presetClusterID {
 					gs.Expect(m.Labels[machinev1beta1.MachineClusterIDLabel]).To(BeIdenticalTo(presetClusterID))
@@ -1709,7 +1713,7 @@ func TestMachineUpdate(t *testing.T) {
 			updateMachine: func(m *machinev1beta1.Machine) {
 				m.Spec.LifecycleHooks.PreDrain = []machinev1beta1.LifecycleHook{preDrainHook, preDrainHook}
 			},
-			expectedError: "Invalid", // This is an openapi error. As lifecycleHooks have list-type=map, the API server will prevent duplication
+			expectedError: "spec.lifecycleHooks.preDrain[1]: Duplicate value: map[string]interface {}{\"name\":\"pre-drain\"}", // This is an openapi error. As lifecycleHooks have list-type=map, the API server will prevent duplication
 		},
 		{
 			name:         "with a valid PowerVS ProviderSpec",
@@ -1847,8 +1851,8 @@ func TestMachineUpdate(t *testing.T) {
 					PlatformStatus:     platformStatus,
 				},
 			}
-			machineDefaulter := createMachineDefaulter(platformStatus, tc.clusterID)
-			machineValidator := createMachineValidator(infra, c, plainDNS)
+			machineDefaulter := admission.WithCustomDefaulter(scheme.Scheme, &machinev1beta1.Machine{}, createMachineDefaulter(platformStatus, tc.clusterID))
+			machineValidator := admission.WithCustomValidator(scheme.Scheme, &machinev1beta1.Machine{}, createMachineValidator(infra, c, plainDNS))
 			mgr.GetWebhookServer().Register(DefaultMachineMutatingHookPath, &webhook.Admission{Handler: machineDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineValidatingHookPath, &webhook.Admission{Handler: machineValidator})
 
@@ -1914,7 +1918,11 @@ func TestMachineUpdate(t *testing.T) {
 			err = c.Update(ctx, m)
 			if tc.expectedError != "" {
 				gs.Expect(err).ToNot(BeNil())
-				gs.Expect(apierrors.ReasonForError(err)).To(BeEquivalentTo(tc.expectedError))
+
+				statusError := &apierrors.StatusError{}
+				gs.Expect(errors.As(err, &statusError)).To(BeTrue())
+
+				gs.Expect(statusError.Status().Message).To(ContainSubstring(tc.expectedError))
 			} else {
 				gs.Expect(err).To(BeNil())
 			}
@@ -2231,18 +2239,18 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 				m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: tc.overrideRawBytes}
 			}
 
-			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
+			ok, warnings, webhookErr := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
 
-			if err == nil {
+			if webhookErr == nil {
 				if tc.expectedError != "" {
-					t.Errorf("expected: %q, got: %v", tc.expectedError, err)
+					t.Errorf("expected: %q, got: %v", tc.expectedError, webhookErr)
 				}
 			} else {
-				if err.Error() != tc.expectedError {
-					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
+				if webhookErr.ToAggregate().Error() != tc.expectedError {
+					t.Errorf("expected: %q, got: %q", tc.expectedError, webhookErr.ToAggregate().Error())
 				}
 			}
 
@@ -2309,7 +2317,7 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 
-			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
+			ok, warnings, webhookErr := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -2322,13 +2330,13 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 			if !equality.Semantic.DeepEqual(tc.expectedProviderSpec, gotProviderSpec) {
 				t.Errorf("expected: %+v, got: %+v", tc.expectedProviderSpec, gotProviderSpec)
 			}
-			if err == nil {
+			if webhookErr == nil {
 				if tc.expectedError != "" {
-					t.Errorf("expected: %q, got: %v", tc.expectedError, err)
+					t.Errorf("expected: %q, got: %v", tc.expectedError, webhookErr)
 				}
 			} else {
-				if err.Error() != tc.expectedError {
-					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
+				if webhookErr.ToAggregate().Error() != tc.expectedError {
+					t.Errorf("expected: %q, got: %q", tc.expectedError, webhookErr.ToAggregate().Error())
 				}
 			}
 
@@ -2712,18 +2720,18 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 				m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: tc.overrideRawBytes}
 			}
 
-			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
+			ok, warnings, webhookErr := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
 
-			if err == nil {
+			if webhookErr == nil {
 				if tc.expectedError != "" {
-					t.Errorf("expected: %q, got: %v", tc.expectedError, err)
+					t.Errorf("expected: %q, got: %v", tc.expectedError, webhookErr)
 				}
 			} else {
-				if err.Error() != tc.expectedError {
-					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
+				if webhookErr.ToAggregate().Error() != tc.expectedError {
+					t.Errorf("expected: %q, got: %q", tc.expectedError, webhookErr.ToAggregate().Error())
 				}
 			}
 
@@ -2861,7 +2869,7 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 
-			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
+			ok, warnings, webhookErr := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -2874,13 +2882,13 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 			if !equality.Semantic.DeepEqual(defaultProviderSpec, gotProviderSpec) {
 				t.Errorf("expected: %+v, got: %+v", defaultProviderSpec, gotProviderSpec)
 			}
-			if err == nil {
+			if webhookErr == nil {
 				if tc.expectedError != "" {
-					t.Errorf("expected: %q, got: %v", tc.expectedError, err)
+					t.Errorf("expected: %q, got: %v", tc.expectedError, webhookErr)
 				}
 			} else {
-				if err.Error() != tc.expectedError {
-					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
+				if webhookErr.ToAggregate().Error() != tc.expectedError {
+					t.Errorf("expected: %q, got: %q", tc.expectedError, webhookErr.ToAggregate().Error())
 				}
 			}
 
@@ -3401,18 +3409,18 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 				m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: tc.overrideRawBytes}
 			}
 
-			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
+			ok, warnings, webhookErr := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
 
-			if err == nil {
+			if webhookErr == nil {
 				if tc.expectedError != "" {
-					t.Errorf("expected: %q, got: %v", tc.expectedError, err)
+					t.Errorf("expected: %q, got: %v", tc.expectedError, webhookErr)
 				}
 			} else {
-				if err.Error() != tc.expectedError {
-					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
+				if webhookErr.ToAggregate().Error() != tc.expectedError {
+					t.Errorf("expected: %q, got: %q", tc.expectedError, webhookErr.ToAggregate().Error())
 				}
 			}
 
@@ -3534,7 +3542,7 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 
-			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
+			ok, warnings, webhookErr := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -3547,13 +3555,13 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 			if !equality.Semantic.DeepEqual(defaultProviderSpec, gotProviderSpec) {
 				t.Errorf("expected: %+v, got: %+v", defaultProviderSpec, gotProviderSpec)
 			}
-			if err == nil {
+			if webhookErr == nil {
 				if tc.expectedError != "" {
-					t.Errorf("expected: %q, got: %v", tc.expectedError, err)
+					t.Errorf("expected: %q, got: %v", tc.expectedError, webhookErr)
 				}
 			} else {
-				if err.Error() != tc.expectedError {
-					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
+				if webhookErr.ToAggregate().Error() != tc.expectedError {
+					t.Errorf("expected: %q, got: %q", tc.expectedError, webhookErr.ToAggregate().Error())
 				}
 			}
 
@@ -3832,18 +3840,18 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 
-			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
+			ok, warnings, webhookErr := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
 
-			if err == nil {
+			if webhookErr == nil {
 				if tc.expectedError != "" {
-					t.Errorf("expected: %q, got: %v", tc.expectedError, err)
+					t.Errorf("expected: %q, got: %v", tc.expectedError, webhookErr)
 				}
 			} else {
-				if err.Error() != tc.expectedError {
-					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
+				if webhookErr.ToAggregate().Error() != tc.expectedError {
+					t.Errorf("expected: %q, got: %q", tc.expectedError, webhookErr.ToAggregate().Error())
 				}
 			}
 
@@ -3897,7 +3905,7 @@ func TestDefaultVSphereProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 
-			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
+			ok, warnings, webhookErr := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -3910,13 +3918,13 @@ func TestDefaultVSphereProviderSpec(t *testing.T) {
 			if !equality.Semantic.DeepEqual(defaultProviderSpec, gotProviderSpec) {
 				t.Errorf("expected: %+v, got: %+v", defaultProviderSpec, gotProviderSpec)
 			}
-			if err == nil {
+			if webhookErr == nil {
 				if tc.expectedError != "" {
-					t.Errorf("expected: %q, got: %v", tc.expectedError, err)
+					t.Errorf("expected: %q, got: %v", tc.expectedError, webhookErr)
 				}
 			} else {
-				if err.Error() != tc.expectedError {
-					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
+				if webhookErr.ToAggregate().Error() != tc.expectedError {
+					t.Errorf("expected: %q, got: %q", tc.expectedError, webhookErr.ToAggregate().Error())
 				}
 			}
 
@@ -3970,7 +3978,7 @@ func TestDefaultNutanixProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 
-			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
+			ok, warnings, webhookErr := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -3983,13 +3991,13 @@ func TestDefaultNutanixProviderSpec(t *testing.T) {
 			if !equality.Semantic.DeepEqual(defaultProviderSpec, gotProviderSpec) {
 				t.Errorf("expected: %+v, got: %+v", defaultProviderSpec, gotProviderSpec)
 			}
-			if err == nil {
+			if webhookErr == nil {
 				if tc.expectedError != "" {
-					t.Errorf("expected: %q, got: %v", tc.expectedError, err)
+					t.Errorf("expected: %q, got: %v", tc.expectedError, webhookErr)
 				}
 			} else {
-				if err.Error() != tc.expectedError {
-					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
+				if webhookErr.ToAggregate().Error() != tc.expectedError {
+					t.Errorf("expected: %q, got: %q", tc.expectedError, webhookErr.ToAggregate().Error())
 				}
 			}
 
@@ -4234,13 +4242,13 @@ func TestUpdateFinalizer(t *testing.T) {
 				newM.SetDeletionTimestamp(&deletionTimestamp)
 			}
 
-			ok, _, err := h.validateMachine(newM, oldM)
+			ok, _, webhookErr := h.validateMachine(newM, oldM)
 			gs.Expect(ok).To(Equal(tc.expectedOk))
 
-			if err == nil {
+			if webhookErr == nil {
 				gs.Expect(tc.expectedError).To(BeEmpty())
 			} else {
-				gs.Expect(err.Error()).To(Equal(tc.expectedError))
+				gs.Expect(webhookErr.ToAggregate().Error()).To(Equal(tc.expectedError))
 			}
 		})
 	}
@@ -4387,7 +4395,7 @@ func TestValidatePowerVSProviderSpec(t *testing.T) {
 				p.Processors = intstr.FromString("testProcessor")
 			},
 			expectedOk:    false,
-			expectedError: "error while getting processor vlaue failed to convert Processors testProcessor to float64",
+			expectedError: "providerSpec.processor: Internal error: error while getting processor vlaue failed to convert Processors testProcessor to float64",
 		},
 		{
 			testCase: "with processor greater than supported value for s922 systemtype",
@@ -4491,18 +4499,18 @@ func TestValidatePowerVSProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 
-			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
+			ok, warnings, webhookErr := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
 
-			if err == nil {
+			if webhookErr == nil {
 				if tc.expectedError != "" {
-					t.Errorf("expected: %q, got: %v", tc.expectedError, err)
+					t.Errorf("expected: %q, got: %v", tc.expectedError, webhookErr)
 				}
 			} else {
-				if err.Error() != tc.expectedError {
-					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
+				if webhookErr.ToAggregate().Error() != tc.expectedError {
+					t.Errorf("expected: %q, got: %q", tc.expectedError, webhookErr.ToAggregate().Error())
 				}
 			}
 
@@ -4573,7 +4581,7 @@ func TestDefaultPowerVSProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 
-			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
+			ok, warnings, webhookErr := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -4586,13 +4594,13 @@ func TestDefaultPowerVSProviderSpec(t *testing.T) {
 			if !equality.Semantic.DeepEqual(defaultProviderSpec, gotProviderSpec) {
 				t.Errorf("expected: %+v, got: %+v", defaultProviderSpec, gotProviderSpec)
 			}
-			if err == nil {
+			if webhookErr == nil {
 				if tc.expectedError != "" {
-					t.Errorf("expected: %q, got: %v", tc.expectedError, err)
+					t.Errorf("expected: %q, got: %v", tc.expectedError, webhookErr)
 				}
 			} else {
-				if err.Error() != tc.expectedError {
-					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
+				if webhookErr.ToAggregate().Error() != tc.expectedError {
+					t.Errorf("expected: %q, got: %q", tc.expectedError, webhookErr.ToAggregate().Error())
 				}
 			}
 
@@ -4661,7 +4669,7 @@ func TestValidateNutanixProviderSpec(t *testing.T) {
 				p.Subnets = make([]machinev1.NutanixResourceIdentifier, 0)
 			},
 			expectedOk:    false,
-			expectedError: "providerSpec.subnets: missing subnets: nodes may fail to start if no subnets are configured",
+			expectedError: "providerSpec.subnets: Invalid value: \"[]\": missing subnets: nodes may fail to start if no subnets are configured",
 			//expectedWarnings: []string{"providerSpec.subnets: missing subnets: nodes may fail to start if no subnets are configured"},
 		},
 		{
@@ -4673,7 +4681,7 @@ func TestValidateNutanixProviderSpec(t *testing.T) {
 				}
 			},
 			expectedOk:    false,
-			expectedError: "providerSpec.subnets: too many subnets: currently nutanix platform supports one subnet per VM but more than one subnets are configured",
+			expectedError: "providerSpec.subnets: Invalid value: \"[{\\\"type\\\":\\\"name\\\",\\\"name\\\":\\\"subnet-1\\\"},{\\\"type\\\":\\\"name\\\",\\\"name\\\":\\\"subnet-2\\\"}]\": too many subnets: currently nutanix platform supports one subnet per VM but more than one subnets are configured",
 		},
 		{
 			testCase: "with no userDataSecret provided",
@@ -4757,18 +4765,18 @@ func TestValidateNutanixProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 
-			ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
+			ok, warnings, webhookErr := h.webhookOperations(m, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
 
-			if err == nil {
+			if webhookErr == nil {
 				if tc.expectedError != "" {
-					t.Errorf("expected: %q, got: %v", tc.expectedError, err)
+					t.Errorf("expected: %q, got: %v", tc.expectedError, webhookErr)
 				}
 			} else {
-				if err.Error() != tc.expectedError {
-					t.Errorf("expected: %q, got: %q", tc.expectedError, err.Error())
+				if webhookErr.ToAggregate().Error() != tc.expectedError {
+					t.Errorf("expected: %q, got: %q", tc.expectedError, webhookErr.ToAggregate().Error())
 				}
 			}
 
