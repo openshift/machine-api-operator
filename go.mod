@@ -36,6 +36,8 @@ require (
 require (
 	github.com/golangci/golangci-lint v1.49.0
 	golang.org/x/time v0.3.0
+	sigs.k8s.io/cluster-api v1.4.2
+	sigs.k8s.io/kube-storage-version-migrator v0.0.4
 )
 
 require (
@@ -250,7 +252,6 @@ require (
 	mvdan.cc/lint v0.0.0-20170908181259-adc824a0674b // indirect
 	mvdan.cc/unparam v0.0.0-20220706161116-678bad134442 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
-	sigs.k8s.io/kube-storage-version-migrator v0.0.4 // indirect
 	sigs.k8s.io/kustomize/api v0.13.2 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.14.1 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
