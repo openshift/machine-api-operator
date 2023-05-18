@@ -36,8 +36,8 @@ type ReconcileNodeLink struct {
 	client client.Client
 	// This is useful for unit testing so we can mock cache IndexField
 	// and emulate Client.List.MatchingField behaviour
-	listNodesByFieldFunc    func(key, value string) ([]corev1.Node, error)
-	listMachinesByFieldFunc func(key, value string) ([]machinev1.Machine, error)
+	listNodesByFieldFunc    func(ctx context.Context, key, value string) ([]corev1.Node, error)
+	listMachinesByFieldFunc func(ctx context.Context, key, value string) ([]machinev1.Machine, error)
 	nodeReadinessCache      map[string]bool
 }
 
@@ -169,13 +169,13 @@ func add(mgr manager.Manager, r reconcile.Reconciler, mapFn handler.MapFunc) err
 	}
 
 	//Watch for changes to Node
-	err = c.Watch(&source.Kind{Type: &corev1.Node{}}, &handler.EnqueueRequestForObject{})
+	err = c.Watch(source.Kind(mgr.GetCache(), &corev1.Node{}), &handler.EnqueueRequestForObject{})
 	if err != nil {
 		return err
 	}
 
 	// Watch for changes to Machines and enqueue if it exists the backed node
-	err = c.Watch(&source.Kind{Type: &machinev1.Machine{}}, handler.EnqueueRequestsFromMapFunc(mapFn))
+	err = c.Watch(source.Kind(mgr.GetCache(), &machinev1.Machine{}), handler.EnqueueRequestsFromMapFunc(mapFn))
 	if err != nil {
 		return err
 	}
@@ -205,7 +205,7 @@ func (r *ReconcileNodeLink) Reconcile(ctx context.Context, request reconcile.Req
 		return reconcile.Result{}, fmt.Errorf("error getting node: %v", err)
 	}
 
-	machine, err := r.findMachineFromNode(node)
+	machine, err := r.findMachineFromNode(ctx, node)
 	if err != nil {
 		klog.Errorf("Failed to find machine from node %q: %v", node.GetName(), err)
 		return reconcile.Result{}, fmt.Errorf("failed to find machine from node %q: %v", node.GetName(), err)
@@ -290,12 +290,12 @@ func (r *ReconcileNodeLink) updateNodeRef(machine *machinev1.Machine, node *core
 }
 
 // nodeRequestFromMachine returns a reconcile.request for the node backed by the received machine
-func (r *ReconcileNodeLink) nodeRequestFromMachine(o client.Object) []reconcile.Request {
+func (r *ReconcileNodeLink) nodeRequestFromMachine(ctx context.Context, o client.Object) []reconcile.Request {
 	klog.V(3).Infof("Watched machine event, finding node to reconcile.Request")
 	// get machine
 	machine := &machinev1.Machine{}
 	if err := r.client.Get(
-		context.Background(),
+		ctx,
 		client.ObjectKey{
 			Namespace: o.GetNamespace(),
 			Name:      o.GetName(),
@@ -312,7 +312,7 @@ func (r *ReconcileNodeLink) nodeRequestFromMachine(o client.Object) []reconcile.
 	}
 
 	// find node
-	node, err := r.findNodeFromMachine(machine)
+	node, err := r.findNodeFromMachine(ctx, machine)
 	if err != nil {
 		klog.Errorf("No-op: Failed to find node for machine %q: %v", machine.GetName(), err)
 		return []reconcile.Request{}
@@ -333,9 +333,9 @@ func (r *ReconcileNodeLink) nodeRequestFromMachine(o client.Object) []reconcile.
 }
 
 // findNodeFromMachine find a node from by providerID and fallback to find by IP
-func (r *ReconcileNodeLink) findNodeFromMachine(machine *machinev1.Machine) (*corev1.Node, error) {
+func (r *ReconcileNodeLink) findNodeFromMachine(ctx context.Context, machine *machinev1.Machine) (*corev1.Node, error) {
 	klog.V(3).Infof("Finding node from machine %q", machine.GetName())
-	node, err := r.findNodeFromMachineByProviderID(machine)
+	node, err := r.findNodeFromMachineByProviderID(ctx, machine)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find node from machine %q by ProviderID: %v", machine.GetName(), err)
 	}
@@ -343,21 +343,21 @@ func (r *ReconcileNodeLink) findNodeFromMachine(machine *machinev1.Machine) (*co
 		return node, nil
 	}
 
-	node, err = r.findNodeFromMachineByIP(machine)
+	node, err = r.findNodeFromMachineByIP(ctx, machine)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find node from machine %q by internal IP: %v", machine.GetName(), err)
 	}
 	return node, nil
 }
 
-func (r *ReconcileNodeLink) findNodeFromMachineByProviderID(machine *machinev1.Machine) (*corev1.Node, error) {
+func (r *ReconcileNodeLink) findNodeFromMachineByProviderID(ctx context.Context, machine *machinev1.Machine) (*corev1.Node, error) {
 	klog.V(3).Infof("Finding node from machine %q by providerID", machine.GetName())
 	if machine.Spec.ProviderID == nil {
 		klog.Warningf("Machine %q has no providerID", machine.GetName())
 		return nil, nil
 	}
 
-	nodes, err := r.listNodesByFieldFunc(nodeProviderIDIndex, *machine.Spec.ProviderID)
+	nodes, err := r.listNodesByFieldFunc(ctx, nodeProviderIDIndex, *machine.Spec.ProviderID)
 	if err != nil {
 		return nil, fmt.Errorf("failed getting node list: %v", err)
 	}
@@ -374,7 +374,7 @@ func (r *ReconcileNodeLink) findNodeFromMachineByProviderID(machine *machinev1.M
 	return nil, nil
 }
 
-func (r *ReconcileNodeLink) findNodeFromMachineByIP(machine *machinev1.Machine) (*corev1.Node, error) {
+func (r *ReconcileNodeLink) findNodeFromMachineByIP(ctx context.Context, machine *machinev1.Machine) (*corev1.Node, error) {
 	klog.V(3).Infof("Finding node from machine %q by IP", machine.GetName())
 	var machineInternalAddress string
 	for _, a := range machine.Status.Addresses {
@@ -390,7 +390,7 @@ func (r *ReconcileNodeLink) findNodeFromMachineByIP(machine *machinev1.Machine) 
 		return nil, nil
 	}
 
-	nodes, err := r.listNodesByFieldFunc(nodeInternalIPIndex, machineInternalAddress)
+	nodes, err := r.listNodesByFieldFunc(ctx, nodeInternalIPIndex, machineInternalAddress)
 	if err != nil {
 		return nil, fmt.Errorf("failed getting node list: %v", err)
 	}
@@ -408,9 +408,9 @@ func (r *ReconcileNodeLink) findNodeFromMachineByIP(machine *machinev1.Machine) 
 	return nil, nil
 }
 
-func (r *ReconcileNodeLink) findMachineFromNode(node *corev1.Node) (*machinev1.Machine, error) {
+func (r *ReconcileNodeLink) findMachineFromNode(ctx context.Context, node *corev1.Node) (*machinev1.Machine, error) {
 	klog.V(3).Infof("Finding machine from node %q", node.GetName())
-	machine, err := r.findMachineFromNodeByProviderID(node)
+	machine, err := r.findMachineFromNodeByProviderID(ctx, node)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find machine from node %q by ProviderID: %v", node.GetName(), err)
 	}
@@ -418,21 +418,21 @@ func (r *ReconcileNodeLink) findMachineFromNode(node *corev1.Node) (*machinev1.M
 		return machine, nil
 	}
 
-	machine, err = r.findMachineFromNodeByIP(node)
+	machine, err = r.findMachineFromNodeByIP(ctx, node)
 	if err != nil {
 		return nil, fmt.Errorf("failed to find machine from node %q by internal IP: %v", node.GetName(), err)
 	}
 	return machine, nil
 }
 
-func (r *ReconcileNodeLink) findMachineFromNodeByProviderID(node *corev1.Node) (*machinev1.Machine, error) {
+func (r *ReconcileNodeLink) findMachineFromNodeByProviderID(ctx context.Context, node *corev1.Node) (*machinev1.Machine, error) {
 	klog.V(3).Infof("Finding machine from node %q by ProviderID", node.GetName())
 	if node.Spec.ProviderID == "" {
 		klog.Warningf("Node %q has no providerID", node.GetName())
 		return nil, nil
 	}
 
-	machines, err := r.listMachinesByFieldFunc(machineProviderIDIndex, node.Spec.ProviderID)
+	machines, err := r.listMachinesByFieldFunc(ctx, machineProviderIDIndex, node.Spec.ProviderID)
 	if err != nil {
 		return nil, fmt.Errorf("failed getting node list: %v", err)
 	}
@@ -448,7 +448,7 @@ func (r *ReconcileNodeLink) findMachineFromNodeByProviderID(node *corev1.Node) (
 	return nil, nil
 }
 
-func (r *ReconcileNodeLink) findMachineFromNodeByIP(node *corev1.Node) (*machinev1.Machine, error) {
+func (r *ReconcileNodeLink) findMachineFromNodeByIP(ctx context.Context, node *corev1.Node) (*machinev1.Machine, error) {
 	klog.V(3).Infof("Finding machine from node %q by IP", node.GetName())
 	var nodeInternalAddress string
 	for _, a := range node.Status.Addresses {
@@ -464,7 +464,7 @@ func (r *ReconcileNodeLink) findMachineFromNodeByIP(node *corev1.Node) (*machine
 		return nil, nil
 	}
 
-	machines, err := r.listMachinesByFieldFunc(machineInternalIPIndex, nodeInternalAddress)
+	machines, err := r.listMachinesByFieldFunc(ctx, machineInternalIPIndex, nodeInternalAddress)
 	if err != nil {
 		return nil, fmt.Errorf("failed getting node list: %v", err)
 	}
@@ -502,10 +502,10 @@ func addTaintsToNode(node *corev1.Node, machine *machinev1.Machine) {
 	}
 }
 
-func (r *ReconcileNodeLink) listNodesByField(key, value string) ([]corev1.Node, error) {
+func (r *ReconcileNodeLink) listNodesByField(ctx context.Context, key, value string) ([]corev1.Node, error) {
 	nodeList := &corev1.NodeList{}
 	if err := r.client.List(
-		context.TODO(),
+		ctx,
 		nodeList,
 		client.MatchingFields{key: value},
 	); err != nil {
@@ -514,10 +514,10 @@ func (r *ReconcileNodeLink) listNodesByField(key, value string) ([]corev1.Node, 
 	return nodeList.Items, nil
 }
 
-func (r *ReconcileNodeLink) listMachinesByField(key, value string) ([]machinev1.Machine, error) {
+func (r *ReconcileNodeLink) listMachinesByField(ctx context.Context, key, value string) ([]machinev1.Machine, error) {
 	machineList := &machinev1.MachineList{}
 	if err := r.client.List(
-		context.TODO(),
+		ctx,
 		machineList,
 		client.MatchingFields{key: value},
 	); err != nil {

@@ -45,7 +45,8 @@ var (
 func TestReconcileRequest(t *testing.T) {
 	machineNoPhase := machinev1.Machine{
 		TypeMeta: metav1.TypeMeta{
-			Kind: "Machine",
+			APIVersion: "machine.openshift.io/v1beta1",
+			Kind:       "Machine",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "emptyPhase",
@@ -65,7 +66,8 @@ func TestReconcileRequest(t *testing.T) {
 	}
 	machineProvisioning := machinev1.Machine{
 		TypeMeta: metav1.TypeMeta{
-			Kind: "Machine",
+			APIVersion: "machine.openshift.io/v1beta1",
+			Kind:       "Machine",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "create",
@@ -88,7 +90,8 @@ func TestReconcileRequest(t *testing.T) {
 	}
 	machineProvisioned := machinev1.Machine{
 		TypeMeta: metav1.TypeMeta{
-			Kind: "Machine",
+			APIVersion: "machine.openshift.io/v1beta1",
+			Kind:       "Machine",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "update",
@@ -117,7 +120,8 @@ func TestReconcileRequest(t *testing.T) {
 	time := metav1.Now()
 	machineDeleting := machinev1.Machine{
 		TypeMeta: metav1.TypeMeta{
-			Kind: "Machine",
+			APIVersion: "machine.openshift.io/v1beta1",
+			Kind:       "Machine",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:              "delete",
@@ -138,7 +142,8 @@ func TestReconcileRequest(t *testing.T) {
 	}
 	machineDeletingPreDrainHook := machinev1.Machine{
 		TypeMeta: metav1.TypeMeta{
-			Kind: "Machine",
+			APIVersion: "machine.openshift.io/v1beta1",
+			Kind:       "Machine",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:              "delete-predrain",
@@ -172,7 +177,8 @@ func TestReconcileRequest(t *testing.T) {
 	}
 	machineDeletingPreDrainHookWithoutNode := machinev1.Machine{
 		TypeMeta: metav1.TypeMeta{
-			Kind: "Machine",
+			APIVersion: "machine.openshift.io/v1beta1",
+			Kind:       "Machine",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:              "delete-predrain-without-node",
@@ -201,7 +207,8 @@ func TestReconcileRequest(t *testing.T) {
 	}
 	machineDeletingPreTerminateHook := machinev1.Machine{
 		TypeMeta: metav1.TypeMeta{
-			Kind: "Machine",
+			APIVersion: "machine.openshift.io/v1beta1",
+			Kind:       "Machine",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:              "delete-preterminate",
@@ -230,7 +237,8 @@ func TestReconcileRequest(t *testing.T) {
 	}
 	machineFailed := machinev1.Machine{
 		TypeMeta: metav1.TypeMeta{
-			Kind: "Machine",
+			APIVersion: "machine.openshift.io/v1beta1",
+			Kind:       "Machine",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "failed",
@@ -259,7 +267,8 @@ func TestReconcileRequest(t *testing.T) {
 	}
 	machineRunning := machinev1.Machine{
 		TypeMeta: metav1.TypeMeta{
-			Kind: "Machine",
+			APIVersion: "machine.openshift.io/v1beta1",
+			Kind:       "Machine",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:       "running",
@@ -291,7 +300,8 @@ func TestReconcileRequest(t *testing.T) {
 	}
 	machineDeletingAlreadyDrained := machinev1.Machine{
 		TypeMeta: metav1.TypeMeta{
-			Kind: "Machine",
+			APIVersion: "machine.openshift.io/v1beta1",
+			Kind:       "Machine",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:              "delete-drained",
@@ -514,7 +524,7 @@ func TestReconcileRequest(t *testing.T) {
 					&machineFailed,
 					&machineRunning,
 					&machineDeletingAlreadyDrained,
-				).Build(),
+				).WithStatusSubresource(&machinev1.Machine{}).Build(),
 				scheme:   scheme.Scheme,
 				actuator: act,
 			}

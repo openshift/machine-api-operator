@@ -2,21 +2,21 @@ package webhooks
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
-	"net/http"
 	"reflect"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	utilerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+	"sigs.k8s.io/kube-storage-version-migrator/pkg/clients/clientset/scheme"
 )
 
 // machineSetValidatorHandler validates MachineSet API resources.
@@ -34,7 +34,7 @@ type machineSetDefaulterHandler struct {
 }
 
 // NewMachineSetValidator returns a new machineSetValidatorHandler.
-func NewMachineSetValidator(client client.Client) (*machineSetValidatorHandler, error) {
+func NewMachineSetValidator(client client.Client) (*admission.Webhook, error) {
 	infra, err := getInfra()
 	if err != nil {
 		return nil, err
@@ -48,22 +48,23 @@ func NewMachineSetValidator(client client.Client) (*machineSetValidatorHandler, 
 	return createMachineSetValidator(infra, client, dns), nil
 }
 
-func createMachineSetValidator(infra *osconfigv1.Infrastructure, client client.Client, dns *osconfigv1.DNS) *machineSetValidatorHandler {
+func createMachineSetValidator(infra *osconfigv1.Infrastructure, client client.Client, dns *osconfigv1.DNS) *admission.Webhook {
 	admissionConfig := &admissionConfig{
 		dnsDisconnected: dns.Spec.PublicZone == nil,
 		clusterID:       infra.Status.InfrastructureName,
 		client:          client,
 	}
-	return &machineSetValidatorHandler{
+
+	return admission.WithCustomValidator(scheme.Scheme, &machinev1beta1.MachineSet{}, &machineSetValidatorHandler{
 		admissionHandler: &admissionHandler{
 			admissionConfig:   admissionConfig,
 			webhookOperations: getMachineValidatorOperation(infra.Status.PlatformStatus.Type),
 		},
-	}
+	})
 }
 
 // NewMachineSetDefaulter returns a new machineSetDefaulterHandler.
-func NewMachineSetDefaulter() (*machineSetDefaulterHandler, error) {
+func NewMachineSetDefaulter() (*admission.Webhook, error) {
 	infra, err := getInfra()
 	if err != nil {
 		return nil, err
@@ -72,67 +73,95 @@ func NewMachineSetDefaulter() (*machineSetDefaulterHandler, error) {
 	return createMachineSetDefaulter(infra.Status.PlatformStatus, infra.Status.InfrastructureName), nil
 }
 
-func createMachineSetDefaulter(platformStatus *osconfigv1.PlatformStatus, clusterID string) *machineSetDefaulterHandler {
-	return &machineSetDefaulterHandler{
+func createMachineSetDefaulter(platformStatus *osconfigv1.PlatformStatus, clusterID string) *admission.Webhook {
+	return admission.WithCustomDefaulter(scheme.Scheme, &machinev1beta1.MachineSet{}, &machineSetDefaulterHandler{
 		admissionHandler: &admissionHandler{
 			admissionConfig:   &admissionConfig{clusterID: clusterID},
 			webhookOperations: getMachineDefaulterOperation(platformStatus),
 		},
-	}
+	})
 }
 
 // Handle handles HTTP requests for admission webhook servers.
-func (h *machineSetValidatorHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
-	ms := &machinev1beta1.MachineSet{}
+func (h *machineSetValidatorHandler) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+	warnings := admission.Warnings{}
 
-	if err := h.decoder.Decode(req, ms); err != nil {
-		return admission.Errored(http.StatusBadRequest, err)
+	ms, ok := obj.(*machinev1beta1.MachineSet)
+	if !ok {
+		return warnings, apierrors.NewBadRequest(fmt.Sprintf("expected a MachineSet but got a %T", obj))
 	}
 
-	var oldMS *machinev1beta1.MachineSet
-	if len(req.OldObject.Raw) > 0 {
-		// oldMS must only be initialised if there is an old object (ie on UPDATE or DELETE).
-		// It should be nil otherwise to allow skipping certain validations that rely on
-		// the presence of the old object.
-		oldMS = &machinev1beta1.MachineSet{}
-		if err := h.decoder.DecodeRaw(req.OldObject, oldMS); err != nil {
-			return admission.Errored(http.StatusBadRequest, err)
-		}
+	klog.V(3).Infof("Validate webhook called for MachineSet: %s", ms.GetName())
+
+	ok, warnings, errs := h.validateMachineSet(ms, nil)
+	if !ok {
+		return warnings, errs.ToAggregate()
+	}
+
+	return warnings, nil
+}
+
+// Handle handles HTTP requests for admission webhook servers.
+func (h *machineSetValidatorHandler) ValidateUpdate(ctx context.Context, oldObj, obj runtime.Object) (admission.Warnings, error) {
+	warnings := admission.Warnings{}
+
+	ms, ok := obj.(*machinev1beta1.MachineSet)
+	if !ok {
+		return warnings, apierrors.NewBadRequest(fmt.Sprintf("expected a MachineSet but got a %T", obj))
+	}
+
+	oldMS, ok := oldObj.(*machinev1beta1.MachineSet)
+	if !ok {
+		return warnings, apierrors.NewBadRequest(fmt.Sprintf("expected a MachineSet but got a %T", oldObj))
 	}
 
 	klog.V(3).Infof("Validate webhook called for MachineSet: %s", ms.GetName())
 
 	ok, warnings, errs := h.validateMachineSet(ms, oldMS)
 	if !ok {
-		return admission.Denied(errs.Error()).WithWarnings(warnings...)
+		return warnings, errs.ToAggregate()
 	}
 
-	return admission.Allowed("MachineSet valid").WithWarnings(warnings...)
+	return warnings, nil
 }
 
 // Handle handles HTTP requests for admission webhook servers.
-func (h *machineSetDefaulterHandler) Handle(ctx context.Context, req admission.Request) admission.Response {
-	ms := &machinev1beta1.MachineSet{}
+func (h *machineSetValidatorHandler) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
+	warnings := admission.Warnings{}
 
-	if err := h.decoder.Decode(req, ms); err != nil {
-		return admission.Errored(http.StatusBadRequest, err)
+	ms, ok := obj.(*machinev1beta1.MachineSet)
+	if !ok {
+		return warnings, apierrors.NewBadRequest(fmt.Sprintf("expected a MachineSet but got a %T", obj))
+	}
+
+	klog.V(3).Infof("Validate webhook called for MachineSet: %s", ms.GetName())
+
+	ok, warnings, errs := h.validateMachineSet(ms, nil)
+	if !ok {
+		return warnings, errs.ToAggregate()
+	}
+
+	return warnings, nil
+}
+
+// Handle handles HTTP requests for admission webhook servers.
+func (h *machineSetDefaulterHandler) Default(ctx context.Context, obj runtime.Object) error {
+	ms, ok := obj.(*machinev1beta1.MachineSet)
+	if !ok {
+		return apierrors.NewBadRequest(fmt.Sprintf("expected a MachineSet but got a %T", obj))
 	}
 
 	klog.V(3).Infof("Mutate webhook called for MachineSet: %s", ms.GetName())
 
-	ok, warnings, errs := h.defaultMachineSet(ms)
+	ok, _, errs := h.defaultMachineSet(ms)
 	if !ok {
-		return admission.Denied(errs.Error()).WithWarnings(warnings...)
+		return errs.ToAggregate()
 	}
 
-	marshaledMachineSet, err := json.Marshal(ms)
-	if err != nil {
-		return admission.Errored(http.StatusInternalServerError, err).WithWarnings(warnings...)
-	}
-	return admission.PatchResponseFromRaw(req.Object.Raw, marshaledMachineSet).WithWarnings(warnings...)
+	return nil
 }
 
-func (h *machineSetValidatorHandler) validateMachineSet(ms, oldMS *machinev1beta1.MachineSet) (bool, []string, utilerrors.Aggregate) {
+func (h *machineSetValidatorHandler) validateMachineSet(ms, oldMS *machinev1beta1.MachineSet) (bool, []string, field.ErrorList) {
 	errs := validateMachineSetSpec(ms, oldMS)
 
 	// Create a Machine from the MachineSet and validate the Machine template
@@ -142,23 +171,23 @@ func (h *machineSetValidatorHandler) validateMachineSet(ms, oldMS *machinev1beta
 		},
 		Spec: ms.Spec.Template.Spec,
 	}
-	ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
+	ok, warnings, opsErrs := h.webhookOperations(m, h.admissionConfig)
 	if !ok {
-		errs = append(errs, err.Errors()...)
+		errs = append(errs, opsErrs...)
 	}
 
 	if len(errs) > 0 {
-		return false, warnings, utilerrors.NewAggregate(errs)
+		return false, warnings, errs
 	}
 	return true, warnings, nil
 }
 
-func (h *machineSetDefaulterHandler) defaultMachineSet(ms *machinev1beta1.MachineSet) (bool, []string, utilerrors.Aggregate) {
+func (h *machineSetDefaulterHandler) defaultMachineSet(ms *machinev1beta1.MachineSet) (bool, []string, field.ErrorList) {
 	// Create a Machine from the MachineSet and default the Machine template
 	m := &machinev1beta1.Machine{Spec: ms.Spec.Template.Spec}
-	ok, warnings, err := h.webhookOperations(m, h.admissionConfig)
+	ok, warnings, errs := h.webhookOperations(m, h.admissionConfig)
 	if !ok {
-		return false, warnings, utilerrors.NewAggregate(err.Errors())
+		return false, warnings, errs
 	}
 
 	// Restore the defaulted template
@@ -168,8 +197,8 @@ func (h *machineSetDefaulterHandler) defaultMachineSet(ms *machinev1beta1.Machin
 
 // validateMachineSetSpec is used to validate any changes to the MachineSet spec outside of
 // the providerSpec. Eg it can be used to verify changes to the selector.
-func validateMachineSetSpec(ms, oldMS *machinev1beta1.MachineSet) []error {
-	var errs []error
+func validateMachineSetSpec(ms, oldMS *machinev1beta1.MachineSet) field.ErrorList {
+	var errs field.ErrorList
 	if oldMS != nil && !reflect.DeepEqual(ms.Spec.Selector, oldMS.Spec.Selector) {
 		errs = append(errs, field.Forbidden(field.NewPath("spec", "selector"), "selector is immutable"))
 	}

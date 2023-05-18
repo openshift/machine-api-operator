@@ -284,9 +284,6 @@ func TestPatchMachine(t *testing.T) {
 	g := NewWithT(t)
 	ctx := context.Background()
 
-	g.Expect(configv1.AddToScheme(scheme.Scheme)).ToNot(HaveOccurred())
-	g.Expect(machinev1.AddToScheme(scheme.Scheme)).ToNot(HaveOccurred())
-
 	testEnv := &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join("..", "..", "..", "install"),

@@ -1,10 +1,9 @@
 package webhooks
 
 import (
-	capm3apis "github.com/metal3-io/cluster-api-provider-metal3/api/v1beta1"
-
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/utils/pointer"
 
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
@@ -29,6 +28,12 @@ const (
 	// Name and port of the webhook service pointing to the machine-controller / provider container
 	// Used by metal3 remediation webhooks in the CAPBM image
 	defaultProviderWebhookServiceName = "machine-api-operator-machine-webhook"
+)
+
+var (
+	// capm3apisGroupVersion is the group version for the capm3 API group.
+	// Copy this here to avoid a dependency on the capm3 repo.
+	capm3apisGroupVersion = schema.GroupVersion{Group: "infrastructure.cluster.x-k8s.io", Version: "v1beta1"}
 )
 
 var (
@@ -165,8 +170,8 @@ func Metal3RemediationValidatingWebhook() admissionregistrationv1.ValidatingWebh
 		Rules: []admissionregistrationv1.RuleWithOperations{
 			{
 				Rule: admissionregistrationv1.Rule{
-					APIGroups:   []string{capm3apis.GroupVersion.Group},
-					APIVersions: []string{capm3apis.GroupVersion.Version},
+					APIGroups:   []string{capm3apisGroupVersion.Group},
+					APIVersions: []string{capm3apisGroupVersion.Version},
 					Resources:   []string{"metal3remediations"},
 				},
 				Operations: []admissionregistrationv1.OperationType{
@@ -197,8 +202,8 @@ func Metal3RemediationTemplateValidatingWebhook() admissionregistrationv1.Valida
 		Rules: []admissionregistrationv1.RuleWithOperations{
 			{
 				Rule: admissionregistrationv1.Rule{
-					APIGroups:   []string{capm3apis.GroupVersion.Group},
-					APIVersions: []string{capm3apis.GroupVersion.Version},
+					APIGroups:   []string{capm3apisGroupVersion.Group},
+					APIVersions: []string{capm3apisGroupVersion.Version},
 					Resources:   []string{"metal3remediationtemplates"},
 				},
 				Operations: []admissionregistrationv1.OperationType{
@@ -335,8 +340,8 @@ func Metal3RemediationMutatingWebhook() admissionregistrationv1.MutatingWebhook 
 		Rules: []admissionregistrationv1.RuleWithOperations{
 			{
 				Rule: admissionregistrationv1.Rule{
-					APIGroups:   []string{capm3apis.GroupVersion.Group},
-					APIVersions: []string{capm3apis.GroupVersion.Version},
+					APIGroups:   []string{capm3apisGroupVersion.Group},
+					APIVersions: []string{capm3apisGroupVersion.Version},
 					Resources:   []string{"metal3remediations"},
 				},
 				Operations: []admissionregistrationv1.OperationType{
@@ -367,8 +372,8 @@ func Metal3RemediationTemplateMutatingWebhook() admissionregistrationv1.Mutating
 		Rules: []admissionregistrationv1.RuleWithOperations{
 			{
 				Rule: admissionregistrationv1.Rule{
-					APIGroups:   []string{capm3apis.GroupVersion.Group},
-					APIVersions: []string{capm3apis.GroupVersion.Version},
+					APIGroups:   []string{capm3apisGroupVersion.Group},
+					APIVersions: []string{capm3apisGroupVersion.Version},
 					Resources:   []string{"metal3remediationtemplates"},
 				},
 				Operations: []admissionregistrationv1.OperationType{

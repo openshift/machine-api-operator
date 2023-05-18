@@ -115,7 +115,7 @@ func addWithOpts(mgr manager.Manager, opts controller.Options, controllerName st
 
 	// Watch for changes to Machine
 	return c.Watch(
-		&source.Kind{Type: &machinev1.Machine{}},
+		source.Kind(mgr.GetCache(), &machinev1.Machine{}),
 		&handler.EnqueueRequestForObject{},
 	)
 }

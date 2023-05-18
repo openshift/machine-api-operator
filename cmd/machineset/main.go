@@ -25,6 +25,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/klog/v2"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -116,9 +117,11 @@ func main() {
 	// Create a new Cmd to provide shared dependencies and start components
 	syncPeriod := 10 * time.Minute
 	opts := manager.Options{
-		MetricsBindAddress:      *metricsAddress,
-		SyncPeriod:              &syncPeriod,
-		Namespace:               *watchNamespace,
+		MetricsBindAddress: *metricsAddress,
+		SyncPeriod:         &syncPeriod,
+		Cache: cache.Options{
+			Namespaces: []string{*watchNamespace},
+		},
 		HealthProbeBindAddress:  *healthAddr,
 		LeaderElection:          *leaderElect,
 		LeaderElectionNamespace: *leaderElectResourceNamespace,
@@ -126,6 +129,13 @@ func main() {
 		LeaseDuration:           &le.LeaseDuration.Duration,
 		RetryPeriod:             &le.RetryPeriod.Duration,
 		RenewDeadline:           &le.RenewDeadline.Duration,
+	}
+
+	if *webhookEnabled {
+		opts.WebhookServer = webhook.NewServer(webhook.Options{
+			Port:    *webhookPort,
+			CertDir: *webhookCertdir,
+		})
 	}
 
 	mgr, err := manager.New(cfg, opts)
@@ -155,8 +165,6 @@ func main() {
 	}
 
 	if *webhookEnabled {
-		mgr.GetWebhookServer().Port = *webhookPort
-		mgr.GetWebhookServer().CertDir = *webhookCertdir
 		mgr.GetWebhookServer().Register(mapiwebhooks.DefaultMachineMutatingHookPath, &webhook.Admission{Handler: machineDefaulter})
 		mgr.GetWebhookServer().Register(mapiwebhooks.DefaultMachineValidatingHookPath, &webhook.Admission{Handler: machineValidator})
 		mgr.GetWebhookServer().Register(mapiwebhooks.DefaultMachineSetMutatingHookPath, &webhook.Admission{Handler: machineSetDefaulter})

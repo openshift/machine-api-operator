@@ -847,7 +847,7 @@ func TestMHCRequestsFromMachine(t *testing.T) {
 				objects = append(objects, runtime.Object(tc.mhcs[i]))
 			}
 
-			requests := newFakeReconciler(objects...).mhcRequestsFromMachine(tc.machine)
+			requests := newFakeReconciler(objects...).mhcRequestsFromMachine(context.Background(), tc.machine)
 			if !reflect.DeepEqual(requests, tc.expectedRequests) {
 				t.Errorf("Expected: %v, got: %v", tc.expectedRequests, requests)
 			}
@@ -1046,8 +1046,9 @@ func TestMHCRequestsFromNode(t *testing.T) {
 
 			fakeClientBuilder := fake.NewClientBuilder().
 				WithIndex(&machinev1.Machine{}, machineNodeNameIndex, indexMachineByNodeName).
-				WithRuntimeObjects(objects...)
-			requests := newFakeReconcilerBuilder().WithFakeClientBuilder(fakeClientBuilder).Build().mhcRequestsFromNode(tc.node)
+				WithRuntimeObjects(objects...).
+				WithStatusSubresource(&machinev1.MachineHealthCheck{})
+			requests := newFakeReconcilerBuilder().WithFakeClientBuilder(fakeClientBuilder).Build().mhcRequestsFromNode(context.Background(), tc.node)
 			if !reflect.DeepEqual(requests, tc.expectedRequests) {
 				t.Errorf("Expected: %v, got: %v", tc.expectedRequests, requests)
 			}
@@ -2194,7 +2195,8 @@ func TestReconcileStatus(t *testing.T) {
 					Namespace: namespace,
 				},
 				TypeMeta: metav1.TypeMeta{
-					Kind: "MachineHealthCheck",
+					APIVersion: "machine.openshift.io/v1beta1",
+					Kind:       "MachineHealthCheck",
 				},
 				Spec: machinev1.MachineHealthCheckSpec{
 					Selector: metav1.LabelSelector{},
@@ -2213,7 +2215,8 @@ func TestReconcileStatus(t *testing.T) {
 					Namespace: namespace,
 				},
 				TypeMeta: metav1.TypeMeta{
-					Kind: "MachineHealthCheck",
+					APIVersion: "machine.openshift.io/v1beta1",
+					Kind:       "MachineHealthCheck",
 				},
 				Spec: machinev1.MachineHealthCheckSpec{
 					Selector:     metav1.LabelSelector{},
@@ -2233,7 +2236,8 @@ func TestReconcileStatus(t *testing.T) {
 					Namespace: namespace,
 				},
 				TypeMeta: metav1.TypeMeta{
-					Kind: "MachineHealthCheck",
+					APIVersion: "machine.openshift.io/v1beta1",
+					Kind:       "MachineHealthCheck",
 				},
 				Spec: machinev1.MachineHealthCheckSpec{
 					Selector:     metav1.LabelSelector{},
@@ -2333,7 +2337,8 @@ func TestHealthCheckTargets(t *testing.T) {
 							Namespace: namespace,
 						},
 						TypeMeta: metav1.TypeMeta{
-							Kind: "MachineHealthCheck",
+							APIVersion: "machine.openshift.io/v1beta1",
+							Kind:       "MachineHealthCheck",
 						},
 						Spec: machinev1.MachineHealthCheckSpec{
 							Selector: metav1.LabelSelector{
@@ -2399,7 +2404,8 @@ func TestHealthCheckTargets(t *testing.T) {
 							Namespace: namespace,
 						},
 						TypeMeta: metav1.TypeMeta{
-							Kind: "MachineHealthCheck",
+							APIVersion: "machine.openshift.io/v1beta1",
+							Kind:       "MachineHealthCheck",
 						},
 						Spec: machinev1.MachineHealthCheckSpec{
 							Selector: metav1.LabelSelector{
@@ -2469,7 +2475,8 @@ func TestHealthCheckTargets(t *testing.T) {
 							Namespace: namespace,
 						},
 						TypeMeta: metav1.TypeMeta{
-							Kind: "MachineHealthCheck",
+							APIVersion: "machine.openshift.io/v1beta1",
+							Kind:       "MachineHealthCheck",
 						},
 						Spec: machinev1.MachineHealthCheckSpec{
 							Selector: metav1.LabelSelector{
@@ -2522,7 +2529,8 @@ func TestHealthCheckTargets(t *testing.T) {
 							Namespace: namespace,
 						},
 						TypeMeta: metav1.TypeMeta{
-							Kind: "MachineHealthCheck",
+							APIVersion: "machine.openshift.io/v1beta1",
+							Kind:       "MachineHealthCheck",
 						},
 						Spec: machinev1.MachineHealthCheckSpec{
 							Selector: metav1.LabelSelector{
@@ -2548,7 +2556,7 @@ func TestHealthCheckTargets(t *testing.T) {
 				},
 				{
 					Machine: machinev1.Machine{
-						TypeMeta: metav1.TypeMeta{Kind: "Machine"},
+						TypeMeta: metav1.TypeMeta{APIVersion: "machine.openshift.io/v1beta1", Kind: "Machine"},
 						ObjectMeta: metav1.ObjectMeta{
 							Annotations:     make(map[string]string),
 							Name:            "machine",
@@ -2588,7 +2596,8 @@ func TestHealthCheckTargets(t *testing.T) {
 							Namespace: namespace,
 						},
 						TypeMeta: metav1.TypeMeta{
-							Kind: "MachineHealthCheck",
+							APIVersion: "machine.openshift.io/v1beta1",
+							Kind:       "MachineHealthCheck",
 						},
 						Spec: machinev1.MachineHealthCheckSpec{
 							Selector: metav1.LabelSelector{
@@ -3038,7 +3047,7 @@ type fakeReconcilerBuilder struct {
 
 func newFakeReconcilerBuilder() fakeReconcilerBuilder {
 	return fakeReconcilerBuilder{
-		fakeClientBuilder: fake.NewClientBuilder(),
+		fakeClientBuilder: fake.NewClientBuilder().WithStatusSubresource(&machinev1.MachineHealthCheck{}),
 		scheme:            scheme.Scheme,
 		namespace:         namespace,
 		recorder:          nil,
@@ -3067,10 +3076,9 @@ func (f fakeReconcilerBuilder) WithScheme(scheme *runtime.Scheme) fakeReconciler
 
 func (f fakeReconcilerBuilder) Build() *ReconcileMachineHealthCheck {
 	return &ReconcileMachineHealthCheck{
-		client:    f.fakeClientBuilder.Build(),
-		scheme:    f.scheme,
-		namespace: f.namespace,
-		recorder:  f.recorder,
+		client:   f.fakeClientBuilder.Build(),
+		scheme:   f.scheme,
+		recorder: f.recorder,
 	}
 }
 
@@ -3078,12 +3086,12 @@ func newFakeReconcilerWithCustomRecorder(recorder record.EventRecorder, initObje
 	fakeClient := fake.NewClientBuilder().
 		WithIndex(&machinev1.Machine{}, machineNodeNameIndex, indexMachineByNodeName).
 		WithRuntimeObjects(initObjects...).
+		WithStatusSubresource(&machinev1.MachineHealthCheck{}).
 		Build()
 	return &ReconcileMachineHealthCheck{
-		client:    fakeClient,
-		scheme:    scheme.Scheme,
-		namespace: namespace,
-		recorder:  recorder,
+		client:   fakeClient,
+		scheme:   scheme.Scheme,
+		recorder: recorder,
 	}
 }
 

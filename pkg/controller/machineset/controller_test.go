@@ -17,6 +17,7 @@ limitations under the License.
 package machineset
 
 import (
+	"context"
 	"reflect"
 	"testing"
 	"time"
@@ -38,7 +39,8 @@ var _ reconcile.Reconciler = &ReconcileMachineSet{}
 func TestMachineSetToMachines(t *testing.T) {
 	machineSetList := &machinev1.MachineSetList{
 		TypeMeta: metav1.TypeMeta{
-			Kind: "MachineSetList",
+			APIVersion: "machine.openshift.io/v1beta1",
+			Kind:       "MachineSetList",
 		},
 		Items: []machinev1.MachineSet{
 			{
@@ -60,7 +62,8 @@ func TestMachineSetToMachines(t *testing.T) {
 	controller := true
 	m := machinev1.Machine{
 		TypeMeta: metav1.TypeMeta{
-			Kind: "Machine",
+			APIVersion: "machine.openshift.io/v1beta1",
+			Kind:       "Machine",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "withOwnerRef",
@@ -79,7 +82,8 @@ func TestMachineSetToMachines(t *testing.T) {
 	}
 	m2 := machinev1.Machine{
 		TypeMeta: metav1.TypeMeta{
-			Kind: "Machine",
+			APIVersion: "machine.openshift.io/v1beta1",
+			Kind:       "Machine",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "noOwnerRefNoLabels",
@@ -91,7 +95,8 @@ func TestMachineSetToMachines(t *testing.T) {
 	}
 	m3 := machinev1.Machine{
 		TypeMeta: metav1.TypeMeta{
-			Kind: "Machine",
+			APIVersion: "machine.openshift.io/v1beta1",
+			Kind:       "Machine",
 		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "withMatchingLabels",
@@ -131,12 +136,12 @@ func TestMachineSetToMachines(t *testing.T) {
 	}
 
 	r := &ReconcileMachineSet{
-		Client: fake.NewClientBuilder().WithRuntimeObjects(&m, &m2, &m3, machineSetList).Build(),
+		Client: fake.NewClientBuilder().WithRuntimeObjects(&m, &m2, &m3, machineSetList).WithStatusSubresource(&machinev1.MachineSet{}).Build(),
 		scheme: scheme.Scheme,
 	}
 
 	for _, tc := range testsCases {
-		got := r.MachineToMachineSets(tc.object)
+		got := r.MachineToMachineSets(context.Background(), tc.object)
 		if !reflect.DeepEqual(got, tc.expected) {
 			t.Errorf("Case %s. Got: %v, expected: %v", tc.machine.Name, got, tc.expected)
 		}
@@ -293,6 +298,10 @@ var _ = Describe("MachineSet Reconcile", func() {
 			dt := metav1.Now()
 
 			ms := &machinev1.MachineSet{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "machine.openshift.io/v1beta1",
+					Kind:       "MachineSet",
+				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:              "machineset1",
 					Namespace:         "default",
@@ -302,7 +311,7 @@ var _ = Describe("MachineSet Reconcile", func() {
 					Template: machinev1.MachineTemplateSpec{},
 				}}
 
-			r.Client = fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(ms).Build()
+			r.Client = fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(ms).WithStatusSubresource(&machinev1.MachineSet{}).Build()
 		})
 
 		It("returns an empty result", func() {
@@ -318,6 +327,10 @@ var _ = Describe("MachineSet Reconcile", func() {
 		BeforeEach(func() {
 			var replicas int32
 			ms := &machinev1.MachineSet{
+				TypeMeta: metav1.TypeMeta{
+					APIVersion: "machine.openshift.io/v1beta1",
+					Kind:       "MachineSet",
+				},
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "machineset1",
 					Namespace: "default",
@@ -331,7 +344,7 @@ var _ = Describe("MachineSet Reconcile", func() {
 				"--$-invalid": "true",
 			}
 
-			r.Client = fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(ms).Build()
+			r.Client = fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(ms).WithStatusSubresource(&machinev1.MachineSet{}).Build()
 		})
 
 		It("did something with events", func() {

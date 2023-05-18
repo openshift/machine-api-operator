@@ -7,8 +7,8 @@ import (
 )
 
 const (
-	defaultHttpPort  = ":80"
-	defaultHttpsPort = ":443"
+	defaultHTTPPort  = ":80"
+	defaultHTTPSPort = ":443"
 )
 
 // Regular expressions used by the normalizations
@@ -49,7 +49,7 @@ func removeDefaultPort(u *url.URL) {
 	if len(u.Host) > 0 {
 		scheme := strings.ToLower(u.Scheme)
 		u.Host = rxPort.ReplaceAllStringFunc(u.Host, func(val string) string {
-			if (scheme == "http" && val == defaultHttpPort) || (scheme == "https" && val == defaultHttpsPort) {
+			if (scheme == "http" && val == defaultHTTPPort) || (scheme == "https" && val == defaultHTTPSPort) {
 				return ""
 			}
 			return val

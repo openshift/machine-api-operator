@@ -104,8 +104,8 @@ func main() {
 	}
 
 	if *watchNamespace != "" {
-		opts.Namespace = *watchNamespace
-		klog.Infof("Watching machine-api objects only in namespace %q for reconciliation.", opts.Namespace)
+		opts.Cache.Namespaces = []string{*watchNamespace}
+		klog.Infof("Watching machine-api objects only in namespace %q for reconciliation.", *watchNamespace)
 	}
 
 	// Setup a Manager

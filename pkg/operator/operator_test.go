@@ -194,7 +194,7 @@ func TestOperatorSync_NoOp(t *testing.T) {
 			optr.queue.Add("trigger")
 			go optr.Run(1, stopCh)
 
-			err = wait.PollImmediate(1*time.Second, 5*time.Second, func() (bool, error) {
+			err = wait.PollUntilContextTimeout(context.Background(), 1*time.Second, 5*time.Second, true, func(_ context.Context) (bool, error) {
 				_, err := optr.deployLister.Deployments(targetNamespace).Get(deploymentName)
 				if err != nil {
 					t.Logf("Failed to get %q deployment: %v", deploymentName, err)

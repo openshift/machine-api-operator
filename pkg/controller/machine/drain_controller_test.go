@@ -63,7 +63,7 @@ func TestDrainControllerReconcileRequest(t *testing.T) {
 	getDrainControllerReconciler := func(fakeObjs ...runtime.Object) (*machineDrainController, *record.FakeRecorder) {
 		recorder := record.NewFakeRecorder(10)
 		return &machineDrainController{
-			Client:        fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(fakeObjs...).Build(),
+			Client:        fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(fakeObjs...).WithStatusSubresource(&machinev1.Machine{}).Build(),
 			scheme:        scheme.Scheme,
 			eventRecorder: recorder,
 		}, recorder

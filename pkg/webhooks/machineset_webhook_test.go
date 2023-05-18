@@ -2,6 +2,7 @@ package webhooks
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -552,7 +553,11 @@ func TestMachineSetCreation(t *testing.T) {
 
 			if tc.expectedError != "" {
 				gs.Expect(err).ToNot(BeNil())
-				gs.Expect(apierrors.ReasonForError(err)).To(BeEquivalentTo(tc.expectedError))
+
+				statusError := &apierrors.StatusError{}
+				gs.Expect(errors.As(err, &statusError)).To(BeTrue())
+
+				gs.Expect(statusError.Status().Message).To(ContainSubstring(tc.expectedError))
 			} else {
 				gs.Expect(err).To(BeNil())
 			}
@@ -1244,7 +1249,11 @@ func TestMachineSetUpdate(t *testing.T) {
 			err = c.Update(ctx, ms)
 			if tc.expectedError != "" {
 				gs.Expect(err).ToNot(BeNil())
-				gs.Expect(apierrors.ReasonForError(err)).To(BeEquivalentTo(tc.expectedError))
+
+				statusError := &apierrors.StatusError{}
+				gs.Expect(errors.As(err, &statusError)).To(BeTrue())
+
+				gs.Expect(statusError.Status().Message).To(ContainSubstring(tc.expectedError))
 			} else {
 				gs.Expect(err).To(BeNil())
 			}

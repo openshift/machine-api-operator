@@ -100,10 +100,9 @@ func newReconciler(mgr manager.Manager, opts manager.Options) (*ReconcileMachine
 	}
 
 	return &ReconcileMachineHealthCheck{
-		client:    mgr.GetClient(),
-		scheme:    mgr.GetScheme(),
-		namespace: opts.Namespace,
-		recorder:  mgr.GetEventRecorderFor(controllerName),
+		client:   mgr.GetClient(),
+		scheme:   mgr.GetScheme(),
+		recorder: mgr.GetEventRecorderFor(controllerName),
 	}, nil
 }
 
@@ -128,17 +127,17 @@ func add(mgr manager.Manager, r reconcile.Reconciler, mapMachineToMHC, mapNodeTo
 		return err
 	}
 
-	err = c.Watch(&source.Kind{Type: &machinev1.MachineHealthCheck{}}, &handler.EnqueueRequestForObject{})
+	err = c.Watch(source.Kind(mgr.GetCache(), &machinev1.MachineHealthCheck{}), &handler.EnqueueRequestForObject{})
 	if err != nil {
 		return err
 	}
 
-	err = c.Watch(&source.Kind{Type: &machinev1.Machine{}}, handler.EnqueueRequestsFromMapFunc(mapMachineToMHC))
+	err = c.Watch(source.Kind(mgr.GetCache(), &machinev1.Machine{}), handler.EnqueueRequestsFromMapFunc(mapMachineToMHC))
 	if err != nil {
 		return err
 	}
 
-	return c.Watch(&source.Kind{Type: &corev1.Node{}}, handler.EnqueueRequestsFromMapFunc(mapNodeToMHC))
+	return c.Watch(source.Kind(mgr.GetCache(), &corev1.Node{}), handler.EnqueueRequestsFromMapFunc(mapNodeToMHC))
 }
 
 var _ reconcile.Reconciler = &ReconcileMachineHealthCheck{}
@@ -147,10 +146,9 @@ var _ reconcile.Reconciler = &ReconcileMachineHealthCheck{}
 type ReconcileMachineHealthCheck struct {
 	// This client, initialized using mgr.Client() above, is a split client
 	// that reads objects from the cache and writes to the apiserver
-	client    client.Client
-	scheme    *runtime.Scheme
-	namespace string
-	recorder  record.EventRecorder
+	client   client.Client
+	scheme   *runtime.Scheme
+	recorder record.EventRecorder
 }
 
 type target struct {
@@ -563,10 +561,10 @@ func (r *ReconcileMachineHealthCheck) getMachineFromNode(nodeName string) (*mach
 	return &machineList.Items[0], nil
 }
 
-func (r *ReconcileMachineHealthCheck) mhcRequestsFromNode(o client.Object) []reconcile.Request {
+func (r *ReconcileMachineHealthCheck) mhcRequestsFromNode(ctx context.Context, o client.Object) []reconcile.Request {
 	klog.V(4).Infof("Getting MHC requests from node %q", namespacedName(o).String())
 	node := &corev1.Node{}
-	if err := r.client.Get(context.Background(), namespacedName(o), node); err != nil {
+	if err := r.client.Get(ctx, namespacedName(o), node); err != nil {
 		if apimachineryerrors.IsNotFound(err) {
 			node.Name = o.GetName()
 		} else {
@@ -582,7 +580,7 @@ func (r *ReconcileMachineHealthCheck) mhcRequestsFromNode(o client.Object) []rec
 	}
 
 	mhcList := &machinev1.MachineHealthCheckList{}
-	if err := r.client.List(context.Background(), mhcList); err != nil {
+	if err := r.client.List(ctx, mhcList); err != nil {
 		klog.Errorf("No-op: Unable to list mhc: %v", err)
 		return nil
 	}
@@ -597,10 +595,10 @@ func (r *ReconcileMachineHealthCheck) mhcRequestsFromNode(o client.Object) []rec
 	return requests
 }
 
-func (r *ReconcileMachineHealthCheck) mhcRequestsFromMachine(o client.Object) []reconcile.Request {
+func (r *ReconcileMachineHealthCheck) mhcRequestsFromMachine(ctx context.Context, o client.Object) []reconcile.Request {
 	klog.V(4).Infof("Getting MHC requests from machine %q", namespacedName(o).String())
 	machine := &machinev1.Machine{}
-	if err := r.client.Get(context.Background(),
+	if err := r.client.Get(ctx,
 		client.ObjectKey{
 			Namespace: o.GetNamespace(),
 			Name:      o.GetName(),
@@ -612,7 +610,7 @@ func (r *ReconcileMachineHealthCheck) mhcRequestsFromMachine(o client.Object) []
 	}
 
 	mhcList := &machinev1.MachineHealthCheckList{}
-	if err := r.client.List(context.Background(), mhcList); err != nil {
+	if err := r.client.List(ctx, mhcList); err != nil {
 		klog.Errorf("No-op: Unable to list mhc: %v", err)
 		return nil
 	}
