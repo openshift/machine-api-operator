@@ -5,10 +5,19 @@ set -euo pipefail
 # map names of CRD files between the vendored openshift/api repository and the ./install directory
 CRDS_MAPPING=( "v1beta1/0000_10_machine.crd.yaml:0000_30_machine-api-operator_02_machine.crd.yaml"
                "v1beta1/0000_10_machineset.crd.yaml:0000_30_machine-api-operator_03_machineset.crd.yaml"
-               "v1beta1/0000_10_machinehealthcheck.yaml:0000_30_machine-api-operator_07_machinehealthcheck.crd.yaml")
+               "v1beta1/0000_10_machinehealthcheck.yaml:0000_30_machine-api-operator_07_machinehealthcheck.crd.yaml" )
 
 for crd in "${CRDS_MAPPING[@]}" ; do
     SRC="${crd%%:*}"
     DES="${crd##*:}"
     cp "vendor/github.com/openshift/api/machine/$SRC" "install/$DES"
+done
+
+CAPI_CRD_MAPPING=( "ipam.cluster.x-k8s.io_ipaddresses.yaml:0000_30_ipam.cluster.x-k8s.io_10_ipaddresses.yaml"\
+                   "ipam.cluster.x-k8s.io_ipaddressclaims.yaml:0000_30_ipam.cluster.x-k8s.io_10_ipaddressclaims.yaml" )
+
+for crd in "${CAPI_CRD_MAPPING[@]}" ; do
+    SRC="${crd%%:*}"
+    DES="${crd##*:}"
+    cp "tools/capi-crds/$SRC" "install/$DES"
 done
