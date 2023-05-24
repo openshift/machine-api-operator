@@ -245,6 +245,7 @@ func TestReconcile(t *testing.T) {
 	}
 	machineAlreadyDeleted := maotesting.NewMachine("machineAlreadyDeleted", nodeAlreadyDeleted.Name)
 	machineAlreadyDeleted.SetDeletionTimestamp(&metav1.Time{Time: time.Now()})
+	machineAlreadyDeleted.SetFinalizers([]string{machinev1.MachineFinalizer, metav1.FinalizerDeleteDependents})
 
 	machineHealthyWithExtRemediationAnnotation := maotesting.NewMachine("machineHealthyWithExtRemAnn", nodeHealthy.Name)
 	machineHealthyWithExtRemediationAnnotation.Annotations[machineExternalAnnotationKey] = ""
