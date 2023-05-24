@@ -200,6 +200,7 @@ func TestShouldExcludeMachine(t *testing.T) {
 					Name:              "withDeletionTimestamp",
 					Namespace:         "test",
 					DeletionTimestamp: &metav1.Time{Time: time.Now()},
+					Finalizers:        []string{machinev1.MachineFinalizer, metav1.FinalizerDeleteDependents},
 					Labels: map[string]string{
 						"foo": "bar",
 					},
@@ -306,6 +307,7 @@ var _ = Describe("MachineSet Reconcile", func() {
 					Name:              "machineset1",
 					Namespace:         "default",
 					DeletionTimestamp: &dt,
+					Finalizers:        []string{machinev1.MachineFinalizer, metav1.FinalizerDeleteDependents},
 				},
 				Spec: machinev1.MachineSetSpec{
 					Template: machinev1.MachineTemplateSpec{},
