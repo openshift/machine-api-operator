@@ -15,6 +15,7 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/metrics"
 	"github.com/openshift/machine-api-operator/pkg/util"
 	"github.com/openshift/machine-api-operator/pkg/version"
+	ipamv1alpha1 "github.com/openshift/machine-api-operator/third_party/cluster-api/exp/ipam/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/klogr"
@@ -135,6 +136,10 @@ func main() {
 	}
 
 	if err := machinev1.Install(mgr.GetScheme()); err != nil {
+		klog.Fatal(err)
+	}
+
+	if err := ipamv1alpha1.AddToScheme(mgr.GetScheme()); err != nil {
 		klog.Fatal(err)
 	}
 
