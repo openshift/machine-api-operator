@@ -129,6 +129,12 @@ goimports: ## Go fmt your code
 vet: ## Apply go vet to all go files
 	$(DOCKER_CMD) hack/go-vet.sh ./pkg/... ./cmd/...
 
+.PHONY: generate-third-party-deepcopy
+generate-third-party-deepcopy: $(CONTROLLER_GEN)
+	$(CONTROLLER_GEN) object  paths="./third_party/cluster-api/..."
+	$(CONTROLLER_GEN) crd paths="./third_party/cluster-api/..." output\:crd\:artifacts\:config=./third_party/cluster-api/crd
+
+
 .PHONY: crds-sync
 crds-sync: ## Sync crds in install with the ones in the vendored oc/api
 	$(DOCKER_CMD) hack/crds-sync.sh .

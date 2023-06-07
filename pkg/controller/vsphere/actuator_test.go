@@ -11,6 +11,7 @@ import (
 	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
+	ipamv1alpha1 "github.com/openshift/machine-api-operator/third_party/cluster-api/exp/ipam/api/v1alpha1"
 	"github.com/vmware/govmomi/simulator"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -29,6 +30,10 @@ func init() {
 	}
 
 	if err := configv1.Install(scheme.Scheme); err != nil {
+		panic(err)
+	}
+
+	if err := ipamv1alpha1.AddToScheme(scheme.Scheme); err != nil {
 		panic(err)
 	}
 }
@@ -56,7 +61,8 @@ func TestMachineEvents(t *testing.T) {
 	testEnv := &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join("..", "..", "..", "install"),
-			filepath.Join("..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1")},
+			filepath.Join("..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1"),
+			filepath.Join("..", "..", "..", "third_party", "cluster-api", "crd")},
 	}
 
 	// Setup k8s test environment
