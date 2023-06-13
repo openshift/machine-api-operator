@@ -3,6 +3,7 @@ package operator
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -700,6 +701,9 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 						FieldPath: "spec.nodeName",
 					},
 				},
+			}, corev1.EnvVar{
+				Name:  "RELEASE_VERSION",
+				Value: os.Getenv("RELEASE_VERSION"),
 			}),
 			Ports: []corev1.ContainerPort{
 				{
