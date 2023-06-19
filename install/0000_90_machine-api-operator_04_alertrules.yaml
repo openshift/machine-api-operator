@@ -60,7 +60,7 @@ spec:
              mapi_mao_collector_up == 0
           for: 5m
           labels:
-            severity: critical
+            severity: warning
           annotations:
             summary: "machine api operator metrics collection is failing."
             description: "For more details:  oc logs <machine-api-operator-pod-name> -n openshift-machine-api"
