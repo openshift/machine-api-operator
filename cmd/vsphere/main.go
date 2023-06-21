@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -8,7 +9,11 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
+	configv1client "github.com/openshift/client-go/config/clientset/versioned"
+	configinformers "github.com/openshift/client-go/config/informers/externalversions"
 	"github.com/openshift/library-go/pkg/config/leaderelection"
+	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
+	"github.com/openshift/library-go/pkg/operator/events"
 	capimachine "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	machine "github.com/openshift/machine-api-operator/pkg/controller/vsphere"
 	machinesetcontroller "github.com/openshift/machine-api-operator/pkg/controller/vsphere/machineset"
@@ -119,12 +124,48 @@ func main() {
 	// network error or stale cache.
 	taskIDCache := make(map[string]string)
 
+	desiredVersion := getReleaseVersion()
+	missingVersion := "0.0.1-snapshot"
+
+	configClient, err := configv1client.NewForConfig(mgr.GetConfig())
+	if err != nil {
+		klog.Fatal(err, "unable to create config client")
+		os.Exit(1)
+	}
+	configInformers := configinformers.NewSharedInformerFactory(configClient, 10*time.Minute)
+
+	// By default, this will exit(0) if the featuregates change
+	featureGateAccessor := featuregates.NewFeatureGateAccess(
+		desiredVersion, missingVersion,
+		configInformers.Config().V1().ClusterVersions(),
+		configInformers.Config().V1().FeatureGates(),
+		events.NewLoggingEventRecorder("vspherecontroller"),
+	)
+	go featureGateAccessor.Run(context.Background())
+	go configInformers.Start(context.Background().Done())
+
+	select {
+	case <-featureGateAccessor.InitialFeatureGatesObserved():
+		featureGates, _ := featureGateAccessor.CurrentFeatureGates()
+		klog.Infof("FeatureGates initialized: %v", featureGates.KnownFeatures())
+	case <-time.After(1 * time.Minute):
+		klog.Fatal("timed out waiting for FeatureGate detection")
+	}
+
+	featureGates, err := featureGateAccessor.CurrentFeatureGates()
+	if err != nil {
+		klog.Fatalf("unable to retrieve current feature gates: %w", err)
+	}
+	// read featuregate read and usage to set a variable to pass to a controller
+	staticIPFeatureGateEnabled := featureGates.Enabled(configv1.FeatureGateVSphereStaticIPs)
+
 	// Initialize machine actuator.
 	machineActuator := machine.NewActuator(machine.ActuatorParams{
-		Client:        mgr.GetClient(),
-		APIReader:     mgr.GetAPIReader(),
-		EventRecorder: mgr.GetEventRecorderFor("vspherecontroller"),
-		TaskIDCache:   taskIDCache,
+		Client:                     mgr.GetClient(),
+		APIReader:                  mgr.GetAPIReader(),
+		EventRecorder:              mgr.GetEventRecorderFor("vspherecontroller"),
+		TaskIDCache:                taskIDCache,
+		StaticIPFeatureGateEnabled: staticIPFeatureGateEnabled,
 	})
 
 	if err := configv1.Install(mgr.GetScheme()); err != nil {
@@ -140,7 +181,7 @@ func main() {
 	}
 
 	if err := ipamv1alpha1.AddToScheme(mgr.GetScheme()); err != nil {
-		klog.Fatal(err)
+		klog.Fatalf("unable to add ipamv1alpha1 to scheme: %w", err)
 	}
 
 	if err := capimachine.AddWithActuator(mgr, machineActuator); err != nil {
@@ -168,4 +209,12 @@ func main() {
 	if err = mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		klog.Fatalf("Failed to run manager: %v", err)
 	}
+}
+
+func getReleaseVersion() string {
+	releaseVersion := os.Getenv("RELEASE_VERSION")
+	if len(releaseVersion) == 0 {
+		return "0.0.1-snapshot"
+	}
+	return releaseVersion
 }
