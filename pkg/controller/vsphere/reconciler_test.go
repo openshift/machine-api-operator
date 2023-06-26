@@ -22,6 +22,7 @@ import (
 	"net"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -46,6 +47,7 @@ import (
 
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
+	ipamv1alpha1 "github.com/openshift/machine-api-operator/third_party/cluster-api/exp/ipam/api/v1alpha1"
 
 	_ "github.com/vmware/govmomi/vapi/simulator"
 )
@@ -793,6 +795,14 @@ func TestTaskIsFinished(t *testing.T) {
 	}
 }
 
+func TestStaticIPs(t *testing.T) {
+	model, session, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	testStaticIPsWithSimulator(t, model, server, session)
+}
+
 func TestGetNetworkDevicesSingleDatacenter(t *testing.T) {
 	model, session, server := initSimulator(t)
 	defer model.Remove()
@@ -814,6 +824,171 @@ func TestGetNetworkDevicesMultiDatacenter(t *testing.T) {
 	defer server.Close()
 
 	testGetNetworkDevicesWithSimulator(t, model, server, session)
+}
+
+func testStaticIPsWithSimulator(t *testing.T, model *simulator.Model, server *simulator.Server, session *session.Session) {
+	ipv4Static := []machinev1.NetworkDeviceSpec{
+		{
+			Gateway:     "192.168.1.1",
+			IPAddrs:     []string{"192.168.1.2/24"},
+			Nameservers: []string{"192.168.1.100"},
+		},
+	}
+	ipv6Static := []machinev1.NetworkDeviceSpec{
+		{
+			Gateway:     "2001::1",
+			IPAddrs:     []string{"2001::2/64"},
+			Nameservers: []string{"2001::100"},
+		},
+	}
+	dualStackStatic := []machinev1.NetworkDeviceSpec{
+		{
+			Gateway:     "192.168.1.1",
+			IPAddrs:     []string{"192.168.1.2/24", "2001::2/64"},
+			Nameservers: []string{"192.168.1.100"},
+		},
+	}
+
+	poolGroup := "ipam.test.io"
+	addressClaim := []machinev1.NetworkDeviceSpec{
+		{
+			AddressesFromPools: []machinev1.AddressesFromPool{
+				{
+					Name:     "test-pool",
+					Group:    poolGroup,
+					Resource: "ippools",
+				},
+			},
+			Nameservers: []string{
+				"192.168.1.100",
+			},
+		},
+	}
+	addressClaimAndIpPool := []machinev1.NetworkDeviceSpec{
+		{
+			AddressesFromPools: []machinev1.AddressesFromPool{
+				{
+					Name:     "test-pool",
+					Group:    poolGroup,
+					Resource: "ippools",
+				},
+			},
+			Gateway:     "192.168.1.1",
+			IPAddrs:     []string{"192.168.1.2/24"},
+			Nameservers: []string{"192.168.1.100"},
+		},
+	}
+
+	ipAddressClaim := ipamv1alpha1.IPAddressClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-claim-0-0",
+			Namespace: "openshift-machine-api",
+		},
+		Spec: ipamv1alpha1.IPAddressClaimSpec{
+			PoolRef: corev1.TypedLocalObjectReference{
+				Name:     "test-pool",
+				APIGroup: &poolGroup,
+				Kind:     "ippools",
+			},
+		},
+		Status: ipamv1alpha1.IPAddressClaimStatus{
+			AddressRef: corev1.LocalObjectReference{
+				Name: "test-test-0",
+			},
+		},
+	}
+
+	ipAddress := ipamv1alpha1.IPAddress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-test-0",
+			Namespace: "openshift-machine-api",
+		},
+		Spec: ipamv1alpha1.IPAddressSpec{
+			ClaimRef: corev1.LocalObjectReference{
+				Name: "test-test-0",
+			},
+			PoolRef: corev1.TypedLocalObjectReference{
+				Name: "test-pool",
+			},
+			Address: "192.168.1.11",
+			Prefix:  24,
+			Gateway: "192.168.1.1",
+		},
+	}
+	testCases := []struct {
+		testCase    string
+		networkSpec []machinev1.NetworkDeviceSpec
+		expected    string
+		err         string
+	}{
+		{
+			testCase:    "Valid IPv4 Static IP",
+			networkSpec: ipv4Static,
+			expected:    "ip=192.168.1.2::192.168.1.1:255.255.255.0:::none nameserver=192.168.1.100",
+		},
+		{
+			testCase:    "Valid IPv6 Static IP",
+			networkSpec: ipv6Static,
+			expected:    "ip=[2001::2]::[2001::1]:64:::none nameserver=[2001::100]",
+		},
+		{
+			testCase:    "Valid dual stack",
+			networkSpec: dualStackStatic,
+			expected:    "ip=192.168.1.2::192.168.1.1:255.255.255.0:::none ip=[2001::2]:::64:::none nameserver=192.168.1.100",
+		},
+		{
+			testCase:    "IPAM Allocated address",
+			networkSpec: addressClaim,
+			expected:    "ip=192.168.1.11::192.168.1.1:255.255.255.0:::none nameserver=192.168.1.100",
+		},
+		{
+			testCase:    "IPAM Allocated address and ipAddrs",
+			networkSpec: addressClaimAndIpPool,
+			expected:    "ip=192.168.1.2::192.168.1.1:255.255.255.0:::none ip=192.168.1.11::192.168.1.1:255.255.255.0:::none nameserver=192.168.1.100",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.testCase, func(t *testing.T) {
+			client := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(
+				&ipAddressClaim,
+				&ipAddress,
+			).Build()
+
+			machineScope := machineScope{
+				Context: context.Background(),
+				machine: &machinev1.Machine{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: "openshift-machine-api",
+					},
+				},
+				providerSpec: &machinev1.VSphereMachineProviderSpec{
+					Network: machinev1.NetworkSpec{
+						Devices: tc.networkSpec,
+					},
+				},
+				session:   session,
+				apiReader: client,
+				client:    client,
+			}
+
+			kargs, err := constructKargsFromNetworkConfig(&machineScope)
+			if err != nil {
+				if len(tc.err) > 0 {
+					if tc.err != err.Error() {
+						t.Errorf("error %s did not match expected %s", err.Error(), tc.err)
+					}
+				} else {
+					t.Error(err)
+				}
+			} else {
+				if strings.TrimSpace(kargs) != tc.expected {
+					t.Errorf("kargs %s did not match expected %s", kargs, tc.expected)
+				}
+			}
+		})
+	}
 }
 
 func testGetNetworkDevicesWithSimulator(t *testing.T, model *simulator.Model, server *simulator.Server, session *session.Session) {
@@ -1504,12 +1679,12 @@ func TestConvertUUIDToProviderID(t *testing.T) {
 
 func TestDelete(t *testing.T) {
 	type vCenterSimConfig struct {
-		infra     *configv1.Infrastructure
-		secret    *corev1.Secret
-		configMap *corev1.ConfigMap
-
-		host string
-		port string
+		infra       *configv1.Infrastructure
+		secret      *corev1.Secret
+		configMap   *corev1.ConfigMap
+		featureGate *configv1.FeatureGate
+		host        string
+		port        string
 
 		username string
 		pwd      string
@@ -1575,15 +1750,22 @@ func TestDelete(t *testing.T) {
 			},
 		}
 
+		featureGate := &configv1.FeatureGate{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "cluster",
+			},
+		}
+
 		return &vCenterSimConfig{
-			infra:     infra,
-			secret:    secret,
-			configMap: configMap,
-			host:      host,
-			port:      port,
-			username:  server.URL.User.Username(),
-			pwd:       password,
-			simServer: server,
+			infra:       infra,
+			secret:      secret,
+			configMap:   configMap,
+			host:        host,
+			port:        port,
+			username:    server.URL.User.Username(),
+			pwd:         password,
+			simServer:   server,
+			featureGate: featureGate,
 		}, nil
 	}
 
@@ -1698,6 +1880,14 @@ func TestDelete(t *testing.T) {
 				return &corev1.Node{}
 			},
 		},
+	}
+
+	if err := machinev1.AddToScheme(scheme.Scheme); err != nil {
+		t.Fatalf("cannot add scheme: %v", err)
+	}
+
+	if err := ipamv1alpha1.AddToScheme(scheme.Scheme); err != nil {
+		t.Fatalf("cannot add scheme: %v", err)
 	}
 
 	for _, tc := range testCases {
@@ -2078,12 +2268,75 @@ func TestCreate(t *testing.T) {
 		},
 	}
 
+	poolGroup := "ipam.test.io"
+	staticIpAddressClaim := []machinev1.NetworkDeviceSpec{
+		{
+			AddressesFromPools: []machinev1.AddressesFromPool{
+				{
+					Name:     "test-pool",
+					Group:    poolGroup,
+					Resource: "ippools",
+				},
+			},
+			Nameservers: []string{
+				"192.168.1.100",
+			},
+			NetworkName: "VM Network",
+		},
+	}
+	staticIpAddresses := []machinev1.NetworkDeviceSpec{
+		{
+			Gateway:     "192.168.1.1",
+			IPAddrs:     []string{"192.168.1.2/24"},
+			Nameservers: []string{"192.168.1.100"},
+			NetworkName: "VM Network",
+		},
+	}
+
+	ipAddressClaim := &ipamv1alpha1.IPAddressClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-claim-0-0",
+			Namespace: namespace,
+		},
+		Spec: ipamv1alpha1.IPAddressClaimSpec{
+			PoolRef: corev1.TypedLocalObjectReference{
+				Name:     "test-pool",
+				APIGroup: &poolGroup,
+				Kind:     "ippools",
+			},
+		},
+		Status: ipamv1alpha1.IPAddressClaimStatus{
+			AddressRef: corev1.LocalObjectReference{
+				Name: "test-test-0",
+			},
+		},
+	}
+
+	ipAddress := &ipamv1alpha1.IPAddress{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-test-0",
+			Namespace: namespace,
+		},
+		Spec: ipamv1alpha1.IPAddressSpec{
+			ClaimRef: corev1.LocalObjectReference{
+				Name: "test-test-0",
+			},
+			PoolRef: corev1.TypedLocalObjectReference{
+				Name: "test-pool",
+			},
+			Address: "192.168.1.11",
+			Prefix:  24,
+			Gateway: "192.168.1.1",
+		},
+	}
+
 	cases := []struct {
-		name                  string
-		expectedError         error
-		providerSpec          machinev1.VSphereMachineProviderSpec
-		labels                map[string]string
-		notConnectedToVCenter bool
+		name                       string
+		expectedError              error
+		providerSpec               machinev1.VSphereMachineProviderSpec
+		labels                     map[string]string
+		notConnectedToVCenter      bool
+		staticIPFeatureGateEnabled bool
 	}{
 		{
 			name: "Successfully create machine",
@@ -2100,6 +2353,66 @@ func TestCreate(t *testing.T) {
 					Name: userDataSecretName,
 				},
 			},
+		},
+		{
+			name: "Fail to create machine with static IP when tech preview not enabled",
+			providerSpec: machinev1.VSphereMachineProviderSpec{
+				Template: vmName,
+				Workspace: &machinev1.Workspace{
+					Server: host,
+				},
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: "test",
+				},
+				DiskGiB: 10,
+				UserDataSecret: &corev1.LocalObjectReference{
+					Name: userDataSecretName,
+				},
+				Network: machinev1.NetworkSpec{
+					Devices: staticIpAddressClaim,
+				},
+			},
+			expectedError: errors.New("test: static IP/IPAM configuration is only available with the VSphereStaticIPs feature gate"),
+		},
+		{
+			name: "Successfully create machine with static IP address claims when tech preview enabled",
+			providerSpec: machinev1.VSphereMachineProviderSpec{
+				Template: vmName,
+				Workspace: &machinev1.Workspace{
+					Server: host,
+				},
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: "test",
+				},
+				DiskGiB: 10,
+				UserDataSecret: &corev1.LocalObjectReference{
+					Name: userDataSecretName,
+				},
+				Network: machinev1.NetworkSpec{
+					Devices: staticIpAddressClaim,
+				},
+			},
+			staticIPFeatureGateEnabled: true,
+		},
+		{
+			name: "Successfully create machine with static IP addresses when tech preview enabled",
+			providerSpec: machinev1.VSphereMachineProviderSpec{
+				Template: vmName,
+				Workspace: &machinev1.Workspace{
+					Server: host,
+				},
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: "test",
+				},
+				DiskGiB: 10,
+				UserDataSecret: &corev1.LocalObjectReference{
+					Name: userDataSecretName,
+				},
+				Network: machinev1.NetworkSpec{
+					Devices: staticIpAddresses,
+				},
+			},
+			staticIPFeatureGateEnabled: true,
 		},
 		{
 			name: "Fail on invalid missing machine label",
@@ -2147,33 +2460,40 @@ func TestCreate(t *testing.T) {
 				session.Client.ServiceContent.About.ApiType = ""
 			}
 
-			client := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(
-				credentialsSecret,
-				configMap,
-				infra,
-				userDataSecret).Build()
-
 			rawProviderSpec, err := RawExtensionFromProviderSpec(&tc.providerSpec)
 			if err != nil {
 				t.Fatal(err)
 			}
 
-			machineScope, err := newMachineScope(machineScopeParams{
-				client:  client,
-				Context: context.Background(),
-				machine: &machinev1.Machine{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test",
-						Namespace: "test",
-						Labels:    labels,
-					},
-					Spec: machinev1.MachineSpec{
-						ProviderSpec: machinev1.ProviderSpec{
-							Value: rawProviderSpec,
-						},
+			machine := &machinev1.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: namespace,
+					Labels:    labels,
+				},
+				Spec: machinev1.MachineSpec{
+					ProviderSpec: machinev1.ProviderSpec{
+						Value: rawProviderSpec,
 					},
 				},
-				apiReader: client,
+				Status: machinev1.MachineStatus{},
+			}
+
+			client := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(
+				credentialsSecret,
+				configMap,
+				infra,
+				userDataSecret,
+				ipAddressClaim,
+				ipAddress,
+				machine).Build()
+
+			machineScope, err := newMachineScope(machineScopeParams{
+				client:                     client,
+				Context:                    context.Background(),
+				machine:                    machine,
+				apiReader:                  client,
+				StaticIPFeatureGateEnabled: tc.staticIPFeatureGateEnabled,
 			})
 			if err != nil {
 				t.Fatal(err)
