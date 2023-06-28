@@ -6,6 +6,7 @@ metadata:
   labels:
     k8s-app: machine-api-operator
   annotations:
+    capability.openshift.io/name: MachineAPI
     exclude.release.openshift.io/internal-openshift-hosted: "true"
     include.release.openshift.io/self-managed-high-availability: "true"
     include.release.openshift.io/single-node-developer: "true"
@@ -17,6 +18,7 @@ spec:
   template:
     metadata:
       annotations:
+        capability.openshift.io/name: MachineAPI
         target.workload.openshift.io/management: '{"effect": "PreferredDuringScheduling"}'
         kubectl.kubernetes.io/default-container: machine-api-operator
       labels:
