@@ -271,4 +271,14 @@ var (
 		ResponsiblePerson:   "rvanderp3",
 		OwningProduct:       ocpSpecific,
 	}
+
+	FeatureGateRouteExternalCertificate = FeatureGateName("RouteExternalCertificate")
+	routeExternalCertificate            = FeatureGateDescription{
+		FeatureGateAttributes: FeatureGateAttributes{
+			Name: FeatureGateRouteExternalCertificate,
+		},
+		OwningJiraComponent: "router",
+		ResponsiblePerson:   "thejasn",
+		OwningProduct:       ocpSpecific,
+	}
 )

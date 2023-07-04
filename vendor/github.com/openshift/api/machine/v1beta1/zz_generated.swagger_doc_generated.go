@@ -30,6 +30,7 @@ var map_AWSMachineProviderConfig = map[string]string{
 	"blockDevices":           "BlockDevices is the set of block device mapping associated to this instance, block device without a name will be used as a root device and only one device without a name is allowed https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/block-device-mapping-concepts.html",
 	"spotMarketOptions":      "SpotMarketOptions allows users to configure instances to be run using AWS Spot instances.",
 	"metadataServiceOptions": "MetadataServiceOptions allows users to configure instance metadata service interaction options. If nothing specified, default AWS IMDS settings will be applied. https://docs.aws.amazon.com/AWSEC2/latest/APIReference/API_InstanceMetadataOptionsRequest.html",
+	"placementGroupName":     "PlacementGroupName specifies the name of the placement group in which to launch the instance. The placement group must already be created and may use any placement strategy. When omitted, no placement group is used when creating the EC2 instance.",
 }
 
 func (AWSMachineProviderConfig) SwaggerDoc() map[string]string {
