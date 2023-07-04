@@ -185,6 +185,7 @@ var FeatureSets = map[FeatureSet]*FeatureGateEnabledDisabled{
 		with(sigstoreImageVerification).
 		with(gcpLabelsTags).
 		with(vSphereStaticIPs).
+		with(routeExternalCertificate).
 		toFeatures(defaultFeatures),
 	LatencySensitive: newDefaultFeatures().
 		toFeatures(defaultFeatures),
