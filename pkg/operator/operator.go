@@ -13,8 +13,8 @@ import (
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 	machineclientset "github.com/openshift/client-go/machine/clientset/versioned"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
+	"github.com/openshift/machine-api-operator/pkg/util/featuregates"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -353,19 +353,6 @@ func (optr *Operator) sync(key string) (reconcile.Result, error) {
 	return optr.syncAll(operatorConfig)
 }
 
-func getFeatureGate(lister configlistersv1.FeatureGateLister) (*osconfigv1.FeatureGate, error) {
-	featureGate, err := lister.Get("cluster")
-	if errors.IsNotFound(err) {
-		// No feature gate is set, therefore cannot be external.
-		// This is not an error as the feature gate is an optional resource.
-		return nil, nil
-	} else if err != nil {
-		return nil, fmt.Errorf("could not fetch featuregate: %v", err)
-	}
-
-	return featureGate, nil
-}
-
 func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 	infra, err := optr.osClient.ConfigV1().Infrastructures().Get(context.Background(), "cluster", metav1.GetOptions{})
 	if err != nil {
@@ -382,7 +369,7 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 		return nil, err
 	}
 
-	featureGate, err := getFeatureGate(optr.featureGateLister)
+	featureGate, err := optr.osClient.ConfigV1().FeatureGates().Get(context.Background(), "cluster", metav1.GetOptions{})
 	if err != nil {
 		return nil, err
 	}
@@ -412,6 +399,12 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 		return nil, err
 	}
 
+	// in case the MHC controller is disabled, leave its image empty
+	mhcImage := machineAPIOperatorImage
+	if !featuregates.IsDeployMHCControllerEnabled(featureGate) {
+		mhcImage = ""
+	}
+
 	return &OperatorConfig{
 		TargetNamespace: optr.namespace,
 		Proxy:           clusterWideProxy,
@@ -419,7 +412,7 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 			Provider:           providerControllerImage,
 			MachineSet:         machineAPIOperatorImage,
 			NodeLink:           machineAPIOperatorImage,
-			MachineHealthCheck: machineAPIOperatorImage,
+			MachineHealthCheck: mhcImage,
 			KubeRBACProxy:      kubeRBACProxy,
 			TerminationHandler: terminationHandlerImage,
 		},
