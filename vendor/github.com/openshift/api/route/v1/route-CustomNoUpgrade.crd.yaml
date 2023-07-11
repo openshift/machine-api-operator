@@ -145,10 +145,10 @@ spec:
                         - reencrypt
                         - passthrough
                   x-kubernetes-validations:
-                    - rule: 'has(self.termination) && has(self.insecureEdgeTerminationPolicy) ? !((self.termination==''passthrough'') && (self.insecureEdgeTerminationPolicy==''Allow'')) : true'
-                      message: 'cannot have both spec.tls.termination: passthrough and spec.tls.insecureEdgeTerminationPolicy: Allow'
                     - rule: '!(has(self.certificate) && has(self.externalCertificate))'
                       message: cannot have both spec.tls.certificate and spec.tls.externalCertificate
+                    - rule: 'has(self.termination) && has(self.insecureEdgeTerminationPolicy) ? !((self.termination==''passthrough'') && (self.insecureEdgeTerminationPolicy==''Allow'')) : true'
+                      message: 'cannot have both spec.tls.termination: passthrough and spec.tls.insecureEdgeTerminationPolicy: Allow'
                 to:
                   description: to is an object the route should use as the primary backend. Only the Service kind is allowed, and it will be defaulted to Service. If the weight field (0-256 default 100) is set to zero, no traffic will be sent to this backend.
                   type: object
