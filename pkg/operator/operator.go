@@ -2,6 +2,7 @@ package operator
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -12,8 +13,9 @@ import (
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
 	configlistersv1 "github.com/openshift/client-go/config/listers/config/v1"
 	machineclientset "github.com/openshift/client-go/machine/clientset/versioned"
+	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
+	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
-	"github.com/openshift/machine-api-operator/pkg/util/featuregates"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -39,6 +41,9 @@ const (
 	// 5ms, 10ms, 20ms, 40ms, 80ms, 160ms, 320ms, 640ms, 1.3s, 2.6s, 5.1s, 10.2s, 20.4s, 41s, 82s
 	maxRetries         = 15
 	maoOwnedAnnotation = "machine.openshift.io/owned"
+
+	releaseVersionEnvVariableName = "RELEASE_VERSION"
+	releaseVersionUnknownValue    = "unknown"
 )
 
 // Operator defines machine api operator.
@@ -53,6 +58,7 @@ type Operator struct {
 	machineClient machineclientset.Interface
 	dynamicClient dynamic.Interface
 	eventRecorder record.EventRecorder
+	recorder      events.Recorder
 
 	syncHandler func(ic string) (reconcile.Result, error)
 
@@ -71,8 +77,7 @@ type Operator struct {
 	mutatingWebhookLister         admissionlisterv1.MutatingWebhookConfigurationLister
 	mutatingWebhookListerSynced   cache.InformerSynced
 
-	featureGateLister      configlistersv1.FeatureGateLister
-	featureGateCacheSynced cache.InformerSynced
+	featureGateAccessor featuregates.FeatureGateAccess
 
 	// queue only ever has one item, but it has nice error handling backoff/retry semantics
 	queue           workqueue.RateLimitingInterface
@@ -91,6 +96,7 @@ func New(
 	deployInformer appsinformersv1.DeploymentInformer,
 	daemonsetInformer appsinformersv1.DaemonSetInformer,
 	featureGateInformer configinformersv1.FeatureGateInformer,
+	clusterVersionInformer configinformersv1.ClusterVersionInformer,
 	validatingWebhookInformer admissioninformersv1.ValidatingWebhookConfigurationInformer,
 	mutatingWebhookInformer admissioninformersv1.MutatingWebhookConfigurationInformer,
 	proxyInformer configinformersv1.ProxyInformer,
@@ -99,13 +105,18 @@ func New(
 	machineClient machineclientset.Interface,
 	dynamicClient dynamic.Interface,
 
-	recorder record.EventRecorder,
+	eventRecorder record.EventRecorder,
+	recorder events.Recorder,
 ) (*Operator, error) {
 	// we must report the version from the release payload when we report available at that level
 	// TODO we will report the version of the operands (so our machine api implementation version)
 	operandVersions := []osconfigv1.OperandVersion{}
-	if releaseVersion := os.Getenv("RELEASE_VERSION"); len(releaseVersion) > 0 {
+	releaseVersion := os.Getenv(releaseVersionEnvVariableName)
+	if len(releaseVersion) > 0 {
 		operandVersions = append(operandVersions, osconfigv1.OperandVersion{Name: "operator", Version: releaseVersion})
+	} else {
+		klog.Infof("%s environment variable is missing, defaulting to %q", releaseVersionEnvVariableName, releaseVersionUnknownValue)
+		releaseVersion = releaseVersionUnknownValue
 	}
 
 	optr := &Operator{
@@ -116,7 +127,8 @@ func New(
 		osClient:        osClient,
 		machineClient:   machineClient,
 		dynamicClient:   dynamicClient,
-		eventRecorder:   recorder,
+		eventRecorder:   eventRecorder,
+		recorder:        recorder,
 		queue:           workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
 		operandVersions: operandVersions,
 	}
@@ -137,10 +149,36 @@ func New(
 	if err != nil {
 		return nil, fmt.Errorf("error adding event handler to mutatingwebhook informer: %v", err)
 	}
-	_, err = featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
-	if err != nil {
-		return nil, fmt.Errorf("error adding event handler to featuregates informer: %v", err)
-	}
+
+	desiredVersion := releaseVersion
+	missingVersion := "0.0.1-snapshot"
+	featureGateAccessor := featuregates.NewFeatureGateAccess(
+		desiredVersion, missingVersion,
+		clusterVersionInformer, featureGateInformer,
+		recorder,
+	)
+	featureGateAccessor.SetChangeHandler(func(featureChange featuregates.FeatureChange) {
+		if featureChange.Previous == nil {
+			// When the initial featuregate is set, the previous version is nil.
+			// Nothing to do in this case, it's handled by the 1st sync, which only runs after the initial feature set was received.
+			return
+		}
+
+		klog.V(4).InfoS("FeatureGates changed", "enabled", featureChange.New.Enabled, "disabled", featureChange.New.Disabled)
+		prevDisableMHC := featuregates.NewFeatureGate(featureChange.Previous.Enabled, featureChange.Previous.Disabled).
+			Enabled(osconfigv1.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController)
+		newDisableMHC := featuregates.NewFeatureGate(featureChange.New.Enabled, featureChange.New.Disabled).
+			Enabled(osconfigv1.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController)
+
+		if prevDisableMHC != newDisableMHC {
+			klog.V(2).InfoS("Resync for modified feature gate",
+				"FeatureGateMachineAPIOperatorDisableMachineHealthCheckController enabled", newDisableMHC,
+			)
+			workQueueKey := fmt.Sprintf("%s/%s", optr.namespace, optr.name)
+			optr.queue.Add(workQueueKey)
+		}
+	})
+	optr.featureGateAccessor = featureGateAccessor
 
 	optr.config = config
 	optr.syncHandler = optr.sync
@@ -160,9 +198,6 @@ func New(
 	optr.mutatingWebhookLister = mutatingWebhookInformer.Lister()
 	optr.mutatingWebhookListerSynced = mutatingWebhookInformer.Informer().HasSynced
 
-	optr.featureGateLister = featureGateInformer.Lister()
-	optr.featureGateCacheSynced = featureGateInformer.Informer().HasSynced
-
 	return optr, nil
 }
 
@@ -179,12 +214,24 @@ func (optr *Operator) Run(workers int, stopCh <-chan struct{}) {
 		optr.validatingWebhookListerSynced,
 		optr.deployListerSynced,
 		optr.daemonsetListerSynced,
-		optr.proxyListerSynced,
-		optr.featureGateCacheSynced) {
+		optr.proxyListerSynced) {
 		klog.Error("Failed to sync caches")
 		return
 	}
 	klog.Info("Synced up caches")
+
+	ctx, cancelFeatureGateAccessor := context.WithCancel(context.Background())
+	defer cancelFeatureGateAccessor()
+	go optr.featureGateAccessor.Run(ctx)
+	klog.Info("Started feature gate accessor")
+	select {
+	case <-optr.featureGateAccessor.InitialFeatureGatesObserved():
+		klog.V(4).Info("FeatureGates initialized")
+	case <-time.After(1 * time.Minute):
+		klog.Error(errors.New("timed out waiting for FeatureGate detection"), "unable to start operator")
+		return
+	}
+
 	for i := 0; i < workers; i++ {
 		go wait.Until(optr.worker, time.Second, stopCh)
 	}
@@ -369,12 +416,7 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 		return nil, err
 	}
 
-	featureGate, err := optr.osClient.ConfigV1().FeatureGates().Get(context.Background(), "cluster", metav1.GetOptions{})
-	if err != nil {
-		return nil, err
-	}
-
-	providerControllerImage, err := getProviderControllerFromImages(provider, featureGate, *images)
+	providerControllerImage, err := getProviderControllerFromImages(provider, *images)
 	if err != nil {
 		return nil, err
 	}
@@ -401,7 +443,12 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 
 	// in case the MHC controller is disabled, leave its image empty
 	mhcImage := machineAPIOperatorImage
-	if !featuregates.IsDeployMHCControllerEnabled(featureGate) {
+	featureGates, err := optr.featureGateAccessor.CurrentFeatureGates()
+	if err != nil {
+		return nil, err
+	}
+	if featureGates.Enabled(osconfigv1.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController) {
+		klog.V(2).Info("Disabling MHC controller")
 		mhcImage = ""
 	}
 

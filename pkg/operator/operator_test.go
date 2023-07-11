@@ -15,8 +15,8 @@ import (
 	fakeos "github.com/openshift/client-go/config/clientset/versioned/fake"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions"
 	fakemachine "github.com/openshift/client-go/machine/clientset/versioned/fake"
+	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
-	"github.com/openshift/machine-api-operator/pkg/util/featuregates"
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -38,31 +38,51 @@ const (
 	releaseVersion  = "0.0.0.test-unit"
 )
 
-func newFakeOperator(kubeObjects, osObjects, machineObjects []runtime.Object, imagesFile string, stopCh <-chan struct{}) (*Operator, error) {
+func newFakeOperator(kubeObjects, osObjects, machineObjects []runtime.Object, imagesFile string, fg *openshiftv1.FeatureGate, stopCh <-chan struct{}) (*Operator, error) {
 	kubeClient := fakekube.NewSimpleClientset(kubeObjects...)
 	osClient := fakeos.NewSimpleClientset(osObjects...)
 	machineClient := fakemachine.NewSimpleClientset(machineObjects...)
 	dynamicClient := fakedynamic.NewSimpleDynamicClient(scheme.Scheme, kubeObjects...)
 	kubeNamespacedSharedInformer := informers.NewSharedInformerFactoryWithOptions(kubeClient, 2*time.Minute, informers.WithNamespace(targetNamespace))
 	configSharedInformer := configinformersv1.NewSharedInformerFactoryWithOptions(osClient, 2*time.Minute)
-	featureGateInformer := configSharedInformer.Config().V1().FeatureGates()
 	deployInformer := kubeNamespacedSharedInformer.Apps().V1().Deployments()
 	proxyInformer := configSharedInformer.Config().V1().Proxies()
 	daemonsetInformer := kubeNamespacedSharedInformer.Apps().V1().DaemonSets()
 	mutatingWebhookInformer := kubeNamespacedSharedInformer.Admissionregistration().V1().MutatingWebhookConfigurations()
 	validatingWebhookInformer := kubeNamespacedSharedInformer.Admissionregistration().V1().ValidatingWebhookConfigurations()
 
+	if fg == nil {
+		fg = &openshiftv1.FeatureGate{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "cluster",
+			},
+			Status: openshiftv1.FeatureGateStatus{
+				FeatureGates: []openshiftv1.FeatureGateDetails{
+					{
+						Version:  "",
+						Enabled:  []openshiftv1.FeatureGateAttributes{},
+						Disabled: []openshiftv1.FeatureGateAttributes{{Name: openshiftv1.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+					},
+				},
+			},
+		}
+	}
+	featureGateAccessor, err := featuregates.NewHardcodedFeatureGateAccessFromFeatureGate(fg, "")
+	if err != nil {
+		return nil, fmt.Errorf("error adding event handler to deployments informer: %v", err)
+	}
+
 	optr := &Operator{
 		kubeClient:                    kubeClient,
 		osClient:                      osClient,
 		machineClient:                 machineClient,
 		dynamicClient:                 dynamicClient,
-		featureGateLister:             featureGateInformer.Lister(),
 		deployLister:                  deployInformer.Lister(),
 		proxyLister:                   proxyInformer.Lister(),
 		daemonsetLister:               daemonsetInformer.Lister(),
 		mutatingWebhookLister:         mutatingWebhookInformer.Lister(),
 		validatingWebhookLister:       validatingWebhookInformer.Lister(),
+		featureGateAccessor:           featureGateAccessor,
 		imagesFile:                    imagesFile,
 		namespace:                     targetNamespace,
 		eventRecorder:                 record.NewFakeRecorder(50),
@@ -70,7 +90,6 @@ func newFakeOperator(kubeObjects, osObjects, machineObjects []runtime.Object, im
 		deployListerSynced:            deployInformer.Informer().HasSynced,
 		proxyListerSynced:             proxyInformer.Informer().HasSynced,
 		daemonsetListerSynced:         daemonsetInformer.Informer().HasSynced,
-		featureGateCacheSynced:        featureGateInformer.Informer().HasSynced,
 		cache:                         resourceapply.NewResourceCache(),
 		mutatingWebhookListerSynced:   mutatingWebhookInformer.Informer().HasSynced,
 		validatingWebhookListerSynced: validatingWebhookInformer.Informer().HasSynced,
@@ -80,13 +99,9 @@ func newFakeOperator(kubeObjects, osObjects, machineObjects []runtime.Object, im
 	kubeNamespacedSharedInformer.Start(stopCh)
 
 	optr.syncHandler = optr.sync
-	_, err := deployInformer.Informer().AddEventHandler(optr.eventHandlerDeployments())
+	_, err = deployInformer.Informer().AddEventHandler(optr.eventHandlerDeployments())
 	if err != nil {
 		return nil, fmt.Errorf("error adding event handler to deployments informer: %v", err)
-	}
-	_, err = featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
-	if err != nil {
-		return nil, fmt.Errorf("error adding event handler to featuregate informer: %v", err)
 	}
 
 	optr.operandVersions = []openshiftv1.OperandVersion{
@@ -179,17 +194,6 @@ func TestOperatorSync_NoOp(t *testing.T) {
 				},
 			}
 
-			featureGate := &openshiftv1.FeatureGate{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "cluster",
-				},
-				Spec: openshiftv1.FeatureGateSpec{
-					FeatureGateSelection: openshiftv1.FeatureGateSelection{
-						FeatureSet: openshiftv1.Default,
-					},
-				},
-			}
-
 			proxy := &openshiftv1.Proxy{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "cluster",
@@ -198,7 +202,7 @@ func TestOperatorSync_NoOp(t *testing.T) {
 
 			stopCh := make(chan struct{})
 			defer close(stopCh)
-			optr, err := newFakeOperator(nil, []runtime.Object{infra, featureGate, proxy}, nil, imagesJSONFile, stopCh)
+			optr, err := newFakeOperator(nil, []runtime.Object{infra, proxy}, nil, imagesJSONFile, nil, stopCh)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -327,17 +331,6 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 		},
 	}
 
-	featureGate := &openshiftv1.FeatureGate{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: "cluster",
-		},
-		Spec: openshiftv1.FeatureGateSpec{
-			FeatureGateSelection: openshiftv1.FeatureGateSelection{
-				FeatureSet: openshiftv1.Default,
-			},
-		},
-	}
-
 	proxy := &openshiftv1.Proxy{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "cluster",
@@ -355,11 +348,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 		expectedError  error
 	}{
 		{
-			name:        string(openshiftv1.AWSPlatformType),
-			platform:    openshiftv1.AWSPlatformType,
-			infra:       infra,
-			featureGate: featureGate,
-			proxy:       proxy,
+			name:     string(openshiftv1.AWSPlatformType),
+			platform: openshiftv1.AWSPlatformType,
+			infra:    infra,
+			proxy:    proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -375,11 +367,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			},
 		},
 		{
-			name:        string(openshiftv1.AlibabaCloudPlatformType),
-			platform:    openshiftv1.AlibabaCloudPlatformType,
-			infra:       infra,
-			featureGate: featureGate,
-			proxy:       proxy,
+			name:     string(openshiftv1.AlibabaCloudPlatformType),
+			platform: openshiftv1.AlibabaCloudPlatformType,
+			infra:    infra,
+			proxy:    proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -395,11 +386,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			},
 		},
 		{
-			name:        string(openshiftv1.LibvirtPlatformType),
-			platform:    openshiftv1.LibvirtPlatformType,
-			infra:       infra,
-			featureGate: featureGate,
-			proxy:       proxy,
+			name:     string(openshiftv1.LibvirtPlatformType),
+			platform: openshiftv1.LibvirtPlatformType,
+			infra:    infra,
+			proxy:    proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -415,11 +405,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			},
 		},
 		{
-			name:        string(openshiftv1.OpenStackPlatformType),
-			platform:    openshiftv1.OpenStackPlatformType,
-			infra:       infra,
-			featureGate: featureGate,
-			proxy:       proxy,
+			name:     string(openshiftv1.OpenStackPlatformType),
+			platform: openshiftv1.OpenStackPlatformType,
+			infra:    infra,
+			proxy:    proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -435,11 +424,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			},
 		},
 		{
-			name:        string(openshiftv1.AzurePlatformType),
-			platform:    openshiftv1.AzurePlatformType,
-			infra:       infra,
-			featureGate: featureGate,
-			proxy:       proxy,
+			name:     string(openshiftv1.AzurePlatformType),
+			platform: openshiftv1.AzurePlatformType,
+			infra:    infra,
+			proxy:    proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -455,11 +443,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			},
 		},
 		{
-			name:        string(openshiftv1.BareMetalPlatformType),
-			platform:    openshiftv1.BareMetalPlatformType,
-			infra:       infra,
-			featureGate: featureGate,
-			proxy:       proxy,
+			name:     string(openshiftv1.BareMetalPlatformType),
+			platform: openshiftv1.BareMetalPlatformType,
+			infra:    infra,
+			proxy:    proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -475,11 +462,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			},
 		},
 		{
-			name:        string(openshiftv1.GCPPlatformType),
-			platform:    openshiftv1.GCPPlatformType,
-			infra:       infra,
-			featureGate: featureGate,
-			proxy:       proxy,
+			name:     string(openshiftv1.GCPPlatformType),
+			platform: openshiftv1.GCPPlatformType,
+			infra:    infra,
+			proxy:    proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -495,11 +481,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			},
 		},
 		{
-			name:        string(kubemarkPlatform),
-			platform:    kubemarkPlatform,
-			infra:       infra,
-			featureGate: featureGate,
-			proxy:       proxy,
+			name:     string(kubemarkPlatform),
+			platform: kubemarkPlatform,
+			infra:    infra,
+			proxy:    proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -515,11 +500,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			},
 		},
 		{
-			name:        string(openshiftv1.VSpherePlatformType),
-			platform:    openshiftv1.VSpherePlatformType,
-			infra:       infra,
-			featureGate: featureGate,
-			proxy:       proxy,
+			name:     string(openshiftv1.VSpherePlatformType),
+			platform: openshiftv1.VSpherePlatformType,
+			infra:    infra,
+			proxy:    proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -535,11 +519,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			},
 		},
 		{
-			name:        string(openshiftv1.OvirtPlatformType),
-			platform:    openshiftv1.OvirtPlatformType,
-			infra:       infra,
-			featureGate: featureGate,
-			proxy:       proxy,
+			name:     string(openshiftv1.OvirtPlatformType),
+			platform: openshiftv1.OvirtPlatformType,
+			infra:    infra,
+			proxy:    proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -555,11 +538,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			},
 		},
 		{
-			name:        string(openshiftv1.NonePlatformType),
-			platform:    openshiftv1.NonePlatformType,
-			infra:       infra,
-			featureGate: featureGate,
-			proxy:       proxy,
+			name:     string(openshiftv1.NonePlatformType),
+			platform: openshiftv1.NonePlatformType,
+			infra:    infra,
+			proxy:    proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -584,13 +566,12 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "cluster",
 				},
-				Spec: openshiftv1.FeatureGateSpec{
-					FeatureGateSelection: openshiftv1.FeatureGateSelection{
-						FeatureSet: openshiftv1.CustomNoUpgrade,
-						CustomNoUpgrade: &openshiftv1.CustomFeatureGates{
-							Enabled: []openshiftv1.FeatureGateName{
-								openshiftv1.FeatureGateName(featuregates.DeployMHCControllerFeatureGateName),
-							},
+				Status: openshiftv1.FeatureGateStatus{
+					FeatureGates: []openshiftv1.FeatureGateDetails{
+						{
+							Version:  "",
+							Enabled:  []openshiftv1.FeatureGateAttributes{},
+							Disabled: []openshiftv1.FeatureGateAttributes{{Name: openshiftv1.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
 						},
 					},
 				},
@@ -618,13 +599,12 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "cluster",
 				},
-				Spec: openshiftv1.FeatureGateSpec{
-					FeatureGateSelection: openshiftv1.FeatureGateSelection{
-						FeatureSet: openshiftv1.CustomNoUpgrade,
-						CustomNoUpgrade: &openshiftv1.CustomFeatureGates{
-							Disabled: []openshiftv1.FeatureGateName{
-								openshiftv1.FeatureGateName(featuregates.DeployMHCControllerFeatureGateName),
-							},
+				Status: openshiftv1.FeatureGateStatus{
+					FeatureGates: []openshiftv1.FeatureGateDetails{
+						{
+							Version:  "",
+							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: openshiftv1.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+							Disabled: []openshiftv1.FeatureGateAttributes{},
 						},
 					},
 				},
@@ -645,11 +625,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			},
 		},
 		{
-			name:        "bad-platform",
-			platform:    "bad-platform",
-			infra:       infra,
-			featureGate: featureGate,
-			proxy:       proxy,
+			name:     "bad-platform",
+			platform: "bad-platform",
+			infra:    infra,
+			proxy:    proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -668,25 +647,14 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			name:           "no-infra",
 			platform:       "no-infra",
 			infra:          nil,
-			featureGate:    featureGate,
 			proxy:          proxy,
 			expectedConfig: nil,
 			expectedError:  kerrors.NewNotFound(schema.GroupResource{Group: "config.openshift.io", Resource: "infrastructures"}, "cluster"),
 		},
 		{
-			name:           "no-featuregate",
-			platform:       "no-featuregate",
-			infra:          infra,
-			featureGate:    nil,
-			proxy:          proxy,
-			expectedConfig: nil,
-			expectedError:  kerrors.NewNotFound(schema.GroupResource{Group: "config.openshift.io", Resource: "featuregates"}, "cluster"),
-		},
-		{
 			name:           "no-proxy",
 			platform:       "no-proxy",
 			infra:          infra,
-			featureGate:    featureGate,
 			proxy:          nil,
 			expectedConfig: nil,
 			expectedError:  kerrors.NewNotFound(schema.GroupResource{Group: "config.openshift.io", Resource: "proxies"}, "cluster"),
@@ -695,7 +663,6 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			name:           "no-platform",
 			platform:       "",
 			infra:          infra,
-			featureGate:    featureGate,
 			proxy:          proxy,
 			expectedConfig: nil,
 			expectedError:  errors.New("no platform provider found on install config"),
@@ -704,7 +671,6 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			name:           "no-images-file",
 			platform:       openshiftv1.NonePlatformType,
 			infra:          infra,
-			featureGate:    featureGate,
 			proxy:          proxy,
 			imagesFile:     "fixtures/not-found.json",
 			expectedConfig: nil,
@@ -731,9 +697,6 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				inf.Status.PlatformStatus = &openshiftv1.PlatformStatus{Type: tc.platform}
 				objects = append(objects, inf)
 			}
-			if tc.featureGate != nil {
-				objects = append(objects, tc.featureGate.DeepCopy())
-			}
 			if tc.proxy != nil {
 				proxy := tc.proxy.DeepCopy()
 				objects = append(objects, proxy)
@@ -741,7 +704,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 
 			stopCh := make(chan struct{})
 			defer close(stopCh)
-			optr, err := newFakeOperator(nil, objects, nil, imagesJSONFile, stopCh)
+			optr, err := newFakeOperator(nil, objects, nil, imagesJSONFile, tc.featureGate, stopCh)
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -350,7 +350,7 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		res, err := getProviderControllerFromImages(test.provider, &test.featureGate, *img)
+		res, err := getProviderControllerFromImages(test.provider, *img)
 		if err != nil {
 			t.Errorf("failed getProviderControllerFromImages: %v", err)
 		}

@@ -75,7 +75,7 @@ func getImagesFromJSONFile(filePath string) (*Images, error) {
 	return &i, nil
 }
 
-func getProviderControllerFromImages(platform configv1.PlatformType, featureGate *configv1.FeatureGate, images Images) (string, error) {
+func getProviderControllerFromImages(platform configv1.PlatformType, images Images) (string, error) {
 	switch platform {
 	case configv1.AWSPlatformType:
 		return images.ClusterAPIControllerAWS, nil

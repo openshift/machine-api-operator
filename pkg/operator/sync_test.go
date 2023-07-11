@@ -131,7 +131,7 @@ func TestCheckDeploymentRolloutStatus(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			stopCh := make(chan struct{})
 			defer close(stopCh)
-			optr, err := newFakeOperator([]runtime.Object{tc.deployment}, nil, nil, imagesJSONFile, stopCh)
+			optr, err := newFakeOperator([]runtime.Object{tc.deployment}, nil, nil, imagesJSONFile, nil, stopCh)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -434,7 +434,7 @@ func TestCheckMinimumWorkerMachines(t *testing.T) {
 			machineObjects = append(machineObjects, tc.machineSets...)
 			machineObjects = append(machineObjects, tc.machines...)
 
-			optr, err := newFakeOperator(nil, nil, machineObjects, imagesJSONFile, stopCh)
+			optr, err := newFakeOperator(nil, nil, machineObjects, imagesJSONFile, nil, stopCh)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -478,7 +478,7 @@ func TestSyncWebhookConfiguration(t *testing.T) {
 
 			stopCh := make(chan struct{})
 			defer close(stopCh)
-			optr, err := newFakeOperator(nil, nil, nil, "", stopCh)
+			optr, err := newFakeOperator(nil, nil, nil, "", nil, stopCh)
 			if err != nil {
 				t.Fatal(err)
 			}
