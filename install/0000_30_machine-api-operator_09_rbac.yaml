@@ -315,6 +315,24 @@ rules:
       - delete
 
   - apiGroups:
+      - apps
+    resources:
+      - replicasets
+    verbs:
+      - get
+      - list
+      - watch
+
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
+
+  - apiGroups:
       - machine.openshift.io
     resources:
       - '*'
@@ -394,6 +412,7 @@ rules:
       - featuregates
       - featuregates/status
       - proxies
+      - clusterversions
     verbs:
       - get
       - list

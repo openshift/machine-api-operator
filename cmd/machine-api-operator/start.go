@@ -10,6 +10,7 @@ import (
 	"strconv"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/machine-api-operator/pkg/metrics"
 	"github.com/openshift/machine-api-operator/pkg/operator"
 	"github.com/openshift/machine-api-operator/pkg/util"
@@ -120,7 +121,7 @@ func initMachineAPIInformers(ctx *ControllerContext) {
 	klog.Info("Synced up machine api informer caches")
 }
 
-func initRecorder(kubeClient kubernetes.Interface) (record.EventRecorder, error) {
+func initEventRecorder(kubeClient kubernetes.Interface) (record.EventRecorder, error) {
 	eventRecorderScheme := runtime.NewScheme()
 	if err := osconfigv1.Install(eventRecorderScheme); err != nil {
 		return nil, fmt.Errorf("failed to create event recorder scheme: %v", err)
@@ -131,11 +132,24 @@ func initRecorder(kubeClient kubernetes.Interface) (record.EventRecorder, error)
 	return eventBroadcaster.NewRecorder(eventRecorderScheme, v1.EventSource{Component: "machineapioperator"}), nil
 }
 
+func initRecorder(kubeClient kubernetes.Interface) (events.Recorder, error) {
+	controllerRef, err := events.GetControllerReferenceForCurrentPod(context.Background(), kubeClient, componentNamespace, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create controller ref for recorder: %v", err)
+	}
+	recorder := events.NewKubeRecorder(kubeClient.CoreV1().Events(componentNamespace), "machineapioperator", controllerRef)
+	return recorder, nil
+}
+
 func startControllersOrDie(ctx *ControllerContext) {
 	kubeClient := ctx.ClientBuilder.KubeClientOrDie(componentName)
-	recorder, err := initRecorder(kubeClient)
+	eventRecorder, err := initEventRecorder(kubeClient)
 	if err != nil {
 		klog.Fatalf("failed to create event recorder: %v", err)
+	}
+	recorder, err := initRecorder(kubeClient)
+	if err != nil {
+		klog.Fatalf("failed to create recorder: %v", err)
 	}
 	optr, err := operator.New(
 		componentNamespace, componentName,
@@ -144,6 +158,7 @@ func startControllersOrDie(ctx *ControllerContext) {
 		ctx.KubeNamespacedInformerFactory.Apps().V1().Deployments(),
 		ctx.KubeNamespacedInformerFactory.Apps().V1().DaemonSets(),
 		ctx.ConfigInformerFactory.Config().V1().FeatureGates(),
+		ctx.ConfigInformerFactory.Config().V1().ClusterVersions(),
 		ctx.KubeNamespacedInformerFactory.Admissionregistration().V1().ValidatingWebhookConfigurations(),
 		ctx.KubeNamespacedInformerFactory.Admissionregistration().V1().MutatingWebhookConfigurations(),
 		ctx.ConfigInformerFactory.Config().V1().Proxies(),
@@ -151,6 +166,7 @@ func startControllersOrDie(ctx *ControllerContext) {
 		ctx.ClientBuilder.OpenshiftClientOrDie(componentName),
 		ctx.ClientBuilder.MachineClientOrDie(componentName),
 		ctx.ClientBuilder.DynamicClientOrDie(componentName),
+		eventRecorder,
 		recorder,
 	)
 	if err != nil {

@@ -281,4 +281,24 @@ var (
 		ResponsiblePerson:   "thejasn",
 		OwningProduct:       ocpSpecific,
 	}
+
+	FeatureGateAutomatedEtcdBackup = FeatureGateName("AutomatedEtcdBackup")
+	automatedEtcdBackup            = FeatureGateDescription{
+		FeatureGateAttributes: FeatureGateAttributes{
+			Name: FeatureGateAutomatedEtcdBackup,
+		},
+		OwningJiraComponent: "etcd",
+		ResponsiblePerson:   "hasbro17",
+		OwningProduct:       ocpSpecific,
+	}
+
+	FeatureGateMachineAPIOperatorDisableMachineHealthCheckController = FeatureGateName("MachineAPIOperatorDisableMachineHealthCheckController")
+	machineAPIOperatorDisableMachineHealthCheckController            = FeatureGateDescription{
+		FeatureGateAttributes: FeatureGateAttributes{
+			Name: FeatureGateMachineAPIOperatorDisableMachineHealthCheckController,
+		},
+		OwningJiraComponent: "ecoproject",
+		ResponsiblePerson:   "msluiter",
+		OwningProduct:       ocpSpecific,
+	}
 )

@@ -15,6 +15,7 @@ import (
 	fakeos "github.com/openshift/client-go/config/clientset/versioned/fake"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions"
 	fakemachine "github.com/openshift/client-go/machine/clientset/versioned/fake"
+	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
@@ -32,37 +33,56 @@ import (
 )
 
 const (
-	deploymentName   = "machine-api-controllers"
-	targetNamespace  = "test-namespace"
-	hcControllerName = "machine-healthcheck-controller"
-	releaseVersion   = "0.0.0.test-unit"
+	deploymentName  = "machine-api-controllers"
+	targetNamespace = "test-namespace"
+	releaseVersion  = "0.0.0.test-unit"
 )
 
-func newFakeOperator(kubeObjects, osObjects, machineObjects []runtime.Object, imagesFile string, stopCh <-chan struct{}) (*Operator, error) {
+func newFakeOperator(kubeObjects, osObjects, machineObjects []runtime.Object, imagesFile string, fg *openshiftv1.FeatureGate, stopCh <-chan struct{}) (*Operator, error) {
 	kubeClient := fakekube.NewSimpleClientset(kubeObjects...)
 	osClient := fakeos.NewSimpleClientset(osObjects...)
 	machineClient := fakemachine.NewSimpleClientset(machineObjects...)
 	dynamicClient := fakedynamic.NewSimpleDynamicClient(scheme.Scheme, kubeObjects...)
 	kubeNamespacedSharedInformer := informers.NewSharedInformerFactoryWithOptions(kubeClient, 2*time.Minute, informers.WithNamespace(targetNamespace))
 	configSharedInformer := configinformersv1.NewSharedInformerFactoryWithOptions(osClient, 2*time.Minute)
-	featureGateInformer := configSharedInformer.Config().V1().FeatureGates()
 	deployInformer := kubeNamespacedSharedInformer.Apps().V1().Deployments()
 	proxyInformer := configSharedInformer.Config().V1().Proxies()
 	daemonsetInformer := kubeNamespacedSharedInformer.Apps().V1().DaemonSets()
 	mutatingWebhookInformer := kubeNamespacedSharedInformer.Admissionregistration().V1().MutatingWebhookConfigurations()
 	validatingWebhookInformer := kubeNamespacedSharedInformer.Admissionregistration().V1().ValidatingWebhookConfigurations()
 
+	if fg == nil {
+		fg = &openshiftv1.FeatureGate{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "cluster",
+			},
+			Status: openshiftv1.FeatureGateStatus{
+				FeatureGates: []openshiftv1.FeatureGateDetails{
+					{
+						Version:  "",
+						Enabled:  []openshiftv1.FeatureGateAttributes{},
+						Disabled: []openshiftv1.FeatureGateAttributes{{Name: openshiftv1.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+					},
+				},
+			},
+		}
+	}
+	featureGateAccessor, err := featuregates.NewHardcodedFeatureGateAccessFromFeatureGate(fg, "")
+	if err != nil {
+		return nil, fmt.Errorf("error adding event handler to deployments informer: %v", err)
+	}
+
 	optr := &Operator{
 		kubeClient:                    kubeClient,
 		osClient:                      osClient,
 		machineClient:                 machineClient,
 		dynamicClient:                 dynamicClient,
-		featureGateLister:             featureGateInformer.Lister(),
 		deployLister:                  deployInformer.Lister(),
 		proxyLister:                   proxyInformer.Lister(),
 		daemonsetLister:               daemonsetInformer.Lister(),
 		mutatingWebhookLister:         mutatingWebhookInformer.Lister(),
 		validatingWebhookLister:       validatingWebhookInformer.Lister(),
+		featureGateAccessor:           featureGateAccessor,
 		imagesFile:                    imagesFile,
 		namespace:                     targetNamespace,
 		eventRecorder:                 record.NewFakeRecorder(50),
@@ -70,7 +90,6 @@ func newFakeOperator(kubeObjects, osObjects, machineObjects []runtime.Object, im
 		deployListerSynced:            deployInformer.Informer().HasSynced,
 		proxyListerSynced:             proxyInformer.Informer().HasSynced,
 		daemonsetListerSynced:         daemonsetInformer.Informer().HasSynced,
-		featureGateCacheSynced:        featureGateInformer.Informer().HasSynced,
 		cache:                         resourceapply.NewResourceCache(),
 		mutatingWebhookListerSynced:   mutatingWebhookInformer.Informer().HasSynced,
 		validatingWebhookListerSynced: validatingWebhookInformer.Informer().HasSynced,
@@ -80,13 +99,9 @@ func newFakeOperator(kubeObjects, osObjects, machineObjects []runtime.Object, im
 	kubeNamespacedSharedInformer.Start(stopCh)
 
 	optr.syncHandler = optr.sync
-	_, err := deployInformer.Informer().AddEventHandler(optr.eventHandlerDeployments())
+	_, err = deployInformer.Informer().AddEventHandler(optr.eventHandlerDeployments())
 	if err != nil {
 		return nil, fmt.Errorf("error adding event handler to deployments informer: %v", err)
-	}
-	_, err = featureGateInformer.Informer().AddEventHandler(optr.eventHandler())
-	if err != nil {
-		return nil, fmt.Errorf("error adding event handler to featuregate informer: %v", err)
 	}
 
 	optr.operandVersions = []openshiftv1.OperandVersion{
@@ -187,7 +202,7 @@ func TestOperatorSync_NoOp(t *testing.T) {
 
 			stopCh := make(chan struct{})
 			defer close(stopCh)
-			optr, err := newFakeOperator(nil, []runtime.Object{infra, proxy}, nil, imagesJSONFile, stopCh)
+			optr, err := newFakeOperator(nil, []runtime.Object{infra, proxy}, nil, imagesJSONFile, nil, stopCh)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -326,6 +341,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 		name           string
 		platform       openshiftv1.PlatformType
 		infra          *openshiftv1.Infrastructure
+		featureGate    *openshiftv1.FeatureGate
 		proxy          *openshiftv1.Proxy
 		imagesFile     string
 		expectedConfig *OperatorConfig
@@ -541,6 +557,74 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			},
 		},
 		{
+			// MHC controller being enabled is the default for now (which is covered by all other tests),
+			// but this test ensures that enabling works once the default changes
+			name:     "mhc-controller-enabled",
+			platform: openshiftv1.BareMetalPlatformType,
+			infra:    infra,
+			featureGate: &openshiftv1.FeatureGate{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Status: openshiftv1.FeatureGateStatus{
+					FeatureGates: []openshiftv1.FeatureGateDetails{
+						{
+							Version:  "",
+							Enabled:  []openshiftv1.FeatureGateAttributes{},
+							Disabled: []openshiftv1.FeatureGateAttributes{{Name: openshiftv1.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+						},
+					},
+				},
+			},
+			proxy: proxy,
+			expectedConfig: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				Proxy:           proxy,
+				Controllers: Controllers{
+					Provider:           images.ClusterAPIControllerBareMetal,
+					MachineSet:         images.MachineAPIOperator,
+					NodeLink:           images.MachineAPIOperator,
+					MachineHealthCheck: images.MachineAPIOperator,
+					TerminationHandler: clusterAPIControllerNoOp,
+					KubeRBACProxy:      images.KubeRBACProxy,
+				},
+				PlatformType: openshiftv1.BareMetalPlatformType,
+			},
+		},
+		{
+			name:     "mhc-controller-disabled",
+			platform: openshiftv1.BareMetalPlatformType,
+			infra:    infra,
+			featureGate: &openshiftv1.FeatureGate{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Status: openshiftv1.FeatureGateStatus{
+					FeatureGates: []openshiftv1.FeatureGateDetails{
+						{
+							Version:  "",
+							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: openshiftv1.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+							Disabled: []openshiftv1.FeatureGateAttributes{},
+						},
+					},
+				},
+			},
+			proxy: proxy,
+			expectedConfig: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				Proxy:           proxy,
+				Controllers: Controllers{
+					Provider:           images.ClusterAPIControllerBareMetal,
+					MachineSet:         images.MachineAPIOperator,
+					NodeLink:           images.MachineAPIOperator,
+					MachineHealthCheck: "",
+					TerminationHandler: clusterAPIControllerNoOp,
+					KubeRBACProxy:      images.KubeRBACProxy,
+				},
+				PlatformType: openshiftv1.BareMetalPlatformType,
+			},
+		},
+		{
 			name:     "bad-platform",
 			platform: "bad-platform",
 			infra:    infra,
@@ -620,7 +704,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 
 			stopCh := make(chan struct{})
 			defer close(stopCh)
-			optr, err := newFakeOperator(nil, objects, nil, imagesJSONFile, stopCh)
+			optr, err := newFakeOperator(nil, objects, nil, imagesJSONFile, tc.featureGate, stopCh)
 			if err != nil {
 				t.Fatal(err)
 			}

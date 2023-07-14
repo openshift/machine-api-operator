@@ -499,7 +499,8 @@ func newRBACConfigVolumes() []corev1.Volume {
 
 func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev1.PodTemplateSpec {
 	containers := newContainers(config, features)
-	proxyContainers := newKubeProxyContainers(config.Controllers.KubeRBACProxy)
+	withMHCProxy := config.Controllers.MachineHealthCheck != ""
+	proxyContainers := newKubeProxyContainers(config.Controllers.KubeRBACProxy, withMHCProxy)
 	tolerations := []corev1.Toleration{
 		{
 			Key:    "node-role.kubernetes.io/master",
@@ -757,7 +758,9 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 			Env:       proxyEnvArgs,
 			Resources: resources,
 		},
-		{
+	}
+	if config.Controllers.MachineHealthCheck != "" {
+		containers = append(containers, corev1.Container{
 			Name:      "machine-healthcheck-controller",
 			Image:     config.Controllers.MachineHealthCheck,
 			Command:   []string{"/machine-healthcheck"},
@@ -786,17 +789,22 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 					},
 				},
 			},
-		},
+		})
 	}
 	return containers
 }
 
-func newKubeProxyContainers(image string) []corev1.Container {
-	return []corev1.Container{
+func newKubeProxyContainers(image string, withMHCProxy bool) []corev1.Container {
+	proxyContainers := []corev1.Container{
 		newKubeProxyContainer(image, "machineset-mtrc", metrics.DefaultMachineSetMetricsAddress, machineSetExposeMetricsPort),
 		newKubeProxyContainer(image, "machine-mtrc", metrics.DefaultMachineMetricsAddress, machineExposeMetricsPort),
-		newKubeProxyContainer(image, "mhc-mtrc", metrics.DefaultHealthCheckMetricsAddress, machineHealthCheckExposeMetricsPort),
 	}
+	if withMHCProxy {
+		proxyContainers = append(proxyContainers,
+			newKubeProxyContainer(image, "mhc-mtrc", metrics.DefaultHealthCheckMetricsAddress, machineHealthCheckExposeMetricsPort),
+		)
+	}
+	return proxyContainers
 }
 
 func newKubeProxyContainer(image, portName, upstreamPort string, exposePort int32) corev1.Container {

@@ -572,7 +572,7 @@ github.com/onsi/gomega/matchers/support/goraph/edge
 github.com/onsi/gomega/matchers/support/goraph/node
 github.com/onsi/gomega/matchers/support/goraph/util
 github.com/onsi/gomega/types
-# github.com/openshift/api v0.0.0-20230703162140-6e9853e4c905
+# github.com/openshift/api v0.0.0-20230711095040-ca06f4a23b64
 ## explicit; go 1.20
 github.com/openshift/api
 github.com/openshift/api/apiserver
@@ -678,17 +678,24 @@ github.com/openshift/client-go/machine/informers/externalversions/machine/v1
 github.com/openshift/client-go/machine/informers/externalversions/machine/v1beta1
 github.com/openshift/client-go/machine/listers/machine/v1
 github.com/openshift/client-go/machine/listers/machine/v1beta1
-# github.com/openshift/library-go v0.0.0-20230508110756-9b7abe2c9cbf
+# github.com/openshift/library-go v0.0.0-20230706195801-561433066966
 ## explicit; go 1.20
 github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers
 github.com/openshift/library-go/pkg/config/clusterstatus
 github.com/openshift/library-go/pkg/config/leaderelection
+github.com/openshift/library-go/pkg/controller/factory
+github.com/openshift/library-go/pkg/crypto
+github.com/openshift/library-go/pkg/operator/condition
+github.com/openshift/library-go/pkg/operator/configobserver
+github.com/openshift/library-go/pkg/operator/configobserver/featuregates
 github.com/openshift/library-go/pkg/operator/events
+github.com/openshift/library-go/pkg/operator/management
 github.com/openshift/library-go/pkg/operator/resource/resourceapply
 github.com/openshift/library-go/pkg/operator/resource/resourcehash
 github.com/openshift/library-go/pkg/operator/resource/resourcehelper
 github.com/openshift/library-go/pkg/operator/resource/resourcemerge
 github.com/openshift/library-go/pkg/operator/resource/resourceread
+github.com/openshift/library-go/pkg/operator/resourcesynccontroller
 github.com/openshift/library-go/pkg/operator/v1helpers
 # github.com/operator-framework/operator-sdk v0.5.1-0.20190301204940-c2efe6f74e7b
 ## explicit
@@ -763,6 +770,9 @@ github.com/quasilyte/stdinfo
 # github.com/rivo/uniseg v0.4.2
 ## explicit; go 1.18
 github.com/rivo/uniseg
+# github.com/robfig/cron v1.2.0
+## explicit
+github.com/robfig/cron
 # github.com/russross/blackfriday/v2 v2.1.0
 ## explicit
 github.com/russross/blackfriday/v2
@@ -1328,6 +1338,7 @@ k8s.io/apimachinery/third_party/forked/golang/netutil
 k8s.io/apimachinery/third_party/forked/golang/reflect
 # k8s.io/apiserver v0.27.2
 ## explicit; go 1.20
+k8s.io/apiserver/pkg/authentication/user
 k8s.io/apiserver/pkg/storage/names
 # k8s.io/cli-runtime v0.27.1
 ## explicit; go 1.20
