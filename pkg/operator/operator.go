@@ -95,6 +95,7 @@ func New(
 
 	deployInformer appsinformersv1.DeploymentInformer,
 	daemonsetInformer appsinformersv1.DaemonSetInformer,
+	clusterOperatorInformer configinformersv1.ClusterOperatorInformer,
 	featureGateInformer configinformersv1.FeatureGateInformer,
 	clusterVersionInformer configinformersv1.ClusterVersionInformer,
 	validatingWebhookInformer admissioninformersv1.ValidatingWebhookConfigurationInformer,
@@ -148,6 +149,10 @@ func New(
 	_, err = mutatingWebhookInformer.Informer().AddEventHandler(optr.eventHandlerSingleton(isMachineWebhook))
 	if err != nil {
 		return nil, fmt.Errorf("error adding event handler to mutatingwebhook informer: %v", err)
+	}
+	_, err = clusterOperatorInformer.Informer().AddEventHandler(optr.eventHandlerSingleton(isSelfClusterOperator))
+	if err != nil {
+		return nil, fmt.Errorf("error adding event handler to clusteroperator informer: %v", err)
 	}
 
 	desiredVersion := releaseVersion
@@ -335,6 +340,15 @@ func isMachineWebhook(obj interface{}) bool {
 	validatingWebhook, ok := obj.(*admissionregistrationv1.ValidatingWebhookConfiguration)
 	if ok {
 		return validatingWebhook.Name == "machine-api"
+	}
+
+	return false
+}
+
+func isSelfClusterOperator(obj interface{}) bool {
+	clusterOperator, ok := obj.(*osconfigv1.ClusterOperator)
+	if ok {
+		return clusterOperator.Name == "machine-api"
 	}
 
 	return false

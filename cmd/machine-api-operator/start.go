@@ -157,6 +157,7 @@ func startControllersOrDie(ctx *ControllerContext) {
 		config,
 		ctx.KubeNamespacedInformerFactory.Apps().V1().Deployments(),
 		ctx.KubeNamespacedInformerFactory.Apps().V1().DaemonSets(),
+		ctx.ConfigInformerFactory.Config().V1().ClusterOperators(),
 		ctx.ConfigInformerFactory.Config().V1().FeatureGates(),
 		ctx.ConfigInformerFactory.Config().V1().ClusterVersions(),
 		ctx.KubeNamespacedInformerFactory.Admissionregistration().V1().ValidatingWebhookConfigurations(),
