@@ -42,6 +42,8 @@ type systemSpecifications struct {
 	maxProcessor             float64
 }
 
+type machineArch string
+
 var (
 	// Azure Defaults
 	defaultAzureVnet = func(clusterID string) string {
@@ -106,6 +108,10 @@ var (
 )
 
 const (
+	arch              = machineArch(goruntime.GOARCH)
+	ARM64 machineArch = "arm64"
+	AMD64 machineArch = "amd64"
+
 	defaultUserDataSecret  = "worker-user-data"
 	defaultSecretNamespace = "openshift-machine-api"
 
@@ -170,6 +176,35 @@ const (
 // GCP Confidential VM supports Compute Engine machine types in the following series:
 // reference: https://cloud.google.com/compute/confidential-vm/docs/os-and-machine-type#machine-type
 var gcpConfidentialComputeSupportedMachineSeries = []string{"n2d", "c2d"}
+
+// defaultInstanceTypeForCloudProvider returns the default instance type for the given cloud provider and architecture.
+// If the cloud provider is not supported, an empty string is returned.
+// If the architecture is not supported, the default instance type for AMD64 is returned as a fallback.
+// The function also takes a pointer to a slice of strings to append warnings to.
+func defaultInstanceTypeForCloudProvider(cloudProvider osconfigv1.PlatformType, arch machineArch, warnings *[]string) string {
+	cloudProviderArchMachineTypes := map[osconfigv1.PlatformType]map[machineArch]string{
+		osconfigv1.AWSPlatformType: {
+			AMD64: defaultAWSX86InstanceType,
+			ARM64: defaultAWSARMInstanceType,
+		},
+	}
+	if cloudProviderMap, ok := cloudProviderArchMachineTypes[cloudProvider]; ok {
+		if instanceType, ok := cloudProviderArchMachineTypes[cloudProvider][arch]; ok {
+			*warnings = append(*warnings, fmt.Sprintf("setting the default instance type %q "+
+				"for cloud provider %q, based on the control plane architecture (%q)", instanceType, cloudProvider, arch))
+			return instanceType
+		}
+		// If the arch is not supported, return the default for AMD64.
+		warning := fmt.Sprintf("no default instance type found for provider %q, arch %q. "+
+			"Defaulting to the amd64 one: %q", cloudProvider, arch, cloudProviderMap[AMD64])
+		*warnings = append(*warnings, warning)
+		klog.Warningln(warning)
+		return cloudProviderMap[AMD64]
+	}
+	// If the cloud provider is not supported, return an empty string.
+	klog.Errorf("no default instance types found for cloud provider %q", cloudProvider)
+	return ""
+}
 
 func secretExists(c client.Client, name, namespace string) (bool, error) {
 	key := client.ObjectKey{
@@ -358,8 +393,7 @@ func getMachineDefaulterOperation(platformStatus *osconfigv1.PlatformStatus) mac
 		if platformStatus.AWS != nil {
 			region = platformStatus.AWS.Region
 		}
-		arch := goruntime.GOARCH
-		return awsDefaulter{region: region, arch: arch}.defaultAWS
+		return awsDefaulter{region: region}.defaultAWS
 	case osconfigv1.AzurePlatformType:
 		return defaultAzure
 	case osconfigv1.GCPPlatformType:
@@ -490,7 +524,6 @@ func (h *machineDefaulterHandler) Default(ctx context.Context, obj runtime.Objec
 
 type awsDefaulter struct {
 	region string
-	arch   string
 }
 
 func (a awsDefaulter) defaultAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
@@ -505,11 +538,13 @@ func (a awsDefaulter) defaultAWS(m *machinev1beta1.Machine, config *admissionCon
 	}
 
 	if providerSpec.InstanceType == "" {
-		if a.arch == "arm64" {
-			providerSpec.InstanceType = defaultAWSARMInstanceType
-		} else {
-			providerSpec.InstanceType = defaultAWSX86InstanceType
-		}
+		providerSpec.InstanceType = defaultInstanceTypeForCloudProvider(osconfigv1.AWSPlatformType, arch, &warnings)
+	}
+
+	if providerSpec.InstanceType == "" {
+		// this should never happen
+		errs = append(errs, field.Required(field.NewPath("instanceType"), "instanceType is required and no "+
+			"default value was found"))
 	}
 
 	if providerSpec.Placement.Region == "" {

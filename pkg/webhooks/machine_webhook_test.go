@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"runtime"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -1183,11 +1182,13 @@ func TestMachineCreation(t *testing.T) {
 func TestMachineUpdate(t *testing.T) {
 	awsClusterID := "aws-cluster"
 	awsRegion := "region"
+	warnings := make([]string, 0)
+
 	defaultAWSProviderSpec := &machinev1beta1.AWSMachineProviderConfig{
 		AMI: machinev1beta1.AWSResourceReference{
 			ID: pointer.String("ami"),
 		},
-		InstanceType:      defaultAWSX86InstanceType,
+		InstanceType:      defaultInstanceTypeForCloudProvider(osconfigv1.AWSPlatformType, arch, &warnings),
 		UserDataSecret:    &corev1.LocalObjectReference{Name: defaultUserDataSecret},
 		CredentialsSecret: &corev1.LocalObjectReference{Name: defaultAWSCredentialsSecret},
 		Placement: machinev1beta1.Placement{
@@ -2265,10 +2266,8 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 
 	clusterID := "clusterID"
 	region := "region"
-	arch := defaultAWSX86InstanceType
-	if runtime.GOARCH == "arm64" {
-		arch = defaultAWSARMInstanceType
-	}
+	itWarnings := make([]string, 0)
+	instanceType := defaultInstanceTypeForCloudProvider(osconfigv1.AWSPlatformType, arch, &itWarnings)
 	testCases := []struct {
 		testCase             string
 		providerSpec         *machinev1beta1.AWSMachineProviderConfig
@@ -2287,7 +2286,7 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 			},
 			expectedProviderSpec: &machinev1beta1.AWSMachineProviderConfig{
 				AMI:               machinev1beta1.AWSResourceReference{},
-				InstanceType:      arch,
+				InstanceType:      instanceType,
 				UserDataSecret:    &corev1.LocalObjectReference{Name: defaultUserDataSecret},
 				CredentialsSecret: &corev1.LocalObjectReference{Name: defaultAWSCredentialsSecret},
 				Placement: machinev1beta1.Placement{
@@ -2296,7 +2295,7 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 			},
 			expectedOk:       true,
 			expectedError:    "",
-			expectedWarnings: nil,
+			expectedWarnings: itWarnings,
 		},
 	}
 

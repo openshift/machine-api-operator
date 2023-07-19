@@ -568,11 +568,13 @@ func TestMachineSetCreation(t *testing.T) {
 func TestMachineSetUpdate(t *testing.T) {
 	awsClusterID := "aws-cluster"
 	awsRegion := "region"
+	warnings := make([]string, 0)
+
 	defaultAWSProviderSpec := &machinev1beta1.AWSMachineProviderConfig{
 		AMI: machinev1beta1.AWSResourceReference{
 			ID: pointer.String("ami"),
 		},
-		InstanceType:      defaultAWSX86InstanceType,
+		InstanceType:      defaultInstanceTypeForCloudProvider(osconfigv1.AWSPlatformType, arch, &warnings),
 		UserDataSecret:    &corev1.LocalObjectReference{Name: defaultUserDataSecret},
 		CredentialsSecret: &corev1.LocalObjectReference{Name: defaultAWSCredentialsSecret},
 		Placement: machinev1beta1.Placement{
