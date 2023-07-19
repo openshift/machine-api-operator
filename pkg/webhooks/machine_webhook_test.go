@@ -1199,7 +1199,7 @@ func TestMachineUpdate(t *testing.T) {
 	azureClusterID := "azure-cluster"
 	defaultAzureProviderSpec := &machinev1beta1.AzureMachineProviderSpec{
 		Location:             "location",
-		VMSize:               defaultAzureVMSize,
+		VMSize:               defaultInstanceTypeForCloudProvider(osconfigv1.AzurePlatformType, arch, &warnings),
 		Vnet:                 defaultAzureVnet(azureClusterID),
 		Subnet:               defaultAzureSubnet(azureClusterID),
 		NetworkResourceGroup: defaultAzureNetworkResourceGroup(azureClusterID),
@@ -2742,8 +2742,10 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 }
 
 func TestDefaultAzureProviderSpec(t *testing.T) {
-
+	itWarnings := make([]string, 0)
+	defaultInstanceType := defaultInstanceTypeForCloudProvider(osconfigv1.AzurePlatformType, arch, &itWarnings)
 	clusterID := "clusterID"
+
 	testCases := []struct {
 		testCase         string
 		providerSpec     *machinev1beta1.AzureMachineProviderSpec
@@ -2753,10 +2755,11 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 		expectedWarnings []string
 	}{
 		{
-			testCase:      "it defaults defaultable fields",
-			providerSpec:  &machinev1beta1.AzureMachineProviderSpec{},
-			expectedOk:    true,
-			expectedError: "",
+			testCase:         "it defaults defaultable fields",
+			providerSpec:     &machinev1beta1.AzureMachineProviderSpec{},
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: itWarnings,
 		},
 		{
 			testCase: "it does not override azure image spec",
@@ -2776,8 +2779,9 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 					Version:   "1",
 				}
 			},
-			expectedOk:    true,
-			expectedError: "",
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: itWarnings,
 		},
 		{
 			testCase: "it does not override azure image ResourceID",
@@ -2791,8 +2795,9 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 					ResourceID: "rid",
 				}
 			},
-			expectedOk:    true,
-			expectedError: "",
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: itWarnings,
 		},
 		{
 			testCase: "does not overwrite the network resource group if it already exists",
@@ -2802,8 +2807,9 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 			modifyDefault: func(p *machinev1beta1.AzureMachineProviderSpec) {
 				p.NetworkResourceGroup = "nrg"
 			},
-			expectedOk:    true,
-			expectedError: "",
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: itWarnings,
 		},
 		{
 			testCase: "does not overwrite the credentials secret namespace if they already exist",
@@ -2815,8 +2821,9 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 			modifyDefault: func(p *machinev1beta1.AzureMachineProviderSpec) {
 				p.CredentialsSecret.Namespace = "foo"
 			},
-			expectedOk:    true,
-			expectedError: "",
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: itWarnings,
 		},
 		{
 			testCase: "does not overwrite the secret names if they already exist",
@@ -2832,18 +2839,18 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 				p.UserDataSecret.Name = "foo"
 				p.CredentialsSecret.Name = "foo"
 			},
-			expectedOk:    true,
-			expectedError: "",
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: itWarnings,
 		},
 	}
 
 	platformStatus := &osconfigv1.PlatformStatus{Type: osconfigv1.AzurePlatformType}
 	h := createMachineDefaulter(platformStatus, clusterID)
-
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
 			defaultProviderSpec := &machinev1beta1.AzureMachineProviderSpec{
-				VMSize: defaultAzureVMSize,
+				VMSize: defaultInstanceType,
 				Vnet:   defaultAzureVnet(clusterID),
 				Subnet: defaultAzureSubnet(clusterID),
 				Image: machinev1beta1.Image{

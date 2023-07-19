@@ -58,8 +58,14 @@ var (
 	defaultAzureImageResourceID = func(clusterID string) string {
 		// image gallery names cannot have dashes
 		galleryName := strings.Replace(clusterID, "-", "_", -1)
-
-		return fmt.Sprintf("/resourceGroups/%s/providers/Microsoft.Compute/galleries/gallery_%s/images/%s/versions/%s", clusterID+"-rg", galleryName, clusterID, azureRHCOSVersion)
+		imageName := clusterID
+		if arch == ARM64 {
+			// append gen2 to the image name for ARM64.
+			// Although the installer creates a gen2 image for AMD64, we cannot guarantee that clusters created
+			// before that change will have a -gen2 image.
+			imageName = fmt.Sprintf("%s-gen2", clusterID)
+		}
+		return fmt.Sprintf("/resourceGroups/%s/providers/Microsoft.Compute/galleries/gallery_%s/images/%s/versions/%s", clusterID+"-rg", galleryName, imageName, azureRHCOSVersion)
 	}
 	defaultAzureManagedIdentiy = func(clusterID string) string {
 		return fmt.Sprintf("%s-identity", clusterID)
@@ -121,7 +127,8 @@ const (
 	defaultAWSARMInstanceType   = "m6g.large"
 
 	// Azure Defaults
-	defaultAzureVMSize            = "Standard_D4s_V3"
+	defaultAzureX86VMSize         = "Standard_D4s_V3"
+	defaultAzureARMVMSize         = "Standard_D4ps_V5"
 	defaultAzureCredentialsSecret = "azure-cloud-credentials"
 	defaultAzureOSDiskOSType      = "Linux"
 	defaultAzureOSDiskStorageType = "Premium_LRS"
@@ -186,6 +193,10 @@ func defaultInstanceTypeForCloudProvider(cloudProvider osconfigv1.PlatformType, 
 		osconfigv1.AWSPlatformType: {
 			AMD64: defaultAWSX86InstanceType,
 			ARM64: defaultAWSARMInstanceType,
+		},
+		osconfigv1.AzurePlatformType: {
+			AMD64: defaultAzureX86VMSize,
+			ARM64: defaultAzureARMVMSize,
 		},
 	}
 	if cloudProviderMap, ok := cloudProviderArchMachineTypes[cloudProvider]; ok {
@@ -780,7 +791,13 @@ func defaultAzure(m *machinev1beta1.Machine, config *admissionConfig) (bool, []s
 	}
 
 	if providerSpec.VMSize == "" {
-		providerSpec.VMSize = defaultAzureVMSize
+		providerSpec.VMSize = defaultInstanceTypeForCloudProvider(osconfigv1.AzurePlatformType, arch, &warnings)
+	}
+
+	if providerSpec.VMSize == "" {
+		// this should never happen
+		errs = append(errs, field.Required(field.NewPath("vmSize"), "vmSize is required and no "+
+			"default value was found"))
 	}
 
 	// Vnet and Subnet need to be provided together by the user

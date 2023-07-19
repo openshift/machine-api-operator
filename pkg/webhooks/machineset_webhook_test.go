@@ -585,7 +585,7 @@ func TestMachineSetUpdate(t *testing.T) {
 	azureClusterID := "azure-cluster"
 	defaultAzureProviderSpec := &machinev1beta1.AzureMachineProviderSpec{
 		Location:             "location",
-		VMSize:               defaultAzureVMSize,
+		VMSize:               defaultInstanceTypeForCloudProvider(osconfigv1.AzurePlatformType, arch, &warnings),
 		Vnet:                 defaultAzureVnet(azureClusterID),
 		Subnet:               defaultAzureSubnet(azureClusterID),
 		NetworkResourceGroup: defaultAzureNetworkResourceGroup(azureClusterID),
