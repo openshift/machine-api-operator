@@ -142,7 +142,8 @@ const (
 	azureRHCOSVersion                  = "latest" // The installer only sets up one version but its name may vary, using latest will pull it no matter the name.
 
 	// GCP Defaults
-	defaultGCPMachineType       = "n1-standard-4"
+	defaultGCPX86MachineType    = "n1-standard-4"
+	defaultGCPARMMachineType    = "t2a-standard-4"
 	defaultGCPCredentialsSecret = "gcp-cloud-credentials"
 	defaultGCPDiskSizeGb        = 128
 	defaultGCPDiskType          = "pd-standard"
@@ -197,6 +198,10 @@ func defaultInstanceTypeForCloudProvider(cloudProvider osconfigv1.PlatformType, 
 		osconfigv1.AzurePlatformType: {
 			AMD64: defaultAzureX86VMSize,
 			ARM64: defaultAzureARMVMSize,
+		},
+		osconfigv1.GCPPlatformType: {
+			AMD64: defaultGCPX86MachineType,
+			ARM64: defaultGCPARMMachineType,
 		},
 	}
 	if cloudProviderMap, ok := cloudProviderArchMachineTypes[cloudProvider]; ok {
@@ -1010,7 +1015,13 @@ func defaultGCP(m *machinev1beta1.Machine, config *admissionConfig) (bool, []str
 	}
 
 	if providerSpec.MachineType == "" {
-		providerSpec.MachineType = defaultGCPMachineType
+		providerSpec.MachineType = defaultInstanceTypeForCloudProvider(osconfigv1.GCPPlatformType, arch, &warnings)
+	}
+
+	if providerSpec.MachineType == "" {
+		// this should never happen
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "machineType"), "machineType "+
+			"is required and no default value was found"))
 	}
 
 	if len(providerSpec.NetworkInterfaces) == 0 {

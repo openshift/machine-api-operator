@@ -1233,7 +1233,7 @@ func TestMachineUpdate(t *testing.T) {
 	defaultGCPProviderSpec := &machinev1beta1.GCPMachineProviderSpec{
 		Region:      "region",
 		Zone:        "region-zone",
-		MachineType: defaultGCPMachineType,
+		MachineType: defaultInstanceTypeForCloudProvider(osconfigv1.GCPPlatformType, arch, &warnings),
 		NetworkInterfaces: []*machinev1beta1.GCPNetworkInterface{
 			{
 				Network:    defaultGCPNetwork(gcpClusterID),
@@ -3441,6 +3441,9 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 
 	clusterID := "clusterID"
 	projectID := "projectID"
+	itWarnings := make([]string, 0)
+	instanceType := defaultInstanceTypeForCloudProvider(osconfigv1.GCPPlatformType, arch, &itWarnings)
+
 	testCases := []struct {
 		testCase         string
 		providerSpec     *machinev1beta1.GCPMachineProviderSpec
@@ -3450,10 +3453,11 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 		expectedWarnings []string
 	}{
 		{
-			testCase:      "it defaults defaultable fields",
-			providerSpec:  &machinev1beta1.GCPMachineProviderSpec{},
-			expectedOk:    true,
-			expectedError: "",
+			testCase:         "it defaults defaultable fields",
+			providerSpec:     &machinev1beta1.GCPMachineProviderSpec{},
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: itWarnings,
 		},
 		{
 			testCase: "it does not overwrite disks which already have fields set",
@@ -3477,8 +3481,9 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 					},
 				}
 			},
-			expectedOk:    true,
-			expectedError: "",
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: itWarnings,
 		},
 		{
 			testCase: "sets default gpu Count",
@@ -3497,8 +3502,9 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 					},
 				}
 			},
-			expectedOk:    true,
-			expectedError: "",
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: itWarnings,
 		},
 	}
 
@@ -3512,7 +3518,7 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 
 	for _, tc := range testCases {
 		defaultProviderSpec := &machinev1beta1.GCPMachineProviderSpec{
-			MachineType: defaultGCPMachineType,
+			MachineType: instanceType,
 			NetworkInterfaces: []*machinev1beta1.GCPNetworkInterface{
 				{
 					Network:    defaultGCPNetwork(clusterID),

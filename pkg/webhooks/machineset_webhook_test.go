@@ -615,7 +615,7 @@ func TestMachineSetUpdate(t *testing.T) {
 	defaultGCPProviderSpec := &machinev1beta1.GCPMachineProviderSpec{
 		Region:      "region",
 		Zone:        "region-zone",
-		MachineType: defaultGCPMachineType,
+		MachineType: defaultInstanceTypeForCloudProvider(osconfigv1.GCPPlatformType, arch, &warnings),
 		NetworkInterfaces: []*machinev1beta1.GCPNetworkInterface{
 			{
 				Network:    defaultGCPNetwork(gcpClusterID),
