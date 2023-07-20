@@ -126,10 +126,6 @@ func TestMachineSetToMachines(t *testing.T) {
 		},
 	}
 
-	if err := machinev1.AddToScheme(scheme.Scheme); err != nil {
-		t.Fatalf("cannot add scheme: %v", err)
-	}
-
 	r := &ReconcileMachineSet{
 		Client: fake.NewClientBuilder().WithRuntimeObjects(&m, &m2, &m3, machineSetList).Build(),
 		scheme: scheme.Scheme,
@@ -246,10 +242,6 @@ func TestAdoptOrphan(t *testing.T) {
 		},
 	}
 
-	if err := machinev1.AddToScheme(scheme.Scheme); err != nil {
-		t.Fatalf("cannot add scheme: %v", err)
-	}
-
 	for _, tc := range testCases {
 		r := &ReconcileMachineSet{
 			Client: fake.NewClientBuilder().WithRuntimeObjects(&tc.machineSet, &tc.machine).Build(),
@@ -274,7 +266,6 @@ var _ = Describe("MachineSet Reconcile", func() {
 	var rec *record.FakeRecorder
 
 	BeforeEach(func() {
-		Expect(machinev1.AddToScheme(scheme.Scheme)).To(Succeed())
 		rec = record.NewFakeRecorder(32)
 
 		r = &ReconcileMachineSet{
