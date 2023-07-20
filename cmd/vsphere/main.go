@@ -126,15 +126,15 @@ func main() {
 		TaskIDCache:   taskIDCache,
 	})
 
-	if err := configv1.AddToScheme(mgr.GetScheme()); err != nil {
+	if err := configv1.Install(mgr.GetScheme()); err != nil {
 		klog.Fatal(err)
 	}
 
-	if err := machinev1.AddToScheme(mgr.GetScheme()); err != nil {
+	if err := machinev1.Install(mgr.GetScheme()); err != nil {
 		klog.Fatal(err)
 	}
 
-	if err := machinev1.AddToScheme(mgr.GetScheme()); err != nil {
+	if err := machinev1.Install(mgr.GetScheme()); err != nil {
 		klog.Fatal(err)
 	}
 
