@@ -1700,10 +1700,6 @@ func TestDelete(t *testing.T) {
 		},
 	}
 
-	if err := machinev1.AddToScheme(scheme.Scheme); err != nil {
-		t.Fatalf("cannot add scheme: %v", err)
-	}
-
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
 			vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
