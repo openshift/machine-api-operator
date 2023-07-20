@@ -20,7 +20,7 @@ import (
 )
 
 func init() {
-	if err := machinev1.AddToScheme(scheme.Scheme); err != nil {
+	if err := machinev1.Install(scheme.Scheme); err != nil {
 		klog.Fatal(err)
 	}
 }

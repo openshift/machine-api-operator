@@ -68,7 +68,7 @@ func TestMain(m *testing.M) {
 		log.Fatal(err)
 	}
 
-	err = osconfigv1.AddToScheme(scheme.Scheme)
+	err = osconfigv1.Install(scheme.Scheme)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -57,7 +57,7 @@ const (
 
 func init() {
 	// Add types to scheme
-	if err := configv1.AddToScheme(scheme.Scheme); err != nil {
+	if err := configv1.Install(scheme.Scheme); err != nil {
 		panic(fmt.Sprintf("cannot add scheme: %v", err))
 	}
 }
