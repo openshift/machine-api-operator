@@ -39,7 +39,7 @@ func init() {
 	logf.SetLogger(klogr.New())
 
 	// Register required object kinds with global scheme.
-	_ = machinev1.AddToScheme(scheme.Scheme)
+	_ = machinev1.Install(scheme.Scheme)
 }
 
 const (
