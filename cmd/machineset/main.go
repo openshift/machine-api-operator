@@ -174,7 +174,7 @@ func main() {
 	log.Printf("Registering Components.")
 
 	// Setup Scheme for all resources
-	if err := machinev1.AddToScheme(mgr.GetScheme()); err != nil {
+	if err := machinev1.Install(mgr.GetScheme()); err != nil {
 		log.Fatal(err)
 	}
 

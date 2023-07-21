@@ -508,10 +508,6 @@ func TestReconcileRequest(t *testing.T) {
 		t.Run(tc.request.Name, func(t *testing.T) {
 			act := newTestActuator()
 			act.ExistsValue = tc.existsValue
-			if err := machinev1.AddToScheme(scheme.Scheme); err != nil {
-				t.Fatalf("cannot add scheme: %v", err)
-			}
-
 			r := &ReconcileMachine{
 				Client: fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(
 					&machineNoPhase,
@@ -690,7 +686,6 @@ func TestUpdateStatus(t *testing.T) {
 
 			k8sClient, err := client.New(cfg, client.Options{})
 			g.Expect(err).ToNot(HaveOccurred())
-			g.Expect(machinev1.AddToScheme(scheme.Scheme)).ToNot(HaveOccurred())
 			reconciler := &ReconcileMachine{
 				Client: k8sClient,
 				scheme: scheme.Scheme,
