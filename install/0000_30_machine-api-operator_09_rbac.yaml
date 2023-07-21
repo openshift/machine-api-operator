@@ -163,6 +163,21 @@ rules:
       - baremetalhosts/finalizers
     verbs:
       - update
+
+  - apiGroups:
+      - ipam.cluster.x-k8s.io
+    resources:
+      - ipaddresses
+    verbs:
+      - get
+      - list
+
+  - apiGroups:
+      - ipam.cluster.x-k8s.io
+    resources:
+      - ipaddressclaims
+    verbs:
+      - '*'
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole

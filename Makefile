@@ -18,6 +18,11 @@ ifeq ($(DBG),1)
 GOGCFLAGS ?= -gcflags=all="-N -l"
 endif
 
+TOOLS_DIR=./tools
+BIN_DIR=bin
+TOOLS_BIN_DIR := $(TOOLS_DIR)/$(BIN_DIR)
+CONTROLLER_GEN := $(abspath $(TOOLS_BIN_DIR)/controller-gen)
+
 .PHONY: all
 all: check build test
 
@@ -51,6 +56,9 @@ ENVTEST = go run ${PROJECT_DIR}/vendor/sigs.k8s.io/controller-runtime/tools/setu
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
 ENVTEST_K8S_VERSION = 1.27
 
+$(CONTROLLER_GEN): $(TOOLS_DIR)/go.mod # Build controller-gen from tools folder.
+	cd $(TOOLS_DIR); GO111MODULE=on GOFLAGS=-mod=vendor go build -tags=tools -o $(BIN_DIR)/controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen
+
 .PHONY: vendor
 vendor:
 	$(DOCKER_CMD) ./hack/go-mod.sh
@@ -74,7 +82,7 @@ machine-healthcheck:
 	$(DOCKER_CMD) ./hack/go-build.sh machine-healthcheck
 
 .PHONY: vsphere
-vsphere:
+vsphere: generate-third-party-deepcopy
 	$(DOCKER_CMD) ./hack/go-build.sh vsphere
 
 .PHONY: machineset
@@ -128,6 +136,12 @@ goimports: ## Go fmt your code
 .PHONY: vet
 vet: ## Apply go vet to all go files
 	$(DOCKER_CMD) hack/go-vet.sh ./pkg/... ./cmd/...
+
+.PHONY: generate-third-party-deepcopy
+generate-third-party-deepcopy: $(CONTROLLER_GEN)
+	$(CONTROLLER_GEN) object  paths="./third_party/cluster-api/..."
+	$(CONTROLLER_GEN) crd paths="./third_party/cluster-api/..." output\:crd\:artifacts\:config=./third_party/cluster-api/crd
+
 
 .PHONY: crds-sync
 crds-sync: ## Sync crds in install with the ones in the vendored oc/api

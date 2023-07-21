@@ -3,10 +3,15 @@ package vsphere
 import (
 	"context"
 	"encoding/base64"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"net"
+	"net/netip"
 	"strconv"
 	"strings"
+
+	"github.com/openshift/machine-api-operator/pkg/util/ipam"
 
 	"github.com/google/uuid"
 
@@ -48,6 +53,7 @@ const (
 	GuestInfoIgnitionData     = "guestinfo.ignition.config.data"
 	GuestInfoIgnitionEncoding = "guestinfo.ignition.config.data.encoding"
 	GuestInfoHostname         = "guestinfo.hostname"
+	GuestInfoNetworkKargs     = "guestinfo.afterburn.initrd.network-kargs"
 	StealClock                = "stealclock.enable"
 )
 
@@ -73,6 +79,36 @@ func newReconciler(scope *machineScope) *Reconciler {
 func (r *Reconciler) create() error {
 	if err := validateMachine(*r.machine); err != nil {
 		return fmt.Errorf("%v: failed validating machine provider spec: %w", r.machine.GetName(), err)
+	}
+
+	if ipam.HasStaticIPConfiguration(r.providerSpec) {
+		if !r.staticIPFeatureGateEnabled {
+			return fmt.Errorf("%v: static IP/IPAM configuration is only available with the VSphereStaticIPs feature gate", r.machine.GetName())
+		}
+
+		outstandingClaims, err := ipam.HasOutstandingIPAddressClaims(
+			r.Context,
+			r.client,
+			r.machine,
+			r.providerSpec.Network.Devices,
+		)
+		if err != nil {
+			return err
+		}
+		condition := metav1.Condition{
+			Type:    string(machinev1.IPAddressClaimedCondition),
+			Reason:  machinev1.WaitingForIPAddressReason,
+			Message: "All IP address claims are bound",
+			Status:  metav1.ConditionFalse,
+		}
+		if outstandingClaims > 0 {
+			condition.Message = fmt.Sprintf("Waiting on %d IP address claims to be bound", outstandingClaims)
+			condition.Status = metav1.ConditionTrue
+			klog.Infof("Waiting for IPAddressClaims associated with machine %s to be bound", r.machine.Name)
+		}
+		if err := setProviderStatus("", condition, r.machineScope, nil); err != nil {
+			return fmt.Errorf("could not set provider status: %w", err)
+		}
 	}
 
 	// We only clone the VM template if we have no taskRef.
@@ -316,6 +352,11 @@ func (r *Reconciler) delete() error {
 			return err
 		}
 		klog.Infof("%v: vm does not exist", r.machine.GetName())
+		// remove any finalizers for IPAddressClaims which may be associated with the machine
+		err = ipam.RemoveFinalizersForIPAddressClaims(r.Context, r.client, *r.machine)
+		if err != nil {
+			return fmt.Errorf("unable to remove finalizer for IP address claims: %w", err)
+		}
 		return nil
 	}
 
@@ -630,6 +671,113 @@ func isNotFound(err error) bool {
 	}
 }
 
+func getSubnetMask(prefix netip.Prefix) (string, error) {
+	prefixLength := net.IPv4len * 8
+	if prefix.Addr().Is6() {
+		prefixLength = net.IPv6len * 8
+	}
+	ipMask := net.CIDRMask(prefix.Masked().Bits(), prefixLength)
+	maskBytes, err := hex.DecodeString(ipMask.String())
+	if err != nil {
+		return "", fmt.Errorf("could not translate ip mask: %w", err)
+	}
+	ip := net.IP(maskBytes)
+	maskStr := ip.To16().String()
+	return maskStr, nil
+}
+
+// getAddressesFromPool retrieves IP addresses and associated gateway from IP address pools
+func getAddressesFromPool(configIdx int, networkConfig machinev1.NetworkDeviceSpec, s *machineScope) ([]string, string, error) {
+	addresses := []string{}
+	var gateway string
+	for poolIdx := range networkConfig.AddressesFromPools {
+		claimName := ipam.GetIPAddressClaimName(s.machine, configIdx, poolIdx)
+		ipAddress, err := ipam.RetrieveBoundIPAddress(s.Context, s.client, s.machine, claimName)
+		if err != nil {
+			return nil, "", fmt.Errorf("error retrieving bound IP address: %w", err)
+		}
+		ipAddressSpec := ipAddress.Spec
+		addresses = append(addresses, fmt.Sprintf("%s/%d", ipAddressSpec.Address, ipAddressSpec.Prefix))
+		if len(ipAddressSpec.Gateway) > 0 {
+			gateway = ipAddressSpec.Gateway
+		}
+	}
+	return addresses, gateway, nil
+}
+
+// constructKargsFromNetworkConfig builds a string which comprises ip and nameserver stanzas
+// which are consumed by guestinfo.afterburn.initrd.network-kargs.
+func constructKargsFromNetworkConfig(s *machineScope) (string, error) {
+	outKargs := ""
+	networkConfigs := s.providerSpec.Network.Devices
+	for configIdx, networkConfig := range networkConfigs {
+		// retrieve any IP addresses assigned by an IP address pool
+		addressesFromPool, gatewayFromPool, err := getAddressesFromPool(configIdx, networkConfig, s)
+		if err != nil {
+			return "", fmt.Errorf("error getting addresses from IP pool: %w", err)
+		}
+		var gateway string
+		if len(gatewayFromPool) > 0 {
+			gateway = gatewayFromPool
+		} else {
+			gateway = networkConfig.Gateway
+		}
+
+		var gatewayIp netip.Addr
+		if len(gateway) > 0 {
+			gatewayIp, err = netip.ParseAddr(gateway)
+			if err != nil {
+				return "", fmt.Errorf("error parsing gateway address: %w", err)
+			}
+		}
+
+		ipAddresses := []string{}
+		ipAddresses = append(ipAddresses, networkConfig.IPAddrs...)
+		ipAddresses = append(ipAddresses, addressesFromPool...)
+
+		// construct IP address network kargs for each IP address
+		for _, address := range ipAddresses {
+			prefix, err := netip.ParsePrefix(address)
+			if err != nil {
+				return "", fmt.Errorf("error parsing prefix: %w", err)
+			}
+			var ipStr, gatewayStr, maskStr string
+			addr := prefix.Addr()
+			// IPv6 addresses must be wrapped in [] for dracut network kargs
+			if addr.Is6() {
+				maskStr = fmt.Sprintf("%d", prefix.Bits())
+				ipStr = fmt.Sprintf("[%s]", addr.String())
+				if len(gateway) > 0 && gatewayIp.Is6() {
+					gatewayStr = fmt.Sprintf("[%s]", gateway)
+				}
+			} else if addr.Is4() {
+				maskStr, err = getSubnetMask(prefix)
+				if err != nil {
+					return "", fmt.Errorf("error getting subnet mask: %w", err)
+				}
+				if len(gateway) > 0 && gatewayIp.Is4() {
+					gatewayStr = gateway
+				}
+				ipStr = addr.String()
+			} else {
+				return "", errors.New("IP address must adhere to IPv4 or IPv6 format")
+			}
+
+			outKargs = outKargs + fmt.Sprintf("ip=%s::%s:%s:::none ", ipStr, gatewayStr, maskStr)
+		}
+
+		// construct nameserver network karg for each defined nameserver
+		for _, nameserver := range networkConfig.Nameservers {
+			ip := net.ParseIP(nameserver)
+			if ip.To4() == nil {
+				nameserver = fmt.Sprintf("[%s]", nameserver)
+			}
+			outKargs = outKargs + fmt.Sprintf("nameserver=%s ", nameserver)
+		}
+	}
+	return outKargs, nil
+}
+
 func isRetrieveMONotFound(taskRef string, err error) bool {
 	return err.Error() == fmt.Sprintf("ServerFaultCode: The object 'vim.Task:%v' has already been deleted or has not been completely created", taskRef)
 }
@@ -791,6 +939,19 @@ func clone(s *machineScope) (string, error) {
 		Key:   StealClock,
 		Value: "TRUE",
 	})
+
+	if ipam.HasStaticIPConfiguration(s.providerSpec) {
+		networkKargs, err := constructKargsFromNetworkConfig(s)
+		if err != nil {
+			return "", err
+		}
+		if len(networkKargs) > 0 {
+			extraConfig = append(extraConfig, &types.OptionValue{
+				Key:   GuestInfoNetworkKargs,
+				Value: networkKargs,
+			})
+		}
+	}
 
 	spec := types.VirtualMachineCloneSpec{
 		Config: &types.VirtualMachineConfigSpec{
