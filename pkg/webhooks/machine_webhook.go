@@ -875,6 +875,8 @@ func validateAzure(m *machinev1beta1.Machine, config *admissionConfig) (bool, []
 			fmt.Sprintf("ultraSSDCapability can be only %s, %s or omitted", machinev1beta1.AzureUltraSSDCapabilityEnabled, machinev1beta1.AzureUltraSSDCapabilityDisabled)))
 	}
 
+	errs = append(errs, validateAzureSecurityProfile(m.Name, providerSpec, field.NewPath("providerSpec", "securityProfile"))...)
+
 	errs = append(errs, validateAzureDataDisks(m.Name, providerSpec, field.NewPath("providerSpec", "dataDisks"))...)
 
 	errs = append(errs, validateAzureDiagnostics(providerSpec.Diagnostics, field.NewPath("providerSpec", "diagnostics"))...)
@@ -1594,6 +1596,82 @@ func validateMachineLifecycleHooks(m, oldM *machinev1beta1.Machine) field.ErrorL
 		changedPreTerminate := lifecyclehooks.GetChangedLifecycleHooks(oldM.Spec.LifecycleHooks.PreTerminate, m.Spec.LifecycleHooks.PreTerminate)
 		if len(changedPreTerminate) > 0 {
 			errs = append(errs, field.Forbidden(field.NewPath("spec", "lifecycleHooks", "preTerminate"), fmt.Sprintf("pre-terminate hooks are immutable when machine is marked for deletion: the following hooks are new or changed: %+v", changedPreTerminate)))
+		}
+	}
+
+	return errs
+}
+
+func validateAzureSecurityProfile(machineName string, spec *machinev1beta1.AzureMachineProviderSpec, parentPath *field.Path) field.ErrorList {
+	var errs field.ErrorList
+
+	if spec.SecurityProfile == nil && spec.OSDisk.ManagedDisk.SecurityProfile.SecurityEncryptionType == "" {
+		return errs
+	}
+	if spec.SecurityProfile == nil && spec.OSDisk.ManagedDisk.SecurityProfile.SecurityEncryptionType != "" {
+		return append(errs, field.Required(parentPath, "securityProfile should be set when osDisk.managedDisk.securityProfile.securityEncryptionType is defined."))
+	}
+
+	switch spec.SecurityProfile.Settings.SecurityType {
+	case machinev1beta1.SecurityTypesConfidentialVM:
+		if spec.OSDisk.ManagedDisk.SecurityProfile.SecurityEncryptionType == "" {
+			fieldPath := parentPath.Root().Child("osDisk").Child("managedDisk").Child("securityProfile")
+			return append(errs, field.Required(fieldPath.Child("securityEncryptionType"),
+				fmt.Sprintf("securityEncryptionType should be set when securityType is set to %s.",
+					machinev1beta1.SecurityTypesConfidentialVM)))
+		}
+
+		if spec.SecurityProfile.Settings.ConfidentialVM == nil {
+			return append(errs, field.Required(parentPath.Child("settings").Child("confidentialVM"),
+				fmt.Sprintf("confidentialVM should be set when securityType is set to %s.",
+					machinev1beta1.SecurityTypesConfidentialVM)))
+		}
+
+		if spec.SecurityProfile.Settings.ConfidentialVM.UEFISettings.VirtualizedTrustedPlatformModule != machinev1beta1.VirtualizedTrustedPlatformModulePolicyEnabled {
+			fieldPath := parentPath.Child("settings").Child("confidentialVM").Child("uefiSettings")
+			return append(errs, field.Invalid(fieldPath.Child("virtualizedTrustedPlatformModule"),
+				spec.SecurityProfile.Settings.ConfidentialVM.UEFISettings.VirtualizedTrustedPlatformModule,
+				fmt.Sprintf("virtualizedTrustedPlatformModule should be enabled when securityType is set to %s.",
+					machinev1beta1.SecurityTypesConfidentialVM)))
+		}
+
+		if spec.OSDisk.ManagedDisk.SecurityProfile.SecurityEncryptionType == machinev1beta1.SecurityEncryptionTypesDiskWithVMGuestState {
+			if spec.SecurityProfile.EncryptionAtHost != nil && *spec.SecurityProfile.EncryptionAtHost {
+				return append(errs, field.Invalid(parentPath.Child("encryptionAtHost"), spec.SecurityProfile.EncryptionAtHost,
+					fmt.Sprintf("encryptionAtHost cannot be set to true when securityEncryptionType is set to %s.",
+						machinev1beta1.SecurityEncryptionTypesDiskWithVMGuestState)))
+			}
+
+			if spec.SecurityProfile.Settings.ConfidentialVM.UEFISettings.SecureBoot != machinev1beta1.SecureBootPolicyEnabled {
+				fieldPath := parentPath.Child("settings").Child("confidentialVM").Child("uefiSettings")
+				return append(errs, field.Invalid(fieldPath.Child("secureBoot"), spec.SecurityProfile.Settings.ConfidentialVM.UEFISettings.SecureBoot,
+					fmt.Sprintf("secureBoot should be enabled when securityEncryptionType is set to %s.",
+						machinev1beta1.SecurityEncryptionTypesDiskWithVMGuestState)))
+			}
+		}
+	case machinev1beta1.SecurityTypesTrustedLaunch:
+		if spec.SecurityProfile.Settings.TrustedLaunch == nil {
+			return append(errs, field.Required(parentPath.Child("settings").Child("trustedLaunch"),
+				fmt.Sprintf("trustedLaunch should be set when securityType is set to %s.",
+					machinev1beta1.SecurityTypesTrustedLaunch)))
+		}
+	default:
+		if spec.SecurityProfile.Settings.SecurityType != machinev1beta1.SecurityTypesConfidentialVM &&
+			spec.OSDisk.ManagedDisk.SecurityProfile.SecurityEncryptionType != "" {
+			return append(errs, field.Invalid(parentPath.Child("settings").Child("securityType"),
+				spec.SecurityProfile.Settings.SecurityType,
+				fmt.Sprintf("securityType should be set to %s when securityEncryptionType is defined.",
+					machinev1beta1.SecurityTypesConfidentialVM)))
+		}
+
+		if spec.SecurityProfile.Settings.TrustedLaunch != nil &&
+			spec.SecurityProfile.Settings.SecurityType != machinev1beta1.SecurityTypesTrustedLaunch &&
+			(spec.SecurityProfile.Settings.TrustedLaunch.UEFISettings.SecureBoot == machinev1beta1.SecureBootPolicyEnabled ||
+				spec.SecurityProfile.Settings.TrustedLaunch.UEFISettings.VirtualizedTrustedPlatformModule == machinev1beta1.VirtualizedTrustedPlatformModulePolicyEnabled) {
+			return append(errs, field.Invalid(parentPath.Child("settings").Child("securityType"),
+				spec.SecurityProfile.Settings.SecurityType,
+				fmt.Sprintf("securityType should be set to %s when uefiSettings are enabled.",
+					machinev1beta1.SecurityTypesTrustedLaunch)))
 		}
 	}
 

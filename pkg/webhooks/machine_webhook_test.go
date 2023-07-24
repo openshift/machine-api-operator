@@ -2545,6 +2545,186 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 			expectedError: "providerSpec.osDisk.diskSizeGB: Invalid value: 0: diskSizeGB must be greater than zero and less than 32768",
 		},
 		{
+			testCase: "with no securityProfile and osDisk.managedDisk.securityProfile.securityEncryptionType defined it fails",
+			modifySpec: func(p *machinev1beta1.AzureMachineProviderSpec) {
+				p.SecurityProfile = nil
+				p.OSDisk = machinev1beta1.OSDisk{
+					DiskSizeGB: 1,
+					ManagedDisk: machinev1beta1.OSDiskManagedDiskParameters{
+						SecurityProfile: machinev1beta1.VMDiskSecurityProfile{
+							SecurityEncryptionType: machinev1beta1.SecurityEncryptionTypesVMGuestStateOnly,
+						},
+					},
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.securityProfile: Required value: securityProfile should be set when osDisk.managedDisk.securityProfile.securityEncryptionType is defined.",
+		},
+		{
+			testCase: "with securityType set to ConfidentialVM and no osDisk.managedDisk.securityProfile.securityEncryptionType it fails",
+			modifySpec: func(p *machinev1beta1.AzureMachineProviderSpec) {
+				p.SecurityProfile = &machinev1beta1.SecurityProfile{
+					Settings: machinev1beta1.SecuritySettings{
+						SecurityType: machinev1beta1.SecurityTypesConfidentialVM,
+					},
+				}
+				p.OSDisk = machinev1beta1.OSDisk{
+					DiskSizeGB: 1,
+				}
+			},
+			expectedOk:    false,
+			expectedError: fmt.Sprintf("providerSpec.osDisk.managedDisk.securityProfile.securityEncryptionType: Required value: securityEncryptionType should be set when securityType is set to %s.", machinev1beta1.SecurityTypesConfidentialVM),
+		},
+		{
+			testCase: "with securityType set to ConfidentialVM and no securityProfile.settings.confidentialVM it fails",
+			modifySpec: func(p *machinev1beta1.AzureMachineProviderSpec) {
+				p.SecurityProfile = &machinev1beta1.SecurityProfile{
+					Settings: machinev1beta1.SecuritySettings{
+						SecurityType: machinev1beta1.SecurityTypesConfidentialVM,
+					},
+				}
+				p.OSDisk = machinev1beta1.OSDisk{
+					DiskSizeGB: 1,
+					ManagedDisk: machinev1beta1.OSDiskManagedDiskParameters{
+						SecurityProfile: machinev1beta1.VMDiskSecurityProfile{
+							SecurityEncryptionType: machinev1beta1.SecurityEncryptionTypesVMGuestStateOnly,
+						},
+					},
+				}
+			},
+			expectedOk:    false,
+			expectedError: fmt.Sprintf("providerSpec.securityProfile.settings.confidentialVM: Required value: confidentialVM should be set when securityType is set to %s.", machinev1beta1.SecurityTypesConfidentialVM),
+		},
+		{
+			testCase: "with securityType set to ConfidentialVM and virtualizedTrustedPlatformModule disabled it fails",
+			modifySpec: func(p *machinev1beta1.AzureMachineProviderSpec) {
+				p.SecurityProfile = &machinev1beta1.SecurityProfile{
+					Settings: machinev1beta1.SecuritySettings{
+						SecurityType: machinev1beta1.SecurityTypesConfidentialVM,
+						ConfidentialVM: &machinev1beta1.ConfidentialVM{
+							UEFISettings: machinev1beta1.UEFISettings{
+								VirtualizedTrustedPlatformModule: machinev1beta1.VirtualizedTrustedPlatformModulePolicyDisabled,
+							},
+						},
+					},
+				}
+				p.OSDisk = machinev1beta1.OSDisk{
+					DiskSizeGB: 1,
+					ManagedDisk: machinev1beta1.OSDiskManagedDiskParameters{
+						SecurityProfile: machinev1beta1.VMDiskSecurityProfile{
+							SecurityEncryptionType: machinev1beta1.SecurityEncryptionTypesVMGuestStateOnly,
+						},
+					},
+				}
+			},
+			expectedOk:    false,
+			expectedError: fmt.Sprintf("providerSpec.securityProfile.settings.confidentialVM.uefiSettings.virtualizedTrustedPlatformModule: Invalid value: \"Disabled\": virtualizedTrustedPlatformModule should be enabled when securityType is set to %s.", machinev1beta1.SecurityTypesConfidentialVM),
+		},
+		{
+			testCase: "with securityEncryptionType set to DiskWithVMGuestState and encryptionAtHost enabled it fails",
+			modifySpec: func(p *machinev1beta1.AzureMachineProviderSpec) {
+				p.SecurityProfile = &machinev1beta1.SecurityProfile{
+					EncryptionAtHost: pointer.Bool(true),
+					Settings: machinev1beta1.SecuritySettings{
+						SecurityType: machinev1beta1.SecurityTypesConfidentialVM,
+						ConfidentialVM: &machinev1beta1.ConfidentialVM{
+							UEFISettings: machinev1beta1.UEFISettings{
+								VirtualizedTrustedPlatformModule: machinev1beta1.VirtualizedTrustedPlatformModulePolicyEnabled,
+							},
+						},
+					},
+				}
+				p.OSDisk = machinev1beta1.OSDisk{
+					DiskSizeGB: 1,
+					ManagedDisk: machinev1beta1.OSDiskManagedDiskParameters{
+						SecurityProfile: machinev1beta1.VMDiskSecurityProfile{
+							SecurityEncryptionType: machinev1beta1.SecurityEncryptionTypesDiskWithVMGuestState,
+						},
+					},
+				}
+			},
+			expectedOk:    false,
+			expectedError: fmt.Sprintf("providerSpec.securityProfile.encryptionAtHost: Invalid value: true: encryptionAtHost cannot be set to true when securityEncryptionType is set to %s.", machinev1beta1.SecurityEncryptionTypesDiskWithVMGuestState),
+		},
+		{
+			testCase: "with securityEncryptionType set to DiskWithVMGuestState and secureBoot disabled it fails",
+			modifySpec: func(p *machinev1beta1.AzureMachineProviderSpec) {
+				p.SecurityProfile = &machinev1beta1.SecurityProfile{
+					Settings: machinev1beta1.SecuritySettings{
+						SecurityType: machinev1beta1.SecurityTypesConfidentialVM,
+						ConfidentialVM: &machinev1beta1.ConfidentialVM{
+							UEFISettings: machinev1beta1.UEFISettings{
+								VirtualizedTrustedPlatformModule: machinev1beta1.VirtualizedTrustedPlatformModulePolicyEnabled,
+								SecureBoot:                       machinev1beta1.SecureBootPolicyDisabled,
+							},
+						},
+					},
+				}
+				p.OSDisk = machinev1beta1.OSDisk{
+					DiskSizeGB: 1,
+					ManagedDisk: machinev1beta1.OSDiskManagedDiskParameters{
+						SecurityProfile: machinev1beta1.VMDiskSecurityProfile{
+							SecurityEncryptionType: machinev1beta1.SecurityEncryptionTypesDiskWithVMGuestState,
+						},
+					},
+				}
+			},
+			expectedOk:    false,
+			expectedError: fmt.Sprintf("providerSpec.securityProfile.settings.confidentialVM.uefiSettings.secureBoot: Invalid value: \"Disabled\": secureBoot should be enabled when securityEncryptionType is set to %s.", machinev1beta1.SecurityEncryptionTypesDiskWithVMGuestState),
+		},
+		{
+			testCase: "with securityEncryptionType and securityType not ConfidentialVM it fails",
+			modifySpec: func(p *machinev1beta1.AzureMachineProviderSpec) {
+				p.SecurityProfile = &machinev1beta1.SecurityProfile{
+					Settings: machinev1beta1.SecuritySettings{
+						ConfidentialVM: &machinev1beta1.ConfidentialVM{
+							UEFISettings: machinev1beta1.UEFISettings{
+								VirtualizedTrustedPlatformModule: machinev1beta1.VirtualizedTrustedPlatformModulePolicyEnabled,
+							},
+						},
+					},
+				}
+				p.OSDisk = machinev1beta1.OSDisk{
+					DiskSizeGB: 1,
+					ManagedDisk: machinev1beta1.OSDiskManagedDiskParameters{
+						SecurityProfile: machinev1beta1.VMDiskSecurityProfile{
+							SecurityEncryptionType: machinev1beta1.SecurityEncryptionTypesDiskWithVMGuestState,
+						},
+					},
+				}
+			},
+			expectedOk:    false,
+			expectedError: fmt.Sprintf("providerSpec.securityProfile.settings.securityType: Invalid value: \"\": securityType should be set to %s when securityEncryptionType is defined.", machinev1beta1.SecurityTypesConfidentialVM),
+		},
+		{
+			testCase: "with securityType set to TrustedLaunch and no securityProfile.settings.trustedLaunch it fails",
+			modifySpec: func(p *machinev1beta1.AzureMachineProviderSpec) {
+				p.SecurityProfile = &machinev1beta1.SecurityProfile{
+					Settings: machinev1beta1.SecuritySettings{
+						SecurityType: machinev1beta1.SecurityTypesTrustedLaunch,
+					},
+				}
+			},
+			expectedOk:    false,
+			expectedError: fmt.Sprintf("providerSpec.securityProfile.settings.trustedLaunch: Required value: trustedLaunch should be set when securityType is set to %s.", machinev1beta1.SecurityTypesTrustedLaunch),
+		},
+		{
+			testCase: "with secureBoot enabled and securityType not set to TrustedLaunch it fails",
+			modifySpec: func(p *machinev1beta1.AzureMachineProviderSpec) {
+				p.SecurityProfile = &machinev1beta1.SecurityProfile{
+					Settings: machinev1beta1.SecuritySettings{
+						TrustedLaunch: &machinev1beta1.TrustedLaunch{
+							UEFISettings: machinev1beta1.UEFISettings{
+								SecureBoot: machinev1beta1.SecureBootPolicyEnabled,
+							},
+						},
+					},
+				}
+			},
+			expectedOk:    false,
+			expectedError: fmt.Sprintf("providerSpec.securityProfile.settings.securityType: Invalid value: \"\": securityType should be set to %s when uefiSettings are enabled.", machinev1beta1.SecurityTypesTrustedLaunch),
+		},
+		{
 			testCase:      "with all required fields it succeeds",
 			expectedOk:    true,
 			expectedError: "",
