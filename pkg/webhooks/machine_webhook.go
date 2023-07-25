@@ -42,6 +42,8 @@ type systemSpecifications struct {
 	maxProcessor             float64
 }
 
+type machineArch string
+
 var (
 	// Azure Defaults
 	defaultAzureVnet = func(clusterID string) string {
@@ -56,8 +58,14 @@ var (
 	defaultAzureImageResourceID = func(clusterID string) string {
 		// image gallery names cannot have dashes
 		galleryName := strings.Replace(clusterID, "-", "_", -1)
-
-		return fmt.Sprintf("/resourceGroups/%s/providers/Microsoft.Compute/galleries/gallery_%s/images/%s/versions/%s", clusterID+"-rg", galleryName, clusterID, azureRHCOSVersion)
+		imageName := clusterID
+		if arch == ARM64 {
+			// append gen2 to the image name for ARM64.
+			// Although the installer creates a gen2 image for AMD64, we cannot guarantee that clusters created
+			// before that change will have a -gen2 image.
+			imageName = fmt.Sprintf("%s-gen2", clusterID)
+		}
+		return fmt.Sprintf("/resourceGroups/%s/providers/Microsoft.Compute/galleries/gallery_%s/images/%s/versions/%s", clusterID+"-rg", galleryName, imageName, azureRHCOSVersion)
 	}
 	defaultAzureManagedIdentiy = func(clusterID string) string {
 		return fmt.Sprintf("%s-identity", clusterID)
@@ -75,6 +83,13 @@ var (
 	}
 	defaultGCPTags = func(clusterID string) []string {
 		return []string{fmt.Sprintf("%s-worker", clusterID)}
+	}
+
+	defaultGCPDiskImage = func() string {
+		if arch == ARM64 {
+			return defaultGCPARMDiskImage
+		}
+		return defaultGCPX86DiskImage
 	}
 
 	// Power VS variables
@@ -106,6 +121,10 @@ var (
 )
 
 const (
+	arch              = machineArch(goruntime.GOARCH)
+	ARM64 machineArch = "arm64"
+	AMD64 machineArch = "amd64"
+
 	defaultUserDataSecret  = "worker-user-data"
 	defaultSecretNamespace = "openshift-machine-api"
 
@@ -115,7 +134,8 @@ const (
 	defaultAWSARMInstanceType   = "m6g.large"
 
 	// Azure Defaults
-	defaultAzureVMSize            = "Standard_D4s_V3"
+	defaultAzureX86VMSize         = "Standard_D4s_V3"
+	defaultAzureARMVMSize         = "Standard_D4ps_V5"
 	defaultAzureCredentialsSecret = "azure-cloud-credentials"
 	defaultAzureOSDiskOSType      = "Linux"
 	defaultAzureOSDiskStorageType = "Premium_LRS"
@@ -129,14 +149,16 @@ const (
 	azureRHCOSVersion                  = "latest" // The installer only sets up one version but its name may vary, using latest will pull it no matter the name.
 
 	// GCP Defaults
-	defaultGCPMachineType       = "n1-standard-4"
+	defaultGCPX86MachineType    = "n1-standard-4"
+	defaultGCPARMMachineType    = "t2a-standard-4"
 	defaultGCPCredentialsSecret = "gcp-cloud-credentials"
 	defaultGCPDiskSizeGb        = 128
 	defaultGCPDiskType          = "pd-standard"
-	// https://releases-art-rhcos.svc.ci.openshift.org/art/storage/releases/rhcos-4.8/48.83.202103122318-0/x86_64/meta.json
-	// https://github.com/openshift/installer/blob/796a99049d3b7489b6c08ec5bd7c7983731afbcf/data/data/rhcos.json#L90-L94
-	defaultGCPDiskImage = "projects/rhcos-cloud/global/images/rhcos-48-83-202103221318-0-gcp-x86-64"
-	defaultGCPGPUCount  = 1
+	// https://releases-rhcos-art.apps.ocp-virt.prod.psi.redhat.com/?stream=prod/streams/4.14-9.2&release=414.92.202307070025-0&arch=x86_64#414.92.202307070025-0
+	// https://github.com/openshift/installer/commit/0cec4e1403d78387729f21f04d0f764f63fc552e
+	defaultGCPX86DiskImage = "projects/rhcos-cloud/global/images/rhcos-414-92-202307070025-0-gcp-x86-64"
+	defaultGCPARMDiskImage = "projects/rhcos-cloud/global/images/rhcos-414-92-202307070025-0-gcp-aarch64"
+	defaultGCPGPUCount     = 1
 
 	// vSphere Defaults
 	defaultVSphereCredentialsSecret = "vsphere-cloud-credentials"
@@ -170,6 +192,43 @@ const (
 // GCP Confidential VM supports Compute Engine machine types in the following series:
 // reference: https://cloud.google.com/compute/confidential-vm/docs/os-and-machine-type#machine-type
 var gcpConfidentialComputeSupportedMachineSeries = []string{"n2d", "c2d"}
+
+// defaultInstanceTypeForCloudProvider returns the default instance type for the given cloud provider and architecture.
+// If the cloud provider is not supported, an empty string is returned.
+// If the architecture is not supported, the default instance type for AMD64 is returned as a fallback.
+// The function also takes a pointer to a slice of strings to append warnings to.
+func defaultInstanceTypeForCloudProvider(cloudProvider osconfigv1.PlatformType, arch machineArch, warnings *[]string) string {
+	cloudProviderArchMachineTypes := map[osconfigv1.PlatformType]map[machineArch]string{
+		osconfigv1.AWSPlatformType: {
+			AMD64: defaultAWSX86InstanceType,
+			ARM64: defaultAWSARMInstanceType,
+		},
+		osconfigv1.AzurePlatformType: {
+			AMD64: defaultAzureX86VMSize,
+			ARM64: defaultAzureARMVMSize,
+		},
+		osconfigv1.GCPPlatformType: {
+			AMD64: defaultGCPX86MachineType,
+			ARM64: defaultGCPARMMachineType,
+		},
+	}
+	if cloudProviderMap, ok := cloudProviderArchMachineTypes[cloudProvider]; ok {
+		if instanceType, ok := cloudProviderArchMachineTypes[cloudProvider][arch]; ok {
+			*warnings = append(*warnings, fmt.Sprintf("setting the default instance type %q "+
+				"for cloud provider %q, based on the control plane architecture (%q)", instanceType, cloudProvider, arch))
+			return instanceType
+		}
+		// If the arch is not supported, return the default for AMD64.
+		warning := fmt.Sprintf("no default instance type found for provider %q, arch %q. "+
+			"Defaulting to the amd64 one: %q", cloudProvider, arch, cloudProviderMap[AMD64])
+		*warnings = append(*warnings, warning)
+		klog.Warningln(warning)
+		return cloudProviderMap[AMD64]
+	}
+	// If the cloud provider is not supported, return an empty string.
+	klog.Errorf("no default instance types found for cloud provider %q", cloudProvider)
+	return ""
+}
 
 func secretExists(c client.Client, name, namespace string) (bool, error) {
 	key := client.ObjectKey{
@@ -358,8 +417,7 @@ func getMachineDefaulterOperation(platformStatus *osconfigv1.PlatformStatus) mac
 		if platformStatus.AWS != nil {
 			region = platformStatus.AWS.Region
 		}
-		arch := goruntime.GOARCH
-		return awsDefaulter{region: region, arch: arch}.defaultAWS
+		return awsDefaulter{region: region}.defaultAWS
 	case osconfigv1.AzurePlatformType:
 		return defaultAzure
 	case osconfigv1.GCPPlatformType:
@@ -490,7 +548,6 @@ func (h *machineDefaulterHandler) Default(ctx context.Context, obj runtime.Objec
 
 type awsDefaulter struct {
 	region string
-	arch   string
 }
 
 func (a awsDefaulter) defaultAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
@@ -505,11 +562,13 @@ func (a awsDefaulter) defaultAWS(m *machinev1beta1.Machine, config *admissionCon
 	}
 
 	if providerSpec.InstanceType == "" {
-		if a.arch == "arm64" {
-			providerSpec.InstanceType = defaultAWSARMInstanceType
-		} else {
-			providerSpec.InstanceType = defaultAWSX86InstanceType
-		}
+		providerSpec.InstanceType = defaultInstanceTypeForCloudProvider(osconfigv1.AWSPlatformType, arch, &warnings)
+	}
+
+	if providerSpec.InstanceType == "" {
+		// this should never happen
+		errs = append(errs, field.Required(field.NewPath("instanceType"), "instanceType is required and no "+
+			"default value was found"))
 	}
 
 	if providerSpec.Placement.Region == "" {
@@ -745,7 +804,13 @@ func defaultAzure(m *machinev1beta1.Machine, config *admissionConfig) (bool, []s
 	}
 
 	if providerSpec.VMSize == "" {
-		providerSpec.VMSize = defaultAzureVMSize
+		providerSpec.VMSize = defaultInstanceTypeForCloudProvider(osconfigv1.AzurePlatformType, arch, &warnings)
+	}
+
+	if providerSpec.VMSize == "" {
+		// this should never happen
+		errs = append(errs, field.Required(field.NewPath("vmSize"), "vmSize is required and no "+
+			"default value was found"))
 	}
 
 	// Vnet and Subnet need to be provided together by the user
@@ -960,7 +1025,13 @@ func defaultGCP(m *machinev1beta1.Machine, config *admissionConfig) (bool, []str
 	}
 
 	if providerSpec.MachineType == "" {
-		providerSpec.MachineType = defaultGCPMachineType
+		providerSpec.MachineType = defaultInstanceTypeForCloudProvider(osconfigv1.GCPPlatformType, arch, &warnings)
+	}
+
+	if providerSpec.MachineType == "" {
+		// this should never happen
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "machineType"), "machineType "+
+			"is required and no default value was found"))
 	}
 
 	if len(providerSpec.NetworkInterfaces) == 0 {
@@ -1012,7 +1083,7 @@ func defaultGCPDisks(disks []*machinev1beta1.GCPDisk, clusterID string) []*machi
 				Boot:       true,
 				SizeGB:     defaultGCPDiskSizeGb,
 				Type:       defaultGCPDiskType,
-				Image:      defaultGCPDiskImage,
+				Image:      defaultGCPDiskImage(),
 			},
 		}
 	}
@@ -1023,7 +1094,7 @@ func defaultGCPDisks(disks []*machinev1beta1.GCPDisk, clusterID string) []*machi
 		}
 
 		if disk.Image == "" {
-			disk.Image = defaultGCPDiskImage
+			disk.Image = defaultGCPDiskImage()
 		}
 	}
 

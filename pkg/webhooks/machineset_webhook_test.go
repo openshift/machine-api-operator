@@ -568,11 +568,13 @@ func TestMachineSetCreation(t *testing.T) {
 func TestMachineSetUpdate(t *testing.T) {
 	awsClusterID := "aws-cluster"
 	awsRegion := "region"
+	warnings := make([]string, 0)
+
 	defaultAWSProviderSpec := &machinev1beta1.AWSMachineProviderConfig{
 		AMI: machinev1beta1.AWSResourceReference{
 			ID: pointer.String("ami"),
 		},
-		InstanceType:      defaultAWSX86InstanceType,
+		InstanceType:      defaultInstanceTypeForCloudProvider(osconfigv1.AWSPlatformType, arch, &warnings),
 		UserDataSecret:    &corev1.LocalObjectReference{Name: defaultUserDataSecret},
 		CredentialsSecret: &corev1.LocalObjectReference{Name: defaultAWSCredentialsSecret},
 		Placement: machinev1beta1.Placement{
@@ -583,7 +585,7 @@ func TestMachineSetUpdate(t *testing.T) {
 	azureClusterID := "azure-cluster"
 	defaultAzureProviderSpec := &machinev1beta1.AzureMachineProviderSpec{
 		Location:             "location",
-		VMSize:               defaultAzureVMSize,
+		VMSize:               defaultInstanceTypeForCloudProvider(osconfigv1.AzurePlatformType, arch, &warnings),
 		Vnet:                 defaultAzureVnet(azureClusterID),
 		Subnet:               defaultAzureSubnet(azureClusterID),
 		NetworkResourceGroup: defaultAzureNetworkResourceGroup(azureClusterID),
@@ -613,7 +615,7 @@ func TestMachineSetUpdate(t *testing.T) {
 	defaultGCPProviderSpec := &machinev1beta1.GCPMachineProviderSpec{
 		Region:      "region",
 		Zone:        "region-zone",
-		MachineType: defaultGCPMachineType,
+		MachineType: defaultInstanceTypeForCloudProvider(osconfigv1.GCPPlatformType, arch, &warnings),
 		NetworkInterfaces: []*machinev1beta1.GCPNetworkInterface{
 			{
 				Network:    defaultGCPNetwork(gcpClusterID),
@@ -626,7 +628,7 @@ func TestMachineSetUpdate(t *testing.T) {
 				Boot:       true,
 				SizeGB:     defaultGCPDiskSizeGb,
 				Type:       defaultGCPDiskType,
-				Image:      defaultGCPDiskImage,
+				Image:      defaultGCPDiskImage(),
 			},
 		},
 		Tags: defaultGCPTags(gcpClusterID),

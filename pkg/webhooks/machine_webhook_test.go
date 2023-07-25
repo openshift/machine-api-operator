@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"runtime"
 	"testing"
 
 	. "github.com/onsi/gomega"
@@ -1183,11 +1182,13 @@ func TestMachineCreation(t *testing.T) {
 func TestMachineUpdate(t *testing.T) {
 	awsClusterID := "aws-cluster"
 	awsRegion := "region"
+	warnings := make([]string, 0)
+
 	defaultAWSProviderSpec := &machinev1beta1.AWSMachineProviderConfig{
 		AMI: machinev1beta1.AWSResourceReference{
 			ID: pointer.String("ami"),
 		},
-		InstanceType:      defaultAWSX86InstanceType,
+		InstanceType:      defaultInstanceTypeForCloudProvider(osconfigv1.AWSPlatformType, arch, &warnings),
 		UserDataSecret:    &corev1.LocalObjectReference{Name: defaultUserDataSecret},
 		CredentialsSecret: &corev1.LocalObjectReference{Name: defaultAWSCredentialsSecret},
 		Placement: machinev1beta1.Placement{
@@ -1198,7 +1199,7 @@ func TestMachineUpdate(t *testing.T) {
 	azureClusterID := "azure-cluster"
 	defaultAzureProviderSpec := &machinev1beta1.AzureMachineProviderSpec{
 		Location:             "location",
-		VMSize:               defaultAzureVMSize,
+		VMSize:               defaultInstanceTypeForCloudProvider(osconfigv1.AzurePlatformType, arch, &warnings),
 		Vnet:                 defaultAzureVnet(azureClusterID),
 		Subnet:               defaultAzureSubnet(azureClusterID),
 		NetworkResourceGroup: defaultAzureNetworkResourceGroup(azureClusterID),
@@ -1232,7 +1233,7 @@ func TestMachineUpdate(t *testing.T) {
 	defaultGCPProviderSpec := &machinev1beta1.GCPMachineProviderSpec{
 		Region:      "region",
 		Zone:        "region-zone",
-		MachineType: defaultGCPMachineType,
+		MachineType: defaultInstanceTypeForCloudProvider(osconfigv1.GCPPlatformType, arch, &warnings),
 		NetworkInterfaces: []*machinev1beta1.GCPNetworkInterface{
 			{
 				Network:    defaultGCPNetwork(gcpClusterID),
@@ -1245,7 +1246,7 @@ func TestMachineUpdate(t *testing.T) {
 				Boot:       true,
 				SizeGB:     defaultGCPDiskSizeGb,
 				Type:       defaultGCPDiskType,
-				Image:      defaultGCPDiskImage,
+				Image:      defaultGCPDiskImage(),
 			},
 		},
 		Tags: defaultGCPTags(gcpClusterID),
@@ -2265,10 +2266,8 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 
 	clusterID := "clusterID"
 	region := "region"
-	arch := defaultAWSX86InstanceType
-	if runtime.GOARCH == "arm64" {
-		arch = defaultAWSARMInstanceType
-	}
+	itWarnings := make([]string, 0)
+	instanceType := defaultInstanceTypeForCloudProvider(osconfigv1.AWSPlatformType, arch, &itWarnings)
 	testCases := []struct {
 		testCase             string
 		providerSpec         *machinev1beta1.AWSMachineProviderConfig
@@ -2287,7 +2286,7 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 			},
 			expectedProviderSpec: &machinev1beta1.AWSMachineProviderConfig{
 				AMI:               machinev1beta1.AWSResourceReference{},
-				InstanceType:      arch,
+				InstanceType:      instanceType,
 				UserDataSecret:    &corev1.LocalObjectReference{Name: defaultUserDataSecret},
 				CredentialsSecret: &corev1.LocalObjectReference{Name: defaultAWSCredentialsSecret},
 				Placement: machinev1beta1.Placement{
@@ -2296,7 +2295,7 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 			},
 			expectedOk:       true,
 			expectedError:    "",
-			expectedWarnings: nil,
+			expectedWarnings: itWarnings,
 		},
 	}
 
@@ -2923,8 +2922,10 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 }
 
 func TestDefaultAzureProviderSpec(t *testing.T) {
-
+	itWarnings := make([]string, 0)
+	defaultInstanceType := defaultInstanceTypeForCloudProvider(osconfigv1.AzurePlatformType, arch, &itWarnings)
 	clusterID := "clusterID"
+
 	testCases := []struct {
 		testCase         string
 		providerSpec     *machinev1beta1.AzureMachineProviderSpec
@@ -2934,10 +2935,11 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 		expectedWarnings []string
 	}{
 		{
-			testCase:      "it defaults defaultable fields",
-			providerSpec:  &machinev1beta1.AzureMachineProviderSpec{},
-			expectedOk:    true,
-			expectedError: "",
+			testCase:         "it defaults defaultable fields",
+			providerSpec:     &machinev1beta1.AzureMachineProviderSpec{},
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: itWarnings,
 		},
 		{
 			testCase: "it does not override azure image spec",
@@ -2957,8 +2959,9 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 					Version:   "1",
 				}
 			},
-			expectedOk:    true,
-			expectedError: "",
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: itWarnings,
 		},
 		{
 			testCase: "it does not override azure image ResourceID",
@@ -2972,8 +2975,9 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 					ResourceID: "rid",
 				}
 			},
-			expectedOk:    true,
-			expectedError: "",
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: itWarnings,
 		},
 		{
 			testCase: "does not overwrite the network resource group if it already exists",
@@ -2983,8 +2987,9 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 			modifyDefault: func(p *machinev1beta1.AzureMachineProviderSpec) {
 				p.NetworkResourceGroup = "nrg"
 			},
-			expectedOk:    true,
-			expectedError: "",
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: itWarnings,
 		},
 		{
 			testCase: "does not overwrite the credentials secret namespace if they already exist",
@@ -2996,8 +3001,9 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 			modifyDefault: func(p *machinev1beta1.AzureMachineProviderSpec) {
 				p.CredentialsSecret.Namespace = "foo"
 			},
-			expectedOk:    true,
-			expectedError: "",
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: itWarnings,
 		},
 		{
 			testCase: "does not overwrite the secret names if they already exist",
@@ -3013,18 +3019,18 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 				p.UserDataSecret.Name = "foo"
 				p.CredentialsSecret.Name = "foo"
 			},
-			expectedOk:    true,
-			expectedError: "",
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: itWarnings,
 		},
 	}
 
 	platformStatus := &osconfigv1.PlatformStatus{Type: osconfigv1.AzurePlatformType}
 	h := createMachineDefaulter(platformStatus, clusterID)
-
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
 			defaultProviderSpec := &machinev1beta1.AzureMachineProviderSpec{
-				VMSize: defaultAzureVMSize,
+				VMSize: defaultInstanceType,
 				Vnet:   defaultAzureVnet(clusterID),
 				Subnet: defaultAzureSubnet(clusterID),
 				Image: machinev1beta1.Image{
@@ -3615,6 +3621,9 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 
 	clusterID := "clusterID"
 	projectID := "projectID"
+	itWarnings := make([]string, 0)
+	instanceType := defaultInstanceTypeForCloudProvider(osconfigv1.GCPPlatformType, arch, &itWarnings)
+
 	testCases := []struct {
 		testCase         string
 		providerSpec     *machinev1beta1.GCPMachineProviderSpec
@@ -3624,10 +3633,11 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 		expectedWarnings []string
 	}{
 		{
-			testCase:      "it defaults defaultable fields",
-			providerSpec:  &machinev1beta1.GCPMachineProviderSpec{},
-			expectedOk:    true,
-			expectedError: "",
+			testCase:         "it defaults defaultable fields",
+			providerSpec:     &machinev1beta1.GCPMachineProviderSpec{},
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: itWarnings,
 		},
 		{
 			testCase: "it does not overwrite disks which already have fields set",
@@ -3647,12 +3657,13 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 						Boot:       false,
 						SizeGB:     32,
 						Type:       defaultGCPDiskType,
-						Image:      defaultGCPDiskImage,
+						Image:      defaultGCPDiskImage(),
 					},
 				}
 			},
-			expectedOk:    true,
-			expectedError: "",
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: itWarnings,
 		},
 		{
 			testCase: "sets default gpu Count",
@@ -3671,8 +3682,9 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 					},
 				}
 			},
-			expectedOk:    true,
-			expectedError: "",
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: itWarnings,
 		},
 	}
 
@@ -3686,7 +3698,7 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 
 	for _, tc := range testCases {
 		defaultProviderSpec := &machinev1beta1.GCPMachineProviderSpec{
-			MachineType: defaultGCPMachineType,
+			MachineType: instanceType,
 			NetworkInterfaces: []*machinev1beta1.GCPNetworkInterface{
 				{
 					Network:    defaultGCPNetwork(clusterID),
@@ -3699,7 +3711,7 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 					Boot:       true,
 					SizeGB:     defaultGCPDiskSizeGb,
 					Type:       defaultGCPDiskType,
-					Image:      defaultGCPDiskImage,
+					Image:      defaultGCPDiskImage(),
 				},
 			},
 			Tags: defaultGCPTags(clusterID),
