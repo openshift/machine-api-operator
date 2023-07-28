@@ -352,10 +352,12 @@ func (r *Reconciler) delete() error {
 			return err
 		}
 		klog.Infof("%v: vm does not exist", r.machine.GetName())
-		// remove any finalizers for IPAddressClaims which may be associated with the machine
-		err = ipam.RemoveFinalizersForIPAddressClaims(r.Context, r.client, *r.machine)
-		if err != nil {
-			return fmt.Errorf("unable to remove finalizer for IP address claims: %w", err)
+		if r.staticIPFeatureGateEnabled {
+			// remove any finalizers for IPAddressClaims which may be associated with the machine
+			err = ipam.RemoveFinalizersForIPAddressClaims(r.Context, r.client, *r.machine)
+			if err != nil {
+				return fmt.Errorf("unable to remove finalizer for IP address claims: %w", err)
+			}
 		}
 		return nil
 	}
@@ -940,16 +942,18 @@ func clone(s *machineScope) (string, error) {
 		Value: "TRUE",
 	})
 
-	if ipam.HasStaticIPConfiguration(s.providerSpec) {
-		networkKargs, err := constructKargsFromNetworkConfig(s)
-		if err != nil {
-			return "", err
-		}
-		if len(networkKargs) > 0 {
-			extraConfig = append(extraConfig, &types.OptionValue{
-				Key:   GuestInfoNetworkKargs,
-				Value: networkKargs,
-			})
+	if s.staticIPFeatureGateEnabled {
+		if ipam.HasStaticIPConfiguration(s.providerSpec) {
+			networkKargs, err := constructKargsFromNetworkConfig(s)
+			if err != nil {
+				return "", err
+			}
+			if len(networkKargs) > 0 {
+				extraConfig = append(extraConfig, &types.OptionValue{
+					Key:   GuestInfoNetworkKargs,
+					Value: networkKargs,
+				})
+			}
 		}
 	}
 
