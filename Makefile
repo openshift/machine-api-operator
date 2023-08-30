@@ -26,7 +26,7 @@ CONTROLLER_GEN := $(abspath $(TOOLS_BIN_DIR)/controller-gen)
 .PHONY: all
 all: check build test
 
-NO_DOCKER ?= 0
+NO_DOCKER ?= 1
 
 ifeq ($(shell command -v podman > /dev/null 2>&1 ; echo $$? ), 0)
 	ENGINE=podman
@@ -38,7 +38,7 @@ endif
 
 USE_DOCKER ?= 0
 ifeq ($(USE_DOCKER), 1)
-	ENGINE=docker	
+	ENGINE=docker
 endif
 
 ifeq ($(NO_DOCKER), 1)
@@ -47,7 +47,6 @@ ifeq ($(NO_DOCKER), 1)
 else
   DOCKER_CMD := $(ENGINE) run --env GO111MODULE=$(GO111MODULE) --env GOFLAGS=$(GOFLAGS) --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z  -w /go/src/github.com/openshift/machine-api-operator $(BUILD_IMAGE)
   # The command below is for building/testing with the actual image that Openshift uses. Uncomment/comment out to use instead of above command. CI registry pull secret is required to use this image.
-  # DOCKER_CMD := $(ENGINE) run --env GO111MODULE=$(GO111MODULE) --env GOFLAGS=$(GOFLAGS) --rm -v "$(PWD)":/go/src/github.com/openshift/machine-api-operator:Z -w /go/src/github.com/openshift/machine-api-operator registry.ci.openshift.org/ocp/builder:rhel-8-golang-1.19-openshift-4.11
   IMAGE_BUILD_CMD = $(ENGINE) build
 endif
 
