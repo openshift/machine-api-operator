@@ -14,6 +14,7 @@ import (
 	sdkVersion "github.com/operator-framework/operator-sdk/version"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
+	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
@@ -58,6 +59,9 @@ func main() {
 		0,
 		fmt.Sprintf("The duration that non-leader candidates will wait after observing a leadership renewal until attempting to acquire leadership of a led but unrenewed leader slot. This is effectively the maximum duration that a leader can be stopped before it is replaced by another candidate. This is only applicable if leader election is enabled. Default: (%s)", defaultLeaderElectionValues.LeaseDuration.Duration),
 	)
+
+	// Set log for controller-runtime
+	ctrl.SetLogger(klog.NewKlogr())
 
 	klog.InitFlags(nil)
 	if err := flag.Set("logtostderr", "true"); err != nil {
