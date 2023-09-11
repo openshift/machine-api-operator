@@ -155,6 +155,8 @@ const (
 	MachineTerminable ConditionType = "Terminable"
 	// IPAddressClaimedCondition is set to indicate that a machine has a claimed an IP address.
 	IPAddressClaimedCondition ConditionType = "IPAddressClaimed"
+	// IPAddressClaimedReason is set to indicate the machine was able to claim an IP address during provisioning.
+	IPAddressClaimedReason string = "IPAddressClaimed"
 )
 
 const (
