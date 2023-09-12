@@ -2312,6 +2312,20 @@ func TestCreate(t *testing.T) {
 		},
 	}
 
+	ipAddressClaimNoAddress := &ipamv1alpha1.IPAddressClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test-claim-0-0",
+			Namespace: namespace,
+		},
+		Spec: ipamv1alpha1.IPAddressClaimSpec{
+			PoolRef: corev1.TypedLocalObjectReference{
+				Name:     "test-pool",
+				APIGroup: &poolGroup,
+				Kind:     "ippools",
+			},
+		},
+	}
+
 	ipAddress := &ipamv1alpha1.IPAddress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-test-0",
@@ -2337,6 +2351,8 @@ func TestCreate(t *testing.T) {
 		labels                     map[string]string
 		notConnectedToVCenter      bool
 		staticIPFeatureGateEnabled bool
+		ipAddressClaim             *ipamv1alpha1.IPAddressClaim
+		ipAddress                  *ipamv1alpha1.IPAddress
 	}{
 		{
 			name: "Successfully create machine",
@@ -2393,6 +2409,8 @@ func TestCreate(t *testing.T) {
 				},
 			},
 			staticIPFeatureGateEnabled: true,
+			ipAddressClaim:             ipAddressClaim,
+			ipAddress:                  ipAddress,
 		},
 		{
 			name: "Successfully create machine with static IP addresses when tech preview enabled",
@@ -2413,6 +2431,28 @@ func TestCreate(t *testing.T) {
 				},
 			},
 			staticIPFeatureGateEnabled: true,
+		},
+		{
+			name: "Failed to create machine with static IP address claim when tech preview enabled due to waiting for IP",
+			providerSpec: machinev1.VSphereMachineProviderSpec{
+				Template: vmName,
+				Workspace: &machinev1.Workspace{
+					Server: host,
+				},
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: "test",
+				},
+				DiskGiB: 10,
+				UserDataSecret: &corev1.LocalObjectReference{
+					Name: userDataSecretName,
+				},
+				Network: machinev1.NetworkSpec{
+					Devices: staticIpAddressClaim,
+				},
+			},
+			staticIPFeatureGateEnabled: true,
+			ipAddressClaim:             ipAddressClaimNoAddress,
+			expectedError:              errors.New("error getting addresses from IP pool: error retrieving bound IP address: no IPAddress is bound to claim test-claim-0-0"),
 		},
 		{
 			name: "Fail on invalid missing machine label",
@@ -2479,14 +2519,20 @@ func TestCreate(t *testing.T) {
 				Status: machinev1.MachineStatus{},
 			}
 
-			client := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(
+			builder := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(
 				credentialsSecret,
 				configMap,
 				infra,
 				userDataSecret,
-				ipAddressClaim,
-				ipAddress,
-				machine).Build()
+				machine)
+			if tc.ipAddressClaim != nil {
+				builder = builder.WithRuntimeObjects(tc.ipAddressClaim)
+			}
+			if tc.ipAddress != nil {
+				builder = builder.WithRuntimeObjects(tc.ipAddress)
+			}
+
+			client := builder.Build()
 
 			machineScope, err := newMachineScope(machineScopeParams{
 				client:                     client,
@@ -2513,6 +2559,23 @@ func TestCreate(t *testing.T) {
 			} else {
 				if err != nil {
 					t.Fatalf("reconciler was not expected to return error: %v", err)
+				}
+
+				// If IP Claim exists, we need to make sure owner ref is set.
+				if tc.ipAddressClaim != nil {
+					claimKey := runtimeclient.ObjectKey{
+						Namespace: machine.Namespace,
+						Name:      tc.ipAddressClaim.Name,
+					}
+					ipAddressClaim := &ipamv1alpha1.IPAddressClaim{}
+					err = client.Get(context.Background(), claimKey, ipAddressClaim)
+					if err != nil {
+						t.Fatal(err)
+					} else {
+						g := NewWithT(t)
+
+						g.Expect(ipAddressClaim.OwnerReferences).ToNot(BeEmpty())
+					}
 				}
 
 				// The create task above runs asynchronously so we must wait on it here to prevent early teardown

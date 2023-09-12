@@ -43,7 +43,7 @@ func CreateResourceLock(cb *ClientBuilder, componentNamespace, componentName str
 	// https://github.com/kubernetes-sigs/controller-runtime/pull/1144#discussion_r480173688.
 	// and
 	// https://github.com/kubernetes-sigs/controller-runtime/blob/196828e54e4210497438671b2b449522c004db5c/pkg/manager/manager.go#L144-L175.
-	ml, err := resourcelock.New(resourcelock.ConfigMapsLeasesResourceLock,
+	ml, err := resourcelock.New(resourcelock.LeasesResourceLock,
 		componentNamespace,
 		componentName,
 		cb.KubeClientOrDie("leader-election").CoreV1(),
