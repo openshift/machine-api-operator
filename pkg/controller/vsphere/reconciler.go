@@ -97,13 +97,15 @@ func (r *Reconciler) create() error {
 		}
 		condition := metav1.Condition{
 			Type:    string(machinev1.IPAddressClaimedCondition),
-			Reason:  machinev1.WaitingForIPAddressReason,
+			Reason:  machinev1.IPAddressClaimedReason,
 			Message: "All IP address claims are bound",
-			Status:  metav1.ConditionFalse,
+			Status:  metav1.ConditionTrue,
 		}
+
 		if outstandingClaims > 0 {
 			condition.Message = fmt.Sprintf("Waiting on %d IP address claims to be bound", outstandingClaims)
-			condition.Status = metav1.ConditionTrue
+			condition.Reason = machinev1.WaitingForIPAddressReason
+			condition.Status = metav1.ConditionFalse
 			klog.Infof("Waiting for IPAddressClaims associated with machine %s to be bound", r.machine.Name)
 		}
 		if err := setProviderStatus("", condition, r.machineScope, nil); err != nil {
@@ -603,6 +605,15 @@ func (r *Reconciler) reconcileNetwork(vm *virtualMachine) error {
 
 	klog.V(3).Infof("%v: reconciling network: IP addresses: %v", r.machine.GetName(), ipAddrs)
 	r.machine.Status.Addresses = ipAddrs
+
+	// If static IP, verify machine still has IPAddressClaim w/ owner field configure
+	if ipam.HasStaticIPConfiguration(r.providerSpec) {
+		err = ipam.VerifyIPAddressOwners(r.Context, r.client, r.machine, r.providerSpec.Network.Devices)
+		if err != nil {
+			return fmt.Errorf("error verifying ip address claims: %v", err)
+		}
+	}
+
 	return nil
 }
 

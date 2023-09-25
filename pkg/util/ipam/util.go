@@ -28,6 +28,11 @@ func EnsureIPAddressClaim(
 	}
 	ipAddressClaim := &ipamv1alpha1.IPAddressClaim{}
 	if err := runtimeClient.Get(ctx, claimKey, ipAddressClaim); err == nil {
+		// If we found a claim, make sure it has owner field set.
+		if len(ipAddressClaim.OwnerReferences) == 0 {
+			klog.Infof("IPAddressClaim %s is missing owner field.  Updating to reference machine.", claimName)
+			_ = AdoptOrphanClaim(ctx, runtimeClient, claimName, machine, ipAddressClaim)
+		}
 		return ipAddressClaim, nil
 	} else if !apierrors.IsNotFound(err) {
 		return nil, fmt.Errorf("error while getting IP address claim: %w", err)
@@ -59,6 +64,25 @@ func EnsureIPAddressClaim(
 		return nil, fmt.Errorf("unable to create IPAddressClaim: %w", err)
 	}
 	return ipAddressClaim, nil
+}
+
+// AdoptOrphanClaim updates the IPAddressClaim to belong to the specified machine.
+func AdoptOrphanClaim(
+	ctx context.Context,
+	runtimeClient client.Client,
+	claimName string,
+	machine *machinev1.Machine,
+	ipAddressClaim *ipamv1alpha1.IPAddressClaim) error {
+	gv := machinev1.SchemeGroupVersion
+	machineRef := metav1.NewControllerRef(machine, gv.WithKind("Machine"))
+	ipAddressClaim.OwnerReferences = []metav1.OwnerReference{
+		*machineRef,
+	}
+	if err := runtimeClient.Update(ctx, ipAddressClaim); err != nil {
+		klog.Warningf("Unable to adopt orphaned IPAddressClaim %v: %v", claimName, err)
+		return err
+	}
+	return nil
 }
 
 // CountOutstandingIPAddressClaimsForMachine determines the number of outstanding IP address claims a machine is waiting
@@ -181,4 +205,27 @@ func HasOutstandingIPAddressClaims(
 		return outstandingClaims, nil
 	}
 	return 0, nil
+}
+
+// VerifyIPAddressOwners verifies that each IPAddress associated with the machine has the owner set.
+func VerifyIPAddressOwners(
+	ctx context.Context,
+	runtimeClient client.Client,
+	machine *machinev1.Machine,
+	networkDevices []machinev1.NetworkDeviceSpec) error {
+	for deviceIdx, networkDevice := range networkDevices {
+		for poolIdx, addressPool := range networkDevice.AddressesFromPools {
+			claimName := GetIPAddressClaimName(machine, deviceIdx, poolIdx)
+			_, err := EnsureIPAddressClaim(
+				ctx,
+				runtimeClient,
+				claimName,
+				machine,
+				addressPool)
+			if err != nil {
+				return fmt.Errorf("error while ensuring IPAddressClaim exists: %w", err)
+			}
+		}
+	}
+	return nil
 }
