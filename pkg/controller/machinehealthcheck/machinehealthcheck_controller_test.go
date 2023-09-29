@@ -26,7 +26,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -600,7 +600,7 @@ func TestHasControllerOwner(t *testing.T) {
 	machineWithAnyControllerOwner.OwnerReferences = []metav1.OwnerReference{
 		{
 			Kind:       "Any",
-			Controller: pointer.Bool(true),
+			Controller: ptr.To[bool](true),
 		},
 	}
 
@@ -2043,7 +2043,7 @@ func TestRemediate(t *testing.T) {
 						OwnerReferences: []metav1.OwnerReference{
 							{
 								Kind:       "MachineSet",
-								Controller: pointer.Bool(true),
+								Controller: ptr.To[bool](true),
 							},
 						},
 					},
@@ -2086,7 +2086,7 @@ func TestRemediate(t *testing.T) {
 						OwnerReferences: []metav1.OwnerReference{
 							{
 								Kind:       "MachineSet",
-								Controller: pointer.Bool(true),
+								Controller: ptr.To[bool](true),
 							},
 						},
 						UID: "uid",
@@ -2134,7 +2134,7 @@ func TestRemediate(t *testing.T) {
 						OwnerReferences: []metav1.OwnerReference{
 							{
 								Kind:       "MachineSet",
-								Controller: pointer.Bool(true),
+								Controller: ptr.To[bool](true),
 							},
 						},
 					},

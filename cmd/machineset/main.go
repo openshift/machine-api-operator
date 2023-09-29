@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
@@ -121,10 +122,14 @@ func main() {
 	// Create a new Cmd to provide shared dependencies and start components
 	syncPeriod := 10 * time.Minute
 	opts := manager.Options{
-		MetricsBindAddress: *metricsAddress,
-		SyncPeriod:         &syncPeriod,
+		Metrics: server.Options{
+			BindAddress: *metricsAddress,
+		},
 		Cache: cache.Options{
-			Namespaces: []string{*watchNamespace},
+			SyncPeriod: &syncPeriod,
+			DefaultNamespaces: map[string]cache.Config{
+				*watchNamespace: {},
+			},
 		},
 		HealthProbeBindAddress:  *healthAddr,
 		LeaderElection:          *leaderElect,

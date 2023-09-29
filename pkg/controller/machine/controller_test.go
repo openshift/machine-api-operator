@@ -32,7 +32,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -85,7 +85,7 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Status: machinev1.MachineStatus{
-			Phase: pointer.String(machinev1.PhaseProvisioning),
+			Phase: ptr.To[string](machinev1.PhaseProvisioning),
 		},
 	}
 	machineProvisioned := machinev1.Machine{
@@ -249,7 +249,7 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Spec: machinev1.MachineSpec{
-			ProviderID: pointer.String("providerID"),
+			ProviderID: ptr.To[string]("providerID"),
 			ProviderSpec: machinev1.ProviderSpec{
 				Value: &runtime.RawExtension{
 					Raw: []byte("{}"),
@@ -279,7 +279,7 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Spec: machinev1.MachineSpec{
-			ProviderID: pointer.String("providerID"),
+			ProviderID: ptr.To[string]("providerID"),
 			ProviderSpec: machinev1.ProviderSpec{
 				Value: &runtime.RawExtension{
 					Raw: []byte("{}"),
@@ -560,8 +560,8 @@ func TestReconcileRequest(t *testing.T) {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			if tc.expected.phase != pointer.StringDeref(machine.Status.Phase, "") {
-				t.Errorf("Case %s. Got: %v, expected: %v", tc.request.Name, pointer.StringDeref(machine.Status.Phase, ""), tc.expected.phase)
+			if tc.expected.phase != ptr.Deref(machine.Status.Phase, "") {
+				t.Errorf("Case %s. Got: %v, expected: %v", tc.request.Name, ptr.Deref(machine.Status.Phase, ""), tc.expected.phase)
 			}
 		})
 	}

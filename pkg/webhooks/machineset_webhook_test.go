@@ -17,10 +17,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/rest"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 )
 
@@ -119,7 +120,7 @@ func TestMachineSetCreation(t *testing.T) {
 			providerSpecValue: &runtime.RawExtension{
 				Object: &machinev1beta1.AWSMachineProviderConfig{
 					AMI: machinev1beta1.AWSResourceReference{
-						ID: pointer.String("ami"),
+						ID: ptr.To[string]("ami"),
 					},
 				},
 			},
@@ -265,11 +266,11 @@ func TestMachineSetCreation(t *testing.T) {
 					KeyPairName: "TestKeyPair",
 					Image: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.String("TestNetworkName"),
+						Name: ptr.To[string]("TestNetworkName"),
 					},
 					Network: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.String("TestNetworkName"),
+						Name: ptr.To[string]("TestNetworkName"),
 					},
 				},
 			},
@@ -283,16 +284,16 @@ func TestMachineSetCreation(t *testing.T) {
 				Object: &machinev1.PowerVSMachineProviderConfig{
 					ServiceInstance: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeID,
-						ID:   pointer.String("TestServiceInstanceID"),
+						ID:   ptr.To[string]("TestServiceInstanceID"),
 					},
 					KeyPairName: "TestKeyPair",
 					Image: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.String("TestNetworkName"),
+						Name: ptr.To[string]("TestNetworkName"),
 					},
 					Network: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.String("TestNetworkName"),
+						Name: ptr.To[string]("TestNetworkName"),
 					},
 				},
 			},
@@ -306,16 +307,16 @@ func TestMachineSetCreation(t *testing.T) {
 				Object: &machinev1.PowerVSMachineProviderConfig{
 					ServiceInstance: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.String("TestServiceInstanceID"),
+						Name: ptr.To[string]("TestServiceInstanceID"),
 					},
 					KeyPairName: "TestKeyPair",
 					Image: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.String("TestNetworkName"),
+						Name: ptr.To[string]("TestNetworkName"),
 					},
 					Network: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.String("TestNetworkName"),
+						Name: ptr.To[string]("TestNetworkName"),
 					},
 				},
 			},
@@ -329,16 +330,16 @@ func TestMachineSetCreation(t *testing.T) {
 				Object: &machinev1.PowerVSMachineProviderConfig{
 					ServiceInstance: machinev1.PowerVSResource{
 						Type:  machinev1.PowerVSResourceTypeRegEx,
-						RegEx: pointer.String("TestServiceInstanceID"),
+						RegEx: ptr.To[string]("TestServiceInstanceID"),
 					},
 					KeyPairName: "TestKeyPair",
 					Image: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.String("TestNetworkName"),
+						Name: ptr.To[string]("TestNetworkName"),
 					},
 					Network: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.String("TestNetworkName"),
+						Name: ptr.To[string]("TestNetworkName"),
 					},
 				},
 			},
@@ -352,15 +353,15 @@ func TestMachineSetCreation(t *testing.T) {
 				Object: &machinev1.PowerVSMachineProviderConfig{
 					ServiceInstance: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.String("TestServiceInstanceID"),
+						Name: ptr.To[string]("TestServiceInstanceID"),
 					},
 					Image: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.String("TestNetworkName"),
+						Name: ptr.To[string]("TestNetworkName"),
 					},
 					Network: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.String("TestNetworkName"),
+						Name: ptr.To[string]("TestNetworkName"),
 					},
 				},
 			},
@@ -375,11 +376,11 @@ func TestMachineSetCreation(t *testing.T) {
 					KeyPairName: "TestKeyPair",
 					ServiceInstance: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.String("TestServiceInstanceID"),
+						Name: ptr.To[string]("TestServiceInstanceID"),
 					},
 					Network: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.String("TestNetworkName"),
+						Name: ptr.To[string]("TestNetworkName"),
 					},
 				},
 			},
@@ -394,11 +395,11 @@ func TestMachineSetCreation(t *testing.T) {
 					KeyPairName: "TestKeyPair",
 					ServiceInstance: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.String("TestServiceInstanceID"),
+						Name: ptr.To[string]("TestServiceInstanceID"),
 					},
 					Image: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.String("TestNetworkName"),
+						Name: ptr.To[string]("TestNetworkName"),
 					},
 				},
 			},
@@ -413,15 +414,15 @@ func TestMachineSetCreation(t *testing.T) {
 					KeyPairName: "TestKeyPair",
 					ServiceInstance: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.String("TestServiceInstanceID"),
+						Name: ptr.To[string]("TestServiceInstanceID"),
 					},
 					Image: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.String("TestNetworkName"),
+						Name: ptr.To[string]("TestNetworkName"),
 					},
 					Network: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeID,
-						ID:   pointer.String("TestNetworkID"),
+						ID:   ptr.To[string]("TestNetworkID"),
 					},
 				},
 			},
@@ -436,15 +437,15 @@ func TestMachineSetCreation(t *testing.T) {
 					KeyPairName: "TestKeyPair",
 					ServiceInstance: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.String("TestServiceInstanceID"),
+						Name: ptr.To[string]("TestServiceInstanceID"),
 					},
 					Image: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.String("TestNetworkName"),
+						Name: ptr.To[string]("TestNetworkName"),
 					},
 					Network: machinev1.PowerVSResource{
 						Type:  machinev1.PowerVSResourceTypeRegEx,
-						RegEx: pointer.String("DHCP"),
+						RegEx: ptr.To[string]("DHCP"),
 					},
 				},
 			},
@@ -459,15 +460,15 @@ func TestMachineSetCreation(t *testing.T) {
 					KeyPairName: "TestKeyPair",
 					ServiceInstance: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.String("TestServiceInstanceID"),
+						Name: ptr.To[string]("TestServiceInstanceID"),
 					},
 					Image: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.String("TestNetworkName"),
+						Name: ptr.To[string]("TestNetworkName"),
 					},
 					Network: machinev1.PowerVSResource{
 						Type: machinev1.PowerVSResourceTypeName,
-						Name: pointer.String("TestNetworkName"),
+						Name: ptr.To[string]("TestNetworkName"),
 					},
 				},
 			},
@@ -480,9 +481,13 @@ func TestMachineSetCreation(t *testing.T) {
 			gs := NewWithT(t)
 
 			mgr, err := manager.New(cfg, manager.Options{
-				MetricsBindAddress: "0",
-				Port:               testEnv.WebhookInstallOptions.LocalServingPort,
-				CertDir:            testEnv.WebhookInstallOptions.LocalServingCertDir,
+				Metrics: metricsserver.Options{
+					BindAddress: "0",
+				},
+				WebhookServer: webhook.NewServer(webhook.Options{
+					Port:    testEnv.WebhookInstallOptions.LocalServingPort,
+					CertDir: testEnv.WebhookInstallOptions.LocalServingCertDir,
+				}),
 			})
 			gs.Expect(err).ToNot(HaveOccurred())
 
@@ -572,7 +577,7 @@ func TestMachineSetUpdate(t *testing.T) {
 
 	defaultAWSProviderSpec := &machinev1beta1.AWSMachineProviderConfig{
 		AMI: machinev1beta1.AWSResourceReference{
-			ID: pointer.String("ami"),
+			ID: ptr.To[string]("ami"),
 		},
 		InstanceType:      defaultInstanceTypeForCloudProvider(osconfigv1.AWSPlatformType, arch, &warnings),
 		UserDataSecret:    &corev1.LocalObjectReference{Name: defaultUserDataSecret},
@@ -665,15 +670,15 @@ func TestMachineSetUpdate(t *testing.T) {
 	defaultPowerVSProviderSpec := &machinev1.PowerVSMachineProviderConfig{
 		ServiceInstance: machinev1.PowerVSResource{
 			Type: machinev1.PowerVSResourceTypeName,
-			Name: pointer.String("testServiceInstanceID"),
+			Name: ptr.To[string]("testServiceInstanceID"),
 		},
 		Image: machinev1.PowerVSResource{
 			Type: machinev1.PowerVSResourceTypeName,
-			Name: pointer.String("testImageName"),
+			Name: ptr.To[string]("testImageName"),
 		},
 		Network: machinev1.PowerVSResource{
 			Type: machinev1.PowerVSResourceTypeName,
-			Name: pointer.String("testNetworkName"),
+			Name: ptr.To[string]("testNetworkName"),
 		},
 		UserDataSecret: &machinev1.PowerVSSecretReference{
 			Name: defaultUserDataSecret,
@@ -1167,9 +1172,13 @@ func TestMachineSetUpdate(t *testing.T) {
 			gs := NewWithT(t)
 
 			mgr, err := manager.New(cfg, manager.Options{
-				MetricsBindAddress: "0",
-				Port:               testEnv.WebhookInstallOptions.LocalServingPort,
-				CertDir:            testEnv.WebhookInstallOptions.LocalServingCertDir,
+				Metrics: metricsserver.Options{
+					BindAddress: "0",
+				},
+				WebhookServer: webhook.NewServer(webhook.Options{
+					Port:    testEnv.WebhookInstallOptions.LocalServingPort,
+					CertDir: testEnv.WebhookInstallOptions.LocalServingCertDir,
+				}),
 			})
 			gs.Expect(err).ToNot(HaveOccurred())
 

@@ -13,7 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -50,7 +50,7 @@ func getMachine(name string, phase string) *machinev1.Machine {
 		},
 	}
 
-	machine.Status.Phase = pointer.String(phase)
+	machine.Status.Phase = ptr.To[string](phase)
 	if phase == machinev1.PhaseDeleting {
 		machine.ObjectMeta.DeletionTimestamp = &now
 	}

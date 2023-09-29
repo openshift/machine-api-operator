@@ -11,7 +11,6 @@ import (
 	machinev1beta1 "github.com/openshift/client-go/machine/applyconfigurations/machine/v1beta1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	labels "k8s.io/apimachinery/pkg/labels"
-	schema "k8s.io/apimachinery/pkg/runtime/schema"
 	types "k8s.io/apimachinery/pkg/types"
 	watch "k8s.io/apimachinery/pkg/watch"
 	testing "k8s.io/client-go/testing"
@@ -23,9 +22,9 @@ type FakeMachineHealthChecks struct {
 	ns   string
 }
 
-var machinehealthchecksResource = schema.GroupVersionResource{Group: "machine.openshift.io", Version: "v1beta1", Resource: "machinehealthchecks"}
+var machinehealthchecksResource = v1beta1.SchemeGroupVersion.WithResource("machinehealthchecks")
 
-var machinehealthchecksKind = schema.GroupVersionKind{Group: "machine.openshift.io", Version: "v1beta1", Kind: "MachineHealthCheck"}
+var machinehealthchecksKind = v1beta1.SchemeGroupVersion.WithKind("MachineHealthCheck")
 
 // Get takes name of the machineHealthCheck, and returns the corresponding machineHealthCheck object, and an error if there is any.
 func (c *FakeMachineHealthChecks) Get(ctx context.Context, name string, options v1.GetOptions) (result *v1beta1.MachineHealthCheck, err error) {
