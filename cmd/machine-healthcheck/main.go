@@ -14,21 +14,21 @@ import (
 	"github.com/openshift/library-go/pkg/config/leaderelection"
 
 	"github.com/openshift/machine-api-operator/pkg/controller"
-	sdkVersion "github.com/operator-framework/operator-sdk/version"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
 func printVersion() {
 	klog.Infof("Go Version: %s", runtime.Version())
 	klog.Infof("Go OS/Arch: %s/%s", runtime.GOOS, runtime.GOARCH)
-	klog.Infof("operator-sdk Version: %v", sdkVersion.Version)
 }
 
 func main() {
@@ -94,7 +94,9 @@ func main() {
 	})
 
 	opts := manager.Options{
-		MetricsBindAddress:      *metricsAddress,
+		Metrics: server.Options{
+			BindAddress: *metricsAddress,
+		},
 		HealthProbeBindAddress:  *healthAddr,
 		LeaderElection:          *leaderElect,
 		LeaderElectionNamespace: *leaderElectResourceNamespace,
@@ -105,7 +107,9 @@ func main() {
 	}
 
 	if *watchNamespace != "" {
-		opts.Cache.Namespaces = []string{*watchNamespace}
+		opts.Cache.DefaultNamespaces = map[string]cache.Config{
+			*watchNamespace: {},
+		}
 		klog.Infof("Watching machine-api objects only in namespace %q for reconciliation.", *watchNamespace)
 	}
 	// Create a new Cmd to provide shared dependencies and start components

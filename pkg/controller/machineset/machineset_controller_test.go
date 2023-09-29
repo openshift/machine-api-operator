@@ -27,6 +27,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
 var _ = Describe("MachineSet Reconciler", func() {
@@ -36,7 +37,11 @@ var _ = Describe("MachineSet Reconciler", func() {
 
 	BeforeEach(func() {
 		By("Setting up a new manager")
-		mgr, err := manager.New(cfg, manager.Options{MetricsBindAddress: "0"})
+		mgr, err := manager.New(cfg, manager.Options{
+			Metrics: server.Options{
+				BindAddress: "0",
+			},
+		})
 		Expect(err).NotTo(HaveOccurred())
 
 		k8sClient = mgr.GetClient()

@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/ahmetb/gen-crd-api-reference-docs v0.3.0
-	sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20230523032821-116a1b831fff
+	sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20230926180527-c93e2abcb28e
 	sigs.k8s.io/controller-tools v0.12.0
 )
 

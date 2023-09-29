@@ -14,7 +14,7 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	v1 "github.com/openshift/api/config/v1"
@@ -405,7 +405,7 @@ func (optr *Operator) checkMinimumWorkerMachines() error {
 }
 
 func (optr *Operator) checkRunningMachineSetMachines(machineSet machinev1beta1.MachineSet) (int32, []string, error) {
-	replicas := pointer.Int32Deref(machineSet.Spec.Replicas, 0)
+	replicas := ptr.Deref(machineSet.Spec.Replicas, 0)
 
 	selector, err := metav1.LabelSelectorAsSelector(&machineSet.Spec.Selector)
 	if err != nil {
@@ -425,7 +425,7 @@ func (optr *Operator) checkRunningMachineSetMachines(machineSet machinev1beta1.M
 
 	nonRunningMachines := []string{}
 	for _, machine := range machines.Items {
-		phase := pointer.StringDeref(machine.Status.Phase, "")
+		phase := ptr.Deref(machine.Status.Phase, "")
 		if phase != "Running" {
 			nonRunningMachines = append(nonRunningMachines, machine.GetName())
 		}
@@ -474,7 +474,7 @@ func newRBACConfigVolumes() []corev1.Volume {
 					LocalObjectReference: corev1.LocalObjectReference{
 						Name: "kube-rbac-proxy",
 					},
-					DefaultMode: pointer.Int32(readOnly),
+					DefaultMode: ptr.To[int32](readOnly),
 				},
 			},
 		},
@@ -483,7 +483,7 @@ func newRBACConfigVolumes() []corev1.Volume {
 			VolumeSource: corev1.VolumeSource{
 				Secret: &corev1.SecretVolumeSource{
 					SecretName:  certStoreName,
-					DefaultMode: pointer.Int32(readOnly),
+					DefaultMode: ptr.To[int32](readOnly),
 				},
 			},
 		},
@@ -495,7 +495,7 @@ func newRBACConfigVolumes() []corev1.Volume {
 					LocalObjectReference: corev1.LocalObjectReference{
 						Name: externalTrustBundleConfigMapName,
 					},
-					Optional: pointer.Bool(true),
+					Optional: ptr.To[bool](true),
 				},
 			},
 		},
@@ -519,13 +519,13 @@ func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev
 			Key:               "node.kubernetes.io/not-ready",
 			Effect:            corev1.TaintEffectNoExecute,
 			Operator:          corev1.TolerationOpExists,
-			TolerationSeconds: pointer.Int64(120),
+			TolerationSeconds: ptr.To[int64](120),
 		},
 		{
 			Key:               "node.kubernetes.io/unreachable",
 			Effect:            corev1.TaintEffectNoExecute,
 			Operator:          corev1.TolerationOpExists,
-			TolerationSeconds: pointer.Int64(120),
+			TolerationSeconds: ptr.To[int64](120),
 		},
 	}
 
@@ -537,7 +537,7 @@ func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev
 				Secret: &corev1.SecretVolumeSource{
 					// keep this aligned with service.beta.openshift.io/serving-cert-secret-name annotation on its services
 					SecretName:  "machine-api-operator-webhook-cert",
-					DefaultMode: pointer.Int32(readOnly),
+					DefaultMode: ptr.To[int32](readOnly),
 					Items: []corev1.KeyToPath{
 						{
 							Key:  "tls.crt",
@@ -557,7 +557,7 @@ func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev
 				Secret: &corev1.SecretVolumeSource{
 					// keep this aligned with service.beta.openshift.io/serving-cert-secret-name annotation on its services
 					SecretName:  "machine-api-operator-machine-webhook-cert",
-					DefaultMode: pointer.Int32(readOnly),
+					DefaultMode: ptr.To[int32](readOnly),
 					Items: []corev1.KeyToPath{
 						{
 							Key:  "tls.crt",
@@ -905,7 +905,7 @@ func newTerminationPodTemplateSpec(config *OperatorConfig) *corev1.PodTemplateSp
 				kubernetesOSlabel: kubernetesOSlabelLinux,
 			},
 			ServiceAccountName:           machineAPITerminationHandler,
-			AutomountServiceAccountToken: pointer.Bool(false),
+			AutomountServiceAccountToken: ptr.To[bool](false),
 			HostNetwork:                  true,
 			Volumes: []corev1.Volume{
 				{

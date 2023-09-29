@@ -28,7 +28,7 @@ import (
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	apimachineryutilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/klog/v2"
-	"k8s.io/utils/pointer"
+	"k8s.io/utils/ptr"
 
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 
@@ -289,7 +289,7 @@ func (r *Reconciler) exists() (bool, error) {
 	// Check if machine was powered on after clone.
 	// If it is powered off and in "Provisioning" phase, treat machine as non-existed yet and requeue for proceed
 	// with creation procedure.
-	powerState := types.VirtualMachinePowerState(pointer.StringDeref(r.machineScope.providerStatus.InstanceState, ""))
+	powerState := types.VirtualMachinePowerState(ptr.Deref(r.machineScope.providerStatus.InstanceState, ""))
 	if powerState == "" {
 		vm := &virtualMachine{
 			Context: r.machineScope.Context,
@@ -302,7 +302,7 @@ func (r *Reconciler) exists() (bool, error) {
 		}
 	}
 
-	if pointer.StringDeref(r.machine.Status.Phase, "") == machinev1.PhaseProvisioning && powerState == types.VirtualMachinePowerStatePoweredOff {
+	if ptr.Deref(r.machine.Status.Phase, "") == machinev1.PhaseProvisioning && powerState == types.VirtualMachinePowerStatePoweredOff {
 		klog.Infof("%v: already exists, but was not powered on after clone, requeue ", r.machine.GetName())
 		return false, nil
 	}
