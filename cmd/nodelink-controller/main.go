@@ -11,7 +11,6 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/controller"
 	"github.com/openshift/machine-api-operator/pkg/controller/nodelink"
 	"github.com/openshift/machine-api-operator/pkg/util"
-	sdkVersion "github.com/operator-framework/operator-sdk/version"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -25,7 +24,6 @@ import (
 func printVersion() {
 	klog.Infof("Go Version: %s", runtime.Version())
 	klog.Infof("Go OS/Arch: %s/%s", runtime.GOOS, runtime.GOARCH)
-	klog.Infof("operator-sdk Version: %v", sdkVersion.Version)
 }
 
 func main() {
