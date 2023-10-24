@@ -676,7 +676,7 @@ func clone(s *machineScope) (string, error) {
 			fmt.Sprintf(
 				"Hardware lower than %d is not supported, clone stopped. "+
 					"Detected machine template version is %d. "+
-					"Please update machine template: https://access.redhat.com/articles/6090681",
+					"Please update machine template: https://docs.openshift.com/container-platform/latest/updating/updating-hardware-on-nodes-running-on-vsphere.html",
 				minimumHWVersion, hwVersion,
 			),
 		)
