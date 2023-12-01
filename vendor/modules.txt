@@ -572,7 +572,7 @@ github.com/onsi/gomega/matchers/support/goraph/edge
 github.com/onsi/gomega/matchers/support/goraph/node
 github.com/onsi/gomega/matchers/support/goraph/util
 github.com/onsi/gomega/types
-# github.com/openshift/api v0.0.0-20231120222239-b86761094ee3
+# github.com/openshift/api v0.0.0-20231120222239-b86761094ee3 => github.com/rvanderp3/api v0.0.0-20231201203851-69c329d5d602
 ## explicit; go 1.20
 github.com/openshift/api
 github.com/openshift/api/apiserver

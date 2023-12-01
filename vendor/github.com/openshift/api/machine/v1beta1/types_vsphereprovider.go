@@ -51,6 +51,10 @@ type VSphereMachineProviderSpec struct {
 	// This parameter will be ignored if 'LinkedClone' CloneMode is set.
 	// +optional
 	DiskGiB int32 `json:"diskGiB,omitempty"`
+	// TagIDs is an optional set of tags to add to an instance. Specified tagIDs
+	// must use URN-notation instead of display names.
+	// +optional
+	TagIDs []string `json:"tagIDs,omitempty"`
 	// Snapshot is the name of the snapshot from which the VM was cloned
 	// +optional
 	Snapshot string `json:"snapshot"`

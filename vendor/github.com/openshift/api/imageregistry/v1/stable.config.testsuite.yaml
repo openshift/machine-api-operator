@@ -27,6 +27,7 @@ tests:
             networkAccess:
               type: Internal
               internal:
+                networkResourceGroupName: .my.resource_group-name
                 vnetName: foo-bar
                 subnetName: bar_foo
                 privateEndpointName: my-private-endpoint
@@ -42,6 +43,7 @@ tests:
             networkAccess:
               type: Internal
               internal:
+                networkResourceGroupName: .my.resource_group-name
                 vnetName: foo-bar
                 subnetName: bar_foo
                 privateEndpointName: my-private-endpoint
@@ -92,3 +94,16 @@ tests:
               internal:
                 subnetName: .invalid
     expectedError: "spec.storage.azure.networkAccess.internal.subnetName in body should match '^[0-9A-Za-z](?:[0-9A-Za-z_.-]*[0-9A-Za-z_])?$'"
+  - name: Should reject configuration with invalid network resource group name in internal storage network access config
+    initial: |
+      apiVersion: imageregistry.operator.openshift.io/v1
+      kind: Config
+      spec:
+        replicas: 1
+        storage:
+          azure:
+            networkAccess:
+              type: Internal
+              internal:
+                networkResourceGroupName: invalid.
+    expectedError: "spec.storage.azure.networkAccess.internal.networkResourceGroupName in body should match '^[0-9A-Za-z_.-](?:[0-9A-Za-z_.-]*[0-9A-Za-z_-])?$'"
