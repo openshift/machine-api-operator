@@ -2,20 +2,18 @@
 
 aliases:
   machine-api-approvers:
-  - enxebre
-  - michaelgugino
   - JoelSpeed
   - elmiko
-  - alexander-demichev
-  - lobziik
-  - Fedosin
+  - damdo
+  - RadekManak
   machine-api-reviewers:
   - JoelSpeed
   - elmiko
-  - alexander-demichev
-  - lobziik
-  - SamuelStuchly
-  - Fedosin
+  - damdo
+  - RadekManak
+  - nrb
+  - vincepri
+  - racheljpg
   machine-health-check-approvers:
   - slintes
   - beekhof
