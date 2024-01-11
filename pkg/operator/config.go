@@ -38,7 +38,6 @@ type Controllers struct {
 // Images allows build systems to inject images for MAO components
 type Images struct {
 	MachineAPIOperator            string `json:"machineAPIOperator"`
-	ClusterAPIControllerAlibaba   string `json:"clusterAPIControllerAlibaba"`
 	ClusterAPIControllerAWS       string `json:"clusterAPIControllerAWS"`
 	ClusterAPIControllerOpenStack string `json:"clusterAPIControllerOpenStack"`
 	ClusterAPIControllerLibvirt   string `json:"clusterAPIControllerLibvirt"`
@@ -79,8 +78,6 @@ func getProviderControllerFromImages(platform configv1.PlatformType, images Imag
 	switch platform {
 	case configv1.AWSPlatformType:
 		return images.ClusterAPIControllerAWS, nil
-	case configv1.AlibabaCloudPlatformType:
-		return images.ClusterAPIControllerAlibaba, nil
 	case configv1.LibvirtPlatformType:
 		return images.ClusterAPIControllerLibvirt, nil
 	case configv1.OpenStackPlatformType:
@@ -121,8 +118,6 @@ func getTerminationHandlerFromImages(platform configv1.PlatformType, images Imag
 		return images.ClusterAPIControllerGCP, nil
 	case configv1.AzurePlatformType:
 		return images.ClusterAPIControllerAzure, nil
-	case configv1.AlibabaCloudPlatformType:
-		return images.ClusterAPIControllerAlibaba, nil
 	default:
 		return clusterAPIControllerNoOp, nil
 	}

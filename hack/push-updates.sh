@@ -54,7 +54,6 @@ machine-api-provider-powervs
 machine-api-provider-nutanix
 cluster-api-provider-baremetal
 cluster-api-provider-ibmcloud
-cluster-api-provider-alibaba
 "
 
 TITLE=""
