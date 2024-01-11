@@ -11,12 +11,6 @@ import (
 	"time"
 
 	. "github.com/onsi/gomega"
-	openshiftv1 "github.com/openshift/api/config/v1"
-	fakeos "github.com/openshift/client-go/config/clientset/versioned/fake"
-	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions"
-	fakemachine "github.com/openshift/client-go/machine/clientset/versioned/fake"
-	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
-	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 	"github.com/stretchr/testify/assert"
 	appsv1 "k8s.io/api/apps/v1"
 	kerrors "k8s.io/apimachinery/pkg/api/errors"
@@ -30,6 +24,13 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
+
+	openshiftv1 "github.com/openshift/api/config/v1"
+	fakeos "github.com/openshift/client-go/config/clientset/versioned/fake"
+	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions"
+	fakemachine "github.com/openshift/client-go/machine/clientset/versioned/fake"
+	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
+	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 )
 
 const (
@@ -364,25 +365,6 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
 				PlatformType: openshiftv1.AWSPlatformType,
-			},
-		},
-		{
-			name:     string(openshiftv1.AlibabaCloudPlatformType),
-			platform: openshiftv1.AlibabaCloudPlatformType,
-			infra:    infra,
-			proxy:    proxy,
-			expectedConfig: &OperatorConfig{
-				TargetNamespace: targetNamespace,
-				Proxy:           proxy,
-				Controllers: Controllers{
-					Provider:           images.ClusterAPIControllerAlibaba,
-					MachineSet:         images.MachineAPIOperator,
-					NodeLink:           images.MachineAPIOperator,
-					MachineHealthCheck: images.MachineAPIOperator,
-					TerminationHandler: images.ClusterAPIControllerAlibaba,
-					KubeRBACProxy:      images.KubeRBACProxy,
-				},
-				PlatformType: openshiftv1.AlibabaCloudPlatformType,
 			},
 		},
 		{
