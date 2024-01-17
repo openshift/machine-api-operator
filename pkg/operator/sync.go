@@ -650,6 +650,12 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 		fmt.Sprintf("--namespace=%s", config.TargetNamespace),
 	}
 
+	machineControllerArgs := append([]string{}, args...)
+	switch config.PlatformType {
+	case v1.AzurePlatformType:
+		machineControllerArgs = append(machineControllerArgs, "--max-concurrent-reconciles=10")
+	}
+
 	proxyEnvArgs := getProxyArgs(config)
 
 	containers := []corev1.Container{
@@ -698,7 +704,7 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 			Name:      "machine-controller",
 			Image:     config.Controllers.Provider,
 			Command:   []string{"/machine-controller-manager"},
-			Args:      args,
+			Args:      machineControllerArgs,
 			Resources: resources,
 			Env: append(proxyEnvArgs, corev1.EnvVar{
 				Name: "NODE_NAME",
