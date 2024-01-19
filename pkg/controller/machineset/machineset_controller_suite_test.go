@@ -18,6 +18,7 @@ package machineset
 
 import (
 	"context"
+	"flag"
 	"path/filepath"
 	"testing"
 	"time"
@@ -27,16 +28,16 @@ import (
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
-	"k8s.io/klog/v2"
-	"k8s.io/klog/v2/klogr"
+	"k8s.io/klog/v2/textlogger"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 func init() {
-	klog.InitFlags(nil)
-	logf.SetLogger(klogr.New())
+	textLoggerConfig := textlogger.NewConfig()
+	textLoggerConfig.AddFlags(flag.CommandLine)
+	logf.SetLogger(textlogger.NewLogger(textLoggerConfig))
 
 	// Register required object kinds with global scheme.
 	_ = machinev1.Install(scheme.Scheme)

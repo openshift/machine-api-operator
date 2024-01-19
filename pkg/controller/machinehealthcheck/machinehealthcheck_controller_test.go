@@ -1181,7 +1181,8 @@ func TestGetTargetsFromMHC(t *testing.T) {
 						Labels: map[string]string{},
 					},
 					TypeMeta: metav1.TypeMeta{
-						Kind: "Node",
+						Kind:       "Node",
+						APIVersion: "v1",
 					},
 					Status: corev1.NodeStatus{
 						Conditions: []corev1.NodeCondition{},
@@ -1441,7 +1442,8 @@ func TestGetNodeFromMachine(t *testing.T) {
 					Labels: map[string]string{},
 				},
 				TypeMeta: metav1.TypeMeta{
-					Kind: "Node",
+					Kind:       "Node",
+					APIVersion: "v1",
 				},
 				Status: corev1.NodeStatus{
 					Conditions: []corev1.NodeCondition{},

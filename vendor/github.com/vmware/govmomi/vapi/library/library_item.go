@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2018 VMware, Inc. All Rights Reserved.
+Copyright (c) 2018-2022 VMware, Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -36,7 +36,7 @@ type Item struct {
 	Cached           bool       `json:"cached,omitempty"`
 	ContentVersion   string     `json:"content_version,omitempty"`
 	CreationTime     *time.Time `json:"creation_time,omitempty"`
-	Description      string     `json:"description,omitempty"`
+	Description      *string    `json:"description,omitempty"`
 	ID               string     `json:"id,omitempty"`
 	LastModifiedTime *time.Time `json:"last_modified_time,omitempty"`
 	LastSyncTime     *time.Time `json:"last_sync_time,omitempty"`
@@ -47,6 +47,15 @@ type Item struct {
 	SourceID         string     `json:"source_id,omitempty"`
 	Type             string     `json:"type,omitempty"`
 	Version          string     `json:"version,omitempty"`
+
+	SecurityCompliance      *bool                        `json:"security_compliance,omitempty"`
+	CertificateVerification *ItemCertificateVerification `json:"certificate_verification_info,omitempty"`
+}
+
+// ItemCertificateVerification contains the certificate verification status and item's signing certificate
+type ItemCertificateVerification struct {
+	Status    string   `json:"status"`
+	CertChain []string `json:"cert_chain,omitempty"`
 }
 
 // Patch merges updates from the given src.
@@ -54,7 +63,7 @@ func (i *Item) Patch(src *Item) {
 	if src.Name != "" {
 		i.Name = src.Name
 	}
-	if src.Description != "" {
+	if src.Description != nil {
 		i.Description = src.Description
 	}
 	if src.Type != "" {
@@ -73,12 +82,17 @@ func (c *Manager) CreateLibraryItem(ctx context.Context, item Item) (string, err
 		LibraryID   string `json:"library_id,omitempty"`
 		Type        string `json:"type"`
 	}
+
+	description := ""
+	if item.Description != nil {
+		description = *item.Description
+	}
 	spec := struct {
 		Item createItemSpec `json:"create_spec"`
 	}{
 		Item: createItemSpec{
 			Name:        item.Name,
-			Description: item.Description,
+			Description: description,
 			LibraryID:   item.LibraryID,
 			Type:        item.Type,
 		},

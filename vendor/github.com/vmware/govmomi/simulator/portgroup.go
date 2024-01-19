@@ -27,6 +27,23 @@ type DistributedVirtualPortgroup struct {
 	mo.DistributedVirtualPortgroup
 }
 
+func (p *DistributedVirtualPortgroup) event(ctx *Context) types.DVPortgroupEvent {
+	dvs := ctx.Map.Get(*p.Config.DistributedVirtualSwitch).(*DistributedVirtualSwitch)
+
+	return types.DVPortgroupEvent{
+		Event: types.Event{
+			Datacenter: datacenterEventArgument(p),
+			Net: &types.NetworkEventArgument{
+				EntityEventArgument: types.EntityEventArgument{
+					Name: p.Name,
+				},
+				Network: p.Self,
+			},
+			Dvs: dvs.eventArgument(),
+		},
+	}
+}
+
 func (s *DistributedVirtualPortgroup) RenameTask(ctx *Context, req *types.Rename_Task) soap.HasFault {
 	canDup := s.DistributedVirtualPortgroup.Config.BackingType == string(types.DistributedVirtualPortgroupBackingTypeNsx)
 
@@ -60,12 +77,13 @@ func (s *DistributedVirtualPortgroup) ReconfigureDVPortgroupTask(ctx *Context, r
 
 func (s *DistributedVirtualPortgroup) DestroyTask(ctx *Context, req *types.Destroy_Task) soap.HasFault {
 	task := CreateTask(s, "destroy", func(t *Task) (types.AnyType, types.BaseMethodFault) {
-		vswitch := Map.Get(*s.Config.DistributedVirtualSwitch).(*DistributedVirtualSwitch)
-		Map.RemoveReference(ctx, vswitch, &vswitch.Portgroup, s.Reference())
-		Map.removeString(ctx, vswitch, &vswitch.Summary.PortgroupName, s.Name)
+		vswitch := ctx.Map.Get(*s.Config.DistributedVirtualSwitch).(*DistributedVirtualSwitch)
+		ctx.Map.RemoveReference(ctx, vswitch, &vswitch.Portgroup, s.Reference())
+		ctx.Map.removeString(ctx, vswitch, &vswitch.Summary.PortgroupName, s.Name)
 
-		f := Map.getEntityParent(vswitch, "Folder").(*Folder)
+		f := ctx.Map.getEntityParent(vswitch, "Folder").(*Folder)
 		folderRemoveChild(ctx, &f.Folder, s.Reference())
+		ctx.postEvent(&types.DVPortgroupDestroyedEvent{DVPortgroupEvent: s.event(ctx)})
 
 		return nil, nil
 	})

@@ -317,7 +317,7 @@ func (r *ReconcileMachineHealthCheck) cleanEMR(ctx context.Context, currentHealt
 		}
 		// Check that obj has no DeletionTimestamp to avoid hot loop
 		if obj.GetDeletionTimestamp() == nil {
-			klog.V(3).Infof("Target has passed health check, deleting the external remediation request", "remediation request name", obj.GetName(), "target", t.string())
+			klog.V(3).Info("Target has passed health check, deleting the external remediation request", "remediation request name", obj.GetName(), "target", t.string())
 			// Issue a delete for remediation request.
 			if err := r.client.Delete(ctx, obj); err != nil && !apimachineryerrors.IsNotFound(err) {
 				klog.Errorf("failed to delete %v %q for Machine %q: %v", obj.GroupVersionKind(), obj.GetName(), t.Machine.Name, err)
@@ -369,7 +369,7 @@ func (r *ReconcileMachineHealthCheck) externalRemediation(ctx context.Context, m
 	// the same Machine, users are in charge of setting health checks and remediation properly.
 	to.SetName(t.Machine.Name)
 
-	klog.V(3).Infof("Target has failed health check, creating an external remediation request", "remediation request name", to.GetName(), "target", t.string())
+	klog.V(3).Info("Target has failed health check, creating an external remediation request", "remediation request name", to.GetName(), "target", t.string())
 	// Create the external clone.
 	if err := r.client.Create(ctx, to); err != nil {
 		conditions.MarkFalse(m, machinev1.ExternalRemediationRequestAvailable, machinev1.ExternalRemediationRequestCreationFailed, machinev1.ConditionSeverityError, err.Error())

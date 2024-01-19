@@ -139,7 +139,6 @@ func TestClone(t *testing.T) {
 
 	password, _ := server.URL.User.Password()
 	namespace := "test"
-	defaultSizeGiB := int32(5)
 	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
 	vm.Config.Version = minimumHWVersionString
 
@@ -153,10 +152,7 @@ func TestClone(t *testing.T) {
 		t.Fatal("Unable to find attached disk for resize")
 	}
 	disk := disks[0].(*types.VirtualDisk)
-	disk.CapacityInKB = int64(defaultSizeGiB) * 1024 * 1024 // GiB
-	if err := machine.EditDevice(context.TODO(), disk); err != nil {
-		t.Fatalf("Can't resize disk for specified size")
-	}
+	diskSize := int32(disk.CapacityInBytes / 1024 / 1024 / 1024)
 
 	credentialsSecret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -216,7 +212,7 @@ func TestClone(t *testing.T) {
 				Workspace: &machinev1.Workspace{
 					Server: server.URL.Host,
 				},
-				DiskGiB:  defaultSizeGiB,
+				DiskGiB:  diskSize,
 				Template: vm.Name,
 				UserDataSecret: &corev1.LocalObjectReference{
 					Name: userDataSecretName,
@@ -235,7 +231,7 @@ func TestClone(t *testing.T) {
 					Server: server.URL.Host,
 					Folder: "custom-folder",
 				},
-				DiskGiB:  defaultSizeGiB,
+				DiskGiB:  diskSize,
 				Template: vm.Name,
 				UserDataSecret: &corev1.LocalObjectReference{
 					Name: userDataSecretName,
@@ -253,7 +249,7 @@ func TestClone(t *testing.T) {
 				Workspace: &machinev1.Workspace{
 					Server: server.URL.Host,
 				},
-				DiskGiB:  defaultSizeGiB + 1,
+				DiskGiB:  diskSize + 1,
 				Template: vm.Name,
 				UserDataSecret: &corev1.LocalObjectReference{
 					Name: userDataSecretName,
@@ -271,13 +267,13 @@ func TestClone(t *testing.T) {
 				Workspace: &machinev1.Workspace{
 					Server: server.URL.Host,
 				},
-				DiskGiB:  defaultSizeGiB - 1,
+				DiskGiB:  diskSize - 1,
 				Template: vm.Name,
 				UserDataSecret: &corev1.LocalObjectReference{
 					Name: userDataSecretName,
 				},
 			},
-			expectedError: errors.New("error getting disk spec for \"\": can't resize template disk down, initial capacity is larger: 5242880KiB > 4194304KiB"),
+			expectedError: fmt.Errorf("error getting disk spec for \"\": can't resize template disk down, initial capacity is larger: %vKiB > %vKiB", diskSize*1024*1024, (diskSize-1)*1024*1024),
 		},
 		{
 			testCase: "fail on invalid resource pool",
@@ -497,7 +493,7 @@ func TestClone(t *testing.T) {
 				Workspace: &machinev1.Workspace{
 					Server: server.URL.Host,
 				},
-				DiskGiB:  defaultSizeGiB,
+				DiskGiB:  diskSize,
 				Template: vm.Name,
 				UserDataSecret: &corev1.LocalObjectReference{
 					Name: userDataSecretName,
@@ -1265,7 +1261,7 @@ func TestGetNetworkStatusList(t *testing.T) {
 		Ref:     managedObjRef,
 	}
 
-	defaultFakeMAC := "00:0c:29:33:34:38"
+	defaultFakeMAC := "00:0c:29:00:00:00"
 	expectedNetworkStatusList := []NetworkStatus{
 		{
 			IPAddrs:   defaultFakeIPs,
@@ -1283,6 +1279,12 @@ func TestGetNetworkStatusList(t *testing.T) {
 	if len(networkStatusList) != 1 {
 		t.Errorf("Expected networkStatusList len to be 1, got %v", len(networkStatusList))
 	}
+
+	// Test if the MAC address belongs to VMware
+	if !strings.HasPrefix(networkStatusList[0].MACAddr, "00:0c:29") {
+		t.Errorf("Expected MACAddr to start with 00:0c:29, got %v", networkStatusList[0].MACAddr)
+	}
+	networkStatusList[0].MACAddr = defaultFakeMAC // The simulator generates a random MAC address, so we need to set it to the expected value
 	if !reflect.DeepEqual(networkStatusList, expectedNetworkStatusList) {
 		t.Errorf("Expected: %v, got: %v", networkStatusList, expectedNetworkStatusList)
 	}
@@ -2284,6 +2286,22 @@ func TestCreate(t *testing.T) {
 			NetworkName: "VM Network",
 		},
 	}
+
+	staticIpAddressClaimTest3 := []machinev1.NetworkDeviceSpec{
+		{
+			AddressesFromPools: []machinev1.AddressesFromPool{
+				{
+					Name:     "test-3-pool",
+					Group:    poolGroup,
+					Resource: "ippools",
+				},
+			},
+			Nameservers: []string{
+				"192.168.1.100",
+			},
+			NetworkName: "VM Network",
+		},
+	}
 	staticIpAddresses := []machinev1.NetworkDeviceSpec{
 		{
 			Gateway:     "192.168.1.1",
@@ -2293,14 +2311,14 @@ func TestCreate(t *testing.T) {
 		},
 	}
 
-	ipAddressClaim := &ipamv1alpha1.IPAddressClaim{
+	ipAddressClaimTest3 := &ipamv1alpha1.IPAddressClaim{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test-claim-0-0",
+			Name:      "test-3-claim-0-0",
 			Namespace: namespace,
 		},
 		Spec: ipamv1alpha1.IPAddressClaimSpec{
 			PoolRef: corev1.TypedLocalObjectReference{
-				Name:     "test-pool",
+				Name:     "test-3-pool",
 				APIGroup: &poolGroup,
 				Kind:     "ippools",
 			},
@@ -2346,6 +2364,7 @@ func TestCreate(t *testing.T) {
 
 	cases := []struct {
 		name                       string
+		machineName                string
 		expectedError              error
 		providerSpec               machinev1.VSphereMachineProviderSpec
 		labels                     map[string]string
@@ -2355,7 +2374,8 @@ func TestCreate(t *testing.T) {
 		ipAddress                  *ipamv1alpha1.IPAddress
 	}{
 		{
-			name: "Successfully create machine",
+			name:        "Successfully create machine",
+			machineName: "test-1",
 			providerSpec: machinev1.VSphereMachineProviderSpec{
 				Template: vmName,
 				Workspace: &machinev1.Workspace{
@@ -2371,7 +2391,8 @@ func TestCreate(t *testing.T) {
 			},
 		},
 		{
-			name: "Fail to create machine with static IP when tech preview not enabled",
+			name:        "Fail to create machine with static IP when tech preview not enabled",
+			machineName: "test-2",
 			providerSpec: machinev1.VSphereMachineProviderSpec{
 				Template: vmName,
 				Workspace: &machinev1.Workspace{
@@ -2388,10 +2409,11 @@ func TestCreate(t *testing.T) {
 					Devices: staticIpAddressClaim,
 				},
 			},
-			expectedError: errors.New("test: static IP/IPAM configuration is only available with the VSphereStaticIPs feature gate"),
+			expectedError: errors.New("test-2: static IP/IPAM configuration is only available with the VSphereStaticIPs feature gate"),
 		},
 		{
-			name: "Successfully create machine with static IP address claims when tech preview enabled",
+			name:        "Successfully create machine with static IP address claims when tech preview enabled",
+			machineName: "test-3",
 			providerSpec: machinev1.VSphereMachineProviderSpec{
 				Template: vmName,
 				Workspace: &machinev1.Workspace{
@@ -2405,15 +2427,16 @@ func TestCreate(t *testing.T) {
 					Name: userDataSecretName,
 				},
 				Network: machinev1.NetworkSpec{
-					Devices: staticIpAddressClaim,
+					Devices: staticIpAddressClaimTest3,
 				},
 			},
 			staticIPFeatureGateEnabled: true,
-			ipAddressClaim:             ipAddressClaim,
+			ipAddressClaim:             ipAddressClaimTest3,
 			ipAddress:                  ipAddress,
 		},
 		{
-			name: "Successfully create machine with static IP addresses when tech preview enabled",
+			name:        "Successfully create machine with static IP addresses when tech preview enabled",
+			machineName: "test-4",
 			providerSpec: machinev1.VSphereMachineProviderSpec{
 				Template: vmName,
 				Workspace: &machinev1.Workspace{
@@ -2433,7 +2456,8 @@ func TestCreate(t *testing.T) {
 			staticIPFeatureGateEnabled: true,
 		},
 		{
-			name: "Failed to create machine with static IP address claim when tech preview enabled due to waiting for IP",
+			name:        "Failed to create machine with static IP address claim when tech preview enabled due to waiting for IP",
+			machineName: "test-5",
 			providerSpec: machinev1.VSphereMachineProviderSpec{
 				Template: vmName,
 				Workspace: &machinev1.Workspace{
@@ -2452,10 +2476,11 @@ func TestCreate(t *testing.T) {
 			},
 			staticIPFeatureGateEnabled: true,
 			ipAddressClaim:             ipAddressClaimNoAddress,
-			expectedError:              errors.New("error getting addresses from IP pool: error retrieving bound IP address: no IPAddress is bound to claim test-claim-0-0"),
+			expectedError:              errors.New("error getting addresses from IP pool: error retrieving bound IP address: no IPAddress is bound to claim test-5-claim-0-0"),
 		},
 		{
-			name: "Fail on invalid missing machine label",
+			name:        "Fail on invalid missing machine label",
+			machineName: "test-6",
 			labels: map[string]string{
 				machinev1.MachineClusterIDLabel: "",
 			},
@@ -2468,10 +2493,11 @@ func TestCreate(t *testing.T) {
 					Name: "test",
 				},
 			},
-			expectedError: errors.New("test: failed validating machine provider spec: test: missing \"machine.openshift.io/cluster-api-cluster\" label"),
+			expectedError: errors.New("test-6: failed validating machine provider spec: test-6: missing \"machine.openshift.io/cluster-api-cluster\" label"),
 		},
 		{
-			name: "Fail on not connected to vCenter",
+			name:        "Fail on not connected to vCenter",
+			machineName: "test-7",
 			providerSpec: machinev1.VSphereMachineProviderSpec{
 				Template: vmName,
 				Workspace: &machinev1.Workspace{
@@ -2481,7 +2507,7 @@ func TestCreate(t *testing.T) {
 					Name: "test",
 				},
 			},
-			expectedError:         errors.New("test: not connected to a vCenter"),
+			expectedError:         errors.New("test-7: not connected to a vCenter"),
 			notConnectedToVCenter: true,
 		},
 	}
@@ -2507,7 +2533,7 @@ func TestCreate(t *testing.T) {
 
 			machine := &machinev1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      "test",
+					Name:      tc.machineName,
 					Namespace: namespace,
 					Labels:    labels,
 				},

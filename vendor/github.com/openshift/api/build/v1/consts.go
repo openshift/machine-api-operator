@@ -167,7 +167,8 @@ const (
 // WhitelistEnvVarNames is a list of environment variable names that are allowed to be specified
 // in a buildconfig and merged into the created build pods, the code for this is located in
 // openshift/openshift-controller-manager
-var WhitelistEnvVarNames = []string{"BUILD_LOGLEVEL", "GIT_SSL_NO_VERIFY", "GIT_LFS_SKIP_SMUDGE", "HTTP_PROXY", "HTTPS_PROXY", "LANG", "NO_PROXY"}
+var WhitelistEnvVarNames = []string{"BUILD_LOGLEVEL", "GIT_SSL_NO_VERIFY", "GIT_LFS_SKIP_SMUDGE", "LANG",
+	"HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy"}
 
 // env vars
 const (
