@@ -162,7 +162,7 @@ func main() {
 
 	featureGates, err := featureGateAccessor.CurrentFeatureGates()
 	if err != nil {
-		klog.Fatalf("unable to retrieve current feature gates: %w", err)
+		klog.Fatalf("unable to retrieve current feature gates: %v", err)
 	}
 	// read featuregate read and usage to set a variable to pass to a controller
 	staticIPFeatureGateEnabled := featureGates.Enabled(configv1.FeatureGateVSphereStaticIPs)
@@ -189,7 +189,7 @@ func main() {
 	}
 
 	if err := ipamv1alpha1.AddToScheme(mgr.GetScheme()); err != nil {
-		klog.Fatalf("unable to add ipamv1alpha1 to scheme: %w", err)
+		klog.Fatalf("unable to add ipamv1alpha1 to scheme: %v", err)
 	}
 
 	if err := capimachine.AddWithActuator(mgr, machineActuator); err != nil {
