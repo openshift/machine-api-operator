@@ -23,7 +23,7 @@ import (
 	ipamv1alpha1 "github.com/openshift/machine-api-operator/third_party/cluster-api/exp/ipam/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
-	"k8s.io/klog/v2/klogr"
+	"k8s.io/klog/v2/textlogger"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -43,7 +43,9 @@ func main() {
 		"", "",
 	)
 
-	klog.InitFlags(nil)
+	textLoggerConfig := textlogger.NewConfig()
+	textLoggerConfig.AddFlags(flag.CommandLine)
+	ctrl.SetLogger(textlogger.NewLogger(textLoggerConfig))
 	watchNamespace := flag.String(
 		"namespace",
 		"",
@@ -75,9 +77,11 @@ func main() {
 		"Address for hosting metrics",
 	)
 
-	if err := flag.Set("logtostderr", "true"); err != nil {
-		klog.Fatalf("failed to set logtostderr flag: %v", err)
-	}
+	logToStderr := flag.Bool(
+		"logtostderr",
+		true,
+		"log to standard error instead of files",
+	)
 
 	healthAddr := flag.String(
 		"health-addr",
@@ -85,6 +89,10 @@ func main() {
 		"The address for health checking.",
 	)
 	flag.Parse()
+
+	if logToStderr != nil {
+		klog.LogToStderr(*logToStderr)
+	}
 
 	if printVersion {
 		fmt.Println(version.String)
@@ -162,7 +170,7 @@ func main() {
 
 	featureGates, err := featureGateAccessor.CurrentFeatureGates()
 	if err != nil {
-		klog.Fatalf("unable to retrieve current feature gates: %w", err)
+		klog.Fatalf("unable to retrieve current feature gates: %v", err)
 	}
 	// read featuregate read and usage to set a variable to pass to a controller
 	staticIPFeatureGateEnabled := featureGates.Enabled(configv1.FeatureGateVSphereStaticIPs)
@@ -189,14 +197,13 @@ func main() {
 	}
 
 	if err := ipamv1alpha1.AddToScheme(mgr.GetScheme()); err != nil {
-		klog.Fatalf("unable to add ipamv1alpha1 to scheme: %w", err)
+		klog.Fatalf("unable to add ipamv1alpha1 to scheme: %v", err)
 	}
 
 	if err := capimachine.AddWithActuator(mgr, machineActuator); err != nil {
 		klog.Fatal(err)
 	}
 
-	ctrl.SetLogger(klogr.New())
 	setupLog := ctrl.Log.WithName("setup")
 	if err = (&machinesetcontroller.Reconciler{
 		Client: mgr.GetClient(),

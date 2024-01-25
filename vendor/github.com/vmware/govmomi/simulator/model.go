@@ -1,11 +1,11 @@
 /*
-Copyright (c) 2017 VMware, Inc. All Rights Reserved.
+Copyright (c) 2017-2023 VMware, Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"math/rand"
 	"os"
@@ -75,65 +74,71 @@ type Model struct {
 
 	// Datacenter specifies the number of Datacenter entities to create
 	// Name prefix: DC, vcsim flag: -dc
-	Datacenter int
+	Datacenter int `json:"datacenter"`
 
 	// Portgroup specifies the number of DistributedVirtualPortgroup entities to create per Datacenter
 	// Name prefix: DVPG, vcsim flag: -pg
-	Portgroup int
+	Portgroup int `json:"portgroup"`
 
 	// PortgroupNSX specifies the number NSX backed DistributedVirtualPortgroup entities to create per Datacenter
 	// Name prefix: NSXPG, vcsim flag: -nsx-pg
-	PortgroupNSX int
+	PortgroupNSX int `json:"portgroupNSX"`
 
 	// OpaqueNetwork specifies the number of OpaqueNetwork entities to create per Datacenter,
 	// with Summary.OpaqueNetworkType set to nsx.LogicalSwitch and Summary.OpaqueNetworkId to a random uuid.
 	// Name prefix: NSX, vcsim flag: -nsx
-	OpaqueNetwork int
+	OpaqueNetwork int `json:"opaqueNetwork"`
 
 	// Host specifies the number of standalone HostSystems entities to create per Datacenter
 	// Name prefix: H, vcsim flag: -standalone-host
-	Host int `json:",omitempty"`
+	Host int `json:"host,omitempty"`
 
 	// Cluster specifies the number of ClusterComputeResource entities to create per Datacenter
 	// Name prefix: C, vcsim flag: -cluster
-	Cluster int
+	Cluster int `json:"cluster"`
 
 	// ClusterHost specifies the number of HostSystems entities to create within a Cluster
 	// Name prefix: H, vcsim flag: -host
-	ClusterHost int `json:",omitempty"`
+	ClusterHost int `json:"clusterHost,omitempty"`
 
 	// Pool specifies the number of ResourcePool entities to create per Cluster
 	// Note that every cluster has a root ResourcePool named "Resources", as real vCenter does.
 	// For example: /DC0/host/DC0_C0/Resources
 	// The root ResourcePool is named "RP0" within other object names.
 	// When Model.Pool is set to 1 or higher, this creates child ResourcePools under the root pool.
+	// Note that this flag is not effective on standalone hosts.
 	// For example: /DC0/host/DC0_C0/Resources/DC0_C0_RP1
 	// Name prefix: RP, vcsim flag: -pool
-	Pool int
+	Pool int `json:"pool"`
 
 	// Datastore specifies the number of Datastore entities to create
 	// Each Datastore will have temporary local file storage and will be mounted
 	// on every HostSystem created by the ModelConfig
 	// Name prefix: LocalDS, vcsim flag: -ds
-	Datastore int
+	Datastore int `json:"datastore"`
 
-	// Machine specifies the number of VirtualMachine entities to create per ResourcePool
+	// Machine specifies the number of VirtualMachine entities to create per
+	// ResourcePool. If the pool flag is specified, the specified number of virtual
+	// machines will be deployed to each child pool and prefixed with the child
+	// resource pool name. Otherwise they are deployed into the root resource pool,
+	// prefixed with RP0. On standalone hosts, machines are always deployed into the
+	// root resource pool without any prefix.
 	// Name prefix: VM, vcsim flag: -vm
-	Machine int
+	Machine int `json:"machine"`
 
 	// Folder specifies the number of Datacenter to place within a Folder.
 	// This includes a folder for the Datacenter itself and its host, vm, network and datastore folders.
 	// All resources for the Datacenter are placed within these folders, rather than the top-level folders.
 	// Name prefix: F, vcsim flag: -folder
-	Folder int
+	Folder int `json:"folder"`
 
 	// App specifies the number of VirtualApp to create per Cluster
 	// Name prefix: APP, vcsim flag: -app
-	App int
+	App int `json:"app"`
 
 	// Pod specifies the number of StoragePod to create per Cluster
 	// Name prefix: POD, vcsim flag: -pod
-	Pod int
+	Pod int `json:"pod"`
 
 	// Delay configurations
 	DelayConfig DelayConfig `json:"-"`
@@ -257,6 +262,7 @@ var kinds = map[string]reflect.Type{
 	"StoragePod":                      reflect.TypeOf((*StoragePod)(nil)).Elem(),
 	"StorageResourceManager":          reflect.TypeOf((*StorageResourceManager)(nil)).Elem(),
 	"TaskManager":                     reflect.TypeOf((*TaskManager)(nil)).Elem(),
+	"TenantTenantManager":             reflect.TypeOf((*TenantManager)(nil)).Elem(),
 	"UserDirectory":                   reflect.TypeOf((*UserDirectory)(nil)).Elem(),
 	"VcenterVStorageObjectManager":    reflect.TypeOf((*VcenterVStorageObjectManager)(nil)).Elem(),
 	"ViewManager":                     reflect.TypeOf((*ViewManager)(nil)).Elem(),
@@ -307,18 +313,18 @@ func loadObject(content types.ObjectContent) (mo.Reference, error) {
 // example: Load's dir only contains a single OpaqueNetwork, we need to create a Datacenter and
 // place the OpaqueNetwork in the Datacenter's network folder.
 func (m *Model) resolveReferences(ctx *Context) error {
-	dc, ok := Map.Any("Datacenter").(*Datacenter)
+	dc, ok := ctx.Map.Any("Datacenter").(*Datacenter)
 	if !ok {
 		// Need to have at least 1 Datacenter
-		root := Map.Get(Map.content().RootFolder).(*Folder)
+		root := ctx.Map.Get(ctx.Map.content().RootFolder).(*Folder)
 		ref := root.CreateDatacenter(ctx, &types.CreateDatacenter{
 			This: root.Self,
 			Name: "DC0",
 		}).(*methods.CreateDatacenterBody).Res.Returnval
-		dc = Map.Get(ref).(*Datacenter)
+		dc = ctx.Map.Get(ref).(*Datacenter)
 	}
 
-	for ref, val := range Map.objects {
+	for ref, val := range ctx.Map.objects {
 		me, ok := val.(mo.Entity)
 		if !ok {
 			continue
@@ -327,7 +333,7 @@ func (m *Model) resolveReferences(ctx *Context) error {
 		if e.Parent == nil || ref.Type == "Folder" {
 			continue
 		}
-		if Map.Get(*e.Parent) == nil {
+		if ctx.Map.Get(*e.Parent) == nil {
 			// object was loaded without its parent, attempt to foster with another parent
 			switch e.Parent.Type {
 			case "Folder":
@@ -361,7 +367,7 @@ func (m *Model) decode(path string, data interface{}) error {
 func (m *Model) loadMethod(obj mo.Reference, dir string) error {
 	dir = filepath.Join(dir, obj.Reference().Encode())
 
-	info, err := ioutil.ReadDir(dir)
+	info, err := os.ReadDir(dir)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return nil
@@ -432,12 +438,14 @@ func (m *Model) Load(dir string) error {
 			s = new(ServiceInstance)
 			s.Self = content.Obj
 			Map = NewRegistry()
-			Map.Put(s)
+			ctx.Map = Map
+			ctx.Map.Put(s)
 			return mo.LoadObjectContent([]types.ObjectContent{content}, &s.ServiceInstance)
 		}
 
 		if s == nil {
 			s = NewServiceInstance(ctx, m.ServiceContent, m.RootFolder)
+			ctx.Map = Map
 		}
 
 		obj, err := loadObject(content)
@@ -451,7 +459,7 @@ func (m *Model) Load(dir string) error {
 			}
 		}
 
-		return m.loadMethod(Map.Put(obj), dir)
+		return m.loadMethod(ctx.Map.Put(obj), dir)
 	})
 
 	if err != nil {
@@ -467,7 +475,11 @@ func (m *Model) Load(dir string) error {
 func (m *Model) Create() error {
 	ctx := SpoofContext()
 	m.Service = New(NewServiceInstance(ctx, m.ServiceContent, m.RootFolder))
+	ctx.Map = Map
+	return m.CreateInfrastructure(ctx)
+}
 
+func (m *Model) CreateInfrastructure(ctx *Context) error {
 	client := m.Service.client
 	root := object.NewRootFolder(client)
 
@@ -482,7 +494,7 @@ func (m *Model) Create() error {
 	// 1 NIC per VM, backed by a DVPG if Model.Portgroup > 0
 	vmnet := esx.EthernetCard.Backing
 
-	// addHost adds a cluster host or a stanalone host.
+	// addHost adds a cluster host or a standalone host.
 	addHost := func(name string, f func(types.HostConnectSpec) (*object.Task, error)) (*object.HostSystem, error) {
 		spec := types.HostConnectSpec{
 			HostName: name,
@@ -546,6 +558,7 @@ func (m *Model) Create() error {
 				disk := devices.CreateDisk(scsi.(types.BaseVirtualController), ds,
 					config.Files.VmPathName+" "+path.Join(name, "disk1.vmdk"))
 				disk.CapacityInKB = int64(units.GB*10) / units.KB
+				disk.StorageIOAllocation = &types.StorageIOAllocationInfo{Limit: types.NewInt64(-1)}
 
 				devices = append(devices, scsi, cdrom, disk, &nic)
 
@@ -644,8 +657,9 @@ func (m *Model) Create() error {
 		for npg := 0; npg < m.Portgroup; npg++ {
 			name := m.fmtName(dcName+"_DVPG", npg)
 			spec := types.DVPortgroupConfigSpec{
-				Name: name,
-				Type: string(types.DistributedVirtualPortgroupPortgroupTypeEarlyBinding),
+				Name:     name,
+				Type:     string(types.DistributedVirtualPortgroupPortgroupTypeEarlyBinding),
+				NumPorts: 1,
 			}
 
 			task, err := dvs.AddPortgroup(ctx, []types.DVPortgroupConfigSpec{spec})
@@ -659,8 +673,8 @@ func (m *Model) Create() error {
 			// Use the 1st DVPG for the VMs eth0 backing
 			if npg == 0 {
 				// AddPortgroup_Task does not return the moid, so we look it up by name
-				net := Map.Get(folders.NetworkFolder.Reference()).(*Folder)
-				pg := Map.FindByName(name, net.ChildEntity)
+				net := ctx.Map.Get(folders.NetworkFolder.Reference()).(*Folder)
+				pg := ctx.Map.FindByName(name, net.ChildEntity)
 
 				vmnet, _ = object.NewDistributedVirtualPortgroup(client, pg.Reference()).EthernetCardBackingInfo(ctx)
 			}
@@ -684,7 +698,7 @@ func (m *Model) Create() error {
 		}
 
 		// Must use simulator methods directly for OpaqueNetwork
-		networkFolder := Map.Get(folders.NetworkFolder.Reference()).(*Folder)
+		networkFolder := ctx.Map.Get(folders.NetworkFolder.Reference()).(*Folder)
 
 		for i := 0; i < m.OpaqueNetwork; i++ {
 			var summary types.OpaqueNetworkSummary
@@ -727,19 +741,24 @@ func (m *Model) Create() error {
 				}
 			}
 
-			pool, err := cluster.ResourcePool(ctx)
+			rootRP, err := cluster.ResourcePool(ctx)
 			if err != nil {
 				return err
 			}
 
 			prefix := clusterName + "_RP"
 
-			addMachine(prefix+"0", nil, pool, folders)
+			// put VMs in cluster RP if no child RP(s) configured
+			if m.Pool == 0 {
+				addMachine(prefix+"0", nil, rootRP, folders)
+			}
 
-			for npool := 1; npool <= m.Pool; npool++ {
+			// create child RP(s) with VMs
+			for childRP := 1; childRP <= m.Pool; childRP++ {
 				spec := types.DefaultResourceConfigSpec()
 
-				_, err = pool.Create(ctx, m.fmtName(prefix, npool), spec)
+				p, err := rootRP.Create(ctx, m.fmtName(prefix, childRP), spec)
+				addMachine(m.fmtName(prefix, childRP), nil, p, folders)
 				if err != nil {
 					return err
 				}
@@ -752,7 +771,7 @@ func (m *Model) Create() error {
 				vspec := NewVAppConfigSpec()
 				name := m.fmtName(prefix, napp)
 
-				vapp, err := pool.CreateVApp(ctx, name, rspec, vspec, nil)
+				vapp, err := rootRP.CreateVApp(ctx, name, rspec, vspec, nil)
 				if err != nil {
 					return err
 				}
@@ -803,7 +822,7 @@ func (m *Model) Create() error {
 }
 
 func (m *Model) createTempDir(dc string, name string) (string, error) {
-	dir, err := ioutil.TempDir("", fmt.Sprintf("govcsim-%s-%s-", dc, name))
+	dir, err := os.MkdirTemp("", fmt.Sprintf("govcsim-%s-%s-", dc, name))
 	if err == nil {
 		m.dirs = append(m.dirs, dir)
 	}
@@ -838,7 +857,7 @@ func (m *Model) Remove() {
 	Map.m.Lock()
 	for _, obj := range Map.objects {
 		if vm, ok := obj.(*VirtualMachine); ok {
-			vm.run.remove(vm)
+			vm.svm.remove(SpoofContext())
 		}
 	}
 	Map.m.Unlock()
@@ -859,9 +878,10 @@ func (m *Model) Run(f func(context.Context, *vim25.Client) error) error {
 		if err != nil {
 			return err
 		}
+		// Only force TLS if the provided model didn't have any Service.
+		m.Service.TLS = new(tls.Config)
 	}
 
-	m.Service.TLS = new(tls.Config)
 	m.Service.RegisterEndpoints = true
 
 	s := m.Service.NewServer()

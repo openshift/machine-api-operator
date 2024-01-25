@@ -330,11 +330,11 @@ func (r *Reconciler) delete() error {
 						Namespace: r.machine.Namespace,
 						Reason:    "Task finished with error",
 					})
-					klog.Errorf("Delete task finished with error: %w", err)
+					klog.Errorf("Delete task finished with error: %v", err)
 					return fmt.Errorf("%v task %v finished with error: %w", moTask.Info.DescriptionId, moTask.Reference().Value, err)
 				} else {
 					klog.Warningf(
-						"TaskRef points to clone task which finished with error: %w. Proceeding with machine deletion", err,
+						"TaskRef points to clone task which finished with error: %v. Proceeding with machine deletion", err,
 					)
 				}
 			} else if !taskIsFinished {
@@ -474,7 +474,7 @@ func (r *Reconciler) nodeHasVolumesAttached(ctx context.Context, nodeName string
 	node := &corev1.Node{}
 	if err := r.apiReader.Get(ctx, apimachinerytypes.NamespacedName{Name: nodeName}, node); err != nil {
 		if apierrors.IsNotFound(err) {
-			klog.Errorf("Could not find node from noderef, it may have already been deleted: %w", err)
+			klog.Errorf("Could not find node from noderef, it may have already been deleted: %v", err)
 			return false, nil
 		}
 		return true, err

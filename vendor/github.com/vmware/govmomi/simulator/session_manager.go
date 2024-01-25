@@ -1,11 +1,11 @@
 /*
-Copyright (c) 2017-2018 VMware, Inc. All Rights Reserved.
+Copyright (c) 2017-2023 VMware, Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"reflect"
 	"strings"
@@ -41,6 +42,7 @@ type SessionManager struct {
 
 	ServiceHostName string
 	TLSCert         func() string
+	ValidLogin      func(*types.Login) bool
 
 	sessions map[string]Session
 }
@@ -106,22 +108,23 @@ func (m *SessionManager) putSession(s Session) {
 	m.sessions[s.Key] = s
 }
 
-func (s *SessionManager) validLogin(ctx *Context, req *types.Login) bool {
-	if ctx.Session != nil {
-		return false
-	}
-	user := ctx.svc.Listen.User
-	if user == nil || user == DefaultLogin {
+func (s *SessionManager) Authenticate(u url.URL, req *types.Login) bool {
+	if u.User == nil || u.User == DefaultLogin {
 		return req.UserName != "" && req.Password != ""
 	}
-	pass, _ := user.Password()
-	return req.UserName == user.Username() && req.Password == pass
+
+	if s.ValidLogin != nil {
+		return s.ValidLogin(req)
+	}
+
+	pass, _ := u.User.Password()
+	return req.UserName == u.User.Username() && req.Password == pass
 }
 
 func (s *SessionManager) Login(ctx *Context, req *types.Login) soap.HasFault {
 	body := new(methods.LoginBody)
 
-	if s.validLogin(ctx, req) {
+	if ctx.Session == nil && s.Authenticate(*ctx.svc.Listen, req) {
 		body.Res = &types.LoginResponse{
 			Returnval: createSession(ctx, req.UserName, req.Locale),
 		}
@@ -181,7 +184,7 @@ func (s *SessionManager) LoginByToken(ctx *Context, req *types.LoginByToken) soa
 func (s *SessionManager) Logout(ctx *Context, _ *types.Logout) soap.HasFault {
 	session := ctx.Session
 	s.delSession(session.Key)
-	pc := Map.content().PropertyCollector
+	pc := ctx.Map.content().PropertyCollector
 
 	for ref, obj := range ctx.Session.Registry.objects {
 		if ref == pc {
@@ -370,7 +373,7 @@ func (c *Context) SetSession(session Session, login bool) {
 	}
 }
 
-// WithLock holds a lock for the given object while then given function is run.
+// WithLock holds a lock for the given object while the given function is run.
 // It will skip locking if this context already holds the given object's lock.
 func (c *Context) WithLock(obj mo.Reference, f func()) {
 	// TODO: This is not always going to be correct. An object should
@@ -379,12 +382,12 @@ func (c *Context) WithLock(obj mo.Reference, f func()) {
 	// argument to accomplish this.
 	// Basic mutex locking will work even if obj doesn't belong to Map, but
 	// if obj implements sync.Locker, that custom locking will not be used.
-	Map.WithLock(c, obj, f)
+	c.Map.WithLock(c, obj, f)
 }
 
 // postEvent wraps EventManager.PostEvent for internal use, with a lock on the EventManager.
 func (c *Context) postEvent(events ...types.BaseEvent) {
-	m := Map.EventManager()
+	m := c.Map.EventManager()
 	c.WithLock(m, func() {
 		for _, event := range events {
 			m.PostEvent(c, &types.PostEvent{EventToPost: event})

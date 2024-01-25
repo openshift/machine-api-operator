@@ -337,6 +337,20 @@ type AzureNetworkAccess struct {
 }
 
 type AzureNetworkAccessInternal struct {
+	// networkResourceGroupName is the resource group name where the cluster's vnet
+	// and subnet are. When omitted, the registry operator will use the cluster
+	// resource group (from in the infrastructure status).
+	// If you set a networkResourceGroupName on your install-config.yaml, that
+	// value will be used automatically (for clusters configured with publish:Internal).
+	// Note that both vnet and subnet must be in the same resource group.
+	// It must be between 1 and 90 characters in length and must consist only of
+	// alphanumeric characters, hyphens (-), periods (.) and underscores (_), and
+	// not end with a period.
+	// +kubebuilder:validation:MaxLength=90
+	// +kubebuilder:validation:MinLength=1
+	// +kubebuilder:validation:Pattern=`^[0-9A-Za-z_.-](?:[0-9A-Za-z_.-]*[0-9A-Za-z_-])?$`
+	// +optional
+	NetworkResourceGroupName string `json:"networkResourceGroupName,omitempty"`
 	// vnetName is the name of the vnet the registry operates in. When omitted,
 	// the registry operator will discover and set this by using the `kubernetes.io_cluster.<cluster-id>`
 	// tag in the vnet resource. This tag is set automatically by the installer.

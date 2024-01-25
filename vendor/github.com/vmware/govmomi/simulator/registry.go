@@ -1,11 +1,11 @@
 /*
-Copyright (c) 2017-2018 VMware, Inc. All Rights Reserved.
+Copyright (c) 2017-2023 VMware, Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-    http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -51,6 +51,10 @@ var refValueMap = map[string]string{
 }
 
 // Map is the default Registry instance.
+//
+// TODO/WIP: To support the eventual removal of this unsyncronized global
+// variable, the Map should be accessed through any Context.Map that is passed
+// in to functions that may need it.
 var Map = NewRegistry()
 
 // RegisterObject interface supports callbacks when objects are created, updated and deleted from the Registry
@@ -355,7 +359,7 @@ func (r *Registry) getEntityDatacenter(item mo.Entity) *Datacenter {
 }
 
 func (r *Registry) getEntityFolder(item mo.Entity, kind string) *mo.Folder {
-	dc := Map.getEntityDatacenter(item)
+	dc := r.getEntityDatacenter(item)
 
 	var ref types.ManagedObjectReference
 
@@ -369,7 +373,7 @@ func (r *Registry) getEntityFolder(item mo.Entity, kind string) *mo.Folder {
 	// If Model was created with Folder option, use that Folder; else use top-level folder
 	for _, child := range folder.ChildEntity {
 		if child.Type == "Folder" {
-			folder, _ = asFolderMO(Map.Get(child))
+			folder, _ = asFolderMO(r.Get(child))
 			break
 		}
 	}
@@ -563,13 +567,18 @@ func (r *Registry) CustomFieldsManager() *CustomFieldsManager {
 	return r.Get(r.content().CustomFieldsManager.Reference()).(*CustomFieldsManager)
 }
 
+// TenantManager returns TenantManager singleton
+func (r *Registry) TenantManager() *TenantManager {
+	return r.Get(r.content().TenantManager.Reference()).(*TenantManager)
+}
+
 func (r *Registry) MarshalJSON() ([]byte, error) {
 	r.m.Lock()
 	defer r.m.Unlock()
 
 	vars := struct {
-		Objects int
-		Locks   int
+		Objects int `json:"objects"`
+		Locks   int `json:"locks"`
 	}{
 		len(r.objects),
 		len(r.locks),

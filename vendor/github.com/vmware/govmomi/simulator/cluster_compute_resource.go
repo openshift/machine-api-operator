@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2017 VMware, Inc. All Rights Reserved.
+Copyright (c) 2017-2023 VMware, Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -54,16 +54,26 @@ func (add *addHost) Run(task *Task) (types.AnyType, types.BaseMethodFault) {
 		return nil, &types.NoHost{}
 	}
 
-	host := NewHostSystem(esx.HostSystem)
-	host.configure(spec, add.req.AsConnected)
-
 	cr := add.ClusterComputeResource
-	Map.PutEntity(cr, Map.NewEntity(host))
+	template := esx.HostSystem
+
+	if h := task.ctx.Map.FindByName(spec.UserName, cr.Host); h != nil {
+		// "clone" an existing host from the inventory
+		template = h.(*HostSystem).HostSystem
+		template.Vm = nil
+	} else {
+		template.Network = cr.Network[:1] // VM Network
+	}
+
+	host := NewHostSystem(template)
+	host.configure(task.ctx, spec, add.req.AsConnected)
+
+	task.ctx.Map.PutEntity(cr, task.ctx.Map.NewEntity(host))
 	host.Summary.Host = &host.Self
+	host.Config.Host = host.Self
 
 	cr.Host = append(cr.Host, host.Reference())
 	addComputeResource(cr.Summary.GetComputeResourceSummary(), host)
-	host.Network = cr.Network[:1] // VM Network
 
 	return host.Reference(), nil
 }
@@ -74,6 +84,24 @@ func (c *ClusterComputeResource) AddHostTask(ctx *Context, add *types.AddHost_Ta
 			Returnval: NewTask(&addHost{c, add}).Run(ctx),
 		},
 	}
+}
+
+func (c *ClusterComputeResource) update(cfg *types.ClusterConfigInfoEx, cspec *types.ClusterConfigSpecEx) types.BaseMethodFault {
+	if cspec.DasConfig != nil {
+		if val := cspec.DasConfig.Enabled; val != nil {
+			cfg.DasConfig.Enabled = val
+		}
+		if val := cspec.DasConfig.AdmissionControlEnabled; val != nil {
+			cfg.DasConfig.AdmissionControlEnabled = val
+		}
+	}
+	if cspec.DrsConfig != nil {
+		if val := cspec.DrsConfig.Enabled; val != nil {
+			cfg.DrsConfig.Enabled = val
+		}
+	}
+
+	return nil
 }
 
 func (c *ClusterComputeResource) updateRules(cfg *types.ClusterConfigInfoEx, cspec *types.ClusterConfigSpecEx) types.BaseMethodFault {
@@ -318,6 +346,7 @@ func (c *ClusterComputeResource) ReconfigureComputeResourceTask(ctx *Context, re
 		}
 
 		updates := []func(*types.ClusterConfigInfoEx, *types.ClusterConfigSpecEx) types.BaseMethodFault{
+			c.update,
 			c.updateRules,
 			c.updateGroups,
 			c.updateOverridesDAS,
@@ -336,6 +365,40 @@ func (c *ClusterComputeResource) ReconfigureComputeResourceTask(ctx *Context, re
 
 	return &methods.ReconfigureComputeResource_TaskBody{
 		Res: &types.ReconfigureComputeResource_TaskResponse{
+			Returnval: task.Run(ctx),
+		},
+	}
+}
+
+func (c *ClusterComputeResource) MoveIntoTask(ctx *Context, req *types.MoveInto_Task) soap.HasFault {
+	task := CreateTask(c, "moveInto", func(*Task) (types.AnyType, types.BaseMethodFault) {
+		for _, ref := range req.Host {
+			host := ctx.Map.Get(ref).(*HostSystem)
+
+			if *host.Parent == c.Self {
+				return nil, new(types.DuplicateName) // host already in this cluster
+			}
+
+			switch parent := ctx.Map.Get(*host.Parent).(type) {
+			case *ClusterComputeResource:
+				if !host.Runtime.InMaintenanceMode {
+					return nil, new(types.InvalidState)
+				}
+
+				RemoveReference(&parent.Host, ref)
+			case *mo.ComputeResource:
+				ctx.Map.Remove(ctx, parent.Self)
+			}
+
+			c.Host = append(c.Host, ref)
+			host.Parent = &c.Self
+		}
+
+		return nil, nil
+	})
+
+	return &methods.MoveInto_TaskBody{
+		Res: &types.MoveInto_TaskResponse{
 			Returnval: task.Run(ctx),
 		},
 	}
@@ -398,7 +461,7 @@ func (c *ClusterComputeResource) PlaceVm(ctx *Context, req *types.PlaceVm) soap.
 }
 
 func CreateClusterComputeResource(ctx *Context, f *Folder, name string, spec types.ClusterConfigSpecEx) (*ClusterComputeResource, types.BaseMethodFault) {
-	if e := Map.FindByName(name, f.ChildEntity); e != nil {
+	if e := ctx.Map.FindByName(name, f.ChildEntity); e != nil {
 		return nil, &types.DuplicateName{
 			Name:   e.Entity().Name,
 			Object: e.Reference(),
@@ -408,7 +471,7 @@ func CreateClusterComputeResource(ctx *Context, f *Folder, name string, spec typ
 	cluster := &ClusterComputeResource{}
 	cluster.EnvironmentBrowser = newEnvironmentBrowser()
 	cluster.Name = name
-	cluster.Network = Map.getEntityDatacenter(f).defaultNetwork()
+	cluster.Network = ctx.Map.getEntityDatacenter(f).defaultNetwork()
 	cluster.Summary = &types.ClusterComputeResourceSummary{
 		UsageSummary: new(types.ClusterUsageSummary),
 	}
@@ -420,7 +483,7 @@ func CreateClusterComputeResource(ctx *Context, f *Folder, name string, spec typ
 	config.DrsConfig.Enabled = types.NewBool(true)
 
 	pool := NewResourcePool()
-	Map.PutEntity(cluster, Map.NewEntity(pool))
+	ctx.Map.PutEntity(cluster, ctx.Map.NewEntity(pool))
 	cluster.ResourcePool = &pool.Self
 
 	folderPutChild(ctx, &f.Folder, cluster)
