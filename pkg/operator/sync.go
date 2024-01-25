@@ -692,6 +692,7 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 					},
 				},
 			},
+			TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 			VolumeMounts: []corev1.VolumeMount{
 				{
 					MountPath: "/etc/machine-api-operator/tls",
@@ -743,6 +744,7 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 					},
 				},
 			},
+			TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 			VolumeMounts: []corev1.VolumeMount{
 				{
 					MountPath: "/etc/pki/ca-trust/extracted/pem",
@@ -762,12 +764,13 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 			},
 		},
 		{
-			Name:      "nodelink-controller",
-			Image:     config.Controllers.NodeLink,
-			Command:   []string{"/nodelink-controller"},
-			Args:      args,
-			Env:       proxyEnvArgs,
-			Resources: resources,
+			Name:                     "nodelink-controller",
+			Image:                    config.Controllers.NodeLink,
+			Command:                  []string{"/nodelink-controller"},
+			Args:                     args,
+			Env:                      proxyEnvArgs,
+			Resources:                resources,
+			TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 		},
 	}
 	if config.Controllers.MachineHealthCheck != "" {
@@ -800,6 +803,7 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 					},
 				},
 			},
+			TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 		})
 	}
 	return containers
@@ -843,11 +847,12 @@ func newKubeProxyContainer(image, portName, upstreamPort string, exposePort int3
 	}}
 
 	return corev1.Container{
-		Name:      fmt.Sprintf("kube-rbac-proxy-%s", portName),
-		Image:     image,
-		Args:      args,
-		Resources: resources,
-		Ports:     ports,
+		Name:                     fmt.Sprintf("kube-rbac-proxy-%s", portName),
+		Image:                    image,
+		Args:                     args,
+		Resources:                resources,
+		Ports:                    ports,
+		TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 		VolumeMounts: []corev1.VolumeMount{
 			{
 				Name:      kubeRBACConfigName,
