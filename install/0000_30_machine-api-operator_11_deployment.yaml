@@ -46,6 +46,7 @@ spec:
           requests:
             memory: 20Mi
             cpu: 10m
+        terminationMessagePolicy: FallbackToLogsOnError
         volumeMounts:
         - name: config
           mountPath: /etc/kube-rbac-proxy
@@ -78,6 +79,7 @@ spec:
           requests:
             cpu: 10m
             memory: 50Mi
+        terminationMessagePolicy: FallbackToLogsOnError
         volumeMounts:
         - name: images
           mountPath: /etc/machine-api-operator-config/images
