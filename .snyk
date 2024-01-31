@@ -5,3 +5,4 @@ exclude:
   global:
     - "vendor/**"
     - "**/vendor/**"
+    - tools.go
