@@ -118,6 +118,11 @@ var (
 			maxProcessor:             143,
 		},
 	}
+
+	// VSphere variables
+
+	// tagUrnPattern is helps validate the format of a given tag URN
+	tagUrnPattern = regexp.MustCompile(`^(urn):(vmomi):(InventoryServiceTag):([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}):([^:]+)$`)
 )
 
 const (
@@ -1415,6 +1420,16 @@ func validateVSphere(m *machinev1beta1.Machine, config *admissionConfig) (bool, 
 	} else {
 		if providerSpec.UserDataSecret.Name == "" {
 			errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret", "name"), "name must be provided"))
+		}
+	}
+
+	if len(providerSpec.TagIDs) > 10 {
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "tagIDs"), providerSpec.TagIDs, "a maximum of 10 tags are allowed"))
+	}
+
+	for _, tagID := range providerSpec.TagIDs {
+		if tagUrnPattern.FindStringSubmatch(tagID) == nil {
+			errs = append(errs, field.Required(field.NewPath("providerSpec", "tagIDs"), "tag ID must be in the format of urn:vmomi:InventoryServiceTag:<UUID>:GLOBAL"))
 		}
 	}
 

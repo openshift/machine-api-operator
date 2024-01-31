@@ -1367,7 +1367,7 @@ func TestReconcileTags(t *testing.T) {
 		name          string
 		expectedError bool
 		attachTag     bool
-		testCondition func(tagName string) error
+		testCondition func(tagName string) (string, error)
 		tagName       string
 	}{
 		{
@@ -1380,26 +1380,50 @@ func TestReconcileTags(t *testing.T) {
 			expectedError: false,
 			attachTag:     true,
 			tagName:       "BAAAAAAR",
-			testCondition: func(tagName string) error {
-				return createTagAndCategory(sessionObj, tagToCategoryName(tagName), tagName)
+			testCondition: func(tagName string) (string, error) {
+				_, err := createTagAndCategory(sessionObj, tagToCategoryName(tagName), tagName)
+				return "", err
+			},
+		},
+		{
+			name:          "Successfully attach additional tags",
+			expectedError: false,
+			attachTag:     true,
+			tagName:       "BAAAAAAR2",
+			testCondition: func(tagName string) (string, error) {
+				if _, err := createTagAndCategory(sessionObj, tagToCategoryName(tagName), tagName); err != nil {
+					return "", err
+				}
+
+				additionalTag := "test-tag"
+				if additionalTagID, err := createTagAndCategory(sessionObj, tagToCategoryName(additionalTag), additionalTag); err != nil {
+					return "", err
+				} else {
+					return additionalTagID, nil
+				}
+
 			},
 		},
 		{
 			name:          "Fail on vSphere API error",
 			expectedError: false,
 			tagName:       "BAAAAAZ",
-			testCondition: func(tagName string) error {
-				return sessionObj.Logout(context.Background())
+			testCondition: func(tagName string) (string, error) {
+				return "", sessionObj.Logout(context.Background())
 			},
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			providerSpec := &machinev1.VSphereMachineProviderSpec{}
 			if tc.testCondition != nil {
-				err := tc.testCondition(tc.tagName)
+				additionalTagID, err := tc.testCondition(tc.tagName)
 				if err != nil {
 					t.Fatalf("Not expected error %v", err)
+				}
+				if len(additionalTagID) > 0 {
+					providerSpec.TagIDs = []string{additionalTagID}
 				}
 			}
 
@@ -1408,7 +1432,7 @@ func TestReconcileTags(t *testing.T) {
 					Name:   "machine",
 					Labels: map[string]string{machinev1.MachineClusterIDLabel: tc.tagName},
 				},
-			})
+			}, providerSpec)
 
 			if tc.expectedError {
 				if err == nil {
@@ -1431,8 +1455,29 @@ func TestReconcileTags(t *testing.T) {
 							t.Fatalf("Expected tags to be found")
 						}
 
-						if tags[0].Name != tc.tagName {
-							t.Fatalf("Expected tag %s, got %s", tc.tagName, tags[0].Name)
+						expectedTags := []string{tc.tagName}
+						if len(providerSpec.TagIDs) > 0 {
+							expectedTags = append(expectedTags, providerSpec.TagIDs...)
+						}
+
+						for _, expectedTag := range expectedTags {
+							gotTag := false
+							for _, attachedTag := range tags {
+								if session.IsName(expectedTag) {
+									if attachedTag.Name == expectedTag {
+										gotTag = true
+										break
+									}
+								} else {
+									if attachedTag.ID == expectedTag {
+										gotTag = true
+										break
+									}
+								}
+							}
+							if !gotTag {
+								t.Fatalf("Expected tag %s to be found", expectedTag)
+							}
 						}
 
 						return nil
@@ -2673,7 +2718,7 @@ func TestUpdate(t *testing.T) {
 		},
 	}
 
-	if err := createTagAndCategory(session, tagToCategoryName("CLUSTERID"), "CLUSTERID"); err != nil {
+	if _, err := createTagAndCategory(session, tagToCategoryName("CLUSTERID"), "CLUSTERID"); err != nil {
 		t.Fatalf("cannot create tag and category: %v", err)
 	}
 
@@ -2919,11 +2964,11 @@ func TestReconcileMachineWithCloudState(t *testing.T) {
 	cluster := simulator.Map.Any("ClusterComputeResource").(*simulator.ClusterComputeResource)
 	dc := simulator.Map.Any("Datacenter").(*simulator.Datacenter)
 
-	if err := createTagAndCategory(session, zoneKey, testZone); err != nil {
+	if _, err := createTagAndCategory(session, zoneKey, testZone); err != nil {
 		t.Fatalf("cannot create tag and category: %v", err)
 	}
 
-	if err := createTagAndCategory(session, regionKey, testRegion); err != nil {
+	if _, err := createTagAndCategory(session, regionKey, testRegion); err != nil {
 		t.Fatalf("cannot create tag and category: %v", err)
 	}
 
@@ -3017,7 +3062,8 @@ func TestReconcileMachineWithCloudState(t *testing.T) {
 	}
 }
 
-func createTagAndCategory(session *session.Session, categoryName, tagName string) error {
+func createTagAndCategory(session *session.Session, categoryName, tagName string) (string, error) {
+	var tagID string
 	if err := session.WithRestClient(context.TODO(), func(c *rest.Client) error {
 		tagsMgr := tags.NewManager(c)
 
@@ -3030,7 +3076,7 @@ func createTagAndCategory(session *session.Session, categoryName, tagName string
 			return err
 		}
 
-		_, err = tagsMgr.CreateTag(context.TODO(), &tags.Tag{
+		tagID, err = tagsMgr.CreateTag(context.TODO(), &tags.Tag{
 			CategoryID: id,
 			Name:       tagName,
 		})
@@ -3040,10 +3086,10 @@ func createTagAndCategory(session *session.Session, categoryName, tagName string
 
 		return nil
 	}); err != nil {
-		return err
+		return "", err
 	}
 
-	return nil
+	return tagID, nil
 }
 
 func TestVmDisksManipulation(t *testing.T) {

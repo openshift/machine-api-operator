@@ -1623,6 +1623,59 @@ func TestMachineUpdate(t *testing.T) {
 			expectedError: "",
 		},
 		{
+			name:         "with a valid VSphere ProviderSpec with a tag ID",
+			platformType: osconfigv1.VSpherePlatformType,
+			clusterID:    vsphereClusterID,
+			baseProviderSpecValue: &kruntime.RawExtension{
+				Object: defaultVSphereProviderSpec.DeepCopy(),
+			},
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
+				object := defaultVSphereProviderSpec.DeepCopy()
+				object.TagIDs = []string{"urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9578:GLOBAL"}
+
+				return &kruntime.RawExtension{
+					Object: object,
+				}
+			},
+			expectedError: "",
+		},
+		{
+			name:         "with a valid VSphere ProviderSpec with an invalid tag ID",
+			platformType: osconfigv1.VSpherePlatformType,
+			clusterID:    vsphereClusterID,
+			baseProviderSpecValue: &kruntime.RawExtension{
+				Object: defaultVSphereProviderSpec.DeepCopy(),
+			},
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
+				object := defaultVSphereProviderSpec.DeepCopy()
+				object.TagIDs = []string{"bad:tag:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9578:GLOBAL"}
+
+				return &kruntime.RawExtension{
+					Object: object,
+				}
+			},
+			expectedError: "providerSpec.tagIDs: Required value: tag ID must be in the format of urn:vmomi:InventoryServiceTag:<UUID>:GLOBAL",
+		},
+		{
+			name:         "with a valid VSphere ProviderSpec with too many tag IDs",
+			platformType: osconfigv1.VSpherePlatformType,
+			clusterID:    vsphereClusterID,
+			baseProviderSpecValue: &kruntime.RawExtension{
+				Object: defaultVSphereProviderSpec.DeepCopy(),
+			},
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
+				object := defaultVSphereProviderSpec.DeepCopy()
+
+				for i := 0; i != 12; i++ {
+					object.TagIDs = append(object.TagIDs, fmt.Sprintf("urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc95%02d:GLOBAL", i))
+				}
+				return &kruntime.RawExtension{
+					Object: object,
+				}
+			},
+			expectedError: `providerSpec.tagIDs: Invalid value: []string{"urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9500:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9501:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9502:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9503:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9504:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9505:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9506:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9507:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9508:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9509:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9510:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9511:GLOBAL"}: a maximum of 10 tags are allowed`,
+		},
+		{
 			name:         "with an VSphere ProviderSpec, removing the template",
 			platformType: osconfigv1.VSpherePlatformType,
 			clusterID:    vsphereClusterID,
