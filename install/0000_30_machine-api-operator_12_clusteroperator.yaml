@@ -37,3 +37,9 @@ status:
   - group: metal3.io
     resource: baremetalhosts
     name: ""
+  - group: ipam.cluster.x-k8s.io
+    name: ""
+    resource: ipaddresses
+  - group: ipam.cluster.x-k8s.io
+    name: ""
+    resource: ipaddressclaims
