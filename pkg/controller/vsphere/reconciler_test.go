@@ -47,7 +47,7 @@ import (
 
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
-	ipamv1beta1 "github.com/openshift/machine-api-operator/third_party/cluster-api/exp/ipam/api/v1beta1"
+	ipamv1beta1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
 
 	_ "github.com/vmware/govmomi/vapi/simulator"
 )

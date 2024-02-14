@@ -27,6 +27,7 @@ require (
 	k8s.io/klog/v2 v2.110.1
 	k8s.io/kubectl v0.29.0
 	k8s.io/utils v0.0.0-20240102154912-e7106e64919e
+	sigs.k8s.io/cluster-api v1.6.1
 	sigs.k8s.io/controller-runtime v0.17.0
 	sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20240116121732-6747c42ce339
 	sigs.k8s.io/yaml v1.4.0
@@ -35,7 +36,6 @@ require (
 require (
 	github.com/golangci/golangci-lint v1.52.2
 	golang.org/x/time v0.3.0
-	sigs.k8s.io/cluster-api v1.6.1
 	sigs.k8s.io/kube-storage-version-migrator v0.0.6-0.20230721195810-5c8923c5ff96
 )
 
@@ -99,7 +99,6 @@ require (
 	github.com/go-toolsmith/strparse v1.1.0 // indirect
 	github.com/go-toolsmith/typep v1.1.0 // indirect
 	github.com/go-xmlfmt/xmlfmt v1.1.2 // indirect
-	github.com/gobuffalo/flect v1.0.2 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/gofrs/flock v0.8.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect

@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	machinev1 "github.com/openshift/api/machine/v1beta1"
-	ipamv1beta1 "github.com/openshift/machine-api-operator/third_party/cluster-api/exp/ipam/api/v1beta1"
+	ipamv1beta1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
