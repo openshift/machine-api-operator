@@ -20,10 +20,10 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/metrics"
 	"github.com/openshift/machine-api-operator/pkg/util"
 	"github.com/openshift/machine-api-operator/pkg/version"
-	ipamv1alpha1 "github.com/openshift/machine-api-operator/third_party/cluster-api/exp/ipam/api/v1alpha1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/textlogger"
+	ipamv1beta1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -196,8 +196,8 @@ func main() {
 		klog.Fatal(err)
 	}
 
-	if err := ipamv1alpha1.AddToScheme(mgr.GetScheme()); err != nil {
-		klog.Fatalf("unable to add ipamv1alpha1 to scheme: %v", err)
+	if err := ipamv1beta1.AddToScheme(mgr.GetScheme()); err != nil {
+		klog.Fatalf("unable to add ipamv1beta1 to scheme: %v", err)
 	}
 
 	if err := capimachine.AddWithActuator(mgr, machineActuator); err != nil {

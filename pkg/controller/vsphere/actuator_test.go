@@ -11,13 +11,13 @@ import (
 	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
-	ipamv1alpha1 "github.com/openshift/machine-api-operator/third_party/cluster-api/exp/ipam/api/v1alpha1"
 	"github.com/vmware/govmomi/simulator"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
+	ipamv1beta1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -34,7 +34,7 @@ func init() {
 		panic(err)
 	}
 
-	if err := ipamv1alpha1.AddToScheme(scheme.Scheme); err != nil {
+	if err := ipamv1beta1.AddToScheme(scheme.Scheme); err != nil {
 		panic(err)
 	}
 }
