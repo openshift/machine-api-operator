@@ -21,6 +21,7 @@ spec:
         capability.openshift.io/name: MachineAPI
         target.workload.openshift.io/management: '{"effect": "PreferredDuringScheduling"}'
         kubectl.kubernetes.io/default-container: machine-api-operator
+        openshift.io/required-scc: restricted-v2
       labels:
         k8s-app: machine-api-operator
     spec:
