@@ -166,7 +166,7 @@ Run unit test:
 $ make test
 ```
 
-Run e2e-aws-operator tests. This tests assume that a cluster deployed by the Installer is up and running and a ```KUBECONFIG``` environment variable is set:
+Run e2e-aws-operator tests. These tests assume that a cluster deployed by the Installer is up and running and a ```KUBECONFIG``` environment variable is set:
 
 ```
 $ make test-e2e
