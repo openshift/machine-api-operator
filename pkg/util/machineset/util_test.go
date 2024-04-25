@@ -88,7 +88,7 @@ func TestSettingAnnotations(t *testing.T) {
 		},
 		{
 			name:  "replaces GpuType annotation",
-			value: "1",
+			value: "nvidia.com/gpu",
 			fn:    SetGpuTypeAnnotation,
 			suppliedAnnotations: map[string]string{
 				GpuTypeKey: "",
@@ -99,7 +99,7 @@ func TestSettingAnnotations(t *testing.T) {
 		},
 		{
 			name:                "adds GpuType annotation",
-			value:               "1",
+			value:               "nvidia.com/gpu",
 			fn:                  SetGpuTypeAnnotation,
 			suppliedAnnotations: map[string]string{},
 			expectedAnnotations: map[string]string{
