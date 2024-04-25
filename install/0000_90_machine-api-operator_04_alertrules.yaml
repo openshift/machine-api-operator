@@ -91,4 +91,3 @@ spec:
             description: |
               The number of unhealthy machines has exceeded the `maxUnhealthy` limit for the check, you should check
               the status of machines in the cluster.
-              
