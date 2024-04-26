@@ -77,9 +77,8 @@ func SetGpuCountAnnotation(annotations map[string]string, value string) map[stri
 
 // SetGpuTypeAnnotation sets a value for gpu type in the annotations of a MachineSet.
 // Currently, we only support nvidia as a gpu type.
-func SetGpuTypeAnnotation(annotations map[string]string, _ string) map[string]string {
-	// TODO: Once we introduce proper gpu types, this needs to be changed.
-	annotations[GpuTypeKey] = GpuNvidiaType
+func SetGpuTypeAnnotation(annotations map[string]string, value string) map[string]string {
+	annotations[GpuTypeKey] = value
 
 	return annotations
 }
