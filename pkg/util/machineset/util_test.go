@@ -106,6 +106,18 @@ func TestSettingAnnotations(t *testing.T) {
 				GpuTypeKey: "nvidia.com/gpu",
 			},
 		},
+		{
+			name:  "adds empty GpuType annotation value if GpuCount is empty",
+			value: "",
+			fn:    SetGpuTypeAnnotation,
+			suppliedAnnotations: map[string]string{
+				GpuCountKey: "0",
+			},
+			expectedAnnotations: map[string]string{
+				GpuCountKey: "0",
+				GpuTypeKey:  "",
+			},
+		},
 	}
 
 	for _, tc := range tests {
