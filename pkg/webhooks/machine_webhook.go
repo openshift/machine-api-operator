@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 
+	_ "github.com/openshift/api/machine/v1beta1/zz_generated.crd-manifests"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"

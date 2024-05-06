@@ -580,7 +580,7 @@ github.com/onsi/gomega/matchers/support/goraph/edge
 github.com/onsi/gomega/matchers/support/goraph/node
 github.com/onsi/gomega/matchers/support/goraph/util
 github.com/onsi/gomega/types
-# github.com/openshift/api v0.0.0-20240124164020-e2ce40831f2e => github.com/anirudhAgniRedhat/openshift-api v0.0.2
+# github.com/openshift/api v0.0.0-20240124164020-e2ce40831f2e => github.com/anirudhAgniRedhat/openshift-api v0.1.2
 ## explicit; go 1.21
 github.com/openshift/api
 github.com/openshift/api/annotations
@@ -615,6 +615,7 @@ github.com/openshift/api/machine
 github.com/openshift/api/machine/v1
 github.com/openshift/api/machine/v1alpha1
 github.com/openshift/api/machine/v1beta1
+github.com/openshift/api/machine/v1beta1/zz_generated.crd-manifests
 github.com/openshift/api/monitoring
 github.com/openshift/api/monitoring/v1
 github.com/openshift/api/network
@@ -1950,4 +1951,4 @@ sigs.k8s.io/structured-merge-diff/v4/value
 ## explicit; go 1.12
 sigs.k8s.io/yaml
 sigs.k8s.io/yaml/goyaml.v2
-# github.com/openshift/api => github.com/anirudhAgniRedhat/openshift-api v0.0.2
+# github.com/openshift/api => github.com/anirudhAgniRedhat/openshift-api v0.1.2

@@ -267,4 +267,4 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 )
 
-replace github.com/openshift/api => github.com/anirudhAgniRedhat/openshift-api v0.0.2
+replace github.com/openshift/api => github.com/anirudhAgniRedhat/openshift-api v0.1.2
