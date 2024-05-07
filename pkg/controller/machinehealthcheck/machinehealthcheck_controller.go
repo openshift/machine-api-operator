@@ -788,7 +788,8 @@ func (t *target) needsRemediation(timeoutForMachineToHaveNode time.Duration) (bo
 	}
 
 	// the node does not exist
-	if t.Node != nil && t.Node.UID == "" {
+	if t.Node != nil && t.Node.UID == "" && t.Node.Name == "" {
+		klog.V(3).Infof("%s: unhealthy: node does not exist", t.string())
 		return true, time.Duration(0), nil
 	}
 

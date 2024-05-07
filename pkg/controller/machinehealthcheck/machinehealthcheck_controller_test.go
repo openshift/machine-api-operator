@@ -1964,6 +1964,54 @@ func TestNeedsRemediation(t *testing.T) {
 			expectedNextCheck:           1 * time.Minute, // 300-200 rounded
 			expectedError:               false,
 		},
+		{
+			testCase: "unhealthy: node does not fully exist",
+			target: &target{
+				Machine: *maotesting.NewMachine("test", "node"),
+				Node: &corev1.Node{
+					ObjectMeta: metav1.ObjectMeta{
+						Name: "node",
+						UID:  "",
+					},
+					TypeMeta: metav1.TypeMeta{
+						Kind: "Node",
+					},
+				},
+				MHC: machinev1.MachineHealthCheck{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "test",
+						Namespace: namespace,
+					},
+					TypeMeta: metav1.TypeMeta{
+						Kind: "MachineHealthCheck",
+					},
+					Spec: machinev1.MachineHealthCheckSpec{
+						Selector: metav1.LabelSelector{
+							MatchLabels: map[string]string{
+								"foo": "bar",
+							},
+						},
+						UnhealthyConditions: []machinev1.UnhealthyCondition{
+							{
+								Type:    "Ready",
+								Status:  "Unknown",
+								Timeout: metav1.Duration{Duration: 300 * time.Second},
+							},
+							{
+								Type:    "Ready",
+								Status:  "False",
+								Timeout: metav1.Duration{Duration: 300 * time.Second},
+							},
+						},
+					},
+					Status: machinev1.MachineHealthCheckStatus{},
+				},
+			},
+			timeoutForMachineToHaveNode: defaultNodeStartupTimeout,
+			expectedNeedsRemediation:    false,
+			expectedNextCheck:           time.Duration(0),
+			expectedError:               false,
+		},
 	}
 
 	for _, tc := range testCases {
