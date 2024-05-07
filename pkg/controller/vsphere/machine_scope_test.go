@@ -11,9 +11,7 @@ import (
 
 	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
-	_ "github.com/openshift/api/config/v1/zz_generated.crd-manifests"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
-	_ "github.com/openshift/api/machine/v1beta1/zz_generated.crd-manifests"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -289,7 +287,7 @@ func TestPatchMachine(t *testing.T) {
 	testEnv := &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join("..", "..", "..", "install"),
-			filepath.Join("..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1", "zz_generated.crd-manifests")},
+			filepath.Join("..", "..", "..", "tools", "vendor", "github.com", "openshift", "api", "config", "v1", "zz_generated.crd-manifests")},
 	}
 
 	cfg, err := testEnv.Start()
@@ -548,7 +546,7 @@ func TestNodeGetter(t *testing.T) {
 	testEnv := &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join("..", "..", "..", "install"),
-			filepath.Join("..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1", "zz_generated.crd-manifests")},
+			filepath.Join("..", "..", "..", "tools", "vendor", "github.com", "openshift", "api", "config", "v1", "zz_generated.crd-manifests")},
 	}
 
 	cfg, err := testEnv.Start()
