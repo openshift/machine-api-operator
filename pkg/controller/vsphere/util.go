@@ -22,7 +22,7 @@ import (
 
 const (
 	globalInfrastuctureName  = "cluster"
-	openshiftConfigNamespace = "openshift-config"
+	openshiftConfigNamespace = "openshift-config-1"
 )
 
 // vSphereConfig is a copy of the Kubernetes vSphere cloud provider config type
