@@ -171,9 +171,25 @@ func (h *machineSetValidatorHandler) validateMachineSet(ms, oldMS *machinev1beta
 		},
 		Spec: ms.Spec.Template.Spec,
 	}
-	ok, warnings, opsErrs := h.webhookOperations(m, h.admissionConfig)
-	if !ok {
-		errs = append(errs, opsErrs...)
+	var opsErrs field.ErrorList
+	var ok bool
+	var warnings []string
+	if oldMS != nil {
+		mOld := &machinev1beta1.Machine{
+			ObjectMeta: metav1.ObjectMeta{
+				Namespace: oldMS.GetNamespace(),
+			},
+			Spec: oldMS.Spec.Template.Spec,
+		}
+		ok, warnings, opsErrs = h.webhookOperations(m, mOld, h.admissionConfig)
+		if !ok {
+			errs = append(errs, opsErrs...)
+		}
+	} else {
+		ok, warnings, opsErrs = h.webhookOperations(m, nil, h.admissionConfig)
+		if !ok {
+			errs = append(errs, opsErrs...)
+		}
 	}
 
 	if len(errs) > 0 {
@@ -185,7 +201,7 @@ func (h *machineSetValidatorHandler) validateMachineSet(ms, oldMS *machinev1beta
 func (h *machineSetDefaulterHandler) defaultMachineSet(ms *machinev1beta1.MachineSet) (bool, []string, field.ErrorList) {
 	// Create a Machine from the MachineSet and default the Machine template
 	m := &machinev1beta1.Machine{Spec: ms.Spec.Template.Spec}
-	ok, warnings, errs := h.webhookOperations(m, h.admissionConfig)
+	ok, warnings, errs := h.webhookOperations(m, nil, h.admissionConfig)
 	if !ok {
 		return false, warnings, errs
 	}

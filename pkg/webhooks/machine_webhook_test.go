@@ -1573,6 +1573,46 @@ func TestMachineUpdate(t *testing.T) {
 			expectedError: "providerSpec.osDisk.cachingType: Invalid value: \"\": Instances using an ephemeral OS disk support only Readonly caching",
 		},
 		{
+			name:         "with an Azure ProviderSpec, changing capacityReservationGroupID to another ID",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    azureClusterID,
+			baseProviderSpecValue: func() *kruntime.RawExtension {
+				defaultSpec := defaultAzureProviderSpec.DeepCopy()
+				defaultSpec.CapacityReservationGroupID = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myResourceGroupName/providers/Microsoft.Compute/capacityReservationGroups/myCapacityReservationGroup"
+				return &kruntime.RawExtension{
+					Object: defaultSpec,
+				}
+			}(),
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
+				object := defaultAzureProviderSpec.DeepCopy()
+				object.CapacityReservationGroupID = "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/myResourceGroupName/providers/Microsoft.Compute/capacityReservationGroups/myCapacityReservationGroup"
+				return &kruntime.RawExtension{
+					Object: object,
+				}
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: providerSpec.capacityReservationGroupID: Invalid value: \"/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/myResourceGroupName/providers/Microsoft.Compute/capacityReservationGroups/myCapacityReservationGroup\": capacityReservationGroupID is immutable",
+		},
+		{
+			name:         "with an Azure ProviderSpec, changing capacityReservationGroupID to '' ",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    azureClusterID,
+			baseProviderSpecValue: func() *kruntime.RawExtension {
+				defaultSpec := defaultAzureProviderSpec.DeepCopy()
+				defaultSpec.CapacityReservationGroupID = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myResourceGroupName/providers/Microsoft.Compute/capacityReservationGroups/myCapacityReservationGroup"
+				return &kruntime.RawExtension{
+					Object: defaultSpec,
+				}
+			}(),
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
+				object := defaultAzureProviderSpec.DeepCopy()
+				object.CapacityReservationGroupID = ""
+				return &kruntime.RawExtension{
+					Object: object,
+				}
+			},
+			expectedError: "",
+		},
+		{
 			name:         "with a valid GCP ProviderSpec",
 			platformType: osconfigv1.GCPPlatformType,
 			clusterID:    gcpClusterID,
@@ -2344,7 +2384,7 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 				m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: tc.overrideRawBytes}
 			}
 
-			ok, warnings, webhookErr := h.webhookOperations(m, h.admissionConfig)
+			ok, warnings, webhookErr := h.webhookOperations(m, nil, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -2420,7 +2460,7 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 
-			ok, warnings, webhookErr := h.webhookOperations(m, h.admissionConfig)
+			ok, warnings, webhookErr := h.webhookOperations(m, nil, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -3003,7 +3043,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 				m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: tc.overrideRawBytes}
 			}
 
-			ok, warnings, webhookErr := h.webhookOperations(m, h.admissionConfig)
+			ok, warnings, webhookErr := h.webhookOperations(m, nil, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -3159,7 +3199,7 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 
-			ok, warnings, webhookErr := h.webhookOperations(m, h.admissionConfig)
+			ok, warnings, webhookErr := h.webhookOperations(m, nil, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -3699,7 +3739,7 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 				m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: tc.overrideRawBytes}
 			}
 
-			ok, warnings, webhookErr := h.webhookOperations(m, h.admissionConfig)
+			ok, warnings, webhookErr := h.webhookOperations(m, nil, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -3838,7 +3878,7 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 
-			ok, warnings, webhookErr := h.webhookOperations(m, h.admissionConfig)
+			ok, warnings, webhookErr := h.webhookOperations(m, nil, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -4136,7 +4176,7 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 
-			ok, warnings, webhookErr := h.webhookOperations(m, h.admissionConfig)
+			ok, warnings, webhookErr := h.webhookOperations(m, nil, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -4201,7 +4241,7 @@ func TestDefaultVSphereProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 
-			ok, warnings, webhookErr := h.webhookOperations(m, h.admissionConfig)
+			ok, warnings, webhookErr := h.webhookOperations(m, nil, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -4274,7 +4314,7 @@ func TestDefaultNutanixProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 
-			ok, warnings, webhookErr := h.webhookOperations(m, h.admissionConfig)
+			ok, warnings, webhookErr := h.webhookOperations(m, nil, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -4795,7 +4835,7 @@ func TestValidatePowerVSProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 
-			ok, warnings, webhookErr := h.webhookOperations(m, h.admissionConfig)
+			ok, warnings, webhookErr := h.webhookOperations(m, nil, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -4877,7 +4917,7 @@ func TestDefaultPowerVSProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 
-			ok, warnings, webhookErr := h.webhookOperations(m, h.admissionConfig)
+			ok, warnings, webhookErr := h.webhookOperations(m, nil, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -5061,7 +5101,7 @@ func TestValidateNutanixProviderSpec(t *testing.T) {
 			}
 			m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
 
-			ok, warnings, webhookErr := h.webhookOperations(m, h.admissionConfig)
+			ok, warnings, webhookErr := h.webhookOperations(m, nil, h.admissionConfig)
 			if ok != tc.expectedOk {
 				t.Errorf("expected: %v, got: %v", tc.expectedOk, ok)
 			}
@@ -5120,6 +5160,39 @@ func TestValidateAzureCapacityReservationGroupID(t *testing.T) {
 			} else {
 				g.Expect(err).ToNot(HaveOccurred())
 			}
+		})
+	}
+}
+
+func TestValidateImmutabilityForCapacityReservationGroupID(t *testing.T) {
+	testCases := []struct {
+		name   string
+		oldID  string
+		newID  string
+		expect bool
+	}{
+		{
+			name:   "validation for immutability of capacityReservationGroupID should return true if oldID and new ID are same",
+			oldID:  "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myResourceGroupName/providers/Microsoft.Compute/capacityReservationGroups/myCapacityReservationGroup",
+			newID:  "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myResourceGroupName/providers/Microsoft.Compute/capacityReservationGroups/myCapacityReservationGroup",
+			expect: true,
+		},
+		{
+			name:   "validation for immutability of capacityReservationGroupID should return false if oldID and new ID are not same",
+			oldID:  "subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myResourceGroupName/providers/Microsoft.Compute/capacityReservationGroups/myCapacityReservationGroup",
+			newID:  "subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/myResourceGroupName/providers/Microsoft.Compute/capacityReservationGroups/myCapacityReservationGroup",
+			expect: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			_ = NewWithT(t)
+			isValid := validateAzureImmutabilityForCapacityReservationGroupID(tc.oldID, tc.newID)
+			if isValid != tc.expect {
+				t.Errorf("expected: %v, got: %v", tc.expect, isValid)
+			}
+
 		})
 	}
 }

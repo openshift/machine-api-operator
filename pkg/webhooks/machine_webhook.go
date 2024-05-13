@@ -315,7 +315,7 @@ func getDNS() (*osconfigv1.DNS, error) {
 	return dns, nil
 }
 
-type machineAdmissionFn func(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList)
+type machineAdmissionFn func(m, mOld *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList)
 
 type admissionConfig struct {
 	clusterID       string
@@ -396,7 +396,7 @@ func getMachineValidatorOperation(platform osconfigv1.PlatformType) machineAdmis
 		return validateNutanix
 	default:
 		// just no-op
-		return func(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+		return func(m, mOld *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
 			return true, []string{}, nil
 		}
 	}
@@ -441,7 +441,7 @@ func getMachineDefaulterOperation(platformStatus *osconfigv1.PlatformStatus) mac
 		return defaultNutanix
 	default:
 		// just no-op
-		return func(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+		return func(m, mOld *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
 			return true, []string{}, nil
 		}
 	}
@@ -462,7 +462,7 @@ func (h *machineValidatorHandler) validateMachine(m, oldM *machinev1beta1.Machin
 
 	errs := validateMachineLifecycleHooks(m, oldM)
 
-	ok, warnings, opErrs := h.webhookOperations(m, h.admissionConfig)
+	ok, warnings, opErrs := h.webhookOperations(m, oldM, h.admissionConfig)
 	if !ok {
 		errs = append(errs, opErrs...)
 	}
@@ -549,7 +549,7 @@ func (h *machineDefaulterHandler) Default(ctx context.Context, obj runtime.Objec
 		m.Labels[machinev1beta1.MachineClusterIDLabel] = h.clusterID
 	}
 
-	ok, _, errs := h.webhookOperations(m, h.admissionConfig)
+	ok, _, errs := h.webhookOperations(m, nil, h.admissionConfig)
 	if !ok {
 		return errs.ToAggregate()
 	}
@@ -561,7 +561,7 @@ type awsDefaulter struct {
 	region string
 }
 
-func (a awsDefaulter) defaultAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+func (a awsDefaulter) defaultAWS(m, mOld *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
 	klog.V(3).Infof("Defaulting AWS providerSpec")
 
 	var errs field.ErrorList
@@ -633,7 +633,7 @@ func validateUnknownFields(m *machinev1beta1.Machine, providerSpec interface{}) 
 	return nil
 }
 
-func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+func validateAWS(m, mOld *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
 	klog.V(3).Infof("Validating AWS providerSpec")
 
 	var errs field.ErrorList
@@ -803,7 +803,7 @@ func getDuplicatedTags(tagSpecs []machinev1beta1.TagSpecification) []string {
 	return duplicatedTags
 }
 
-func defaultAzure(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+func defaultAzure(m, mOld *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
 	klog.V(3).Infof("Defaulting Azure providerSpec")
 
 	var errs field.ErrorList
@@ -864,7 +864,7 @@ func defaultAzure(m *machinev1beta1.Machine, config *admissionConfig) (bool, []s
 	return true, warnings, nil
 }
 
-func validateAzure(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+func validateAzure(m, mOld *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
 	klog.V(3).Infof("Validating Azure providerSpec")
 
 	var errs field.ErrorList
@@ -929,6 +929,18 @@ func validateAzure(m *machinev1beta1.Machine, config *admissionConfig) (bool, []
 	if providerSpec.OSDisk.DiskSettings.EphemeralStorageLocation != azureEphemeralStorageLocationLocal && providerSpec.OSDisk.DiskSettings.EphemeralStorageLocation != "" {
 		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "osDisk", "diskSettings", "ephemeralStorageLocation"), providerSpec.OSDisk.DiskSettings.EphemeralStorageLocation,
 			fmt.Sprintf("osDisk.diskSettings.ephemeralStorageLocation can either be omitted or set to %s", azureEphemeralStorageLocationLocal)))
+	}
+
+	if mOld != nil {
+		oldProviderSpec := new(machinev1beta1.AzureMachineProviderSpec)
+		if err := unmarshalInto(mOld, oldProviderSpec); err != nil {
+			errs = append(errs, err)
+			return false, warnings, errs
+		}
+		if providerSpec.CapacityReservationGroupID != "" && !validateAzureImmutabilityForCapacityReservationGroupID(oldProviderSpec.CapacityReservationGroupID, providerSpec.CapacityReservationGroupID) {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "capacityReservationGroupID"),
+				providerSpec.CapacityReservationGroupID, "capacityReservationGroupID is immutable"))
+		}
 	}
 
 	if providerSpec.CapacityReservationGroupID != "" {
@@ -1031,7 +1043,7 @@ func validateAzureDiagnostics(diagnosticsSpec machinev1beta1.AzureDiagnostics, p
 	return errs
 }
 
-func defaultGCP(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+func defaultGCP(m, mOld *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
 	klog.V(3).Infof("Defaulting GCP providerSpec")
 
 	var errs field.ErrorList
@@ -1119,7 +1131,7 @@ func defaultGCPDisks(disks []*machinev1beta1.GCPDisk, clusterID string) []*machi
 	return disks
 }
 
-func validateGCP(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+func validateGCP(m, mOld *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
 	klog.V(3).Infof("Validating GCP providerSpec")
 
 	var errs field.ErrorList
@@ -1354,7 +1366,7 @@ func validateGCPServiceAccounts(serviceAccounts []machinev1beta1.GCPServiceAccou
 	return errs
 }
 
-func defaultVSphere(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+func defaultVSphere(m, mOld *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
 	klog.V(3).Infof("Defaulting vSphere providerSpec")
 
 	var errs field.ErrorList
@@ -1386,7 +1398,7 @@ func defaultVSphere(m *machinev1beta1.Machine, config *admissionConfig) (bool, [
 	return true, warnings, nil
 }
 
-func validateVSphere(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+func validateVSphere(m, mOld *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
 	klog.V(3).Infof("Validating vSphere providerSpec")
 
 	var errs field.ErrorList
@@ -1502,7 +1514,7 @@ func validateVSphereNetwork(network machinev1beta1.NetworkSpec, parentPath *fiel
 	return errs
 }
 
-func defaultNutanix(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+func defaultNutanix(m, mOld *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
 	klog.V(3).Infof("Defaulting nutanix providerSpec")
 
 	var errs field.ErrorList
@@ -1534,7 +1546,7 @@ func defaultNutanix(m *machinev1beta1.Machine, config *admissionConfig) (bool, [
 	return true, warnings, nil
 }
 
-func validateNutanix(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+func validateNutanix(m, mOld *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
 	klog.V(3).Infof("Validating nutanix providerSpec")
 
 	var errs field.ErrorList
@@ -1843,7 +1855,7 @@ func validateAzureDataDisks(machineName string, spec *machinev1beta1.AzureMachin
 	return errs
 }
 
-func defaultPowerVS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+func defaultPowerVS(m, mOld *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
 	klog.V(3).Infof("Defaulting PowerVS providerSpec")
 
 	var errs field.ErrorList
@@ -1890,7 +1902,7 @@ func defaultPowerVS(m *machinev1beta1.Machine, config *admissionConfig) (bool, [
 	return true, warnings, nil
 }
 
-func validatePowerVS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+func validatePowerVS(m, mOld *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
 	klog.V(3).Infof("Validating PowerVS providerSpec")
 
 	var errs field.ErrorList
@@ -2067,6 +2079,10 @@ func validateGVK(gvk schema.GroupVersionKind, platform osconfigv1.PlatformType) 
 	default:
 		return true
 	}
+}
+
+func validateAzureImmutabilityForCapacityReservationGroupID(oldID string, newID string) bool {
+	return oldID == newID
 }
 
 func validateAzureCapacityReservationGroupID(capacityReservationGroupID string) error {
