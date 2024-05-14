@@ -185,48 +185,6 @@ func TestMachineSetCreation(t *testing.T) {
 			disconnected: true,
 		},
 		{
-			name:         "with Azure and CapacityReservationID is empty",
-			platformType: osconfigv1.AzurePlatformType,
-			clusterID:    "azure-cluster",
-			providerSpecValue: &runtime.RawExtension{
-				Object: &machinev1beta1.AzureMachineProviderSpec{
-					OSDisk: machinev1beta1.OSDisk{
-						DiskSizeGB: 128,
-					},
-					CapacityReservationGroupID: "",
-				},
-			},
-			expectedError: "",
-		},
-		{
-			name:         "with Azure and CapacityReservationID is valid",
-			platformType: osconfigv1.AzurePlatformType,
-			clusterID:    "azure-cluster",
-			providerSpecValue: &runtime.RawExtension{
-				Object: &machinev1beta1.AzureMachineProviderSpec{
-					OSDisk: machinev1beta1.OSDisk{
-						DiskSizeGB: 128,
-					},
-					CapacityReservationGroupID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myResourceGroupName/providers/Microsoft.Compute/capacityReservationGroups/myCapacityReservationGroup",
-				},
-			},
-			expectedError: "",
-		},
-		{
-			name:         "with Azure and CapacityReservationID is not valid",
-			platformType: osconfigv1.AzurePlatformType,
-			clusterID:    "azure-cluster",
-			providerSpecValue: &runtime.RawExtension{
-				Object: &machinev1beta1.AzureMachineProviderSpec{
-					OSDisk: machinev1beta1.OSDisk{
-						DiskSizeGB: 128,
-					},
-					CapacityReservationGroupID: "/subscri/00000000-0000-0000-0000-000000000000/resour/myResourceGroupName/providers/Microsoft.Compute/capacityReservationGroups/myCapacityReservationGroup",
-				},
-			},
-			expectedError: "admission webhook \"validation.machineset.machine.openshift.io\" denied the request: providerSpec.capacityReservationGroupID: Invalid value: \"/subscri/00000000-0000-0000-0000-000000000000/resour/myResourceGroupName/providers/Microsoft.Compute/capacityReservationGroups/myCapacityReservationGroup\": invalid resource ID: /subscri/00000000-0000-0000-0000-000000000000/resour/myResourceGroupName/providers/Microsoft.Compute/capacityReservationGroups/myCapacityReservationGroup",
-		},
-		{
 			name:              "with GCP and a nil provider spec value",
 			platformType:      osconfigv1.AWSPlatformType,
 			clusterID:         "gcp-cluster",
@@ -930,46 +888,6 @@ func TestMachineSetUpdate(t *testing.T) {
 				}
 			},
 			expectedError: "providerSpec.credentialsSecret: Required value: credentialsSecret must be provided",
-		},
-		{
-			name:         "with an Azure ProviderSpec, changing capacityReservationGroupID to another ID",
-			platformType: osconfigv1.AzurePlatformType,
-			clusterID:    azureClusterID,
-			baseProviderSpecValue: func() *runtime.RawExtension {
-				defaultSpec := defaultAzureProviderSpec.DeepCopy()
-				defaultSpec.CapacityReservationGroupID = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myResourceGroupName/providers/Microsoft.Compute/capacityReservationGroups/myCapacityReservationGroup"
-				return &runtime.RawExtension{
-					Object: defaultSpec,
-				}
-			}(),
-			updatedProviderSpecValue: func() *runtime.RawExtension {
-				object := defaultAzureProviderSpec.DeepCopy()
-				object.CapacityReservationGroupID = "/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/myResourceGroupName/providers/Microsoft.Compute/capacityReservationGroups/myCapacityReservationGroup"
-				return &runtime.RawExtension{
-					Object: object,
-				}
-			},
-			expectedError: "admission webhook \"validation.machineset.machine.openshift.io\" denied the request: providerSpec.capacityReservationGroupID: Invalid value: \"/subscriptions/00000000-0000-0000-0000-000000000001/resourceGroups/myResourceGroupName/providers/Microsoft.Compute/capacityReservationGroups/myCapacityReservationGroup\": capacityReservationGroupID is immutable",
-		},
-		{
-			name:         "with an Azure ProviderSpec, changing capacityReservationGroupID to '' ",
-			platformType: osconfigv1.AzurePlatformType,
-			clusterID:    azureClusterID,
-			baseProviderSpecValue: func() *runtime.RawExtension {
-				defaultSpec := defaultAzureProviderSpec.DeepCopy()
-				defaultSpec.CapacityReservationGroupID = "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myResourceGroupName/providers/Microsoft.Compute/capacityReservationGroups/myCapacityReservationGroup"
-				return &runtime.RawExtension{
-					Object: defaultSpec,
-				}
-			}(),
-			updatedProviderSpecValue: func() *runtime.RawExtension {
-				object := defaultAzureProviderSpec.DeepCopy()
-				object.CapacityReservationGroupID = ""
-				return &runtime.RawExtension{
-					Object: object,
-				}
-			},
-			expectedError: "",
 		},
 		{
 			name:         "with a valid GCP ProviderSpec",
