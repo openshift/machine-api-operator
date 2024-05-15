@@ -616,6 +616,7 @@ github.com/openshift/api/machine
 github.com/openshift/api/machine/v1
 github.com/openshift/api/machine/v1alpha1
 github.com/openshift/api/machine/v1beta1
+github.com/openshift/api/machine/v1beta1/zz_generated.crd-manifests
 github.com/openshift/api/monitoring
 github.com/openshift/api/monitoring/v1
 github.com/openshift/api/network
