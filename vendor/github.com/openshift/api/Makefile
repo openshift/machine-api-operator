@@ -51,6 +51,7 @@ verify-scripts:
 	bash -x hack/verify-prerelease-lifecycle-gen.sh
 	hack/verify-payload-crds.sh
 	hack/verify-payload-featuregates.sh
+	hack/verify-promoted-features-pass-tests.sh
 
 .PHONY: verify
 verify: verify-scripts verify-crd-schema verify-codegen-crds
@@ -153,7 +154,8 @@ write-available-featuresets:
 
 .PHONY: clean
 clean:
-	rm render write-available-featuresets
+	rm -f render write-available-featuresets models-schema
+	rm -rf tools/_output
 
 VERSION     ?= $(shell git describe --always --abbrev=7)
 MUTABLE_TAG ?= latest
