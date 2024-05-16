@@ -320,9 +320,9 @@ func TestPatchMachine(t *testing.T) {
 		},
 	}
 	g.Expect(k8sClient.Create(ctx, configNamespace)).To(Succeed())
-	defer func() {
-		g.Expect(k8sClient.Delete(ctx, configNamespace)).To(Succeed())
-	}()
+	// defer func() {
+	// 	g.Expect(k8sClient.Delete(ctx, configNamespace)).To(Succeed())
+	// }()
 
 	testNamespaceName := "test"
 

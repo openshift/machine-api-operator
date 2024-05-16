@@ -100,9 +100,9 @@ func TestMachineEvents(t *testing.T) {
 		},
 	}
 	g.Expect(k8sClient.Create(context.Background(), configNamespace)).To(Succeed())
-	defer func() {
-		g.Expect(k8sClient.Delete(context.Background(), configNamespace)).To(Succeed())
-	}()
+	//	defer func() {
+	//		g.Expect(k8sClient.Delete(context.Background(), configNamespace)).To(Succeed())
+	//	}()
 
 	testNamespaceName := "test"
 
