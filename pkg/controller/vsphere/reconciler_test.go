@@ -2701,7 +2701,14 @@ func TestUpdate(t *testing.T) {
 }
 
 func TestExists(t *testing.T) {
-	model, session, server := initSimulator(t)
+	withPoweredOffVMS := func() simulatorModelOption {
+		return func(m *simulator.Model) {
+			m.Autostart = false
+		}
+	}
+
+	model, server := initSimulatorCustom(t, withPoweredOffVMS())
+	session := getSimulatorSession(t, server)
 	defer model.Remove()
 	defer server.Close()
 	credentialsSecretUsername := fmt.Sprintf("%s.username", server.URL.Host)
@@ -2709,9 +2716,9 @@ func TestExists(t *testing.T) {
 
 	password, _ := server.URL.User.Password()
 	namespace := "test"
-	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
-	instanceUUID := "a5764857-ae35-34dc-8f25-a9c9e73aa898"
-	vm.Config.InstanceUuid = instanceUUID
+	VMs := simulator.Map.All("VirtualMachine")
+	poweredOffVM := VMs[0].(*simulator.VirtualMachine)
+	poweredOnVM := VMs[1].(*simulator.VirtualMachine)
 
 	credentialsSecret := corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -2724,7 +2731,7 @@ func TestExists(t *testing.T) {
 		},
 	}
 
-	vmObj := object.NewVirtualMachine(session.Client.Client, vm.Reference())
+	vmObj := object.NewVirtualMachine(session.Client.Client, poweredOnVM.Reference())
 	task, err := vmObj.PowerOn(context.TODO())
 	if err != nil {
 		t.Fatal(err)
@@ -2736,11 +2743,12 @@ func TestExists(t *testing.T) {
 		instanceState string
 		exists        bool
 		vmExists      bool
+		vm            *simulator.VirtualMachine
 	}{
 		{
 			name:          "VM doesn't exist",
 			machinePhase:  "Provisioning",
-			instanceState: string(types.VirtualMachinePowerStatePoweredOn),
+			instanceState: "",
 			exists:        false,
 			vmExists:      false,
 		},
@@ -2750,6 +2758,7 @@ func TestExists(t *testing.T) {
 			instanceState: string(types.VirtualMachinePowerStatePoweredOn),
 			exists:        true,
 			vmExists:      true,
+			vm:            poweredOnVM,
 		},
 		{
 			name:          "VM exists but didnt powered on after clone",
@@ -2757,6 +2766,7 @@ func TestExists(t *testing.T) {
 			instanceState: string(types.VirtualMachinePowerStatePoweredOff),
 			exists:        false,
 			vmExists:      true,
+			vm:            poweredOffVM,
 		},
 		{
 			name:          "VM exists, but powered off",
@@ -2764,40 +2774,51 @@ func TestExists(t *testing.T) {
 			instanceState: string(types.VirtualMachinePowerStatePoweredOff),
 			exists:        true,
 			vmExists:      true,
+			vm:            poweredOffVM,
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			machineScope := machineScope{
-				Context: context.TODO(),
-				machine: &machinev1.Machine{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test",
-						Namespace: "test",
-						Labels: map[string]string{
-							machinev1.MachineClusterIDLabel: "CLUSTERID",
-						},
-					},
-					Status: machinev1.MachineStatus{
-						Phase: &tc.machinePhase,
+
+			var name, uuid string
+			if tc.vm != nil {
+				name = tc.vm.Name
+				uuid = tc.vm.Config.InstanceUuid
+			}
+
+			machineObj := &machinev1.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "test",
+					Labels: map[string]string{
+						machinev1.MachineClusterIDLabel: "CLUSTERID",
 					},
 				},
+				Status: machinev1.MachineStatus{
+					Phase: &tc.machinePhase,
+				},
+			}
+
+			machineScope := machineScope{
+				Context:            context.TODO(),
+				machine:            machineObj,
+				machineToBePatched: runtimeclient.MergeFrom(machineObj.DeepCopy()),
 				providerSpec: &machinev1.VSphereMachineProviderSpec{
-					Template: vm.Name,
+					Template: name,
 				},
 				session: session,
 				providerStatus: &machinev1.VSphereMachineProviderStatus{
 					TaskRef:       task.Reference().Value,
 					InstanceState: &tc.instanceState,
 				},
-				client: fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(&credentialsSecret).Build(),
+				client: fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(&credentialsSecret, machineObj).WithStatusSubresource(machineObj).Build(),
 			}
 
 			reconciler := newReconciler(&machineScope)
 
 			if tc.vmExists {
-				reconciler.machine.UID = apimachinerytypes.UID(instanceUUID)
+				reconciler.machine.UID = apimachinerytypes.UID(uuid)
 			}
 
 			exists, err := reconciler.exists()

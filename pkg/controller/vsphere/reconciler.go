@@ -113,9 +113,37 @@ func (r *Reconciler) create() error {
 
 	// We only clone the VM template if we have no taskRef.
 	if r.providerStatus.TaskRef == "" {
+		klog.V(4).Infof("%v: ProviderStatus does not have TaskRef", r.machine.GetName())
 		if !r.machineScope.session.IsVC() {
 			return fmt.Errorf("%v: not connected to a vCenter", r.machine.GetName())
 		}
+
+		// Attempt to power on instance in situation where we alredy cloned the instance and lost taskRef.
+		klog.V(4).Infof("%v: InstanceState is: %q", r.machine.GetName(), pointer.StringDeref(r.machineScope.providerStatus.InstanceState, ""))
+		if types.VirtualMachinePowerState(pointer.StringDeref(r.machineScope.providerStatus.InstanceState, "")) == types.VirtualMachinePowerStatePoweredOff {
+			klog.Infof("Powering on cloned machine without taskID: %v", r.machine.Name)
+
+			task, err := powerOn(r.machineScope)
+			if err != nil {
+				metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
+					Name:      r.machine.Name,
+					Namespace: r.machine.Namespace,
+					Reason:    "PowerOn task finished with error",
+				})
+
+				conditionFailed := conditionFailed()
+				conditionFailed.Message = err.Error()
+				statusError := setProviderStatus(task, conditionFailed, r.machineScope, nil)
+				if statusError != nil {
+					return fmt.Errorf("failed to set provider status: %w", err)
+				}
+
+				return fmt.Errorf("%v: failed to power on machine: %w", r.machine.GetName(), err)
+			}
+
+			return setProviderStatus(task, conditionSuccess(), r.machineScope, nil)
+		}
+
 		klog.Infof("%v: cloning", r.machine.GetName())
 		task, err := clone(r.machineScope)
 		if err != nil {
@@ -168,8 +196,12 @@ func (r *Reconciler) create() error {
 		} else {
 			return fmt.Errorf("failed to check task status: %w", err)
 		}
-	} else if !taskIsFinished {
-		return fmt.Errorf("%v task %v has not finished", moTask.Info.DescriptionId, moTask.Reference().Value)
+	} else {
+		if taskIsFinished {
+			klog.V(4).Infof("%v task %v has completed", moTask.Info.DescriptionId, moTask.Reference().Value)
+		} else {
+			return fmt.Errorf("%v task %v has not finished", moTask.Info.DescriptionId, moTask.Reference().Value)
+		}
 	}
 
 	// if clone task finished successfully, power on the vm
@@ -285,10 +317,9 @@ func (r *Reconciler) exists() (bool, error) {
 	}
 
 	// Check if machine was powered on after clone.
-	// If it is powered off and in "Provisioning" phase, treat machine as non-existed yet and requeue for proceed
-	// with creation procedure.
+	// If it is powered off and in "Provisioning" phase, treat machine as non-existed yet and proceed with creation procedure.
 	powerState := types.VirtualMachinePowerState(pointer.StringDeref(r.machineScope.providerStatus.InstanceState, ""))
-	if powerState == "" {
+	if powerState == "" || pointer.StringDeref(r.machine.Status.Phase, "") == machinev1.PhaseProvisioning {
 		vm := &virtualMachine{
 			Context: r.machineScope.Context,
 			Obj:     object.NewVirtualMachine(r.machineScope.session.Client.Client, vmRef),
@@ -301,7 +332,11 @@ func (r *Reconciler) exists() (bool, error) {
 	}
 
 	if pointer.StringDeref(r.machine.Status.Phase, "") == machinev1.PhaseProvisioning && powerState == types.VirtualMachinePowerStatePoweredOff {
-		klog.Infof("%v: already exists, but was not powered on after clone, requeue ", r.machine.GetName())
+		klog.Infof("%v: already exists, but was not powered on after clone", r.machine.GetName())
+		r.machineScope.providerStatus.InstanceState = pointer.String(string(powerState))
+		if err := r.machineScope.PatchMachine(); err != nil {
+			return false, fmt.Errorf("%v: failed to patch machine: %w", r.machine.GetName(), err)
+		}
 		return false, nil
 	}
 
