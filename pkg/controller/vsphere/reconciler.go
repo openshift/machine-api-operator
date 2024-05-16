@@ -147,7 +147,7 @@ func (r *Reconciler) create() error {
 		}
 
 		klog.Infof("%v: cloning", r.machine.GetName())
-		task, err := clone(r.machineScope)
+		_, err := clone(r.machineScope)
 		if err != nil {
 			metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
 				Name:      r.machine.Name,
@@ -156,13 +156,13 @@ func (r *Reconciler) create() error {
 			})
 			conditionFailed := conditionFailed()
 			conditionFailed.Message = err.Error()
-			statusError := setProviderStatus(task, conditionFailed, r.machineScope, nil)
+			statusError := setProviderStatus("", conditionFailed, r.machineScope, nil)
 			if statusError != nil {
 				return fmt.Errorf("failed to set provider status: %w", err)
 			}
 			return err
 		}
-		return setProviderStatus(task, conditionSuccess(), r.machineScope, nil)
+		return setProviderStatus("", conditionSuccess(), r.machineScope, nil)
 	}
 
 	moTask, err := r.session.GetTask(r.Context, r.providerStatus.TaskRef)
