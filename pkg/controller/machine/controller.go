@@ -23,6 +23,7 @@ import (
 	"reflect"
 	"time"
 
+	openshiftfeatures "github.com/openshift/api/features"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/metrics"
 	"github.com/openshift/machine-api-operator/pkg/util"
@@ -74,6 +75,16 @@ const (
 	skipWaitForDeleteTimeoutSeconds = 1
 )
 
+// We export the PausedCondition and reasons as they're shared
+// across the Machine and MachineSet controllers.
+const (
+	PausedCondition machinev1.ConditionType = "Paused"
+
+	PausedConditionReason = "AuthoritativeAPINotMachineAPI"
+
+	NotPausedConditionReason = "AuthoritativeAPIMachineAPI"
+)
+
 var DefaultActuator Actuator
 
 func AddWithActuator(mgr manager.Manager, actuator Actuator, gate featuregate.MutableFeatureGate) error {
@@ -97,6 +108,7 @@ func AddWithActuatorOpts(mgr manager.Manager, actuator Actuator, opts controller
 	return nil
 }
 
+// newReconciler returns a new reconcile.Reconciler
 func newReconciler(mgr manager.Manager, actuator Actuator, gate featuregate.MutableFeatureGate) reconcile.Reconciler {
 	r := &ReconcileMachine{
 		Client:        mgr.GetClient(),
@@ -163,11 +175,44 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 
 	// Implement controller logic here
 	machineName := m.GetName()
-	klog.Infof("%q: reconciling Machine", machineName)
+	klog.Infof("%v: reconciling Machine", machineName)
 
 	// Get the original state of conditions now so that they can be used to calculate the patch later.
 	// This must be a copy otherwise the referenced slice will be modified by later machine conditions changes.
 	originalConditions := conditions.DeepCopyConditions(m.Status.Conditions)
+
+	if r.gate.Enabled(featuregate.Feature(openshiftfeatures.FeatureGateMachineAPIMigration)) {
+		// Check Status.AuthoritativeAPI
+		// If not MachineAPI. Set the paused condition true and return early.
+		//
+		// Once we have a webhook, we want to remove the check that the AuthoritativeAPI
+		// field is populated.
+		if m.Status.AuthoritativeAPI != "" &&
+			m.Status.AuthoritativeAPI != machinev1.MachineAuthorityMachineAPI {
+			conditions.Set(m, conditions.TrueConditionWithReason(
+				PausedCondition,
+				PausedConditionReason,
+				"The AuthoritativeAPI is set to %s", m.Status.AuthoritativeAPI,
+			))
+			if patchErr := r.updateStatus(ctx, m, ptr.Deref(m.Status.Phase, ""), nil, originalConditions); patchErr != nil {
+				klog.Errorf("%v: error patching status: %v", machineName, patchErr)
+			}
+
+			klog.Infof("%v: machine is paused, taking no further action", machineName)
+			return reconcile.Result{}, nil
+		}
+
+		// Set the paused condition to false, continue reconciliation
+		conditions.Set(m, conditions.FalseCondition(
+			PausedCondition,
+			NotPausedConditionReason,
+			machinev1.ConditionSeverityInfo,
+			"The AuthoritativeAPI is set to %s", m.Status.AuthoritativeAPI,
+		))
+		if patchErr := r.updateStatus(ctx, m, ptr.Deref(m.Status.Phase, ""), nil, originalConditions); patchErr != nil {
+			klog.Errorf("%v: error patching status: %v", machineName, patchErr)
+		}
+	}
 
 	if errList := validateMachine(m); len(errList) > 0 {
 		err := fmt.Errorf("%v: machine validation failed: %v", machineName, errList.ToAggregate().Error())
@@ -231,14 +276,14 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 			// we can loose instances, e.g. right after request to create one
 			// was sent and before a list of node addresses was set.
 			if len(m.Status.Addresses) > 0 || !isInvalidMachineConfigurationError(err) {
-				klog.Errorf("%q: failed to delete machine: %v", machineName, err)
+				klog.Errorf("%v: failed to delete machine: %v", machineName, err)
 				return delayIfRequeueAfterError(err)
 			}
 		}
 
 		instanceExists, err := r.actuator.Exists(ctx, m)
 		if err != nil {
-			klog.Errorf("%q: failed to check if machine exists: %v", machineName, err)
+			klog.Errorf("%v: failed to check if machine exists: %v", machineName, err)
 			return reconcile.Result{}, err
 		}
 
@@ -273,7 +318,7 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 
 	instanceExists, err := r.actuator.Exists(ctx, m)
 	if err != nil {
-		klog.Errorf("%q: failed to check if machine exists: %v", machineName, err)
+		klog.Errorf("%v: failed to check if machine exists: %v", machineName, err)
 
 		conditions.Set(m, conditions.UnknownCondition(
 			machinev1.InstanceExistsCondition,
@@ -291,7 +336,7 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 	if instanceExists {
 		klog.Infof("%v: reconciling machine triggers idempotent update", machineName)
 		if err := r.actuator.Update(ctx, m); err != nil {
-			klog.Errorf("%q: error updating machine: %v, retrying in %s seconds", machineName, err, requeueAfter.String())
+			klog.Errorf("%v: error updating machine: %v, retrying in %v seconds", machineName, err, requeueAfter)
 
 			if patchErr := r.updateStatus(ctx, m, ptr.Deref(m.Status.Phase, ""), nil, originalConditions); patchErr != nil {
 				klog.Errorf("%v: error patching status: %v", machineName, patchErr)
@@ -358,7 +403,7 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 
 	klog.Infof("%v: reconciling machine triggers idempotent create", machineName)
 	if err := r.actuator.Create(ctx, m); err != nil {
-		klog.Warningf("%q: failed to create machine: %v", machineName, err)
+		klog.Warningf("%v: failed to create machine: %v", machineName, err)
 		if isInvalidMachineConfigurationError(err) {
 			if err := r.updateStatus(ctx, m, machinev1.PhaseFailed, err, originalConditions); err != nil {
 				return reconcile.Result{}, err
