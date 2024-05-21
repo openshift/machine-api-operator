@@ -73,6 +73,16 @@ const (
 	skipWaitForDeleteTimeoutSeconds = 1
 )
 
+// We export the PausedCondition and reasons as they're shared
+// across the Machine and MachineSet controllers.
+const (
+	PausedCondition machinev1.ConditionType = "Paused"
+
+	PausedConditionReason = "AuthoritativeAPI is not set to MachineAPI"
+
+	NotPausedConditionReason = "AuthoritativeAPIIsMachineAPI"
+)
+
 var DefaultActuator Actuator
 
 func AddWithActuator(mgr manager.Manager, actuator Actuator) error {
@@ -167,6 +177,34 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 	// This must be a copy otherwise the referenced slice will be modified by later machine conditions changes.
 	originalConditions := conditions.DeepCopyConditions(m.Status.Conditions)
 
+	// Check Status.AuthoritativeAPI
+	// If not MachineAPI. Set the paused condition true and return early.
+	if m.Status.AuthoritativeAPI != machinev1.MachineAuthorityMachineAPI {
+		conditions.Set(m, conditions.TrueConditionWithReason(
+			PausedCondition,
+			PausedConditionReason,
+			"The AuthoritativeAPI is set to %s", m.Status.AuthoritativeAPI,
+		))
+		if patchErr := r.updateStatus(ctx, m, ptr.Deref(m.Status.Phase, ""), nil, originalConditions); patchErr != nil {
+			klog.Errorf("%v: error patching status: %v", machineName, patchErr)
+		}
+
+		klog.Infof("%v: setting paused to true and returning early", machineName)
+		return reconcile.Result{}, nil
+	}
+
+	// Set the paused condition to false, continue reconciliation
+	conditions.Set(m, conditions.FalseCondition(
+		PausedCondition,
+		NotPausedConditionReason,
+		machinev1.ConditionSeverityInfo,
+		"The AuthoritativeAPI is set to %s", m.Status.AuthoritativeAPI,
+	))
+	if patchErr := r.updateStatus(ctx, m, ptr.Deref(m.Status.Phase, ""), nil, originalConditions); patchErr != nil {
+		klog.Errorf("%v: error patching status: %v", machineName, patchErr)
+	}
+
+	klog.Infof("machine %v starting validateMachine", machineName)
 	if errList := validateMachine(m); len(errList) > 0 {
 		err := fmt.Errorf("%v: machine validation failed: %v", machineName, errList.ToAggregate().Error())
 		klog.Error(err)

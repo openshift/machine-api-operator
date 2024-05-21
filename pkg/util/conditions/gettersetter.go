@@ -92,6 +92,16 @@ func TrueCondition(t machinev1.ConditionType) *machinev1.Condition {
 	}
 }
 
+// TrueConditionWithReason returns a condition with Status=True and the given type.
+func TrueConditionWithReason(t machinev1.ConditionType, reason string, messageFormat string, messageArgs ...interface{}) *machinev1.Condition {
+	return &machinev1.Condition{
+		Type:    t,
+		Status:  corev1.ConditionTrue,
+		Reason:  reason,
+		Message: fmt.Sprintf(messageFormat, messageArgs...),
+	}
+}
+
 // FalseCondition returns a condition with Status=False and the given type.
 func FalseCondition(t machinev1.ConditionType, reason string, severity machinev1.ConditionSeverity, messageFormat string, messageArgs ...interface{}) *machinev1.Condition {
 	return &machinev1.Condition{
@@ -121,6 +131,24 @@ func MarkTrue(to interface{}, t machinev1.ConditionType) {
 // MarkFalse sets Status=False for the condition with the given type.
 func MarkFalse(to interface{}, t machinev1.ConditionType, reason string, severity machinev1.ConditionSeverity, messageFormat string, messageArgs ...interface{}) {
 	Set(to, FalseCondition(t, reason, severity, messageFormat, messageArgs...))
+}
+
+// IsTrue is true if the condition with the given type is True, otherwise it return false
+// if the condition is not True or if the condition does not exist (is nil).
+func IsTrue(from interface{}, t machinev1.ConditionType) bool {
+	if c := Get(from, t); c != nil {
+		return c.Status == corev1.ConditionTrue
+	}
+	return false
+}
+
+// IsFalse is true if the condition with the given type is False, otherwise it return false
+// if the condition is not False or if the condition does not exist (is nil).
+func IsFalse(from interface{}, t machinev1.ConditionType) bool {
+	if c := Get(from, t); c != nil {
+		return c.Status == corev1.ConditionFalse
+	}
+	return false
 }
 
 // lexicographicLess returns true if a condition is less than another with regards to the
