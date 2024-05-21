@@ -6,7 +6,6 @@ metadata:
     api.openshift.io/merged-by-featuregates: "true"
     include.release.openshift.io/ibm-cloud-managed: "true"
     include.release.openshift.io/self-managed-high-availability: "true"
-    release.openshift.io/feature-set: CustomNoUpgrade
   name: networks.config.openshift.io
 spec:
   group: config.openshift.io
@@ -65,6 +64,7 @@ spec:
                       type: integer
                   type: object
                 type: array
+                x-kubernetes-list-type: atomic
               externalIP:
                 description: externalIP defines configuration for controllers that
                   affect Service.ExternalIP. If nil, then ExternalIP is not allowed
@@ -81,6 +81,7 @@ spec:
                     items:
                       type: string
                     type: array
+                    x-kubernetes-list-type: atomic
                   policy:
                     description: policy is a set of restrictions applied to the ExternalIP
                       field. If nil or empty, then ExternalIP is not allowed to be
@@ -91,12 +92,14 @@ spec:
                         items:
                           type: string
                         type: array
+                        x-kubernetes-list-type: atomic
                       rejectedCIDRs:
                         description: rejectedCIDRs is the list of disallowed CIDRs.
                           These take precedence over allowedCIDRs.
                         items:
                           type: string
                         type: array
+                        x-kubernetes-list-type: atomic
                     type: object
                 type: object
               networkDiagnostics:
@@ -255,6 +258,7 @@ spec:
                 items:
                   type: string
                 type: array
+                x-kubernetes-list-type: atomic
               serviceNodePortRange:
                 description: The port range allowed for Services of type NodePort.
                   If not specified, the default of 30000-32767 will be used. Such
@@ -292,6 +296,7 @@ spec:
                       type: integer
                   type: object
                 type: array
+                x-kubernetes-list-type: atomic
               clusterNetworkMTU:
                 description: ClusterNetworkMTU is the MTU for inter-pod networking.
                 type: integer
@@ -425,6 +430,7 @@ spec:
                 items:
                   type: string
                 type: array
+                x-kubernetes-list-type: atomic
             type: object
         required:
         - spec
