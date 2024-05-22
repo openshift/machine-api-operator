@@ -39,6 +39,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
+	vsphere "k8s.io/cloud-provider-vsphere/pkg/common/config"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -1763,9 +1764,10 @@ func TestDelete(t *testing.T) {
 
 		password, _ := server.URL.User.Password()
 
+		credentialsSecretName := "test"
 		secret := &corev1.Secret{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "test",
+				Name:      credentialsSecretName,
 				Namespace: ns,
 			},
 			Data: map[string][]byte{
@@ -1774,7 +1776,7 @@ func TestDelete(t *testing.T) {
 			},
 		}
 
-		testConfig := fmt.Sprintf(testConfigFmt, port)
+		testConfig := fmt.Sprintf(testConfigFmt, port, credentialsSecretName, ns)
 		configMap := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "testName",
@@ -2272,9 +2274,10 @@ func TestCreate(t *testing.T) {
 	vm.Name = vmName
 	vm.Config.Version = minimumHWVersionString
 
+	credentialsSecretName := "test"
 	credentialsSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test",
+			Name:      credentialsSecretName,
 			Namespace: namespace,
 		},
 		Data: map[string][]byte{
@@ -2283,7 +2286,7 @@ func TestCreate(t *testing.T) {
 		},
 	}
 
-	testConfig := fmt.Sprintf(testConfigFmt, port)
+	testConfig := fmt.Sprintf(testConfigFmt, port, credentialsSecretName, namespace)
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testName",
@@ -2687,9 +2690,10 @@ func TestUpdate(t *testing.T) {
 	instanceUUID := "a5764857-ae35-34dc-8f25-a9c9e73aa898"
 	vm.Config.InstanceUuid = instanceUUID
 
+	credentialsSecretName := "test"
 	credentialsSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test",
+			Name:      credentialsSecretName,
 			Namespace: namespace,
 		},
 		Data: map[string][]byte{
@@ -2698,7 +2702,7 @@ func TestUpdate(t *testing.T) {
 		},
 	}
 
-	testConfig := fmt.Sprintf(testConfigFmt, port)
+	testConfig := fmt.Sprintf(testConfigFmt, port, credentialsSecretName, namespace)
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testName",
@@ -3019,8 +3023,8 @@ func TestReconcileMachineWithCloudState(t *testing.T) {
 		providerStatus: &machinev1.VSphereMachineProviderStatus{
 			TaskRef: task.Reference().Value,
 		},
-		vSphereConfig: &vSphereConfig{
-			Labels: Labels{
+		vSphereConfig: &vsphere.Config{
+			Labels: vsphere.Labels{
 				Zone:   zoneKey,
 				Region: regionKey,
 			},
