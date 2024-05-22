@@ -2,7 +2,7 @@ module github.com/openshift/machine-api-operator
 
 go 1.21
 
-toolchain go1.21.0
+toolchain go1.21.7
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
