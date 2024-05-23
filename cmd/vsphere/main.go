@@ -8,7 +8,6 @@ import (
 	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
-	apifeatures "github.com/openshift/api/features"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned"
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
@@ -174,7 +173,7 @@ func main() {
 		klog.Fatalf("unable to retrieve current feature gates: %v", err)
 	}
 	// read featuregate read and usage to set a variable to pass to a controller
-	staticIPFeatureGateEnabled := featureGates.Enabled(apifeatures.FeatureGateVSphereStaticIPs)
+	staticIPFeatureGateEnabled := featureGates.Enabled(configv1.FeatureGateVSphereStaticIPs)
 
 	// Initialize machine actuator.
 	machineActuator := machine.NewActuator(machine.ActuatorParams{

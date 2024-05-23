@@ -287,7 +287,7 @@ func TestPatchMachine(t *testing.T) {
 	testEnv := &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join("..", "..", "..", "install"),
-			filepath.Join("..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1", "zz_generated.crd-manifests")},
+			filepath.Join("..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1")},
 	}
 
 	cfg, err := testEnv.Start()
@@ -546,7 +546,7 @@ func TestNodeGetter(t *testing.T) {
 	testEnv := &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join("..", "..", "..", "install"),
-			filepath.Join("..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1", "zz_generated.crd-manifests")},
+			filepath.Join("..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1")},
 	}
 
 	cfg, err := testEnv.Start()

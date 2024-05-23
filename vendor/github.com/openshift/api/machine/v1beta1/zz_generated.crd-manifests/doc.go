@@ -1,1 +1,0 @@
-package machine_v1beta1_crdmanifests
