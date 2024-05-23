@@ -52,8 +52,12 @@ endif
 
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 ENVTEST = go run ${PROJECT_DIR}/vendor/sigs.k8s.io/controller-runtime/tools/setup-envtest
+# Must match a release in https://raw.githubusercontent.com/openshift/api/master/envtest-releases.yaml
+ENVTEST_K8S_VERSION = 1.28.15
+ENVTEST_OS ?= $(shell go env GOOS)
+ENVTEST_ARCH ?= $(shell go env GOARCH)
+ENVTEST_ASSETS_URL = https://storage.googleapis.com/openshift-kubebuilder-tools/envtest-v$(ENVTEST_K8S_VERSION)-$(ENVTEST_OS)-$(ENVTEST_ARCH).tar.gz
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.27
 
 $(CONTROLLER_GEN): $(TOOLS_DIR)/go.mod # Build controller-gen from tools folder.
 	cd $(TOOLS_DIR); GO111MODULE=on GOFLAGS=-mod=vendor go build -tags=tools -o $(BIN_DIR)/controller-gen sigs.k8s.io/controller-tools/cmd/controller-gen
@@ -104,7 +108,7 @@ test-sec:
 test: unit
 
 unit:
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(PROJECT_DIR)/bin)" ./hack/ci-test.sh
+	KUBEBUILDER_ASSETS="$(shell mkdir -p $(PROJECT_DIR)/bin && curl -fsSL $(ENVTEST_ASSETS_URL) | $(ENVTEST) sideload $(ENVTEST_K8S_VERSION) --bin-dir $(PROJECT_DIR)/bin -p path)" ./hack/ci-test.sh
 
 .PHONY: image
 image: ## Build docker image
