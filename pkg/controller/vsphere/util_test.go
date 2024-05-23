@@ -12,11 +12,12 @@ import (
 )
 
 const (
-	testRegion       = "testRegion"
-	testZone         = "testZone"
-	testPort         = "443"
-	testInsecureFlag = "1"
-	testConfigFmt    = `
+	testRegion                      = "testRegion"
+	testZone                        = "testZone"
+	testPort                        = "443"
+	testInsecureFlag                = "1"
+	openshiftConfigNamespaceForTest = "openshift-config-test"
+	testConfigFmt                   = `
     [Labels]
 		zone = "testZone"
 		region = "testRegion"
@@ -31,7 +32,7 @@ func TestGetVSphereConfig(t *testing.T) {
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testName",
-			Namespace: openshiftConfigNamespace,
+			Namespace: openshiftConfigNamespaceForTest,
 		},
 		Data: map[string]string{
 			"testKey": testConfig,
@@ -52,7 +53,7 @@ func TestGetVSphereConfig(t *testing.T) {
 
 	client := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(infra, configMap).Build()
 
-	vSphereConfig, err := getVSphereConfig(client)
+	vSphereConfig, err := getVSphereConfig(client, openshiftConfigNamespaceForTest)
 	if err != nil {
 		t.Fatal(err)
 	}
