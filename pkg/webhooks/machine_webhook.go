@@ -2069,6 +2069,7 @@ func validateGVK(gvk schema.GroupVersionKind, platform osconfigv1.PlatformType) 
 	}
 }
 
+// validateAzureCapacityReservationGroupID validate capacity reservation group ID.
 func validateAzureCapacityReservationGroupID(capacityReservationGroupID string) error {
 	id := strings.TrimPrefix(capacityReservationGroupID, azureProviderIDPrefix)
 	err := parseAzureResourceID(id)
