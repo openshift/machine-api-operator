@@ -22,7 +22,7 @@ import (
 
 const (
 	globalInfrastuctureName  = "cluster"
-	openshiftConfigNamespace = "openshift-config"
+	OpenshiftConfigNamespace = "openshift-config"
 )
 
 // vSphereConfig is a copy of the Kubernetes vSphere cloud provider config type
@@ -69,7 +69,7 @@ func getInfrastructure(c runtimeclient.Reader) (*configv1.Infrastructure, error)
 	return infra, nil
 }
 
-func getVSphereConfig(c runtimeclient.Reader) (*vSphereConfig, error) {
+func getVSphereConfig(c runtimeclient.Reader, configNamespace string) (*vSphereConfig, error) {
 	if c == nil {
 		return nil, errors.New("no API reader -- will not fetch vSphere config")
 	}
@@ -90,7 +90,7 @@ func getVSphereConfig(c runtimeclient.Reader) (*vSphereConfig, error) {
 	cm := &corev1.ConfigMap{}
 	cmName := runtimeclient.ObjectKey{
 		Name:      infra.Spec.CloudConfig.Name,
-		Namespace: openshiftConfigNamespace,
+		Namespace: configNamespace,
 	}
 
 	if err := c.Get(context.Background(), cmName, cm); err != nil {

@@ -62,7 +62,7 @@ func TestMachineEvents(t *testing.T) {
 	testEnv := &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join("..", "..", "..", "install"),
-			filepath.Join("..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1"),
+			filepath.Join("..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1", "zz_generated.crd-manifests"),
 			filepath.Join("..", "..", "..", "third_party", "cluster-api", "crd")},
 	}
 
@@ -93,10 +93,9 @@ func TestMachineEvents(t *testing.T) {
 
 	k8sClient := mgr.GetClient()
 	eventRecorder := mgr.GetEventRecorderFor("vspherecontroller")
-
 	configNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: openshiftConfigNamespace,
+			Name: openshiftConfigNamespaceForTest,
 		},
 	}
 	g.Expect(k8sClient.Create(context.Background(), configNamespace)).To(Succeed())
@@ -136,7 +135,7 @@ func TestMachineEvents(t *testing.T) {
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testname",
-			Namespace: openshiftConfigNamespace,
+			Namespace: openshiftConfigNamespaceForTest,
 		},
 		Data: map[string]string{
 			"testkey": testConfig,
@@ -365,10 +364,11 @@ func TestMachineEvents(t *testing.T) {
 
 			taskIDCache := make(map[string]string)
 			params := ActuatorParams{
-				Client:        k8sClient,
-				EventRecorder: eventRecorder,
-				APIReader:     k8sClient,
-				TaskIDCache:   taskIDCache,
+				Client:                   k8sClient,
+				EventRecorder:            eventRecorder,
+				APIReader:                k8sClient,
+				TaskIDCache:              taskIDCache,
+				OpenshiftConfigNamespace: openshiftConfigNamespaceForTest,
 			}
 
 			actuator := NewActuator(params)
