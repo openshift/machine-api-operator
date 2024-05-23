@@ -29,6 +29,7 @@ GINKGO_EXTRA_ARGS=${GINKGO_EXTRA_ARGS:-""}
 # Ensure that some home var is set and that it's not the root.
 # This is required for the kubebuilder cache.
 export HOME=${HOME:=/tmp/kubebuilder-testing}
+export IS_TEST="true"
 if [ $HOME == "/" ]; then
   export HOME=/tmp/kubebuilder-testing
 fi
@@ -54,5 +55,6 @@ if [ -f "${ARTIFACT_DIR}/test-unit-coverage.out" ]; then
   echo
 fi
 
+unset IS_TEST
 # Ensure we exit based on the test result, coverage results are supplementary.
 exit ${TEST_RESULT}

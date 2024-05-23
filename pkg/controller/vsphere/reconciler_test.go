@@ -1778,7 +1778,7 @@ func TestDelete(t *testing.T) {
 		configMap := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "testName",
-				Namespace: openshiftConfigNamespace,
+				Namespace: getOpenshiftConfigNamespace(),
 			},
 			Data: map[string]string{
 				"testKey": testConfig,
@@ -2285,7 +2285,7 @@ func TestCreate(t *testing.T) {
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testName",
-			Namespace: openshiftConfigNamespace,
+			Namespace: getOpenshiftConfigNamespace(),
 		},
 		Data: map[string]string{
 			"testKey": testConfig,
@@ -2699,7 +2699,7 @@ func TestUpdate(t *testing.T) {
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testName",
-			Namespace: openshiftConfigNamespace,
+			Namespace: getOpenshiftConfigNamespace(),
 		},
 		Data: map[string]string{
 			"testKey": testConfig,
