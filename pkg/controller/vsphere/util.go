@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 
 	"gopkg.in/gcfg.v1"
@@ -23,7 +22,7 @@ import (
 
 const (
 	globalInfrastuctureName         = "cluster"
-	openshiftConfigNamespace        = "openshift-config"
+	OpenshiftConfigNamespace        = "openshift-config"
 	openshiftConfigNamespaceForTest = "openshift-config-test"
 )
 
@@ -71,7 +70,7 @@ func getInfrastructure(c runtimeclient.Reader) (*configv1.Infrastructure, error)
 	return infra, nil
 }
 
-func getVSphereConfig(c runtimeclient.Reader) (*vSphereConfig, error) {
+func getVSphereConfig(c runtimeclient.Reader, configNamespace string) (*vSphereConfig, error) {
 	if c == nil {
 		return nil, errors.New("no API reader -- will not fetch vSphere config")
 	}
@@ -92,7 +91,7 @@ func getVSphereConfig(c runtimeclient.Reader) (*vSphereConfig, error) {
 	cm := &corev1.ConfigMap{}
 	cmName := runtimeclient.ObjectKey{
 		Name:      infra.Spec.CloudConfig.Name,
-		Namespace: getOpenshiftConfigNamespace(),
+		Namespace: configNamespace,
 	}
 
 	if err := c.Get(context.Background(), cmName, cm); err != nil {
@@ -298,11 +297,4 @@ func getPodList(ctx context.Context, apiReader runtimeclient.Reader, n *corev1.N
 	}
 
 	return filterPods(allPods, filters...), nil
-}
-
-func getOpenshiftConfigNamespace() string {
-	if os.Getenv("IS_TEST") == "true" {
-		return openshiftConfigNamespaceForTest
-	}
-	return openshiftConfigNamespace
 }

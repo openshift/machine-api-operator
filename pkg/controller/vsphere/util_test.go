@@ -31,7 +31,7 @@ func TestGetVSphereConfig(t *testing.T) {
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testName",
-			Namespace: getOpenshiftConfigNamespace(),
+			Namespace: openshiftConfigNamespaceForTest,
 		},
 		Data: map[string]string{
 			"testKey": testConfig,
@@ -52,7 +52,7 @@ func TestGetVSphereConfig(t *testing.T) {
 
 	client := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(infra, configMap).Build()
 
-	vSphereConfig, err := getVSphereConfig(client)
+	vSphereConfig, err := getVSphereConfig(client, openshiftConfigNamespaceForTest)
 	if err != nil {
 		t.Fatal(err)
 	}
