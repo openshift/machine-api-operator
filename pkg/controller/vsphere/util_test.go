@@ -12,12 +12,11 @@ import (
 )
 
 const (
-	testRegion                      = "testRegion"
-	testZone                        = "testZone"
-	testPort                        = "443"
-	testInsecureFlag                = "1"
-	openshiftConfigNamespaceForTest = "openshift-config-test"
-	testConfigFmt                   = `
+	testRegion       = "testRegion"
+	testZone         = "testZone"
+	testPort         = "443"
+	testInsecureFlag = "1"
+	testConfigFmt    = `
     [Labels]
 		zone = "testZone"
 		region = "testRegion"
