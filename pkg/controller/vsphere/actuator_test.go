@@ -93,9 +93,10 @@ func TestMachineEvents(t *testing.T) {
 
 	k8sClient := mgr.GetClient()
 	eventRecorder := mgr.GetEventRecorderFor("vspherecontroller")
+
 	configNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: openshiftConfigNamespaceForTest,
+			Name: getOpenshiftConfigNamespace(),
 		},
 	}
 	g.Expect(k8sClient.Create(context.Background(), configNamespace)).To(Succeed())
@@ -135,7 +136,7 @@ func TestMachineEvents(t *testing.T) {
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testname",
-			Namespace: openshiftConfigNamespaceForTest,
+			Namespace: getOpenshiftConfigNamespace(),
 		},
 		Data: map[string]string{
 			"testkey": testConfig,
@@ -364,11 +365,10 @@ func TestMachineEvents(t *testing.T) {
 
 			taskIDCache := make(map[string]string)
 			params := ActuatorParams{
-				Client:                   k8sClient,
-				EventRecorder:            eventRecorder,
-				APIReader:                k8sClient,
-				TaskIDCache:              taskIDCache,
-				OpenshiftConfigNamespace: openshiftConfigNamespaceForTest,
+				Client:        k8sClient,
+				EventRecorder: eventRecorder,
+				APIReader:     k8sClient,
+				TaskIDCache:   taskIDCache,
 			}
 
 			actuator := NewActuator(params)

@@ -16,7 +16,6 @@ import (
 	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
 	"github.com/openshift/library-go/pkg/operator/events"
 	capimachine "github.com/openshift/machine-api-operator/pkg/controller/machine"
-	"github.com/openshift/machine-api-operator/pkg/controller/vsphere"
 	machine "github.com/openshift/machine-api-operator/pkg/controller/vsphere"
 	machinesetcontroller "github.com/openshift/machine-api-operator/pkg/controller/vsphere/machineset"
 	"github.com/openshift/machine-api-operator/pkg/metrics"
@@ -184,7 +183,6 @@ func main() {
 		EventRecorder:              mgr.GetEventRecorderFor("vspherecontroller"),
 		TaskIDCache:                taskIDCache,
 		StaticIPFeatureGateEnabled: staticIPFeatureGateEnabled,
-		OpenshiftConfigNamespace:   vsphere.OpenshiftConfigNamespace,
 	})
 
 	if err := configv1.Install(mgr.GetScheme()); err != nil {

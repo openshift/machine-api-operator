@@ -26,7 +26,6 @@ type machineScopeParams struct {
 	apiReader                  runtimeclient.Reader
 	machine                    *machinev1.Machine
 	StaticIPFeatureGateEnabled bool
-	openshiftConfigNameSpace   string
 }
 
 // machineScope defines a scope defined around a machine and its cluster.
@@ -55,7 +54,7 @@ func newMachineScope(params machineScopeParams) (*machineScope, error) {
 		return nil, fmt.Errorf("%v: machine scope require a context", params.machine.GetName())
 	}
 
-	vSphereConfig, err := getVSphereConfig(params.apiReader, params.openshiftConfigNameSpace)
+	vSphereConfig, err := getVSphereConfig(params.apiReader)
 	if err != nil {
 		klog.Errorf("Failed to fetch vSphere config: %v", err)
 	}

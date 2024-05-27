@@ -313,9 +313,10 @@ func TestPatchMachine(t *testing.T) {
 
 	// fake objects for newMachineScope()
 	password, _ := server.URL.User.Password()
+
 	configNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: openshiftConfigNamespaceForTest,
+			Name: getOpenshiftConfigNamespace(),
 		},
 	}
 	g.Expect(k8sClient.Create(ctx, configNamespace)).To(Succeed())
@@ -355,7 +356,7 @@ func TestPatchMachine(t *testing.T) {
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testname",
-			Namespace: openshiftConfigNamespaceForTest,
+			Namespace: getOpenshiftConfigNamespace(),
 		},
 		Data: map[string]string{
 			"testkey": testConfig,
@@ -506,11 +507,10 @@ func TestPatchMachine(t *testing.T) {
 			gs.Eventually(getMachine, timeout).Should(Succeed())
 
 			machineScope, err := newMachineScope(machineScopeParams{
-				client:                   k8sClient,
-				machine:                  machine,
-				apiReader:                k8sClient,
-				Context:                  ctx,
-				openshiftConfigNameSpace: openshiftConfigNamespaceForTest,
+				client:    k8sClient,
+				machine:   machine,
+				apiReader: k8sClient,
+				Context:   ctx,
 			})
 
 			gs.Expect(err).ToNot(HaveOccurred())

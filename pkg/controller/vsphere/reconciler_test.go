@@ -1778,7 +1778,7 @@ func TestDelete(t *testing.T) {
 		configMap := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "testName",
-				Namespace: openshiftConfigNamespaceForTest,
+				Namespace: getOpenshiftConfigNamespace(),
 			},
 			Data: map[string]string{
 				"testKey": testConfig,
@@ -1954,11 +1954,10 @@ func TestDelete(t *testing.T) {
 				simParams.infra,
 				tc.node(t)).Build()
 			machineScope, err := newMachineScope(machineScopeParams{
-				client:                   client,
-				Context:                  context.Background(),
-				machine:                  tc.machine(t, simParams.host),
-				apiReader:                client,
-				openshiftConfigNameSpace: openshiftConfigNamespaceForTest,
+				client:    client,
+				Context:   context.Background(),
+				machine:   tc.machine(t, simParams.host),
+				apiReader: client,
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -2234,11 +2233,10 @@ func TestDelete(t *testing.T) {
 				tc.node(t),
 			).Build()
 			mScope, err := newMachineScope(machineScopeParams{
-				client:                   cl,
-				Context:                  context.Background(),
-				machine:                  tc.machine(t, simParams.host),
-				apiReader:                cl,
-				openshiftConfigNameSpace: openshiftConfigNamespaceForTest,
+				client:    cl,
+				Context:   context.Background(),
+				machine:   tc.machine(t, simParams.host),
+				apiReader: cl,
 			})
 			g.Expect(err).NotTo(HaveOccurred())
 
@@ -2287,7 +2285,7 @@ func TestCreate(t *testing.T) {
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testName",
-			Namespace: openshiftConfigNamespaceForTest,
+			Namespace: getOpenshiftConfigNamespace(),
 		},
 		Data: map[string]string{
 			"testKey": testConfig,
@@ -2613,7 +2611,6 @@ func TestCreate(t *testing.T) {
 				machine:                    machine,
 				apiReader:                  client,
 				StaticIPFeatureGateEnabled: tc.staticIPFeatureGateEnabled,
-				openshiftConfigNameSpace:   openshiftConfigNamespaceForTest,
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -2702,7 +2699,7 @@ func TestUpdate(t *testing.T) {
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testName",
-			Namespace: openshiftConfigNamespaceForTest,
+			Namespace: getOpenshiftConfigNamespace(),
 		},
 		Data: map[string]string{
 			"testKey": testConfig,
@@ -2811,8 +2808,7 @@ func TestUpdate(t *testing.T) {
 						},
 					},
 				},
-				apiReader:                client,
-				openshiftConfigNameSpace: openshiftConfigNamespaceForTest,
+				apiReader: client,
 			})
 			if err != nil {
 				t.Fatal(err)

@@ -32,7 +32,6 @@ type Actuator struct {
 	eventRecorder              record.EventRecorder
 	TaskIDCache                map[string]string
 	StaticIPFeatureGateEnabled bool
-	openshiftConfigNamespace   string
 }
 
 // ActuatorParams holds parameter information for Actuator.
@@ -42,7 +41,6 @@ type ActuatorParams struct {
 	EventRecorder              record.EventRecorder
 	TaskIDCache                map[string]string
 	StaticIPFeatureGateEnabled bool
-	OpenshiftConfigNamespace   string
 }
 
 // NewActuator returns an actuator.
@@ -53,7 +51,6 @@ func NewActuator(params ActuatorParams) *Actuator {
 		eventRecorder:              params.EventRecorder,
 		TaskIDCache:                params.TaskIDCache,
 		StaticIPFeatureGateEnabled: params.StaticIPFeatureGateEnabled,
-		openshiftConfigNamespace:   params.OpenshiftConfigNamespace,
 	}
 }
 
@@ -77,7 +74,6 @@ func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error
 		machine:                    machine,
 		apiReader:                  a.apiReader,
 		StaticIPFeatureGateEnabled: a.StaticIPFeatureGateEnabled,
-		openshiftConfigNameSpace:   a.openshiftConfigNamespace,
 	})
 	if err != nil {
 		fmtErr := fmt.Errorf(scopeFailFmt, machine.GetName(), err)
@@ -121,7 +117,6 @@ func (a *Actuator) Exists(ctx context.Context, machine *machinev1.Machine) (bool
 		machine:                    machine,
 		apiReader:                  a.apiReader,
 		StaticIPFeatureGateEnabled: a.StaticIPFeatureGateEnabled,
-		openshiftConfigNameSpace:   a.openshiftConfigNamespace,
 	})
 	if err != nil {
 		return false, fmt.Errorf(scopeFailFmt, machine.GetName(), err)
@@ -140,7 +135,6 @@ func (a *Actuator) Update(ctx context.Context, machine *machinev1.Machine) error
 		machine:                    machine,
 		apiReader:                  a.apiReader,
 		StaticIPFeatureGateEnabled: a.StaticIPFeatureGateEnabled,
-		openshiftConfigNameSpace:   a.openshiftConfigNamespace,
 	})
 	if err != nil {
 		fmtErr := fmt.Errorf(scopeFailFmt, machine.GetName(), err)
@@ -182,7 +176,6 @@ func (a *Actuator) Delete(ctx context.Context, machine *machinev1.Machine) error
 		machine:                    machine,
 		apiReader:                  a.apiReader,
 		StaticIPFeatureGateEnabled: a.StaticIPFeatureGateEnabled,
-		openshiftConfigNameSpace:   a.openshiftConfigNamespace,
 	})
 	if err != nil {
 		fmtErr := fmt.Errorf(scopeFailFmt, machine.GetName(), err)
