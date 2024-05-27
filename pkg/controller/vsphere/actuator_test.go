@@ -96,7 +96,7 @@ func TestMachineEvents(t *testing.T) {
 
 	configNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: getOpenshiftConfigNamespace(),
+			Name: openshiftConfigNamespace,
 		},
 	}
 	g.Expect(k8sClient.Create(context.Background(), configNamespace)).To(Succeed())
@@ -136,7 +136,7 @@ func TestMachineEvents(t *testing.T) {
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testname",
-			Namespace: getOpenshiftConfigNamespace(),
+			Namespace: openshiftConfigNamespace,
 		},
 		Data: map[string]string{
 			"testkey": testConfig,

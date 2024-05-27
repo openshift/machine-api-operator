@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
 	"strings"
 
 	"gopkg.in/gcfg.v1"
@@ -22,9 +21,8 @@ import (
 )
 
 const (
-	globalInfrastuctureName         = "cluster"
-	openshiftConfigNamespace        = "openshift-config"
-	openshiftConfigNamespaceForTest = "openshift-config-test"
+	globalInfrastuctureName  = "cluster"
+	openshiftConfigNamespace = "openshift-config-1"
 )
 
 // vSphereConfig is a copy of the Kubernetes vSphere cloud provider config type
@@ -92,7 +90,7 @@ func getVSphereConfig(c runtimeclient.Reader) (*vSphereConfig, error) {
 	cm := &corev1.ConfigMap{}
 	cmName := runtimeclient.ObjectKey{
 		Name:      infra.Spec.CloudConfig.Name,
-		Namespace: getOpenshiftConfigNamespace(),
+		Namespace: openshiftConfigNamespace,
 	}
 
 	if err := c.Get(context.Background(), cmName, cm); err != nil {
@@ -298,11 +296,4 @@ func getPodList(ctx context.Context, apiReader runtimeclient.Reader, n *corev1.N
 	}
 
 	return filterPods(allPods, filters...), nil
-}
-
-func getOpenshiftConfigNamespace() string {
-	if os.Getenv("IS_TEST") == "true" {
-		return openshiftConfigNamespaceForTest
-	}
-	return openshiftConfigNamespace
 }
