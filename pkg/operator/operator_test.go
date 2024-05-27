@@ -12,7 +12,6 @@ import (
 
 	. "github.com/onsi/gomega"
 	openshiftv1 "github.com/openshift/api/config/v1"
-	apifeatures "github.com/openshift/api/features"
 	fakeos "github.com/openshift/client-go/config/clientset/versioned/fake"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions"
 	fakemachine "github.com/openshift/client-go/machine/clientset/versioned/fake"
@@ -62,7 +61,7 @@ func newFakeOperator(kubeObjects, osObjects, machineObjects []runtime.Object, im
 					{
 						Version:  "",
 						Enabled:  []openshiftv1.FeatureGateAttributes{},
-						Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+						Disabled: []openshiftv1.FeatureGateAttributes{{Name: openshiftv1.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
 					},
 				},
 			},
@@ -553,7 +552,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 						{
 							Version:  "",
 							Enabled:  []openshiftv1.FeatureGateAttributes{},
-							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+							Disabled: []openshiftv1.FeatureGateAttributes{{Name: openshiftv1.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
 						},
 					},
 				},
@@ -585,7 +584,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					FeatureGates: []openshiftv1.FeatureGateDetails{
 						{
 							Version:  "",
-							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: openshiftv1.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
 							Disabled: []openshiftv1.FeatureGateAttributes{},
 						},
 					},
