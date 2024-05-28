@@ -25,8 +25,10 @@ import (
 	"sync"
 	"time"
 
+	openshiftfeatures "github.com/openshift/api/features"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/util"
+	"github.com/openshift/machine-api-operator/pkg/util/conditions"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -43,6 +45,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
+)
+
+const (
+	PausedCondition machinev1.ConditionType = "Paused"
+
+	PausedConditionReason = "AuthoritativeAPI is not set to MachineAPI"
+
+	NotPausedConditionReason = "AuthoritativeAPI is set to MachineAPI"
 )
 
 var (
@@ -168,6 +178,42 @@ func (r *ReconcileMachineSet) Reconcile(ctx context.Context, request reconcile.R
 	// is enabled
 	if machineSet.DeletionTimestamp != nil {
 		return reconcile.Result{}, nil
+	}
+
+	if r.gate.Enabled(featuregate.Feature(openshiftfeatures.FeatureGateMachineAPIMigration)) {
+		machineSetCopy := machineSet.DeepCopy()
+		// Check Status.AuthoritativeAPI. If it's not set to MachineAPI. Set the
+		// paused condition true and return early.
+		//
+		// Once we have a webhook, we want to remove the check that the AuthoritativeAPI
+		// field is populated.
+		if machineSet.Status.AuthoritativeAPI != "" &&
+			machineSet.Status.AuthoritativeAPI != machinev1.MachineAuthorityMachineAPI {
+			conditions.Set(machineSetCopy, conditions.TrueConditionWithReason(
+				PausedCondition,
+				PausedConditionReason,
+				"The AuthoritativeAPI is set to %s", machineSet.Status.AuthoritativeAPI,
+			))
+
+			_, err := updateMachineSetStatus(r.Client, machineSet, machineSetCopy.Status)
+			if err != nil {
+				klog.Errorf("%v: error updating status: %v", machineSet.Name, err)
+			}
+
+			klog.Infof("%v: machine is paused, taking no further action", machineSet.Name)
+			return reconcile.Result{}, nil
+		}
+
+		conditions.Set(machineSetCopy, conditions.FalseCondition(
+			PausedCondition,
+			NotPausedConditionReason,
+			"The AuthoritativeAPI is set to %s", string(machineSet.Status.AuthoritativeAPI),
+		))
+		_, err := updateMachineSetStatus(r.Client, machineSet, machineSetCopy.Status)
+		if err != nil {
+			klog.Errorf("%v: error updating status: %v", machineSet.Name, err)
+		}
+		klog.Infof("%v: setting paused to false and continuing reconcile", machineSet.Name)
 	}
 
 	result, err := r.reconcile(ctx, machineSet)
