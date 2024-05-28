@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
@@ -78,6 +79,7 @@ func updateMachineSetStatus(c client.Client, ms *machinev1.MachineSet, newStatus
 		ms.Status.FullyLabeledReplicas == newStatus.FullyLabeledReplicas &&
 		ms.Status.ReadyReplicas == newStatus.ReadyReplicas &&
 		ms.Status.AvailableReplicas == newStatus.AvailableReplicas &&
+		reflect.DeepEqual(ms.Status.Conditions, newStatus.Conditions) &&
 		ms.Generation == ms.Status.ObservedGeneration {
 		return ms, nil
 	}
@@ -99,7 +101,8 @@ func updateMachineSetStatus(c client.Client, ms *machinev1.MachineSet, newStatus
 			fmt.Sprintf("fullyLabeledReplicas %d->%d, ", ms.Status.FullyLabeledReplicas, newStatus.FullyLabeledReplicas) +
 			fmt.Sprintf("readyReplicas %d->%d, ", ms.Status.ReadyReplicas, newStatus.ReadyReplicas) +
 			fmt.Sprintf("availableReplicas %d->%d, ", ms.Status.AvailableReplicas, newStatus.AvailableReplicas) +
-			fmt.Sprintf("sequence No: %v->%v", ms.Status.ObservedGeneration, newStatus.ObservedGeneration))
+			fmt.Sprintf("sequence No: %v->%v", ms.Status.ObservedGeneration, newStatus.ObservedGeneration) +
+			fmt.Sprintf("conditions: %v->%v", ms.Status.Conditions, newStatus.Conditions))
 
 		ms.Status = newStatus
 		updateErr = c.Status().Update(context.Background(), ms)
