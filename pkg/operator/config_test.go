@@ -7,14 +7,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	configv1 "github.com/openshift/api/config/v1"
-	imagev1 "github.com/openshift/api/image/v1"
 	corev1 "k8s.io/api/core/v1"
 	"sigs.k8s.io/yaml"
+
+	configv1 "github.com/openshift/api/config/v1"
+	imagev1 "github.com/openshift/api/image/v1"
 )
 
 const (
-	expectedAlibabaImage   = "quay.io/openshift/origin-alibaba-machine-controllers"
 	expectedAWSImage       = "quay.io/openshift/origin-aws-machine-controllers"
 	expectedAzureImage     = "quay.io/openshift/origin-azure-machine-controllers"
 	expectedBareMetalImage = "quay.io/openshift/origin-baremetal-machine-controllers"
@@ -93,15 +93,6 @@ func TestGetProviderFromInfrastructure(t *testing.T) {
 			},
 		},
 		expected: configv1.AWSPlatformType,
-	}, {
-		infra: &configv1.Infrastructure{
-			Status: configv1.InfrastructureStatus{
-				PlatformStatus: &configv1.PlatformStatus{
-					Type: configv1.AlibabaCloudPlatformType,
-				},
-			},
-		},
-		expected: configv1.AlibabaCloudPlatformType,
 	}, {
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
@@ -281,10 +272,6 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 			expectedImage: expectedAWSImage,
 		},
 		{
-			provider:      configv1.AlibabaCloudPlatformType,
-			expectedImage: expectedAlibabaImage,
-		},
-		{
 			provider:      configv1.LibvirtPlatformType,
 			expectedImage: expectedLibvirtImage,
 		},
@@ -368,10 +355,6 @@ func TestGetTerminationHandlerFromImages(t *testing.T) {
 		{
 			provider:      configv1.AWSPlatformType,
 			expectedImage: expectedAWSImage,
-		},
-		{
-			provider:      configv1.AlibabaCloudPlatformType,
-			expectedImage: expectedAlibabaImage,
 		},
 		{
 			provider:      configv1.LibvirtPlatformType,
