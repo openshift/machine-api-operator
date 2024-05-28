@@ -23,17 +23,20 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
+	"github.com/openshift/machine-api-operator/pkg/util/conditions"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/envtest/komega"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
 var _ = Describe("MachineSet Reconciler", func() {
-	namespace := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "ms-test"}}
 	var mgrCtxCancel context.CancelFunc
 	var mgrStopped chan struct{}
+	var k komega.Komega
+	var namespace *corev1.Namespace
 
 	BeforeEach(func() {
 		By("Setting up a new manager")
@@ -45,6 +48,7 @@ var _ = Describe("MachineSet Reconciler", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		k8sClient = mgr.GetClient()
+		k = komega.New(k8sClient)
 
 		By("Setting up a new reconciler")
 		reconciler := newReconciler(mgr)
@@ -65,6 +69,7 @@ var _ = Describe("MachineSet Reconciler", func() {
 		}()
 
 		By("Creating the namespace")
+		namespace = &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{GenerateName: "ms-test"}}
 		Expect(k8sClient.Create(ctx, namespace)).To(Succeed())
 	})
 
@@ -102,8 +107,12 @@ var _ = Describe("MachineSet Reconciler", func() {
 		By("Creating the MachineSet")
 		Expect(k8sClient.Create(ctx, instance)).To(Succeed())
 
-		machines := &machinev1.MachineList{}
+		By("Setting the AuthoritativeAPI to MachineAPI")
+		Eventually(k.UpdateStatus(instance, func() {
+			instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityMachineAPI
+		})).Should(Succeed())
 
+		machines := &machinev1.MachineList{}
 		By("Verifying that we have 2 replicas")
 		Eventually(func() (int, error) {
 			if err := k8sClient.List(ctx, machines, client.InNamespace(namespace.Name)); err != nil {
@@ -131,6 +140,71 @@ var _ = Describe("MachineSet Reconciler", func() {
 			return ready, nil
 		}, timeout*3).Should(BeEquivalentTo(replicas))
 	})
+
+	It("Should set the Paused condition appropriately", func() {
+		replicas := int32(2)
+		labels := map[string]string{"baz": "bar"}
+
+		instance := &machinev1.MachineSet{
+			ObjectMeta: metav1.ObjectMeta{Name: "baz", Namespace: namespace.Name},
+			Spec: machinev1.MachineSetSpec{
+				Replicas: &replicas,
+				Selector: metav1.LabelSelector{
+					MatchLabels: labels,
+				},
+				Template: machinev1.MachineTemplateSpec{
+					ObjectMeta: machinev1.ObjectMeta{
+						Labels: labels,
+					},
+				},
+			},
+		}
+
+		By("Creating the MachineSet")
+		Expect(k8sClient.Create(ctx, instance)).To(Succeed())
+
+		By("Setting the AuthoritativeAPI to ClusterAPI")
+		Eventually(k.UpdateStatus(instance, func() {
+			instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityClusterAPI
+		})).Should(Succeed())
+
+		By("Verifying that the AuthoritativeAPI is set to Cluster API")
+		Eventually(func() (machinev1.MachineAuthority, error) {
+			if err := k8sClient.Get(ctx, objectKey(instance), instance); err != nil {
+				return "", err
+			}
+			return instance.Status.AuthoritativeAPI, nil
+		}, timeout).Should(Equal(machinev1.MachineAuthorityClusterAPI))
+
+		By("Verifying the paused condition is approproately set to true")
+		Eventually(func() bool {
+			if err := k8sClient.Get(ctx, objectKey(instance), instance); err != nil {
+				return false
+			}
+
+			// The condition is set to true
+			return conditions.IsTrue(instance, PausedCondition)
+		}, timeout).Should(BeTrue())
+
+		By("Transitioning the AuthoritativeAPI though 'Migrating' to MachineAPI")
+		Eventually(k.UpdateStatus(instance, func() {
+			instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityMigrating
+		})).Should(Succeed())
+		Eventually(k.UpdateStatus(instance, func() {
+			instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityMachineAPI
+		})).Should(Succeed())
+
+		By("Verifying the paused condition is approproately set to false")
+		Eventually(func() bool {
+			if err := k8sClient.Get(ctx, objectKey(instance), instance); err != nil {
+				return false
+			}
+
+			// The condition is set to true
+			return conditions.IsFalse(instance, PausedCondition)
+		}, timeout).Should(BeTrue())
+
+	})
 })
 
 func cleanResources() error {
@@ -157,4 +231,11 @@ func cleanResources() error {
 	}
 
 	return nil
+}
+
+func objectKey(object metav1.Object) client.ObjectKey {
+	return client.ObjectKey{
+		Namespace: object.GetNamespace(),
+		Name:      object.GetName(),
+	}
 }
