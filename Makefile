@@ -103,7 +103,8 @@ test-sec:
 test: unit
 
 unit:
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(PROJECT_DIR)/bin --remote-bucket openshift-kubebuilder-tools)" ./hack/ci-test.sh
+	# GCS bucket support will be going away, but explicitly enable it to use our own bucket.
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --use-deprecated-gcs=true -p path --bin-dir $(PROJECT_DIR)/bin --remote-bucket openshift-kubebuilder-tools)" ./hack/ci-test.sh
 
 .PHONY: image
 image: ## Build docker image
