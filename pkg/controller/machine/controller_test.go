@@ -328,7 +328,8 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Status: machinev1.MachineStatus{
-			Conditions: machinev1.Conditions{*conditions.TrueCondition(machinev1.MachineDrained)},
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
+			Conditions:       []machinev1.Condition{*conditions.TrueCondition(machinev1.MachineDrained)},
 		},
 	}
 
@@ -570,7 +571,7 @@ func TestReconcileRequest(t *testing.T) {
 func TestUpdateStatus(t *testing.T) {
 	drainableTrue := conditions.TrueCondition(machinev1.MachineDrainable)
 	terminableTrue := conditions.TrueCondition(machinev1.MachineTerminable)
-	defaultLifecycleConditions := machinev1.Conditions{*drainableTrue, *terminableTrue}
+	defaultLifecycleConditions := []machinev1.Condition{*drainableTrue, *terminableTrue}
 
 	testCases := []struct {
 		name                   string
@@ -579,8 +580,8 @@ func TestUpdateStatus(t *testing.T) {
 		annotations            map[string]string
 		existingProviderStatus string
 		expectedProviderStatus string
-		conditions             machinev1.Conditions
-		originalConditions     machinev1.Conditions
+		conditions             []machinev1.Condition
+		originalConditions     []machinev1.Condition
 		updated                bool
 	}{
 		{
@@ -641,7 +642,7 @@ func TestUpdateStatus(t *testing.T) {
 			phase:       machinev1.PhaseRunning,
 			err:         nil,
 			annotations: nil,
-			conditions: machinev1.Conditions{
+			conditions: []machinev1.Condition{
 				*conditions.TrueCondition(machinev1.InstanceExistsCondition),
 				*drainableTrue,
 				*terminableTrue,
@@ -653,12 +654,12 @@ func TestUpdateStatus(t *testing.T) {
 			phase:       machinev1.PhaseRunning,
 			err:         nil,
 			annotations: nil,
-			conditions: machinev1.Conditions{
+			conditions: []machinev1.Condition{
 				*conditions.FalseCondition(machinev1.InstanceExistsCondition, machinev1.InstanceMissingReason, machinev1.ConditionSeverityWarning, "message"),
 				*drainableTrue,
 				*terminableTrue,
 			},
-			originalConditions: machinev1.Conditions{
+			originalConditions: []machinev1.Condition{
 				*conditions.TrueCondition(machinev1.InstanceExistsCondition),
 			},
 			updated: true,
@@ -668,12 +669,12 @@ func TestUpdateStatus(t *testing.T) {
 			phase:       machinev1.PhaseRunning,
 			err:         nil,
 			annotations: nil,
-			conditions: machinev1.Conditions{
+			conditions: []machinev1.Condition{
 				*conditions.TrueCondition(machinev1.InstanceExistsCondition),
 				*drainableTrue,
 				*terminableTrue,
 			},
-			originalConditions: machinev1.Conditions{
+			originalConditions: []machinev1.Condition{
 				*conditions.TrueCondition(machinev1.InstanceExistsCondition),
 			},
 			updated: false,
@@ -734,7 +735,7 @@ func TestUpdateStatus(t *testing.T) {
 			}
 
 			// Set the phase to Running initially
-			g.Expect(reconciler.updateStatus(context.TODO(), machine, machinev1.PhaseRunning, nil, machinev1.Conditions{})).To(Succeed())
+			g.Expect(reconciler.updateStatus(context.TODO(), machine, machinev1.PhaseRunning, nil, []machinev1.Condition{})).To(Succeed())
 			// validate persisted object
 			got := machinev1.Machine{}
 			g.Expect(reconciler.Client.Get(context.TODO(), namespacedName, &got)).To(Succeed())
@@ -1088,23 +1089,23 @@ func TestSetLifecycleHookConditions(t *testing.T) {
 
 	testCases := []struct {
 		name               string
-		existingConditions machinev1.Conditions
+		existingConditions []machinev1.Condition
 		lifecycleHooks     machinev1.LifecycleHooks
-		expectedConditions machinev1.Conditions
+		expectedConditions []machinev1.Condition
 	}{
 		{
 			name: "with a fresh machine",
-			expectedConditions: machinev1.Conditions{
+			expectedConditions: []machinev1.Condition{
 				*drainableTrue,
 				*terminableTrue,
 			},
 		},
 		{
 			name: "with an unrelated condition",
-			existingConditions: machinev1.Conditions{
+			existingConditions: []machinev1.Condition{
 				*unrelatedCondition,
 			},
-			expectedConditions: machinev1.Conditions{
+			expectedConditions: []machinev1.Condition{
 				*unrelatedCondition,
 				*drainableTrue,
 				*terminableTrue,
@@ -1112,35 +1113,35 @@ func TestSetLifecycleHookConditions(t *testing.T) {
 		},
 		{
 			name: "with a pre-drain hook",
-			existingConditions: machinev1.Conditions{
+			existingConditions: []machinev1.Condition{
 				*drainableTrue,
 				*terminableTrue,
 			},
 			lifecycleHooks: machinev1.LifecycleHooks{
 				PreDrain: []machinev1.LifecycleHook{preDrainHook},
 			},
-			expectedConditions: machinev1.Conditions{
+			expectedConditions: []machinev1.Condition{
 				*drainableFalse,
 				*terminableTrue,
 			},
 		},
 		{
 			name: "with a pre-terminate hook",
-			existingConditions: machinev1.Conditions{
+			existingConditions: []machinev1.Condition{
 				*drainableTrue,
 				*terminableTrue,
 			},
 			lifecycleHooks: machinev1.LifecycleHooks{
 				PreTerminate: []machinev1.LifecycleHook{preTerminateHook},
 			},
-			expectedConditions: machinev1.Conditions{
+			expectedConditions: []machinev1.Condition{
 				*drainableTrue,
 				*terminableFalse,
 			},
 		},
 		{
 			name: "with a both a pre-drain and pre-terminate hook",
-			existingConditions: machinev1.Conditions{
+			existingConditions: []machinev1.Condition{
 				*drainableTrue,
 				*terminableTrue,
 			},
@@ -1148,32 +1149,32 @@ func TestSetLifecycleHookConditions(t *testing.T) {
 				PreDrain:     []machinev1.LifecycleHook{preDrainHook},
 				PreTerminate: []machinev1.LifecycleHook{preTerminateHook},
 			},
-			expectedConditions: machinev1.Conditions{
+			expectedConditions: []machinev1.Condition{
 				*drainableFalse,
 				*terminableFalse,
 			},
 		},
 		{
 			name: "with multiple pre-drain hooks",
-			existingConditions: machinev1.Conditions{
+			existingConditions: []machinev1.Condition{
 				*drainableTrue,
 				*terminableTrue,
 			},
 			lifecycleHooks: machinev1.LifecycleHooks{
 				PreDrain: []machinev1.LifecycleHook{preDrainHook, otherPreDrainHook},
 			},
-			expectedConditions: machinev1.Conditions{
+			expectedConditions: []machinev1.Condition{
 				*drainableFalseWithOther,
 				*terminableTrue,
 			},
 		},
 		{
 			name: "with hooks are removed",
-			existingConditions: machinev1.Conditions{
+			existingConditions: []machinev1.Condition{
 				*drainableFalse,
 				*terminableFalse,
 			},
-			expectedConditions: machinev1.Conditions{
+			expectedConditions: []machinev1.Condition{
 				*drainableTrue,
 				*terminableTrue,
 			},

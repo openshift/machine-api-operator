@@ -69,10 +69,10 @@ func TestDrainControllerReconcileRequest(t *testing.T) {
 		}, recorder
 	}
 
-	getDrainedConditions := func(msg string) machinev1.Conditions {
+	getDrainedConditions := func(msg string) []machinev1.Condition {
 		condition := conditions.TrueCondition(machinev1.MachineDrained)
 		condition.Message = msg
-		return machinev1.Conditions{*condition}
+		return []machinev1.Condition{*condition}
 	}
 
 	t.Run("ignore machine not in the deleting phase", func(t *testing.T) {
