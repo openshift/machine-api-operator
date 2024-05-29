@@ -109,7 +109,7 @@ func TestMachineSetToMachines(t *testing.T) {
 	}
 	testsCases := []struct {
 		machine  machinev1.Machine
-		object   client.Object
+		object   *machinev1.Machine
 		expected []reconcile.Request
 	}{
 		{
