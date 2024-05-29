@@ -7,6 +7,7 @@ metadata:
     capability.openshift.io/name: MachineAPI
     exclude.release.openshift.io/internal-openshift-hosted: "true"
     include.release.openshift.io/self-managed-high-availability: "true"
+    release.openshift.io/feature-set: CustomNoUpgrade
   name: machines.machine.openshift.io
 spec:
   group: machine.openshift.io
@@ -75,6 +76,24 @@ spec:
           spec:
             description: MachineSpec defines the desired state of Machine
             properties:
+              authoritativeAPI:
+                description: authoritativeAPI is the API that is authoritative for
+                  this resource. Valid values are MachineAPI and ClusterAPI. When
+                  set to MachineAPI, writes to the spec of the machine.openshift.io
+                  copy of this resource will be reflected into the cluster.x-k8s.io
+                  copy. When set to ClusterAPI, writes to the spec of the cluster.x-k8s.io
+                  copy of this resource will be reflected into the machine.openshift.io
+                  copy. Updates to the status will be reflected in both copies of
+                  the resource, based on the controller implementing the functionality
+                  of the API. Currently the authoritative API determines which controller
+                  will manage the resource, this will change in a future release.
+                  To ensure the change has been accepted, please verify that the `status.authoritativeAPI`
+                  field has been updated to the desired value and that the `Synchronized`
+                  condition is present and set to `True`.
+                enum:
+                - MachineAPI
+                - ClusterAPI
+                type: string
               lifecycleHooks:
                 description: LifecycleHooks allow users to pause operations on the
                   machine at certain predefined points within the machine lifecycle.
@@ -247,6 +266,9 @@ spec:
                       type: object
                       x-kubernetes-map-type: atomic
                     type: array
+                    x-kubernetes-list-map-keys:
+                    - uid
+                    x-kubernetes-list-type: map
                 type: object
               providerID:
                 description: ProviderID is the identification ID of the machine provided
@@ -309,6 +331,7 @@ spec:
                   - key
                   type: object
                 type: array
+                x-kubernetes-list-type: atomic
             type: object
           status:
             description: MachineStatus defines the observed state of Machine
@@ -331,6 +354,25 @@ spec:
                   - type
                   type: object
                 type: array
+                x-kubernetes-list-type: atomic
+              authoritativeAPI:
+                description: authoritativeAPI is the API that is authoritative for
+                  this resource. Valid values are MachineAPI, ClusterAPI and Migrating.
+                  This value is updated by the migration controller to reflect the
+                  authoritative API. Machine API and Cluster API controllers use this
+                  value to determine whether or not to reconcile the resource. When
+                  set to Migrating, the migration controller is currently performing
+                  the handover of authority from one API to the other.
+                enum:
+                - MachineAPI
+                - ClusterAPI
+                - Migrating
+                type: string
+                x-kubernetes-validations:
+                - message: The authoritativeAPI field must not transition directly
+                    from MachineAPI to ClusterAPI or vice versa. It must transition
+                    through Migrating.
+                  rule: self == 'Migrating' || self == oldSelf || oldSelf == 'Migrating'
               conditions:
                 description: Conditions defines the current state of the Machine
                 items:
@@ -370,8 +412,13 @@ spec:
                         (see .node.status.conditions), the ability to deconflict is
                         important.
                       type: string
+                  required:
+                  - type
                   type: object
                 type: array
+                x-kubernetes-list-map-keys:
+                - type
+                x-kubernetes-list-type: map
               errorMessage:
                 description: "ErrorMessage will be set in the event that there is
                   a terminal problem reconciling the Machine and will contain a more
@@ -478,7 +525,25 @@ spec:
                   that should be serialized/deserialized from this field.
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
+              synchronizedGeneration:
+                description: synchronizedGeneration is the generation of the authoritative
+                  resource that the non-authoritative resource is synchronised with.
+                  This field is set when the authoritative resource is updated and
+                  the sync controller has updated the non-authoritative resource to
+                  match.
+                format: int64
+                minimum: 0
+                type: integer
             type: object
+            x-kubernetes-validations:
+            - fieldPath: .synchronizedGeneration
+              message: synchronizedGeneration must not decrease unless authoritativeAPI
+                is transitioning from Migrating to another value
+              reason: FieldValueInvalid
+              rule: '!has(oldSelf.synchronizedGeneration) || (has(self.synchronizedGeneration)
+                && self.synchronizedGeneration >= oldSelf.synchronizedGeneration)
+                || (oldSelf.authoritativeAPI == ''Migrating'' && self.authoritativeAPI
+                != ''Migrating'')'
         type: object
     served: true
     storage: true
