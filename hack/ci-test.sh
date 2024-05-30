@@ -37,9 +37,11 @@ if [ "$OPENSHIFT_CI" == "true" ] && [ -n "$ARTIFACT_DIR" ] && [ -d "$ARTIFACT_DI
   GINKGO_ARGS="${GINKGO_ARGS} --junit-report=junit_machine_api_operator.xml --cover --coverprofile=test-unit-coverage.out --output-dir=${ARTIFACT_DIR}"
 fi
 
+TEST_PACKAGES=${TEST_PACKAGES:-$(go list -f "{{ .Dir }}" ./...)}
+
 # Print the command we are going to run as Make would.
-echo ${GINKGO} ${GINKGO_ARGS} ${GINKGO_EXTRA_ARGS} ./...
-${GINKGO} ${GINKGO_ARGS} ${GINKGO_EXTRA_ARGS} ./...
+echo ${GINKGO} ${GINKGO_ARGS} ${GINKGO_EXTRA_ARGS} "<omitted>"
+${GINKGO} ${GINKGO_ARGS} ${GINKGO_EXTRA_ARGS} ${TEST_PACKAGES}
 # Capture the test result to exit on error after coverage.
 TEST_RESULT=$?
 

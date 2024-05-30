@@ -15,20 +15,23 @@ const (
 	testRegion                      = "testRegion"
 	testZone                        = "testZone"
 	testPort                        = "443"
-	testInsecureFlag                = "1"
+	testInsecureFlag                = true
 	openshiftConfigNamespaceForTest = "openshift-config-test"
 	testConfigFmt                   = `
-    [Labels]
-		zone = "testZone"
-		region = "testRegion"
-		[Global]
-		port = %s
-		insecure-flag="1"
+[Labels]
+zone = "testZone"
+region = "testRegion"
+[VirtualCenter "127.0.0.1"]
+port = %s
+[Global]
+insecure-flag="1"
+secret-name = "%s"
+secret-namespace = "%s"
 `
 )
 
 func TestGetVSphereConfig(t *testing.T) {
-	testConfig := fmt.Sprintf(testConfigFmt, "443")
+	testConfig := fmt.Sprintf(testConfigFmt, "443", "test", "test-namespace")
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testName",
@@ -66,11 +69,11 @@ func TestGetVSphereConfig(t *testing.T) {
 		t.Errorf("Expected zone %s, got %s", testZone, vSphereConfig.Labels.Zone)
 	}
 
-	if vSphereConfig.Global.Port != testPort {
-		t.Errorf("Expected zone %s, got %s", testZone, vSphereConfig.Global.Port)
+	if vSphereConfig.Global.VCenterPort != testPort {
+		t.Errorf("Expected zone %s, got %s", testZone, vSphereConfig.Global.VCenterPort)
 	}
 
 	if vSphereConfig.Global.InsecureFlag != testInsecureFlag {
-		t.Errorf("Expected insecure flag %s, got %s", testInsecureFlag, vSphereConfig.Global.InsecureFlag)
+		t.Errorf("Expected insecure flag %t, got %t", testInsecureFlag, vSphereConfig.Global.InsecureFlag)
 	}
 }

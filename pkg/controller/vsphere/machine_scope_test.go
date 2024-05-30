@@ -335,9 +335,10 @@ func TestPatchMachine(t *testing.T) {
 		g.Expect(k8sClient.Delete(ctx, testNamespace)).To(Succeed())
 	}()
 
+	credentialsSecretName := "test"
 	credentialsSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "test",
+			Name:      credentialsSecretName,
 			Namespace: testNamespaceName,
 		},
 		Data: map[string][]byte{
@@ -351,7 +352,7 @@ func TestPatchMachine(t *testing.T) {
 		g.Expect(k8sClient.Delete(ctx, credentialsSecret)).To(Succeed())
 	}()
 
-	testConfig := fmt.Sprintf(testConfigFmt, port)
+	testConfig := fmt.Sprintf(testConfigFmt, port, credentialsSecretName, testNamespaceName)
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testname",
