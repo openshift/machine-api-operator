@@ -3,7 +3,7 @@ DBG         ?= 0
 VERSION     ?= $(shell git describe --always --abbrev=7)
 MUTABLE_TAG ?= latest
 IMAGE        = $(REGISTRY)machine-api-operator
-BUILD_IMAGE ?= registry.ci.openshift.org/openshift/release:golang-1.21
+BUILD_IMAGE ?= registry.ci.openshift.org/openshift/release:golang-1.22
 GOLANGCI_LINT = go run ./vendor/github.com/golangci/golangci-lint/cmd/golangci-lint
 
 # Enable go modules and vendoring
