@@ -24,6 +24,7 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -52,8 +53,8 @@ var _ = BeforeSuite(func() {
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{filepath.Join("..", "..", "..", "..", "install")},
 	}
-	Expect(machinev1.AddToScheme(scheme.Scheme)).ToNot(HaveOccurred())
-
+	Expect(machinev1.Install(scheme.Scheme)).ToNot(HaveOccurred())
+	Expect(configv1.Install(scheme.Scheme)).ToNot(HaveOccurred())
 	var err error
 	cfg, err = testEnv.Start()
 	Expect(err).ToNot(HaveOccurred())
