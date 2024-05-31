@@ -171,6 +171,8 @@ func getWrapperObject(from interface{}) GetterSetter {
 	switch obj := from.(type) {
 	case *machinev1.Machine:
 		return &MachineWrapper{obj}
+	case *machinev1.MachineSet:
+		return &MachineSetWrapper{obj}
 	case *machinev1.MachineHealthCheck:
 		return &MachineHealthCheckWrapper{obj}
 	default:
