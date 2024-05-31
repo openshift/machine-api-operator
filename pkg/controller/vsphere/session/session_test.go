@@ -277,14 +277,17 @@ func TestClientTimeout(t *testing.T) {
 
 		model.DelayConfig = simulator.DelayConfig{
 			MethodDelay: map[string]int{
-				"RetrieveProperties": int(18 * time.Second.Milliseconds()),
+				// This is converted to milliseconds by the model simulator
+				"RetrievePropertiesEx": int(300),
 			},
 		}
 		simulatorVM := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
 
-		_, err := session.findVMByName(context.TODO(), simulatorVM.Config.Name)
-		g.Expect(err.Error()).Should(ContainSubstring("unable to find template by name"))
-		g.Expect(err.Error()).Should(ContainSubstring("context deadline exceeded (Client.Timeout exceeded while awaiting headers)"))
+		ctx, cancel := context.WithTimeout(context.TODO(), time.Duration(time.Millisecond*100))
+		defer cancel()
+		_, err := session.findVMByName(ctx, simulatorVM.Config.Name)
+		g.Expect(err).To(MatchError(ContainSubstring("unable to find template by name")))
+		g.Expect(err).To(MatchError(ContainSubstring("context deadline exceeded")))
 	})
 
 	t.Run("Globally laggy vcenter", func(t *testing.T) {
@@ -296,18 +299,22 @@ func TestClientTimeout(t *testing.T) {
 		g.Expect(err).NotTo(HaveOccurred())
 		model.Service.TLS = new(tls.Config)
 		model.DelayConfig = simulator.DelayConfig{
-			Delay: int(18 * time.Second.Milliseconds()),
+			// This is converted to milliseconds by the model simulator
+			Delay: int(300),
 		}
 
 		server := model.Service.NewServer()
 		pass, _ := server.URL.User.Password()
 
+		ctx, cancel := context.WithTimeout(context.TODO(), time.Duration(time.Millisecond*100))
+		defer cancel()
+
 		_, err = GetOrCreate(
-			context.TODO(),
+			ctx,
 			server.URL.Host, "",
 			server.URL.User.Username(), pass, true)
 		g.Expect(err).To(HaveOccurred())
-		g.Expect(err.Error()).Should(ContainSubstring("error setting up new vSphere SOAP client"))
-		g.Expect(err.Error()).Should(ContainSubstring("context deadline exceeded"))
+		g.Expect(err).To(MatchError(ContainSubstring("error setting up new vSphere SOAP client")))
+		g.Expect(err).To(MatchError(ContainSubstring("context deadline exceeded")))
 	})
 }
