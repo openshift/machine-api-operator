@@ -121,23 +121,23 @@ func indexMachineByNodeName(object client.Object) []string {
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
-func add(mgr manager.Manager, r reconcile.Reconciler, mapMachineToMHC, mapNodeToMHC handler.MapFunc) error {
+func add(mgr manager.Manager, r reconcile.Reconciler, mapMachineToMHC handler.TypedMapFunc[*machinev1.Machine], mapNodeToMHC handler.TypedMapFunc[*corev1.Node]) error {
 	c, err := controller.New(controllerName, mgr, controller.Options{Reconciler: r})
 	if err != nil {
 		return err
 	}
 
-	err = c.Watch(source.Kind(mgr.GetCache(), &machinev1.MachineHealthCheck{}), &handler.EnqueueRequestForObject{})
+	err = c.Watch(source.Kind(mgr.GetCache(), &machinev1.MachineHealthCheck{}, &handler.TypedEnqueueRequestForObject[*machinev1.MachineHealthCheck]{}))
 	if err != nil {
 		return err
 	}
 
-	err = c.Watch(source.Kind(mgr.GetCache(), &machinev1.Machine{}), handler.EnqueueRequestsFromMapFunc(mapMachineToMHC))
+	err = c.Watch(source.Kind(mgr.GetCache(), &machinev1.Machine{}, handler.TypedEnqueueRequestsFromMapFunc[*machinev1.Machine](mapMachineToMHC)))
 	if err != nil {
 		return err
 	}
 
-	return c.Watch(source.Kind(mgr.GetCache(), &corev1.Node{}), handler.EnqueueRequestsFromMapFunc(mapNodeToMHC))
+	return c.Watch(source.Kind(mgr.GetCache(), &corev1.Node{}, handler.TypedEnqueueRequestsFromMapFunc[*corev1.Node](mapNodeToMHC)))
 }
 
 var _ reconcile.Reconciler = &ReconcileMachineHealthCheck{}
@@ -561,7 +561,7 @@ func (r *ReconcileMachineHealthCheck) getMachineFromNode(nodeName string) (*mach
 	return &machineList.Items[0], nil
 }
 
-func (r *ReconcileMachineHealthCheck) mhcRequestsFromNode(ctx context.Context, o client.Object) []reconcile.Request {
+func (r *ReconcileMachineHealthCheck) mhcRequestsFromNode(ctx context.Context, o *corev1.Node) []reconcile.Request {
 	klog.V(4).Infof("Getting MHC requests from node %q", namespacedName(o).String())
 	node := &corev1.Node{}
 	if err := r.client.Get(ctx, namespacedName(o), node); err != nil {
@@ -595,7 +595,7 @@ func (r *ReconcileMachineHealthCheck) mhcRequestsFromNode(ctx context.Context, o
 	return requests
 }
 
-func (r *ReconcileMachineHealthCheck) mhcRequestsFromMachine(ctx context.Context, o client.Object) []reconcile.Request {
+func (r *ReconcileMachineHealthCheck) mhcRequestsFromMachine(ctx context.Context, o *machinev1.Machine) []reconcile.Request {
 	klog.V(4).Infof("Getting MHC requests from machine %q", namespacedName(o).String())
 	machine := &machinev1.Machine{}
 	if err := r.client.Get(ctx,

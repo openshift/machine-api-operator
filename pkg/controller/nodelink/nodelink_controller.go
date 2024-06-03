@@ -161,7 +161,7 @@ func newReconciler(mgr manager.Manager) (*ReconcileNodeLink, error) {
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
-func add(mgr manager.Manager, r reconcile.Reconciler, mapFn handler.MapFunc) error {
+func add(mgr manager.Manager, r reconcile.Reconciler, mapFn handler.TypedMapFunc[*machinev1.Machine]) error {
 	// Create a new controller
 	c, err := controller.New("nodelink-controller", mgr, controller.Options{Reconciler: r})
 	if err != nil {
@@ -169,13 +169,13 @@ func add(mgr manager.Manager, r reconcile.Reconciler, mapFn handler.MapFunc) err
 	}
 
 	//Watch for changes to Node
-	err = c.Watch(source.Kind(mgr.GetCache(), &corev1.Node{}), &handler.EnqueueRequestForObject{})
+	err = c.Watch(source.Kind(mgr.GetCache(), &corev1.Node{}, &handler.TypedEnqueueRequestForObject[*corev1.Node]{}))
 	if err != nil {
 		return err
 	}
 
 	// Watch for changes to Machines and enqueue if it exists the backed node
-	err = c.Watch(source.Kind(mgr.GetCache(), &machinev1.Machine{}), handler.EnqueueRequestsFromMapFunc(mapFn))
+	err = c.Watch(source.Kind(mgr.GetCache(), &machinev1.Machine{}, handler.TypedEnqueueRequestsFromMapFunc[*machinev1.Machine](mapFn)))
 	if err != nil {
 		return err
 	}
@@ -290,7 +290,7 @@ func (r *ReconcileNodeLink) updateNodeRef(machine *machinev1.Machine, node *core
 }
 
 // nodeRequestFromMachine returns a reconcile.request for the node backed by the received machine
-func (r *ReconcileNodeLink) nodeRequestFromMachine(ctx context.Context, o client.Object) []reconcile.Request {
+func (r *ReconcileNodeLink) nodeRequestFromMachine(ctx context.Context, o *machinev1.Machine) []reconcile.Request {
 	klog.V(3).Infof("Watched machine event, finding node to reconcile.Request")
 	// get machine
 	machine := &machinev1.Machine{}

@@ -123,9 +123,9 @@ func addWithOpts(mgr manager.Manager, opts controller.Options, controllerName st
 
 	// Watch for changes to Machine
 	return c.Watch(
-		source.Kind(mgr.GetCache(), &machinev1.Machine{}),
-		&handler.EnqueueRequestForObject{},
-	)
+		source.Kind(mgr.GetCache(), &machinev1.Machine{},
+			&handler.TypedEnqueueRequestForObject[*machinev1.Machine]{},
+		))
 }
 
 // ReconcileMachine reconciles a Machine object

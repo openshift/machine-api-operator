@@ -71,7 +71,7 @@ func newReconciler(mgr manager.Manager) *ReconcileMachineSet {
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler.
-func add(mgr manager.Manager, r reconcile.Reconciler, mapFn handler.MapFunc) error {
+func add(mgr manager.Manager, r reconcile.Reconciler, mapFn handler.TypedMapFunc[*machinev1.Machine]) error {
 	// Create a new controller.
 	c, err := controller.New(controllerName, mgr, controller.Options{Reconciler: r})
 	if err != nil {
@@ -80,27 +80,27 @@ func add(mgr manager.Manager, r reconcile.Reconciler, mapFn handler.MapFunc) err
 
 	// Watch for changes to MachineSet.
 	err = c.Watch(
-		source.Kind(mgr.GetCache(), &machinev1.MachineSet{}),
-		&handler.EnqueueRequestForObject{},
-	)
+		source.Kind(mgr.GetCache(), &machinev1.MachineSet{},
+			&handler.TypedEnqueueRequestForObject[*machinev1.MachineSet]{},
+		))
 	if err != nil {
 		return err
 	}
 
 	// Map Machine changes to MachineSets using ControllerRef.
 	err = c.Watch(
-		source.Kind(mgr.GetCache(), &machinev1.Machine{}),
-		handler.EnqueueRequestForOwner(mgr.GetScheme(), mgr.GetRESTMapper(), &machinev1.MachineSet{}, handler.OnlyControllerOwner()),
-	)
+		source.Kind(mgr.GetCache(), &machinev1.Machine{},
+			handler.TypedEnqueueRequestForOwner[*machinev1.Machine](mgr.GetScheme(), mgr.GetRESTMapper(), &machinev1.MachineSet{}, handler.OnlyControllerOwner()),
+		))
 	if err != nil {
 		return err
 	}
 
 	// Map Machine changes to MachineSets by machining labels.
 	return c.Watch(
-		source.Kind(mgr.GetCache(), &machinev1.Machine{}),
-		handler.EnqueueRequestsFromMapFunc(mapFn),
-	)
+		source.Kind(mgr.GetCache(), &machinev1.Machine{},
+			handler.TypedEnqueueRequestsFromMapFunc[*machinev1.Machine](mapFn),
+		))
 }
 
 // ReconcileMachineSet reconciles a MachineSet object
@@ -110,7 +110,7 @@ type ReconcileMachineSet struct {
 	recorder record.EventRecorder
 }
 
-func (r *ReconcileMachineSet) MachineToMachineSets(ctx context.Context, o client.Object) []reconcile.Request {
+func (r *ReconcileMachineSet) MachineToMachineSets(ctx context.Context, o *machinev1.Machine) []reconcile.Request {
 	result := []reconcile.Request{}
 	m := &machinev1.Machine{}
 	key := client.ObjectKey{Namespace: o.GetNamespace(), Name: o.GetName()}
