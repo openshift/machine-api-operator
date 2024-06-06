@@ -43,8 +43,8 @@ func TestGet(t *testing.T) {
 	g.Expect(Get(mhc, "conditionBaz")).To(haveSameStateOf(TrueCondition("conditionBaz")))
 }
 
-func conditionList(conditions ...*machinev1.Condition) machinev1.Conditions {
-	cs := machinev1.Conditions{}
+func conditionList(conditions ...*machinev1.Condition) []machinev1.Condition {
+	cs := []machinev1.Condition{}
 	for _, x := range conditions {
 		if x != nil {
 			cs = append(cs, *x)
@@ -134,7 +134,7 @@ func TestSet(t *testing.T) {
 		name      string
 		to        *machinev1.MachineHealthCheck
 		condition *machinev1.Condition
-		want      machinev1.Conditions
+		want      []machinev1.Condition
 	}{
 		{
 			name:      "Set adds a condition",
@@ -238,18 +238,18 @@ func setterWithConditions(conditions ...*machinev1.Condition) *machinev1.Machine
 	return obj
 }
 
-func haveSameConditionsOf(expected machinev1.Conditions) types.GomegaMatcher {
+func haveSameConditionsOf(expected []machinev1.Condition) types.GomegaMatcher {
 	return &ConditionsMatcher{
 		Expected: expected,
 	}
 }
 
 type ConditionsMatcher struct {
-	Expected machinev1.Conditions
+	Expected []machinev1.Condition
 }
 
 func (matcher *ConditionsMatcher) Match(actual interface{}) (success bool, err error) {
-	actualConditions, ok := actual.(machinev1.Conditions)
+	actualConditions, ok := actual.([]machinev1.Condition)
 	if !ok {
 		return false, errors.New("Value should be a conditions list")
 	}

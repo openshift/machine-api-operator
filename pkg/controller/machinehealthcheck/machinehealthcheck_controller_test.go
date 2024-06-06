@@ -265,7 +265,7 @@ func TestReconcile(t *testing.T) {
 				ExpectedMachines:    IntPtr(1),
 				CurrentHealthy:      IntPtr(0),
 				RemediationsAllowed: 0,
-				Conditions: machinev1.Conditions{
+				Conditions: []machinev1.Condition{
 					remediationAllowedCondition,
 				},
 			},
@@ -296,7 +296,7 @@ func TestReconcile(t *testing.T) {
 				ExpectedMachines:    IntPtr(1),
 				CurrentHealthy:      IntPtr(1),
 				RemediationsAllowed: 1,
-				Conditions: machinev1.Conditions{
+				Conditions: []machinev1.Condition{
 					remediationAllowedCondition,
 				},
 			},
@@ -315,7 +315,7 @@ func TestReconcile(t *testing.T) {
 				ExpectedMachines:    IntPtr(1),
 				CurrentHealthy:      IntPtr(0),
 				RemediationsAllowed: 0,
-				Conditions: machinev1.Conditions{
+				Conditions: []machinev1.Condition{
 					remediationAllowedCondition,
 				},
 			},
@@ -337,7 +337,7 @@ func TestReconcile(t *testing.T) {
 				ExpectedMachines:    IntPtr(1),
 				CurrentHealthy:      IntPtr(0),
 				RemediationsAllowed: 0,
-				Conditions: machinev1.Conditions{
+				Conditions: []machinev1.Condition{
 					remediationAllowedCondition,
 				},
 			},
@@ -356,7 +356,7 @@ func TestReconcile(t *testing.T) {
 				ExpectedMachines:    IntPtr(0),
 				CurrentHealthy:      IntPtr(0),
 				RemediationsAllowed: 0,
-				Conditions: machinev1.Conditions{
+				Conditions: []machinev1.Condition{
 					remediationAllowedCondition,
 				},
 			},
@@ -375,7 +375,7 @@ func TestReconcile(t *testing.T) {
 				ExpectedMachines:    IntPtr(0),
 				CurrentHealthy:      IntPtr(0),
 				RemediationsAllowed: 0,
-				Conditions: machinev1.Conditions{
+				Conditions: []machinev1.Condition{
 					remediationAllowedCondition,
 				},
 			},
@@ -394,7 +394,7 @@ func TestReconcile(t *testing.T) {
 				ExpectedMachines:    IntPtr(1),
 				CurrentHealthy:      IntPtr(0),
 				RemediationsAllowed: 0,
-				Conditions: machinev1.Conditions{
+				Conditions: []machinev1.Condition{
 					remediationAllowedCondition,
 				},
 			},
@@ -415,7 +415,7 @@ func TestReconcile(t *testing.T) {
 				ExpectedMachines:    IntPtr(1),
 				CurrentHealthy:      IntPtr(0),
 				RemediationsAllowed: 0,
-				Conditions: machinev1.Conditions{
+				Conditions: []machinev1.Condition{
 					remediationAllowedCondition,
 				},
 			},
@@ -434,7 +434,7 @@ func TestReconcile(t *testing.T) {
 				ExpectedMachines:    IntPtr(1),
 				CurrentHealthy:      IntPtr(0),
 				RemediationsAllowed: 0,
-				Conditions: machinev1.Conditions{
+				Conditions: []machinev1.Condition{
 					remediationAllowedCondition,
 				},
 			},
@@ -453,7 +453,7 @@ func TestReconcile(t *testing.T) {
 				ExpectedMachines:    IntPtr(1),
 				CurrentHealthy:      IntPtr(1),
 				RemediationsAllowed: 0,
-				Conditions: machinev1.Conditions{
+				Conditions: []machinev1.Condition{
 					remediationAllowedCondition,
 				},
 			},
@@ -474,7 +474,7 @@ func TestReconcile(t *testing.T) {
 				ExpectedMachines:    IntPtr(1),
 				CurrentHealthy:      IntPtr(0),
 				RemediationsAllowed: 0,
-				Conditions: machinev1.Conditions{
+				Conditions: []machinev1.Condition{
 					{
 						Type:     machinev1.RemediationAllowedCondition,
 						Status:   corev1.ConditionFalse,
@@ -528,7 +528,7 @@ func TestReconcileExternalRemediationTemplate(t *testing.T) {
 				ExpectedMachines:    IntPtr(1),
 				CurrentHealthy:      IntPtr(1),
 				RemediationsAllowed: 1,
-				Conditions: machinev1.Conditions{
+				Conditions: []machinev1.Condition{
 					remediationAllowedCondition,
 				},
 			},
@@ -550,7 +550,7 @@ func TestReconcileExternalRemediationTemplate(t *testing.T) {
 				ExpectedMachines:    IntPtr(1),
 				CurrentHealthy:      IntPtr(0),
 				RemediationsAllowed: 0,
-				Conditions: machinev1.Conditions{
+				Conditions: []machinev1.Condition{
 					remediationAllowedCondition,
 				},
 			},
@@ -572,7 +572,7 @@ func TestReconcileExternalRemediationTemplate(t *testing.T) {
 				ExpectedMachines:    IntPtr(1),
 				CurrentHealthy:      IntPtr(0),
 				RemediationsAllowed: 0,
-				Conditions: machinev1.Conditions{
+				Conditions: []machinev1.Condition{
 					remediationAllowedCondition,
 				},
 			},

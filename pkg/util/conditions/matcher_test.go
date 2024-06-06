@@ -29,18 +29,18 @@ func TestMatchConditions(t *testing.T) {
 	testCases := []struct {
 		name        string
 		actual      interface{}
-		expected    machinev1.Conditions
+		expected    []machinev1.Condition
 		expectMatch bool
 	}{
 		{
 			name:        "with an empty conditions",
-			actual:      machinev1.Conditions{},
-			expected:    machinev1.Conditions{},
+			actual:      []machinev1.Condition{},
+			expected:    []machinev1.Condition{},
 			expectMatch: true,
 		},
 		{
 			name: "with matching conditions",
-			actual: machinev1.Conditions{
+			actual: []machinev1.Condition{
 				{
 					Type:               machinev1.ConditionType("type"),
 					Status:             corev1.ConditionTrue,
@@ -50,7 +50,7 @@ func TestMatchConditions(t *testing.T) {
 					Message:            "message",
 				},
 			},
-			expected: machinev1.Conditions{
+			expected: []machinev1.Condition{
 				{
 					Type:               machinev1.ConditionType("type"),
 					Status:             corev1.ConditionTrue,
@@ -64,7 +64,7 @@ func TestMatchConditions(t *testing.T) {
 		},
 		{
 			name: "with non-matching conditions",
-			actual: machinev1.Conditions{
+			actual: []machinev1.Condition{
 				{
 					Type:               machinev1.ConditionType("type"),
 					Status:             corev1.ConditionTrue,
@@ -82,7 +82,7 @@ func TestMatchConditions(t *testing.T) {
 					Message:            "message",
 				},
 			},
-			expected: machinev1.Conditions{
+			expected: []machinev1.Condition{
 				{
 					Type:               machinev1.ConditionType("type"),
 					Status:             corev1.ConditionTrue,
@@ -104,7 +104,7 @@ func TestMatchConditions(t *testing.T) {
 		},
 		{
 			name: "with a different number of conditions",
-			actual: machinev1.Conditions{
+			actual: []machinev1.Condition{
 				{
 					Type:               machinev1.ConditionType("type"),
 					Status:             corev1.ConditionTrue,
@@ -122,7 +122,7 @@ func TestMatchConditions(t *testing.T) {
 					Message:            "message",
 				},
 			},
-			expected: machinev1.Conditions{
+			expected: []machinev1.Condition{
 				{
 					Type:               machinev1.ConditionType("type"),
 					Status:             corev1.ConditionTrue,
