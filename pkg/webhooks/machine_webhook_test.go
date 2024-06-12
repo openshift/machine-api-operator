@@ -332,6 +332,48 @@ func TestMachineCreation(t *testing.T) {
 			expectedError: "",
 		},
 		{
+			name:         "with Azure and CapacityReservationID is empty",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AzureMachineProviderSpec{
+					OSDisk: machinev1beta1.OSDisk{
+						DiskSizeGB: 128,
+					},
+					CapacityReservationGroupID: "",
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "with Azure and CapacityReservationID is valid",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AzureMachineProviderSpec{
+					OSDisk: machinev1beta1.OSDisk{
+						DiskSizeGB: 128,
+					},
+					CapacityReservationGroupID: "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myResourceGroupName/providers/Microsoft.Compute/capacityReservationGroups/myCapacityReservationGroup",
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "with Azure and CapacityReservationID is not valid",
+			platformType: osconfigv1.AzurePlatformType,
+			clusterID:    "azure-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AzureMachineProviderSpec{
+					OSDisk: machinev1beta1.OSDisk{
+						DiskSizeGB: 128,
+					},
+					CapacityReservationGroupID: "/subscri/00000000-0000-0000-0000-000000000000/resour/myResourceGroupName/providers/Microsoft.Compute/capacityReservationGroups/myCapacityReservationGroup",
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: providerSpec.capacityReservationGroupID: Invalid value: \"/subscri/00000000-0000-0000-0000-000000000000/resour/myResourceGroupName/providers/Microsoft.Compute/capacityReservationGroups/myCapacityReservationGroup\": invalid resource ID: /subscri/00000000-0000-0000-0000-000000000000/resour/myResourceGroupName/providers/Microsoft.Compute/capacityReservationGroups/myCapacityReservationGroup",
+		},
+		{
 			name:         "with Azure and a Premium Disk Data Disk set",
 			platformType: osconfigv1.AzurePlatformType,
 			clusterID:    "azure-cluster",
@@ -4974,6 +5016,47 @@ func TestValidateNutanixProviderSpec(t *testing.T) {
 
 			if !reflect.DeepEqual(warnings, tc.expectedWarnings) {
 				t.Errorf("expected: %q, got: %q", tc.expectedWarnings, warnings)
+			}
+		})
+	}
+}
+
+func TestValidateAzureCapacityReservationGroupID(t *testing.T) {
+	testCases := []struct {
+		name        string
+		inputID     string
+		expectError bool
+	}{
+		{
+			name:        "validation for capacityReservationGroupID should return nil error if field input is valid",
+			inputID:     "/subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myResourceGroupName/providers/Microsoft.Compute/capacityReservationGroups/myCapacityReservationGroup",
+			expectError: false,
+		},
+		{
+			name:        "validation for capacityReservationGroupID should return error if field input does not start with '/'",
+			inputID:     "subscriptions/00000000-0000-0000-0000-000000000000/resourceGroups/myResourceGroupName/providers/Microsoft.Compute/capacityReservationGroups/myCapacityReservationGroup",
+			expectError: true,
+		},
+		{
+			name:        "validation for capacityReservationGroupID should return error if field input does not have field name subscriptions",
+			inputID:     "/subscripti/00000000-0000-0000-0000-000000000000/resourceGroups/myResourceGroupName/providers/Microsoft.Compute/capacityReservationGroups/myCapacityReservationGroup",
+			expectError: true,
+		},
+		{
+			name:        "validation for capacityReservationGroupID should return error if field input is empty",
+			inputID:     "",
+			expectError: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			err := validateAzureCapacityReservationGroupID(tc.inputID)
+			if tc.expectError {
+				g.Expect(err).To(HaveOccurred())
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
 			}
 		})
 	}

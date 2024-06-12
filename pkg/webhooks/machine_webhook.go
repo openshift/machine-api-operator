@@ -187,6 +187,12 @@ const (
 	powerVSImage                    = "image"
 	powerVSSystemTypeE880           = "e880"
 	powerVSSystemTypeE980           = "e980"
+	azureProviderIDPrefix           = "azure://"
+	azureProvidersKey               = "providers"
+	azureSubscriptionsKey           = "subscriptions"
+	azureResourceGroupsLowerKey     = "resourcegroups"
+	azureLocationsKey               = "locations"
+	azureBuiltInResourceNamespace   = "Microsoft.Resources"
 )
 
 // GCP Confidential VM supports Compute Engine machine types in the following series:
@@ -918,6 +924,12 @@ func validateAzure(m *machinev1beta1.Machine, config *admissionConfig) (bool, []
 	if providerSpec.OSDisk.DiskSettings.EphemeralStorageLocation != azureEphemeralStorageLocationLocal && providerSpec.OSDisk.DiskSettings.EphemeralStorageLocation != "" {
 		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "osDisk", "diskSettings", "ephemeralStorageLocation"), providerSpec.OSDisk.DiskSettings.EphemeralStorageLocation,
 			fmt.Sprintf("osDisk.diskSettings.ephemeralStorageLocation can either be omitted or set to %s", azureEphemeralStorageLocationLocal)))
+	}
+	if providerSpec.CapacityReservationGroupID != "" {
+		err := validateAzureCapacityReservationGroupID(providerSpec.CapacityReservationGroupID)
+		if err != nil {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "capacityReservationGroupID"), providerSpec.CapacityReservationGroupID, err.Error()))
+		}
 	}
 
 	switch providerSpec.OSDisk.CachingType {
@@ -2039,4 +2051,67 @@ func validateGVK(gvk schema.GroupVersionKind, platform osconfigv1.PlatformType) 
 	default:
 		return true
 	}
+}
+
+// validateAzureCapacityReservationGroupID validate capacity reservation group ID.
+func validateAzureCapacityReservationGroupID(capacityReservationGroupID string) error {
+	id := strings.TrimPrefix(capacityReservationGroupID, azureProviderIDPrefix)
+	err := parseAzureResourceID(id)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// parseAzureResourceID parses a string to an instance of ResourceID
+func parseAzureResourceID(id string) error {
+	if len(id) == 0 {
+		return fmt.Errorf("invalid resource ID: id cannot be empty")
+	}
+	if !strings.HasPrefix(id, "/") {
+		return fmt.Errorf("invalid resource ID: resource id '%s' must start with '/'", id)
+	}
+	parts := splitStringAndOmitEmpty(id, "/")
+
+	if len(parts) < 2 {
+		return fmt.Errorf("invalid resource ID: %s", id)
+	}
+	if !strings.EqualFold(parts[0], azureSubscriptionsKey) && !strings.EqualFold(parts[0], azureProvidersKey) {
+		return fmt.Errorf("invalid resource ID: %s", id)
+	}
+	return appendNextAzureResourceIDValidation(parts, id)
+}
+
+func splitStringAndOmitEmpty(v, sep string) []string {
+	r := make([]string, 0)
+	for _, s := range strings.Split(v, sep) {
+		if len(s) == 0 {
+			continue
+		}
+		r = append(r, s)
+	}
+	return r
+}
+
+func appendNextAzureResourceIDValidation(parts []string, id string) error {
+	if len(parts) == 0 {
+		return nil
+	}
+	if len(parts) == 1 {
+		// subscriptions and resourceGroups are not valid ids without their names
+		if strings.EqualFold(parts[0], azureSubscriptionsKey) || strings.EqualFold(parts[0], azureResourceGroupsLowerKey) {
+			return fmt.Errorf("invalid resource ID: %s", id)
+		}
+		return nil
+	}
+	if strings.EqualFold(parts[0], azureProvidersKey) && (len(parts) == 2 || strings.EqualFold(parts[2], azureProvidersKey)) {
+		return appendNextAzureResourceIDValidation(parts[2:], id)
+	}
+	if len(parts) > 3 && strings.EqualFold(parts[0], azureProvidersKey) {
+		return appendNextAzureResourceIDValidation(parts[4:], id)
+	}
+	if len(parts) > 1 && !strings.EqualFold(parts[0], azureProvidersKey) {
+		return appendNextAzureResourceIDValidation(parts[2:], id)
+	}
+	return fmt.Errorf("invalid resource ID: %s", id)
 }
