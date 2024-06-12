@@ -9,8 +9,8 @@ require (
 	github.com/google/uuid v1.3.0
 	github.com/onsi/ginkgo/v2 v2.12.1
 	github.com/onsi/gomega v1.28.0
-	github.com/openshift/api v0.0.0-20231120222239-b86761094ee3
-	github.com/openshift/client-go v0.0.0-20231121143148-910ca30a1a9a
+	github.com/openshift/api v0.0.0-20240729140855-0a58f8c30a8c
+	github.com/openshift/client-go v0.0.0-20240109161853-2425b4b6d3b3
 	github.com/openshift/library-go v0.0.0-20230927113136-405c34317fa4
 	github.com/prometheus/client_golang v1.17.0
 	github.com/spf13/cobra v1.7.0
