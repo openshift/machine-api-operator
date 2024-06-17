@@ -36,6 +36,8 @@ require (
 
 require (
 	github.com/golangci/golangci-lint v1.58.2
+	github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20240214091802-e8d3b3dc5ca4
+	github.com/openshift/cluster-control-plane-machine-set-operator v0.0.0-20240613191005-69ab2b776804
 	golang.org/x/time v0.5.0
 	sigs.k8s.io/kube-storage-version-migrator v0.0.6-0.20230721195810-5c8923c5ff96
 )
@@ -101,6 +103,7 @@ require (
 	github.com/go-openapi/jsonreference v0.21.0 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect
 	github.com/go-task/slim-sprig/v3 v3.0.0 // indirect
+	github.com/go-test/deep v1.1.0 // indirect
 	github.com/go-toolsmith/astcast v1.1.0 // indirect
 	github.com/go-toolsmith/astcopy v1.1.0 // indirect
 	github.com/go-toolsmith/astequal v1.2.0 // indirect

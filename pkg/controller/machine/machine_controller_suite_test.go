@@ -20,6 +20,7 @@ import (
 	"context"
 	"flag"
 	"log"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -40,9 +41,6 @@ func init() {
 	textLoggerConfig := textlogger.NewConfig()
 	textLoggerConfig.AddFlags(flag.CommandLine)
 	logf.SetLogger(textlogger.NewLogger(textLoggerConfig))
-
-	// Register required object kinds with global scheme.
-	_ = machinev1.Install(scheme.Scheme)
 }
 
 const (
@@ -85,6 +83,15 @@ var _ = AfterSuite(func() {
 	Expect(testEnv.Stop()).To(Succeed())
 })
 
+func TestMain(m *testing.M) {
+	// Register required object kinds with global scheme.
+	if err := machinev1.Install(scheme.Scheme); err != nil {
+		log.Fatalf("cannot add scheme: %v", err)
+	}
+	exitVal := m.Run()
+	os.Exit(exitVal)
+}
+
 func StartEnvTest(t *testing.T) func(t *testing.T) {
 	testEnv := &envtest.Environment{
 
@@ -93,9 +100,6 @@ func StartEnvTest(t *testing.T) func(t *testing.T) {
 				filepath.Join("..", "..", "..", "vendor", "github.com", "openshift", "api", "machine", "v1beta1", "zz_generated.crd-manifests", "0000_10_machine-api_01_machines-CustomNoUpgrade.crd.yaml"),
 			},
 		},
-	}
-	if err := machinev1.Install(scheme.Scheme); err != nil {
-		log.Fatalf("cannot add scheme: %v", err)
 	}
 
 	var err error
