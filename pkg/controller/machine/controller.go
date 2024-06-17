@@ -78,7 +78,7 @@ const (
 const (
 	PausedCondition machinev1.ConditionType = "Paused"
 
-	PausedConditionReason = "AuthoritativeAPI is not set to MachineAPI"
+	PausedConditionReason = "AuthoritativeAPINotMachineAPI"
 
 	NotPausedConditionReason = "AuthoritativeAPIIsMachineAPI"
 )

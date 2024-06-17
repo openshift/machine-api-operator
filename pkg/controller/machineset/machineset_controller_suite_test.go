@@ -19,6 +19,8 @@ package machineset
 import (
 	"context"
 	"flag"
+	"log"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -38,9 +40,6 @@ func init() {
 	textLoggerConfig := textlogger.NewConfig()
 	textLoggerConfig.AddFlags(flag.CommandLine)
 	logf.SetLogger(textlogger.NewLogger(textLoggerConfig))
-
-	// Register required object kinds with global scheme.
-	_ = machinev1.Install(scheme.Scheme)
 }
 
 const (
@@ -62,6 +61,7 @@ func TestMachinesetController(t *testing.T) {
 
 var _ = BeforeSuite(func(ctx SpecContext) {
 	By("bootstrapping test environment")
+
 	testEnv = &envtest.Environment{
 
 		CRDInstallOptions: envtest.CRDInstallOptions{
@@ -83,3 +83,12 @@ var _ = AfterSuite(func() {
 	By("tearing down the test environment")
 	Expect(testEnv.Stop()).To(Succeed())
 })
+
+func TestMain(m *testing.M) {
+	// Register required object kinds with global scheme.
+	if err := machinev1.Install(scheme.Scheme); err != nil {
+		log.Fatalf("cannot add scheme: %v", err)
+	}
+	exitVal := m.Run()
+	os.Exit(exitVal)
+}
