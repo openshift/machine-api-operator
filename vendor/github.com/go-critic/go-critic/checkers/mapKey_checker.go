@@ -17,7 +17,7 @@ import (
 func init() {
 	var info linter.CheckerInfo
 	info.Name = "mapKey"
-	info.Tags = []string{"diagnostic"}
+	info.Tags = []string{linter.DiagnosticTag}
 	info.Summary = "Detects suspicious map literal keys"
 	info.Before = `
 _ = map[string]int{
@@ -117,7 +117,7 @@ func (c *mapKeyChecker) checkWhitespace(lit *ast.CompositeLit) {
 }
 
 func (c *mapKeyChecker) warnWhitespace(key ast.Node) {
-	c.ctx.Warn(key, "suspucious whitespace in %s key", key)
+	c.ctx.Warn(key, "suspicious whitespace in %s key", key)
 }
 
 func (c *mapKeyChecker) warnDupKey(key ast.Node) {
