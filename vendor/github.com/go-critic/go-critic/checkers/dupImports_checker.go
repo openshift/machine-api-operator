@@ -10,12 +10,12 @@ import (
 func init() {
 	var info linter.CheckerInfo
 	info.Name = "dupImport"
-	info.Tags = []string{"style", "experimental"}
+	info.Tags = []string{linter.StyleTag, linter.ExperimentalTag}
 	info.Summary = "Detects multiple imports of the same package under different aliases"
 	info.Before = `
 import (
 	"fmt"
-	priting "fmt" // Imported the second time
+	printing "fmt" // Imported the second time
 )`
 	info.After = `
 import(
