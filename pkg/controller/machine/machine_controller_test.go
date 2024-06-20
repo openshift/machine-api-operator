@@ -192,6 +192,17 @@ var _ = Describe("Machine Reconciler", func() {
 			HaveField("Type", Equal(PausedCondition)),
 			HaveField("Status", Equal(corev1.ConditionFalse)),
 		))))
+
+		By("Unsetting the AuthoritativeAPI field in the status")
+		Eventually(k.UpdateStatus(instance, func() {
+			instance.Status.AuthoritativeAPI = ""
+		})).Should(Succeed())
+
+		By("Verifying the paused condition is still approproately set to false")
+		Eventually(k.Object(instance), timeout).Should(HaveField("Status.Conditions", ContainElement(SatisfyAll(
+			HaveField("Type", Equal(PausedCondition)),
+			HaveField("Status", Equal(corev1.ConditionFalse)),
+		))))
 	})
 })
 

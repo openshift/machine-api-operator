@@ -177,7 +177,11 @@ func (r *ReconcileMachineSet) Reconcile(ctx context.Context, request reconcile.R
 
 	// Check Status.AuthoritativeAPI. If it's not set to MachineAPI. Set the
 	// paused condition true and return early.
-	if machineSet.Status.AuthoritativeAPI != machinev1.MachineAuthorityMachineAPI {
+	//
+	// Once we have a webhook, we want to remove the check that the AuthoritativeAPI
+	// field is populated.
+	if machineSet.Status.AuthoritativeAPI != "" &&
+		machineSet.Status.AuthoritativeAPI != machinev1.MachineAuthorityMachineAPI {
 		conditions.Set(machineSetCopy, conditions.TrueConditionWithReason(
 			PausedCondition,
 			PausedConditionReason,
