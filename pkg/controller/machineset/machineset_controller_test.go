@@ -22,8 +22,12 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	configv1 "github.com/openshift/api/config/v1"
+
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	machinev1resourcebuilder "github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/machine/v1beta1"
+	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
 
 	"github.com/openshift/cluster-control-plane-machine-set-operator/test/e2e/framework"
 	corev1 "k8s.io/api/core/v1"
@@ -33,6 +37,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/komega"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
@@ -56,8 +61,15 @@ var _ = Describe("MachineSet Reconciler", func() {
 		k8sClient = mgr.GetClient()
 		k = komega.New(k8sClient)
 
+		By("Setting up feature gates")
+		featureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
+			[]configv1.FeatureGateName{
+				"MachineAPIMigration",
+			},
+			[]configv1.FeatureGateName{})
+
 		By("Setting up a new reconciler")
-		reconciler := newReconciler(mgr)
+		reconciler := newReconciler(mgr, featureGateAccessor)
 
 		Expect(add(mgr, reconciler, reconciler.MachineToMachineSets)).To(Succeed())
 
@@ -180,7 +192,7 @@ var _ = Describe("MachineSet Reconciler", func() {
 					By("Checking that the paused condition is consistently true whilst migrating to MachineAPI")
 
 					localInstance := instanceCopy.DeepCopy()
-					if err := k8sClient.Get(ctx, objectKey(localInstance), localInstance); err != nil {
+					if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(localInstance), localInstance); err != nil {
 						return g.Expect(err).Should(WithTransform(isRetryableAPIError, BeTrue()), "expected temporary error while getting machine: %v", err)
 					}
 
@@ -195,7 +207,7 @@ var _ = Describe("MachineSet Reconciler", func() {
 					By("Checking that the AuthoritativeAPI is not MachineAPI")
 
 					localInstance := instanceCopy.DeepCopy()
-					if err := k8sClient.Get(ctx, objectKey(localInstance), localInstance); err != nil {
+					if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(localInstance), localInstance); err != nil {
 						return g.Expect(err).Should(WithTransform(isRetryableAPIError, BeTrue()), "expected temporary error while getting machine: %v", err)
 					}
 
@@ -252,14 +264,29 @@ func cleanResources() error {
 		}
 	}
 
-	return nil
-}
-
-func objectKey(object metav1.Object) client.ObjectKey {
-	return client.ObjectKey{
-		Namespace: object.GetNamespace(),
-		Name:      object.GetName(),
+	clusterVersions := &configv1.ClusterVersionList{}
+	if err := k8sClient.List(ctx, clusterVersions); err != nil {
+		return err
 	}
+	for _, clusterVersion := range clusterVersions.Items {
+		cv := clusterVersion
+		if err := k8sClient.Delete(ctx, &cv); err != nil {
+			return err
+		}
+	}
+
+	featureGates := &configv1.FeatureGateList{}
+	if err := k8sClient.List(ctx, featureGates); err != nil {
+		return err
+	}
+	for _, gate := range featureGates.Items {
+		fg := gate
+		if err := k8sClient.Delete(ctx, &fg); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // isRetryableAPIError returns whether an API error is retryable or not.
