@@ -25,7 +25,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/openshift/api/features"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
+	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
 	"github.com/openshift/machine-api-operator/pkg/util"
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
 	corev1 "k8s.io/api/core/v1"
@@ -69,14 +71,18 @@ var (
 
 // Add creates a new MachineSet Controller and adds it to the Manager with default RBAC.
 // The Manager will set fields on the Controller and Start it when the Manager is Started.
-func Add(mgr manager.Manager, opts manager.Options) error {
-	r := newReconciler(mgr)
+func Add(mgr manager.Manager, opts manager.Options, featureGateAccessor featuregates.FeatureGateAccess) error {
+	r := newReconciler(mgr, featureGateAccessor)
 	return add(mgr, r, r.MachineToMachineSets)
 }
 
 // newReconciler returns a new reconcile.Reconciler.
-func newReconciler(mgr manager.Manager) *ReconcileMachineSet {
-	return &ReconcileMachineSet{Client: mgr.GetClient(), scheme: mgr.GetScheme(), recorder: mgr.GetEventRecorderFor(controllerName)}
+func newReconciler(mgr manager.Manager, featureGateAccessor featuregates.FeatureGateAccess) *ReconcileMachineSet {
+	return &ReconcileMachineSet{
+		Client: mgr.GetClient(), scheme: mgr.GetScheme(),
+		recorder:            mgr.GetEventRecorderFor(controllerName),
+		featureGateAccessor: featureGateAccessor,
+	}
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler.
@@ -115,8 +121,9 @@ func add(mgr manager.Manager, r reconcile.Reconciler, mapFn handler.TypedMapFunc
 // ReconcileMachineSet reconciles a MachineSet object
 type ReconcileMachineSet struct {
 	client.Client
-	scheme   *runtime.Scheme
-	recorder record.EventRecorder
+	scheme              *runtime.Scheme
+	recorder            record.EventRecorder
+	featureGateAccessor featuregates.FeatureGateAccess
 }
 
 func (r *ReconcileMachineSet) MachineToMachineSets(ctx context.Context, o *machinev1.Machine) []reconcile.Request {
@@ -173,40 +180,48 @@ func (r *ReconcileMachineSet) Reconcile(ctx context.Context, request reconcile.R
 		return reconcile.Result{}, nil
 	}
 
-	machineSetCopy := machineSet.DeepCopy()
+	var currentFeatureGates featuregates.FeatureGate
+	currentFeatureGates, err := r.featureGateAccessor.CurrentFeatureGates()
 
-	// Check Status.AuthoritativeAPI. If it's not set to MachineAPI. Set the
-	// paused condition true and return early.
-	//
-	// Once we have a webhook, we want to remove the check that the AuthoritativeAPI
-	// field is populated.
-	if machineSet.Status.AuthoritativeAPI != "" &&
-		machineSet.Status.AuthoritativeAPI != machinev1.MachineAuthorityMachineAPI {
-		conditions.Set(machineSetCopy, conditions.TrueConditionWithReason(
+	if err != nil {
+		return reconcile.Result{}, fmt.Errorf("unable to retrieve current feature gates: %w", err)
+	}
+
+	if currentFeatureGates.Enabled(features.FeatureGateMachineAPIMigration) {
+		machineSetCopy := machineSet.DeepCopy()
+		// Check Status.AuthoritativeAPI. If it's not set to MachineAPI. Set the
+		// paused condition true and return early.
+		//
+		// Once we have a webhook, we want to remove the check that the AuthoritativeAPI
+		// field is populated.
+		if machineSet.Status.AuthoritativeAPI != "" &&
+			machineSet.Status.AuthoritativeAPI != machinev1.MachineAuthorityMachineAPI {
+			conditions.Set(machineSetCopy, conditions.TrueConditionWithReason(
+				PausedCondition,
+				PausedConditionReason,
+				"The AuthoritativeAPI is set to %s", machineSet.Status.AuthoritativeAPI,
+			))
+
+			_, err := updateMachineSetStatus(r.Client, machineSet, machineSetCopy.Status)
+			if err != nil {
+				klog.Errorf("%v: error updating status: %v", machineSet.Name, err)
+			}
+
+			klog.Infof("%v: setting paused to true and returning early", machineSet.Name)
+			return reconcile.Result{}, nil
+		}
+
+		conditions.Set(machineSetCopy, conditions.FalseCondition(
 			PausedCondition,
-			PausedConditionReason,
-			"The AuthoritativeAPI is set to %s", machineSet.Status.AuthoritativeAPI,
+			NotPausedConditionReason,
+			"The AuthoritativeAPI is set to %s", string(machineSet.Status.AuthoritativeAPI),
 		))
-
 		_, err := updateMachineSetStatus(r.Client, machineSet, machineSetCopy.Status)
 		if err != nil {
 			klog.Errorf("%v: error updating status: %v", machineSet.Name, err)
 		}
-
-		klog.Infof("%v: setting paused to true and returning early", machineSet.Name)
-		return reconcile.Result{}, nil
+		klog.Infof("%v: setting paused to false and continuing reconcile", machineSet.Name)
 	}
-
-	conditions.Set(machineSetCopy, conditions.FalseCondition(
-		PausedCondition,
-		NotPausedConditionReason,
-		"The AuthoritativeAPI is set to %s", string(machineSet.Status.AuthoritativeAPI),
-	))
-	_, err := updateMachineSetStatus(r.Client, machineSet, machineSetCopy.Status)
-	if err != nil {
-		klog.Errorf("%v: error updating status: %v", machineSet.Name, err)
-	}
-	klog.Infof("%v: setting paused to false and continuing reconcile", machineSet.Name)
 
 	result, err := r.reconcile(ctx, machineSet)
 	if err != nil {

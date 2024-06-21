@@ -24,7 +24,9 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
+	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -290,10 +292,16 @@ var _ = Describe("MachineSet Reconcile", func() {
 
 	BeforeEach(func() {
 		rec = record.NewFakeRecorder(32)
+		featureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
+			[]configv1.FeatureGateName{
+				"MachineAPIMigration",
+			},
+			[]configv1.FeatureGateName{})
 
 		r = &ReconcileMachineSet{
-			scheme:   scheme.Scheme,
-			recorder: rec,
+			scheme:              scheme.Scheme,
+			recorder:            rec,
+			featureGateAccessor: featureGateAccessor,
 		}
 	})
 

@@ -28,6 +28,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -86,6 +87,9 @@ var _ = AfterSuite(func() {
 func TestMain(m *testing.M) {
 	// Register required object kinds with global scheme.
 	if err := machinev1.Install(scheme.Scheme); err != nil {
+		log.Fatalf("cannot add scheme: %v", err)
+	}
+	if err := configv1.Install(scheme.Scheme); err != nil {
 		log.Fatalf("cannot add scheme: %v", err)
 	}
 	exitVal := m.Run()

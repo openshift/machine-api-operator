@@ -17,9 +17,11 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -36,7 +38,11 @@ import (
 
 	osconfigv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
+	configv1client "github.com/openshift/client-go/config/clientset/versioned"
+	configinformers "github.com/openshift/client-go/config/informers/externalversions"
 	"github.com/openshift/library-go/pkg/config/leaderelection"
+	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
+	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/machine-api-operator/pkg/controller"
 	"github.com/openshift/machine-api-operator/pkg/controller/machineset"
 	"github.com/openshift/machine-api-operator/pkg/metrics"
@@ -152,6 +158,35 @@ func main() {
 		log.Fatal(err)
 	}
 
+	desiredVersion := getReleaseVersion()
+	missingVersion := "0.0.1-snapshot"
+
+	configClient, err := configv1client.NewForConfig(mgr.GetConfig())
+	if err != nil {
+		klog.Fatal(err, "unable to create config client")
+		os.Exit(1)
+	}
+
+	configInformers := configinformers.NewSharedInformerFactory(configClient, 10*time.Minute)
+
+	// By default, this will exit(0) if the featuregates change
+	featureGateAccessor := featuregates.NewFeatureGateAccess(
+		desiredVersion, missingVersion,
+		configInformers.Config().V1().ClusterVersions(),
+		configInformers.Config().V1().FeatureGates(),
+		events.NewLoggingEventRecorder("controlplanemachineset"),
+	)
+	go featureGateAccessor.Run(context.Background())
+	go configInformers.Start(context.Background().Done())
+
+	select {
+	case <-featureGateAccessor.InitialFeatureGatesObserved():
+		featureGates, _ := featureGateAccessor.CurrentFeatureGates()
+		klog.Infof("FeatureGates initialized: %v", featureGates.KnownFeatures())
+	case <-time.After(1 * time.Minute):
+		klog.Fatal("timed out waiting for FeatureGate detection")
+	}
+
 	// Enable defaulting and validating webhooks
 	machineDefaulter, err := mapiwebhooks.NewMachineDefaulter()
 	if err != nil {
@@ -188,7 +223,7 @@ func main() {
 	}
 
 	// Setup all Controllers
-	if err := controller.AddToManager(mgr, opts, machineset.Add); err != nil {
+	if err := controller.AddToManagerWithFeatureGate(mgr, opts, featureGateAccessor, machineset.Add); err != nil {
 		log.Fatal(err)
 	}
 
@@ -204,4 +239,12 @@ func main() {
 
 	// Start the Cmd
 	log.Fatal(mgr.Start(signals.SetupSignalHandler()))
+}
+
+func getReleaseVersion() string {
+	releaseVersion := os.Getenv("RELEASE_VERSION")
+	if len(releaseVersion) == 0 {
+		return "0.0.1-snapshot"
+	}
+	return releaseVersion
 }
