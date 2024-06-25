@@ -23,6 +23,7 @@ import (
 	"reflect"
 	"time"
 
+	openshiftfeatures "github.com/openshift/api/features"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/metrics"
 	"github.com/openshift/machine-api-operator/pkg/util"
@@ -35,6 +36,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/component-base/featuregate"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -80,18 +82,19 @@ const (
 
 	PausedConditionReason = "AuthoritativeAPINotMachineAPI"
 
-	NotPausedConditionReason = "AuthoritativeAPIIsMachineAPI"
+	NotPausedConditionReason = "AuthoritativeAPIMachineAPI"
 )
 
 var DefaultActuator Actuator
 
-func AddWithActuator(mgr manager.Manager, actuator Actuator) error {
-	return AddWithActuatorOpts(mgr, actuator, controller.Options{})
+
+func AddWithActuator(mgr manager.Manager, actuator Actuator, gate featuregate.MutableFeatureGate) error {
+	return AddWithActuatorOpts(mgr, actuator, controller.Options{}, gate)
 }
 
-func AddWithActuatorOpts(mgr manager.Manager, actuator Actuator, opts controller.Options) error {
+func AddWithActuatorOpts(mgr manager.Manager, actuator Actuator, opts controller.Options, gate featuregate.MutableFeatureGate) error {
 	machineControllerOpts := opts
-	machineControllerOpts.Reconciler = newReconciler(mgr, actuator)
+	machineControllerOpts.Reconciler = newReconciler(mgr, actuator, gate)
 
 	if err := addWithOpts(mgr, machineControllerOpts, "machine-controller"); err != nil {
 		return err
@@ -107,13 +110,14 @@ func AddWithActuatorOpts(mgr manager.Manager, actuator Actuator, opts controller
 }
 
 // newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager, actuator Actuator) reconcile.Reconciler {
+func newReconciler(mgr manager.Manager, actuator Actuator, gate featuregate.MutableFeatureGate) reconcile.Reconciler {
 	r := &ReconcileMachine{
 		Client:        mgr.GetClient(),
 		eventRecorder: mgr.GetEventRecorderFor("machine-controller"),
 		config:        mgr.GetConfig(),
 		scheme:        mgr.GetScheme(),
 		actuator:      actuator,
+		gate:          gate,
 	}
 	return r
 }
@@ -147,6 +151,7 @@ type ReconcileMachine struct {
 	eventRecorder record.EventRecorder
 
 	actuator Actuator
+	gate     featuregate.MutableFeatureGate
 
 	// nowFunc is used to mock time in testing. It should be nil in production.
 	nowFunc func() time.Time
@@ -177,38 +182,39 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 	// This must be a copy otherwise the referenced slice will be modified by later machine conditions changes.
 	originalConditions := conditions.DeepCopyConditions(m.Status.Conditions)
 
-	// Check Status.AuthoritativeAPI
-	// If not MachineAPI. Set the paused condition true and return early.
-	//
-	// Once we have a webhook, we want to remove the check that the AuthoritativeAPI
-	// field is populated.
-	if m.Status.AuthoritativeAPI != "" &&
-		m.Status.AuthoritativeAPI != machinev1.MachineAuthorityMachineAPI {
-		conditions.Set(m, conditions.TrueConditionWithReason(
+	if r.gate.Enabled(featuregate.Feature(openshiftfeatures.FeatureGateMachineAPIMigration)) {
+		// Check Status.AuthoritativeAPI
+		// If not MachineAPI. Set the paused condition true and return early.
+		//
+		// Once we have a webhook, we want to remove the check that the AuthoritativeAPI
+		// field is populated.
+		if m.Status.AuthoritativeAPI != "" &&
+			m.Status.AuthoritativeAPI != machinev1.MachineAuthorityMachineAPI {
+			conditions.Set(m, conditions.TrueConditionWithReason(
+				PausedCondition,
+				PausedConditionReason,
+				"The AuthoritativeAPI is set to %s", m.Status.AuthoritativeAPI,
+			))
+			if patchErr := r.updateStatus(ctx, m, ptr.Deref(m.Status.Phase, ""), nil, originalConditions); patchErr != nil {
+				klog.Errorf("%v: error patching status: %v", machineName, patchErr)
+			}
+
+			klog.Infof("%v: machine is paused, taking no further action", machineName)
+			return reconcile.Result{}, nil
+		}
+
+		// Set the paused condition to false, continue reconciliation
+		conditions.Set(m, conditions.FalseCondition(
 			PausedCondition,
-			PausedConditionReason,
+			NotPausedConditionReason,
+			machinev1.ConditionSeverityInfo,
 			"The AuthoritativeAPI is set to %s", m.Status.AuthoritativeAPI,
 		))
 		if patchErr := r.updateStatus(ctx, m, ptr.Deref(m.Status.Phase, ""), nil, originalConditions); patchErr != nil {
 			klog.Errorf("%v: error patching status: %v", machineName, patchErr)
 		}
-
-		klog.Infof("%v: setting paused to true and returning early", machineName)
-		return reconcile.Result{}, nil
 	}
 
-	// Set the paused condition to false, continue reconciliation
-	conditions.Set(m, conditions.FalseCondition(
-		PausedCondition,
-		NotPausedConditionReason,
-		machinev1.ConditionSeverityInfo,
-		"The AuthoritativeAPI is set to %s", m.Status.AuthoritativeAPI,
-	))
-	if patchErr := r.updateStatus(ctx, m, ptr.Deref(m.Status.Phase, ""), nil, originalConditions); patchErr != nil {
-		klog.Errorf("%v: error patching status: %v", machineName, patchErr)
-	}
-
-	klog.Infof("machine %v starting validateMachine", machineName)
 	if errList := validateMachine(m); len(errList) > 0 {
 		err := fmt.Errorf("%v: machine validation failed: %v", machineName, errList.ToAggregate().Error())
 		klog.Error(err)

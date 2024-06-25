@@ -63,17 +63,8 @@ func TestMachineController(t *testing.T) {
 
 var _ = BeforeSuite(func(ctx SpecContext) {
 	By("bootstrapping test environment")
-	testEnv = &envtest.Environment{
-
-		CRDInstallOptions: envtest.CRDInstallOptions{
-			Paths: []string{
-				filepath.Join("..", "..", "..", "vendor", "github.com", "openshift", "api", "machine", "v1beta1", "zz_generated.crd-manifests", "0000_10_machine-api_01_machines-CustomNoUpgrade.crd.yaml"),
-			},
-		},
-	}
-
 	var err error
-	cfg, err = testEnv.Start()
+	cfg, testEnv, err = StartEnvTest()
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
 
@@ -96,7 +87,7 @@ func TestMain(m *testing.M) {
 	os.Exit(exitVal)
 }
 
-func StartEnvTest(t *testing.T) func(t *testing.T) {
+func StartEnvTest() (*rest.Config, *envtest.Environment, error) {
 	testEnv := &envtest.Environment{
 
 		CRDInstallOptions: envtest.CRDInstallOptions{
@@ -108,12 +99,8 @@ func StartEnvTest(t *testing.T) func(t *testing.T) {
 
 	var err error
 	if cfg, err = testEnv.Start(); err != nil {
-		log.Fatal(err)
+		return nil, nil, err
 	}
 
-	return func(t *testing.T) {
-		if err = testEnv.Stop(); err != nil {
-			log.Fatal(err)
-		}
-	}
+	return cfg, testEnv, nil
 }

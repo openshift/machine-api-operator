@@ -27,8 +27,12 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
+	openshiftfeatures "github.com/openshift/api/features"
 	machinev1resourcebuilder "github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/machine/v1beta1"
 	"github.com/openshift/cluster-control-plane-machine-set-operator/test/e2e/framework"
+	"github.com/openshift/library-go/pkg/features"
+	"k8s.io/apiserver/pkg/util/feature"
+
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -56,9 +60,18 @@ var _ = Describe("Machine Reconciler", func() {
 		k8sClient = mgr.GetClient()
 		k = komega.New(k8sClient)
 
+		By("Setting up feature gates")
+		// TODO: Use that new helper func you made
+		defaultMutableGate := feature.DefaultMutableFeatureGate
+		_, err = features.NewFeatureGateOptions(defaultMutableGate, openshiftfeatures.SelfManaged, openshiftfeatures.FeatureGateMachineAPIMigration)
+		Expect(err).NotTo(HaveOccurred())
+
+		err = defaultMutableGate.SetFromMap(map[string]bool{"MachineAPIMigration": true})
+		Expect(err).NotTo(HaveOccurred())
+
 		By("Setting up a new reconciler")
 		act := newTestActuator()
-		reconciler := newReconciler(mgr, act)
+		reconciler := newReconciler(mgr, act, defaultMutableGate)
 
 		Expect(add(mgr, reconciler, "testing")).To(Succeed())
 
@@ -88,7 +101,7 @@ var _ = Describe("Machine Reconciler", func() {
 
 	AfterEach(func() {
 		By("Deleting the machines")
-		Expect(cleanResources()).To(Succeed())
+		Expect(cleanResources(namespace.Name)).To(Succeed())
 
 		By("Deleting the namespace")
 		Expect(k8sClient.Delete(ctx, namespace)).To(Succeed())
@@ -157,7 +170,7 @@ var _ = Describe("Machine Reconciler", func() {
 					By("Checking that the paused condition is consistently true whilst migrating to MachineAPI")
 
 					localInstance := instanceCopy.DeepCopy()
-					if err := k8sClient.Get(ctx, objectKey(localInstance), localInstance); err != nil {
+					if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(localInstance), localInstance); err != nil {
 						return g.Expect(err).Should(WithTransform(isRetryableAPIError, BeTrue()), "expected temporary error while getting machine: %v", err)
 					}
 
@@ -172,7 +185,7 @@ var _ = Describe("Machine Reconciler", func() {
 					By("Checking that the AuthoritativeAPI is not MachineAPI")
 
 					localInstance := instanceCopy.DeepCopy()
-					if err := k8sClient.Get(ctx, objectKey(localInstance), localInstance); err != nil {
+					if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(localInstance), localInstance); err != nil {
 						return g.Expect(err).Should(WithTransform(isRetryableAPIError, BeTrue()), "expected temporary error while getting machine: %v", err)
 					}
 
@@ -206,23 +219,10 @@ var _ = Describe("Machine Reconciler", func() {
 	})
 })
 
-func objectKey(object metav1.Object) client.ObjectKey {
-	return client.ObjectKey{
-		Namespace: object.GetNamespace(),
-		Name:      object.GetName(),
-	}
-}
-
-func cleanResources() error {
-	machines := &machinev1.MachineList{}
-	if err := k8sClient.List(ctx, machines); err != nil {
+func cleanResources(namespace string) error {
+	machine := &machinev1.Machine{}
+	if err := k8sClient.DeleteAllOf(ctx, machine, client.InNamespace(namespace)); err != nil {
 		return err
-	}
-	for _, machine := range machines.Items {
-		m := machine
-		if err := k8sClient.Delete(ctx, &m); err != nil {
-			return err
-		}
 	}
 
 	return nil

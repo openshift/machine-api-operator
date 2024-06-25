@@ -224,7 +224,7 @@ func main() {
 	}
 
 	// Setup all Controllers
-	if err := controller.AddToManagerWithFeatureGate(mgr, opts, featureGateAccessor, machineset.Add); err != nil {
+	if err := controller.AddToManagerWithFeatureGates(mgr, opts, featureGateAccessor, machineset.Add); err != nil {
 		log.Fatal(err)
 	}
 

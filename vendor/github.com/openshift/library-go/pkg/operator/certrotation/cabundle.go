@@ -32,11 +32,8 @@ type CABundleConfigMap struct {
 	Name string
 	// Owner is an optional reference to add to the secret that this rotator creates.
 	Owner *metav1.OwnerReference
-	// JiraComponent annotates tls artifacts so that owner could be easily found
-	JiraComponent string
-	// Description is a human-readable one sentence description of certificate purpose
-	Description string
-
+	// AdditionalAnnotations is a collection of annotations set for the secret
+	AdditionalAnnotations AdditionalAnnotations
 	// Plumbing:
 	Informer      corev1informers.ConfigMapInformer
 	Lister        corev1listers.ConfigMapLister
@@ -47,6 +44,8 @@ type CABundleConfigMap struct {
 func (c CABundleConfigMap) EnsureConfigMapCABundle(ctx context.Context, signingCertKeyPair *crypto.CA) ([]*x509.Certificate, error) {
 	// by this point we have current signing cert/key pair.  We now need to make sure that the ca-bundle configmap has this cert and
 	// doesn't have any expired certs
+	modified := false
+
 	originalCABundleConfigMap, err := c.Lister.ConfigMaps(c.Namespace).Get(c.Name)
 	if err != nil && !apierrors.IsNotFound(err) {
 		return nil, err
@@ -57,24 +56,17 @@ func (c CABundleConfigMap) EnsureConfigMapCABundle(ctx context.Context, signingC
 		caBundleConfigMap = &corev1.ConfigMap{ObjectMeta: NewTLSArtifactObjectMeta(
 			c.Name,
 			c.Namespace,
-			c.JiraComponent,
-			c.Description,
+			c.AdditionalAnnotations,
 		)}
+		modified = true
 	}
 
-	needsMetadataUpdate := false
+	needsOwnerUpdate := false
 	if c.Owner != nil {
-		needsMetadataUpdate = ensureOwnerReference(&caBundleConfigMap.ObjectMeta, c.Owner)
+		needsOwnerUpdate = ensureOwnerReference(&caBundleConfigMap.ObjectMeta, c.Owner)
 	}
-	if len(c.JiraComponent) > 0 || len(c.Description) > 0 {
-		needsMetadataUpdate = EnsureTLSMetadataUpdate(&caBundleConfigMap.ObjectMeta, c.JiraComponent, c.Description) || needsMetadataUpdate
-	}
-	if needsMetadataUpdate && len(caBundleConfigMap.ResourceVersion) > 0 {
-		_, _, err := resourceapply.ApplyConfigMap(ctx, c.Client, c.EventRecorder, caBundleConfigMap)
-		if err != nil {
-			return nil, err
-		}
-	}
+	needsMetadataUpdate := c.AdditionalAnnotations.EnsureTLSMetadataUpdate(&caBundleConfigMap.ObjectMeta)
+	modified = needsOwnerUpdate || needsMetadataUpdate || modified
 
 	updatedCerts, err := manageCABundleConfigMap(caBundleConfigMap, signingCertKeyPair.Config.Certs[0])
 	if err != nil {
@@ -84,14 +76,18 @@ func (c CABundleConfigMap) EnsureConfigMapCABundle(ctx context.Context, signingC
 		c.EventRecorder.Eventf("CABundleUpdateRequired", "%q in %q requires a new cert", c.Name, c.Namespace)
 		LabelAsManagedConfigMap(caBundleConfigMap, CertificateTypeCABundle)
 
-		actualCABundleConfigMap, modified, err := resourceapply.ApplyConfigMap(ctx, c.Client, c.EventRecorder, caBundleConfigMap)
+		modified = true
+	}
+
+	if modified {
+
+		actualCABundleConfigMap, updated, err := resourceapply.ApplyConfigMap(ctx, c.Client, c.EventRecorder, caBundleConfigMap)
 		if err != nil {
 			return nil, err
 		}
-		if modified {
+		if updated {
 			klog.V(2).Infof("Updated ca-bundle.crt configmap %s/%s with:\n%s", certs.CertificateBundleToString(updatedCerts), caBundleConfigMap.Namespace, caBundleConfigMap.Name)
 		}
-
 		caBundleConfigMap = actualCABundleConfigMap
 	}
 

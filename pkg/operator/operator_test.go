@@ -61,7 +61,7 @@ func newFakeOperator(kubeObjects, osObjects, machineObjects []runtime.Object, im
 				FeatureGates: []openshiftv1.FeatureGateDetails{
 					{
 						Version:  "",
-						Enabled:  []openshiftv1.FeatureGateAttributes{},
+						Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIMigration}},
 						Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
 					},
 				},
@@ -352,7 +352,21 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			name:     string(openshiftv1.AWSPlatformType),
 			platform: openshiftv1.AWSPlatformType,
 			infra:    infra,
-			proxy:    proxy,
+			featureGate: &openshiftv1.FeatureGate{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Status: openshiftv1.FeatureGateStatus{
+					FeatureGates: []openshiftv1.FeatureGateDetails{
+						{
+							Version:  "",
+							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIMigration}},
+							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+						},
+					},
+				},
+			},
+			proxy: proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -365,13 +379,31 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
 				PlatformType: openshiftv1.AWSPlatformType,
+				Features: map[string]bool{
+					"MachineAPIMigration": true,
+					"MachineAPIOperatorDisableMachineHealthCheckController": false,
+				},
 			},
 		},
 		{
 			name:     string(openshiftv1.LibvirtPlatformType),
 			platform: openshiftv1.LibvirtPlatformType,
 			infra:    infra,
-			proxy:    proxy,
+			featureGate: &openshiftv1.FeatureGate{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Status: openshiftv1.FeatureGateStatus{
+					FeatureGates: []openshiftv1.FeatureGateDetails{
+						{
+							Version:  "",
+							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIMigration}},
+							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+						},
+					},
+				},
+			},
+			proxy: proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -384,13 +416,31 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
 				PlatformType: openshiftv1.LibvirtPlatformType,
+				Features: map[string]bool{
+					"MachineAPIMigration": true,
+					"MachineAPIOperatorDisableMachineHealthCheckController": false,
+				},
 			},
 		},
 		{
 			name:     string(openshiftv1.OpenStackPlatformType),
 			platform: openshiftv1.OpenStackPlatformType,
 			infra:    infra,
-			proxy:    proxy,
+			featureGate: &openshiftv1.FeatureGate{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Status: openshiftv1.FeatureGateStatus{
+					FeatureGates: []openshiftv1.FeatureGateDetails{
+						{
+							Version:  "",
+							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIMigration}},
+							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+						},
+					},
+				},
+			},
+			proxy: proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -403,13 +453,31 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
 				PlatformType: openshiftv1.OpenStackPlatformType,
+				Features: map[string]bool{
+					"MachineAPIMigration": true,
+					"MachineAPIOperatorDisableMachineHealthCheckController": false,
+				},
 			},
 		},
 		{
 			name:     string(openshiftv1.AzurePlatformType),
 			platform: openshiftv1.AzurePlatformType,
 			infra:    infra,
-			proxy:    proxy,
+			featureGate: &openshiftv1.FeatureGate{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Status: openshiftv1.FeatureGateStatus{
+					FeatureGates: []openshiftv1.FeatureGateDetails{
+						{
+							Version:  "",
+							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIMigration}},
+							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+						},
+					},
+				},
+			},
+			proxy: proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -422,126 +490,14 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
 				PlatformType: openshiftv1.AzurePlatformType,
+				Features: map[string]bool{
+					"MachineAPIMigration": true,
+					"MachineAPIOperatorDisableMachineHealthCheckController": false,
+				},
 			},
 		},
 		{
 			name:     string(openshiftv1.BareMetalPlatformType),
-			platform: openshiftv1.BareMetalPlatformType,
-			infra:    infra,
-			proxy:    proxy,
-			expectedConfig: &OperatorConfig{
-				TargetNamespace: targetNamespace,
-				Proxy:           proxy,
-				Controllers: Controllers{
-					Provider:           images.ClusterAPIControllerBareMetal,
-					MachineSet:         images.MachineAPIOperator,
-					NodeLink:           images.MachineAPIOperator,
-					MachineHealthCheck: images.MachineAPIOperator,
-					TerminationHandler: clusterAPIControllerNoOp,
-					KubeRBACProxy:      images.KubeRBACProxy,
-				},
-				PlatformType: openshiftv1.BareMetalPlatformType,
-			},
-		},
-		{
-			name:     string(openshiftv1.GCPPlatformType),
-			platform: openshiftv1.GCPPlatformType,
-			infra:    infra,
-			proxy:    proxy,
-			expectedConfig: &OperatorConfig{
-				TargetNamespace: targetNamespace,
-				Proxy:           proxy,
-				Controllers: Controllers{
-					Provider:           images.ClusterAPIControllerGCP,
-					MachineSet:         images.MachineAPIOperator,
-					NodeLink:           images.MachineAPIOperator,
-					MachineHealthCheck: images.MachineAPIOperator,
-					TerminationHandler: images.ClusterAPIControllerGCP,
-					KubeRBACProxy:      images.KubeRBACProxy,
-				},
-				PlatformType: openshiftv1.GCPPlatformType,
-			},
-		},
-		{
-			name:     string(kubemarkPlatform),
-			platform: kubemarkPlatform,
-			infra:    infra,
-			proxy:    proxy,
-			expectedConfig: &OperatorConfig{
-				TargetNamespace: targetNamespace,
-				Proxy:           proxy,
-				Controllers: Controllers{
-					Provider:           clusterAPIControllerKubemark,
-					MachineSet:         images.MachineAPIOperator,
-					NodeLink:           images.MachineAPIOperator,
-					MachineHealthCheck: images.MachineAPIOperator,
-					TerminationHandler: clusterAPIControllerNoOp,
-					KubeRBACProxy:      images.KubeRBACProxy,
-				},
-				PlatformType: kubemarkPlatform,
-			},
-		},
-		{
-			name:     string(openshiftv1.VSpherePlatformType),
-			platform: openshiftv1.VSpherePlatformType,
-			infra:    infra,
-			proxy:    proxy,
-			expectedConfig: &OperatorConfig{
-				TargetNamespace: targetNamespace,
-				Proxy:           proxy,
-				Controllers: Controllers{
-					Provider:           images.ClusterAPIControllerVSphere,
-					MachineSet:         images.MachineAPIOperator,
-					NodeLink:           images.MachineAPIOperator,
-					MachineHealthCheck: images.MachineAPIOperator,
-					TerminationHandler: clusterAPIControllerNoOp,
-					KubeRBACProxy:      images.KubeRBACProxy,
-				},
-				PlatformType: openshiftv1.VSpherePlatformType,
-			},
-		},
-		{
-			name:     string(openshiftv1.OvirtPlatformType),
-			platform: openshiftv1.OvirtPlatformType,
-			infra:    infra,
-			proxy:    proxy,
-			expectedConfig: &OperatorConfig{
-				TargetNamespace: targetNamespace,
-				Proxy:           proxy,
-				Controllers: Controllers{
-					Provider:           images.ClusterAPIControllerOvirt,
-					MachineSet:         images.MachineAPIOperator,
-					NodeLink:           images.MachineAPIOperator,
-					MachineHealthCheck: images.MachineAPIOperator,
-					TerminationHandler: clusterAPIControllerNoOp,
-					KubeRBACProxy:      images.KubeRBACProxy,
-				},
-				PlatformType: openshiftv1.OvirtPlatformType,
-			},
-		},
-		{
-			name:     string(openshiftv1.NonePlatformType),
-			platform: openshiftv1.NonePlatformType,
-			infra:    infra,
-			proxy:    proxy,
-			expectedConfig: &OperatorConfig{
-				TargetNamespace: targetNamespace,
-				Proxy:           proxy,
-				Controllers: Controllers{
-					Provider:           clusterAPIControllerNoOp,
-					MachineSet:         images.MachineAPIOperator,
-					NodeLink:           images.MachineAPIOperator,
-					MachineHealthCheck: images.MachineAPIOperator,
-					TerminationHandler: clusterAPIControllerNoOp,
-					KubeRBACProxy:      images.KubeRBACProxy,
-				},
-				PlatformType: openshiftv1.NonePlatformType,
-			},
-		},
-		{
-			// MHC controller being enabled is the default for now (which is covered by all other tests),
-			// but this test ensures that enabling works once the default changes
-			name:     "mhc-controller-enabled",
 			platform: openshiftv1.BareMetalPlatformType,
 			infra:    infra,
 			featureGate: &openshiftv1.FeatureGate{
@@ -552,7 +508,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					FeatureGates: []openshiftv1.FeatureGateDetails{
 						{
 							Version:  "",
-							Enabled:  []openshiftv1.FeatureGateAttributes{},
+							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIMigration}},
 							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
 						},
 					},
@@ -571,6 +527,234 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
 				PlatformType: openshiftv1.BareMetalPlatformType,
+				Features: map[string]bool{
+					"MachineAPIMigration": true,
+					"MachineAPIOperatorDisableMachineHealthCheckController": false,
+				},
+			},
+		},
+		{
+			name:     string(openshiftv1.GCPPlatformType),
+			platform: openshiftv1.GCPPlatformType,
+			infra:    infra,
+			featureGate: &openshiftv1.FeatureGate{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Status: openshiftv1.FeatureGateStatus{
+					FeatureGates: []openshiftv1.FeatureGateDetails{
+						{
+							Version:  "",
+							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIMigration}},
+							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+						},
+					},
+				},
+			},
+			proxy: proxy,
+			expectedConfig: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				Proxy:           proxy,
+				Controllers: Controllers{
+					Provider:           images.ClusterAPIControllerGCP,
+					MachineSet:         images.MachineAPIOperator,
+					NodeLink:           images.MachineAPIOperator,
+					MachineHealthCheck: images.MachineAPIOperator,
+					TerminationHandler: images.ClusterAPIControllerGCP,
+					KubeRBACProxy:      images.KubeRBACProxy,
+				},
+				PlatformType: openshiftv1.GCPPlatformType,
+				Features: map[string]bool{
+					"MachineAPIMigration": true,
+					"MachineAPIOperatorDisableMachineHealthCheckController": false,
+				},
+			},
+		},
+		{
+			name:     string(kubemarkPlatform),
+			platform: kubemarkPlatform,
+			infra:    infra,
+			featureGate: &openshiftv1.FeatureGate{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Status: openshiftv1.FeatureGateStatus{
+					FeatureGates: []openshiftv1.FeatureGateDetails{
+						{
+							Version:  "",
+							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIMigration}},
+							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+						},
+					},
+				},
+			},
+			proxy: proxy,
+			expectedConfig: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				Proxy:           proxy,
+				Controllers: Controllers{
+					Provider:           clusterAPIControllerKubemark,
+					MachineSet:         images.MachineAPIOperator,
+					NodeLink:           images.MachineAPIOperator,
+					MachineHealthCheck: images.MachineAPIOperator,
+					TerminationHandler: clusterAPIControllerNoOp,
+					KubeRBACProxy:      images.KubeRBACProxy,
+				},
+				PlatformType: kubemarkPlatform,
+				Features: map[string]bool{
+					"MachineAPIMigration": true,
+					"MachineAPIOperatorDisableMachineHealthCheckController": false,
+				},
+			},
+		},
+		{
+			name:     string(openshiftv1.VSpherePlatformType),
+			platform: openshiftv1.VSpherePlatformType,
+			infra:    infra,
+			featureGate: &openshiftv1.FeatureGate{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Status: openshiftv1.FeatureGateStatus{
+					FeatureGates: []openshiftv1.FeatureGateDetails{
+						{
+							Version:  "",
+							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIMigration}},
+							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+						},
+					},
+				},
+			},
+			proxy: proxy,
+			expectedConfig: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				Proxy:           proxy,
+				Controllers: Controllers{
+					Provider:           images.ClusterAPIControllerVSphere,
+					MachineSet:         images.MachineAPIOperator,
+					NodeLink:           images.MachineAPIOperator,
+					MachineHealthCheck: images.MachineAPIOperator,
+					TerminationHandler: clusterAPIControllerNoOp,
+					KubeRBACProxy:      images.KubeRBACProxy,
+				},
+				PlatformType: openshiftv1.VSpherePlatformType,
+				Features: map[string]bool{
+					"MachineAPIMigration": true,
+					"MachineAPIOperatorDisableMachineHealthCheckController": false,
+				},
+			},
+		},
+		{
+			name:     string(openshiftv1.OvirtPlatformType),
+			platform: openshiftv1.OvirtPlatformType,
+			infra:    infra,
+			featureGate: &openshiftv1.FeatureGate{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Status: openshiftv1.FeatureGateStatus{
+					FeatureGates: []openshiftv1.FeatureGateDetails{
+						{
+							Version:  "",
+							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIMigration}},
+							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+						},
+					},
+				},
+			},
+			proxy: proxy,
+			expectedConfig: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				Proxy:           proxy,
+				Controllers: Controllers{
+					Provider:           images.ClusterAPIControllerOvirt,
+					MachineSet:         images.MachineAPIOperator,
+					NodeLink:           images.MachineAPIOperator,
+					MachineHealthCheck: images.MachineAPIOperator,
+					TerminationHandler: clusterAPIControllerNoOp,
+					KubeRBACProxy:      images.KubeRBACProxy,
+				},
+				PlatformType: openshiftv1.OvirtPlatformType,
+				Features: map[string]bool{
+					"MachineAPIMigration": true,
+					"MachineAPIOperatorDisableMachineHealthCheckController": false,
+				},
+			},
+		},
+		{
+			name:     string(openshiftv1.NonePlatformType),
+			platform: openshiftv1.NonePlatformType,
+			infra:    infra,
+			featureGate: &openshiftv1.FeatureGate{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Status: openshiftv1.FeatureGateStatus{
+					FeatureGates: []openshiftv1.FeatureGateDetails{
+						{
+							Version:  "",
+							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIMigration}},
+							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+						},
+					},
+				},
+			},
+			proxy: proxy,
+			expectedConfig: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				Proxy:           proxy,
+				Controllers: Controllers{
+					Provider:           clusterAPIControllerNoOp,
+					MachineSet:         images.MachineAPIOperator,
+					NodeLink:           images.MachineAPIOperator,
+					MachineHealthCheck: images.MachineAPIOperator,
+					TerminationHandler: clusterAPIControllerNoOp,
+					KubeRBACProxy:      images.KubeRBACProxy,
+				},
+				PlatformType: openshiftv1.NonePlatformType,
+				Features: map[string]bool{
+					"MachineAPIMigration": true,
+					"MachineAPIOperatorDisableMachineHealthCheckController": false,
+				},
+			},
+		},
+		{
+			// MHC controller being enabled is the default for now (which is covered by all other tests),
+			// but this test ensures that enabling works once the default changes
+			name:     "mhc-controller-enabled",
+			platform: openshiftv1.BareMetalPlatformType,
+			infra:    infra,
+			featureGate: &openshiftv1.FeatureGate{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Status: openshiftv1.FeatureGateStatus{
+					FeatureGates: []openshiftv1.FeatureGateDetails{
+						{
+							Version:  "",
+							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIMigration}},
+							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+						},
+					},
+				},
+			},
+			proxy: proxy,
+			expectedConfig: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				Proxy:           proxy,
+				Controllers: Controllers{
+					Provider:           images.ClusterAPIControllerBareMetal,
+					MachineSet:         images.MachineAPIOperator,
+					NodeLink:           images.MachineAPIOperator,
+					MachineHealthCheck: images.MachineAPIOperator,
+					TerminationHandler: clusterAPIControllerNoOp,
+					KubeRBACProxy:      images.KubeRBACProxy,
+				},
+				PlatformType: openshiftv1.BareMetalPlatformType,
+				Features: map[string]bool{
+					"MachineAPIMigration": true,
+					"MachineAPIOperatorDisableMachineHealthCheckController": false,
+				},
 			},
 		},
 		{
@@ -585,7 +769,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					FeatureGates: []openshiftv1.FeatureGateDetails{
 						{
 							Version:  "",
-							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}, {Name: apifeatures.FeatureGateMachineAPIMigration}},
 							Disabled: []openshiftv1.FeatureGateAttributes{},
 						},
 					},
@@ -604,13 +788,31 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
 				PlatformType: openshiftv1.BareMetalPlatformType,
+				Features: map[string]bool{
+					"MachineAPIMigration": true,
+					"MachineAPIOperatorDisableMachineHealthCheckController": true,
+				},
 			},
 		},
 		{
 			name:     "bad-platform",
 			platform: "bad-platform",
 			infra:    infra,
-			proxy:    proxy,
+			featureGate: &openshiftv1.FeatureGate{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+				Status: openshiftv1.FeatureGateStatus{
+					FeatureGates: []openshiftv1.FeatureGateDetails{
+						{
+							Version:  "",
+							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIMigration}},
+							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+						},
+					},
+				},
+			},
+			proxy: proxy,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -623,6 +825,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
 				PlatformType: "bad-platform",
+				Features: map[string]bool{
+					"MachineAPIMigration": true,
+					"MachineAPIOperatorDisableMachineHealthCheckController": false,
+				},
 			},
 		},
 		{

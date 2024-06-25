@@ -207,7 +207,7 @@ func (r *ReconcileMachineSet) Reconcile(ctx context.Context, request reconcile.R
 				klog.Errorf("%v: error updating status: %v", machineSet.Name, err)
 			}
 
-			klog.Infof("%v: setting paused to true and returning early", machineSet.Name)
+			klog.Infof("%v: machine is paused, taking no further action", machineSet.Name)
 			return reconcile.Result{}, nil
 		}
 

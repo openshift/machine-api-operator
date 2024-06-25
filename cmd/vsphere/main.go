@@ -23,6 +23,7 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/util"
 	"github.com/openshift/machine-api-operator/pkg/version"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/textlogger"
 	ipamv1beta1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
@@ -203,7 +204,9 @@ func main() {
 		klog.Fatalf("unable to add ipamv1beta1 to scheme: %v", err)
 	}
 
-	if err := capimachine.AddWithActuator(mgr, machineActuator); err != nil {
+	// The DefaultMutableFeatureGate will be initialised from flags in another PR
+	// that will need to merge before this
+	if err := capimachine.AddWithActuator(mgr, machineActuator, feature.DefaultMutableFeatureGate); err != nil {
 		klog.Fatal(err)
 	}
 

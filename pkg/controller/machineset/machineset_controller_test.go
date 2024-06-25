@@ -100,7 +100,7 @@ var _ = Describe("MachineSet Reconciler", func() {
 
 	AfterEach(func() {
 		By("Deleting the machinesets")
-		Expect(cleanResources()).To(Succeed())
+		Expect(cleanResources(namespace.Name)).To(Succeed())
 
 		By("Deleting the namespace")
 		Expect(k8sClient.Delete(ctx, namespace)).To(Succeed())
@@ -241,49 +241,15 @@ var _ = Describe("MachineSet Reconciler", func() {
 	})
 })
 
-func cleanResources() error {
-	machineSets := &machinev1.MachineSetList{}
-	if err := k8sClient.List(ctx, machineSets); err != nil {
+func cleanResources(namespace string) error {
+	machineSet := &machinev1.MachineSet{}
+	if err := k8sClient.DeleteAllOf(ctx, machineSet, client.InNamespace(namespace)); err != nil {
 		return err
-	}
-	for _, machineSet := range machineSets.Items {
-		ms := machineSet
-		if err := k8sClient.Delete(ctx, &ms); err != nil {
-			return err
-		}
 	}
 
-	machines := &machinev1.MachineList{}
-	if err := k8sClient.List(ctx, machines); err != nil {
+	machine := &machinev1.Machine{}
+	if err := k8sClient.DeleteAllOf(ctx, machine, client.InNamespace(namespace)); err != nil {
 		return err
-	}
-	for _, machine := range machines.Items {
-		m := machine
-		if err := k8sClient.Delete(ctx, &m); err != nil {
-			return err
-		}
-	}
-
-	clusterVersions := &configv1.ClusterVersionList{}
-	if err := k8sClient.List(ctx, clusterVersions); err != nil {
-		return err
-	}
-	for _, clusterVersion := range clusterVersions.Items {
-		cv := clusterVersion
-		if err := k8sClient.Delete(ctx, &cv); err != nil {
-			return err
-		}
-	}
-
-	featureGates := &configv1.FeatureGateList{}
-	if err := k8sClient.List(ctx, featureGates); err != nil {
-		return err
-	}
-	for _, gate := range featureGates.Items {
-		fg := gate
-		if err := k8sClient.Delete(ctx, &fg); err != nil {
-			return err
-		}
 	}
 
 	return nil
