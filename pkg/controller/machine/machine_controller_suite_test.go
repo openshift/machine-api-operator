@@ -18,53 +18,102 @@ package machine
 
 import (
 	"context"
+	"flag"
 	"log"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
+	. "github.com/onsi/ginkgo/v2"
+	. "github.com/onsi/gomega"
+
+	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
+	"k8s.io/klog/v2/textlogger"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
-	"sigs.k8s.io/controller-runtime/pkg/manager"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
+)
+
+func init() {
+	textLoggerConfig := textlogger.NewConfig()
+	textLoggerConfig.AddFlags(flag.CommandLine)
+	logf.SetLogger(textlogger.NewLogger(textLoggerConfig))
+}
+
+const (
+	timeout = time.Second * 10
 )
 
 var (
-	cfg *rest.Config
-	ctx = context.Background()
+	cfg       *rest.Config
+	ctx       = context.Background()
+	k8sClient client.Client
+	testEnv   *envtest.Environment
 )
 
-func TestMain(m *testing.M) {
-	t := &envtest.Environment{
-		CRDDirectoryPaths: []string{filepath.Join("..", "..", "..", "install")},
-	}
-	if err := machinev1.Install(scheme.Scheme); err != nil {
-		log.Fatalf("cannot add scheme: %v", err)
+func TestMachineController(t *testing.T) {
+	RegisterFailHandler(Fail)
+
+	RunSpecs(t, "Machine Controller Suite")
+}
+
+var _ = BeforeSuite(func(ctx SpecContext) {
+	By("bootstrapping test environment")
+	testEnv = &envtest.Environment{
+
+		CRDInstallOptions: envtest.CRDInstallOptions{
+			Paths: []string{
+				filepath.Join("..", "..", "..", "vendor", "github.com", "openshift", "api", "machine", "v1beta1", "zz_generated.crd-manifests", "0000_10_machine-api_01_machines-CustomNoUpgrade.crd.yaml"),
+			},
+		},
 	}
 
 	var err error
-	if cfg, err = t.Start(); err != nil {
-		log.Fatal(err)
-	}
+	cfg, err = testEnv.Start()
+	Expect(err).ToNot(HaveOccurred())
+	Expect(cfg).ToNot(BeNil())
 
-	code := m.Run()
-	if err = t.Stop(); err != nil {
-		log.Fatal(err)
+})
+
+var _ = AfterSuite(func() {
+	By("tearing down the test environment")
+	Expect(testEnv.Stop()).To(Succeed())
+})
+
+func TestMain(m *testing.M) {
+	// Register required object kinds with global scheme.
+	if err := machinev1.Install(scheme.Scheme); err != nil {
+		log.Fatalf("cannot add scheme: %v", err)
 	}
-	os.Exit(code)
+	if err := configv1.Install(scheme.Scheme); err != nil {
+		log.Fatalf("cannot add scheme: %v", err)
+	}
+	exitVal := m.Run()
+	os.Exit(exitVal)
 }
 
-// StartTestManager adds recFn
-func StartTestManager(mgr manager.Manager, t *testing.T) (context.CancelFunc, chan error) {
-	t.Helper()
+func StartEnvTest(t *testing.T) func(t *testing.T) {
+	testEnv := &envtest.Environment{
 
-	mgrCtx, cancel := context.WithCancel(ctx)
-	errs := make(chan error, 1)
+		CRDInstallOptions: envtest.CRDInstallOptions{
+			Paths: []string{
+				filepath.Join("..", "..", "..", "vendor", "github.com", "openshift", "api", "machine", "v1beta1", "zz_generated.crd-manifests", "0000_10_machine-api_01_machines-CustomNoUpgrade.crd.yaml"),
+			},
+		},
+	}
 
-	go func() {
-		errs <- mgr.Start(mgrCtx)
-	}()
+	var err error
+	if cfg, err = testEnv.Start(); err != nil {
+		log.Fatal(err)
+	}
 
-	return cancel, errs
+	return func(t *testing.T) {
+		if err = testEnv.Stop(); err != nil {
+			log.Fatal(err)
+		}
+	}
 }

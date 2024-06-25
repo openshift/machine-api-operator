@@ -57,11 +57,15 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Spec: machinev1.MachineSpec{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 			ProviderSpec: machinev1.ProviderSpec{
 				Value: &runtime.RawExtension{
 					Raw: []byte("{}"),
 				},
 			},
+		},
+		Status: machinev1.MachineStatus{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 		},
 	}
 	machineProvisioning := machinev1.Machine{
@@ -78,6 +82,7 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Spec: machinev1.MachineSpec{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 			ProviderSpec: machinev1.ProviderSpec{
 				Value: &runtime.RawExtension{
 					Raw: []byte("{}"),
@@ -85,7 +90,8 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Status: machinev1.MachineStatus{
-			Phase: ptr.To[string](machinev1.PhaseProvisioning),
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
+			Phase:            ptr.To[string](machinev1.PhaseProvisioning),
 		},
 	}
 	machineProvisioned := machinev1.Machine{
@@ -102,6 +108,7 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Spec: machinev1.MachineSpec{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 			ProviderSpec: machinev1.ProviderSpec{
 				Value: &runtime.RawExtension{
 					Raw: []byte("{}"),
@@ -109,6 +116,7 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Status: machinev1.MachineStatus{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 			Addresses: []corev1.NodeAddress{
 				{
 					Type:    corev1.NodeInternalIP,
@@ -133,11 +141,15 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Spec: machinev1.MachineSpec{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 			ProviderSpec: machinev1.ProviderSpec{
 				Value: &runtime.RawExtension{
 					Raw: []byte("{}"),
 				},
 			},
+		},
+		Status: machinev1.MachineStatus{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 		},
 	}
 	machineDeletingPreDrainHook := machinev1.Machine{
@@ -155,6 +167,7 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Spec: machinev1.MachineSpec{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 			LifecycleHooks: machinev1.LifecycleHooks{
 				PreDrain: []machinev1.LifecycleHook{
 					{
@@ -170,6 +183,7 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Status: machinev1.MachineStatus{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 			NodeRef: &corev1.ObjectReference{
 				Name: "a node",
 			},
@@ -190,6 +204,7 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Spec: machinev1.MachineSpec{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 			LifecycleHooks: machinev1.LifecycleHooks{
 				PreDrain: []machinev1.LifecycleHook{
 					{
@@ -203,6 +218,9 @@ func TestReconcileRequest(t *testing.T) {
 					Raw: []byte("{}"),
 				},
 			},
+		},
+		Status: machinev1.MachineStatus{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 		},
 	}
 	machineDeletingPreTerminateHook := machinev1.Machine{
@@ -220,6 +238,7 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Spec: machinev1.MachineSpec{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 			LifecycleHooks: machinev1.LifecycleHooks{
 				PreTerminate: []machinev1.LifecycleHook{
 					{
@@ -233,6 +252,9 @@ func TestReconcileRequest(t *testing.T) {
 					Raw: []byte("{}"),
 				},
 			},
+		},
+		Status: machinev1.MachineStatus{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 		},
 	}
 	machineFailed := machinev1.Machine{
@@ -249,7 +271,8 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Spec: machinev1.MachineSpec{
-			ProviderID: ptr.To[string]("providerID"),
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
+			ProviderID:       ptr.To[string]("providerID"),
 			ProviderSpec: machinev1.ProviderSpec{
 				Value: &runtime.RawExtension{
 					Raw: []byte("{}"),
@@ -257,6 +280,7 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Status: machinev1.MachineStatus{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 			Addresses: []corev1.NodeAddress{
 				{
 					Type:    corev1.NodeInternalIP,
@@ -279,7 +303,8 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Spec: machinev1.MachineSpec{
-			ProviderID: ptr.To[string]("providerID"),
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
+			ProviderID:       ptr.To[string]("providerID"),
 			ProviderSpec: machinev1.ProviderSpec{
 				Value: &runtime.RawExtension{
 					Raw: []byte("{}"),
@@ -287,6 +312,7 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Status: machinev1.MachineStatus{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 			Addresses: []corev1.NodeAddress{
 				{
 					Type:    corev1.NodeInternalIP,
@@ -313,6 +339,7 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Spec: machinev1.MachineSpec{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 			LifecycleHooks: machinev1.LifecycleHooks{
 				PreDrain: []machinev1.LifecycleHook{
 					{
@@ -569,6 +596,9 @@ func TestReconcileRequest(t *testing.T) {
 }
 
 func TestUpdateStatus(t *testing.T) {
+	cleanupFn := StartEnvTest(t)
+	defer cleanupFn(t)
+
 	drainableTrue := conditions.TrueCondition(machinev1.MachineDrainable)
 	terminableTrue := conditions.TrueCondition(machinev1.MachineTerminable)
 	defaultLifecycleConditions := []machinev1.Condition{*drainableTrue, *terminableTrue}
