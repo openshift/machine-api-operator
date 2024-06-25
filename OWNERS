@@ -7,3 +7,4 @@ reviewers:
   - machine-api-reviewers
 
 component: "Cloud Compute"
+subcomponent: Other Provider
