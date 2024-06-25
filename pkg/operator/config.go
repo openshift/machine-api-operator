@@ -24,6 +24,7 @@ type OperatorConfig struct {
 	Controllers     Controllers
 	Proxy           *configv1.Proxy
 	PlatformType    configv1.PlatformType
+	Features        map[string]bool
 }
 
 type Controllers struct {

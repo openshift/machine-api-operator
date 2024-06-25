@@ -456,6 +456,7 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 		return nil, err
 	}
 
+	features := map[string]bool{}
 	// in case the MHC controller is disabled, leave its image empty
 	mhcImage := machineAPIOperatorImage
 	featureGates, err := optr.featureGateAccessor.CurrentFeatureGates()
@@ -465,6 +466,10 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 	if featureGates.Enabled(apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController) {
 		klog.V(2).Info("Disabling MHC controller")
 		mhcImage = ""
+	}
+	if featureGates.Enabled(apifeatures.FeatureGateMachineAPIMigration) {
+		klog.V(2).Info("Enabling MachineAPIMigration for provider controller")
+		features[string(apifeatures.FeatureGateMachineAPIMigration)] = true
 	}
 
 	return &OperatorConfig{
@@ -479,5 +484,6 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 			TerminationHandler: terminationHandlerImage,
 		},
 		PlatformType: provider,
+		Features:     features,
 	}, nil
 }
