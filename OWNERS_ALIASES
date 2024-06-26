@@ -3,17 +3,20 @@
 aliases:
   machine-api-approvers:
   - JoelSpeed
-  - elmiko
-  - damdo
   - RadekManak
+  - damdo
+  - elmiko
+  - nrb
+  - theobarberbany
   machine-api-reviewers:
   - JoelSpeed
-  - elmiko
-  - damdo
   - RadekManak
+  - damdo
+  - elmiko
   - nrb
-  - vincepri
   - racheljpg
+  - sub-mod
+  - theobarberbany
   machine-health-check-approvers:
   - slintes
   - beekhof
