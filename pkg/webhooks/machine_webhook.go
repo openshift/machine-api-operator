@@ -746,6 +746,17 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 		)
 	}
 
+	if providerSpec.PlacementGroupName == "" && providerSpec.PlacementGroupPartition != 0 {
+		errs = append(
+			errs,
+			field.Invalid(
+				field.NewPath("providerSpec", "placementGroupPartition"),
+				providerSpec.PlacementGroupPartition,
+				"providerSpec.placementGroupPartition is set but providerSpec.placementGroupName is empty",
+			),
+		)
+	}
+
 	duplicatedTags := getDuplicatedTags(providerSpec.Tags)
 	if len(duplicatedTags) > 0 {
 		warnings = append(warnings, fmt.Sprintf("providerSpec.tags: duplicated tag names (%s): only the first value will be used.", strings.Join(duplicatedTags, ",")))
