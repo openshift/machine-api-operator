@@ -2134,6 +2134,30 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			expectedError: "providerSpec.tenancy: Invalid value: \"invalid\": Invalid providerSpec.tenancy, the only allowed options are: default, dedicated, host",
 		},
 		{
+			testCase: "fail if placementGroupPartition is set, but placementGroupName is empty",
+			modifySpec: func(p *machinev1beta1.AWSMachineProviderConfig) {
+				p.PlacementGroupName = ""
+				p.PlacementGroupPartition = 2
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.placementGroupPartition: Invalid value: 2: providerSpec.placementGroupPartition is set but providerSpec.placementGroupName is empty",
+		},
+		{
+			testCase: "allow if only placementGroupName is set",
+			modifySpec: func(p *machinev1beta1.AWSMachineProviderConfig) {
+				p.PlacementGroupName = "placement-group"
+			},
+			expectedOk: true,
+		},
+		{
+			testCase: "allow if both placementGroupName and placementGroupPartition are set",
+			modifySpec: func(p *machinev1beta1.AWSMachineProviderConfig) {
+				p.PlacementGroupName = "placement-group"
+				p.PlacementGroupPartition = 2
+			},
+			expectedOk: true,
+		},
+		{
 			testCase: "with no iam instance profile",
 			modifySpec: func(p *machinev1beta1.AWSMachineProviderConfig) {
 				p.IAMInstanceProfile = nil
