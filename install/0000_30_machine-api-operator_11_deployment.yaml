@@ -95,10 +95,6 @@ spec:
         operator: "Exists"
         effect: "NoExecute"
         tolerationSeconds: 120
-      - key: "node.kubernetes.io/not-ready"
-        operator: "Exists"
-        effect: "NoExecute"
-        tolerationSeconds: 120
       volumes:
       - name: config
         configMap:
