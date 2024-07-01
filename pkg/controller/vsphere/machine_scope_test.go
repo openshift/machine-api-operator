@@ -287,7 +287,7 @@ func TestPatchMachine(t *testing.T) {
 	testEnv := &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join("..", "..", "..", "install"),
-			filepath.Join("..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1")},
+			filepath.Join("..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1", "zz_generated.crd-manifests")},
 	}
 
 	cfg, err := testEnv.Start()
@@ -313,10 +313,9 @@ func TestPatchMachine(t *testing.T) {
 
 	// fake objects for newMachineScope()
 	password, _ := server.URL.User.Password()
-
 	configNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
-			Name: openshiftConfigNamespace,
+			Name: openshiftConfigNamespaceForTest,
 		},
 	}
 	g.Expect(k8sClient.Create(ctx, configNamespace)).To(Succeed())
@@ -356,7 +355,7 @@ func TestPatchMachine(t *testing.T) {
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "testname",
-			Namespace: openshiftConfigNamespace,
+			Namespace: openshiftConfigNamespaceForTest,
 		},
 		Data: map[string]string{
 			"testkey": testConfig,
@@ -507,10 +506,11 @@ func TestPatchMachine(t *testing.T) {
 			gs.Eventually(getMachine, timeout).Should(Succeed())
 
 			machineScope, err := newMachineScope(machineScopeParams{
-				client:    k8sClient,
-				machine:   machine,
-				apiReader: k8sClient,
-				Context:   ctx,
+				client:                   k8sClient,
+				machine:                  machine,
+				apiReader:                k8sClient,
+				Context:                  ctx,
+				openshiftConfigNameSpace: openshiftConfigNamespaceForTest,
 			})
 
 			gs.Expect(err).ToNot(HaveOccurred())
@@ -546,7 +546,7 @@ func TestNodeGetter(t *testing.T) {
 	testEnv := &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join("..", "..", "..", "install"),
-			filepath.Join("..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1")},
+			filepath.Join("..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1", "zz_generated.crd-manifests")},
 	}
 
 	cfg, err := testEnv.Start()

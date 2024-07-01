@@ -8,6 +8,7 @@ import (
 	"time"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
+	apifeatures "github.com/openshift/api/features"
 	osoperatorv1 "github.com/openshift/api/operator/v1"
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
 	configinformersv1 "github.com/openshift/client-go/config/informers/externalversions/config/v1"
@@ -171,9 +172,9 @@ func New(
 
 		klog.V(4).InfoS("FeatureGates changed", "enabled", featureChange.New.Enabled, "disabled", featureChange.New.Disabled)
 		prevDisableMHC := featuregates.NewFeatureGate(featureChange.Previous.Enabled, featureChange.Previous.Disabled).
-			Enabled(osconfigv1.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController)
+			Enabled(apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController)
 		newDisableMHC := featuregates.NewFeatureGate(featureChange.New.Enabled, featureChange.New.Disabled).
-			Enabled(osconfigv1.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController)
+			Enabled(apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController)
 
 		if prevDisableMHC != newDisableMHC {
 			klog.V(2).InfoS("Resync for modified feature gate",
@@ -461,7 +462,7 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 	if err != nil {
 		return nil, err
 	}
-	if featureGates.Enabled(osconfigv1.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController) {
+	if featureGates.Enabled(apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController) {
 		klog.V(2).Info("Disabling MHC controller")
 		mhcImage = ""
 	}

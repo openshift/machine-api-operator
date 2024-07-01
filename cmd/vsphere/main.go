@@ -8,6 +8,7 @@ import (
 	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
+	apifeatures "github.com/openshift/api/features"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	configv1client "github.com/openshift/client-go/config/clientset/versioned"
 	configinformers "github.com/openshift/client-go/config/informers/externalversions"
@@ -15,6 +16,7 @@ import (
 	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
 	"github.com/openshift/library-go/pkg/operator/events"
 	capimachine "github.com/openshift/machine-api-operator/pkg/controller/machine"
+	"github.com/openshift/machine-api-operator/pkg/controller/vsphere"
 	machine "github.com/openshift/machine-api-operator/pkg/controller/vsphere"
 	machinesetcontroller "github.com/openshift/machine-api-operator/pkg/controller/vsphere/machineset"
 	"github.com/openshift/machine-api-operator/pkg/metrics"
@@ -173,7 +175,7 @@ func main() {
 		klog.Fatalf("unable to retrieve current feature gates: %v", err)
 	}
 	// read featuregate read and usage to set a variable to pass to a controller
-	staticIPFeatureGateEnabled := featureGates.Enabled(configv1.FeatureGateVSphereStaticIPs)
+	staticIPFeatureGateEnabled := featureGates.Enabled(apifeatures.FeatureGateVSphereStaticIPs)
 
 	// Initialize machine actuator.
 	machineActuator := machine.NewActuator(machine.ActuatorParams{
@@ -182,6 +184,7 @@ func main() {
 		EventRecorder:              mgr.GetEventRecorderFor("vspherecontroller"),
 		TaskIDCache:                taskIDCache,
 		StaticIPFeatureGateEnabled: staticIPFeatureGateEnabled,
+		OpenshiftConfigNamespace:   vsphere.OpenshiftConfigNamespace,
 	})
 
 	if err := configv1.Install(mgr.GetScheme()); err != nil {
