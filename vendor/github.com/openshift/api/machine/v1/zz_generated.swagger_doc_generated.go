@@ -325,6 +325,27 @@ func (NutanixCategory) SwaggerDoc() map[string]string {
 	return map_NutanixCategory
 }
 
+var map_NutanixDiskAddress = map[string]string{
+	"":            "NutanixDiskAddress specifies the disk address.",
+	"adapterType": "adapterType is the adapter type of the disk address.",
+	"deviceIndex": "deviceIndex is the index of the disk address.",
+}
+
+func (NutanixDiskAddress) SwaggerDoc() map[string]string {
+	return map_NutanixDiskAddress
+}
+
+var map_NutanixGPU = map[string]string{
+	"":         "NutanixGPU holds the identity of a Nutanix GPU resource in the Prism Central",
+	"type":     "type is the identifier type to use for this GPU resource.",
+	"deviceID": "deviceID is the id of the GPU entity.",
+	"name":     "name is the GPU name",
+}
+
+func (NutanixGPU) SwaggerDoc() map[string]string {
+	return map_NutanixGPU
+}
+
 var map_NutanixMachineProviderConfig = map[string]string{
 	"":                  "NutanixMachineProviderConfig is the Schema for the nutanixmachineproviderconfigs API Compatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).",
 	"metadata":          "metadata is the standard object's metadata. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
@@ -338,6 +359,8 @@ var map_NutanixMachineProviderConfig = map[string]string{
 	"bootType":          "bootType indicates the boot type (Legacy, UEFI or SecureBoot) the Machine's VM uses to boot. If this field is empty or omitted, the VM will use the default boot type \"Legacy\" to boot. \"SecureBoot\" depends on \"UEFI\" boot, i.e., enabling \"SecureBoot\" means that \"UEFI\" boot is also enabled.",
 	"project":           "project optionally identifies a Prism project for the Machine's VM to associate with.",
 	"categories":        "categories optionally adds one or more prism categories (each with key and value) for the Machine's VM to associate with. All the category key and value pairs specified must already exist in the prism central.",
+	"gpus":              "gpus is a list of GPU devices to add to the machine's VM.",
+	"dataDisks":         "dataDisks holds information of the data disks attached to the Machine's VM",
 	"userDataSecret":    "userDataSecret is a local reference to a secret that contains the UserData to apply to the VM",
 	"credentialsSecret": "credentialsSecret is a local reference to a secret that contains the credentials data to access Nutanix PC client",
 	"failureDomain":     "failureDomain refers to the name of the FailureDomain with which this Machine is associated. If this is configured, the Nutanix machine controller will use the prism_central endpoint and credentials defined in the referenced FailureDomain to communicate to the prism_central. It will also verify that the 'cluster' and subnets' configuration in the NutanixMachineProviderConfig is consistent with that in the referenced failureDomain.",
@@ -366,6 +389,50 @@ var map_NutanixResourceIdentifier = map[string]string{
 
 func (NutanixResourceIdentifier) SwaggerDoc() map[string]string {
 	return map_NutanixResourceIdentifier
+}
+
+var map_NutanixStorageContainerReference = map[string]string{
+	"":     "NutanixStorageContainerReference references to a storage_container object.",
+	"type": "type is the reference type for reference to the storage_container object.",
+	"uuid": "uuid is the UUID of the storage_container object. It cannot be empty if the type is UUID.",
+	"name": "name is the name of the storage_container object. It cannot be empty if the type is Name.",
+	"url":  "url is the source URL of the storage_container object. It cannot be empty if the type is URL.",
+}
+
+func (NutanixStorageContainerReference) SwaggerDoc() map[string]string {
+	return map_NutanixStorageContainerReference
+}
+
+var map_NutanixVMDisk = map[string]string{
+	"":                 "NutanixDataDisk specifies the VM data disk configuration parameters.",
+	"diskSize":         "diskSize is size (in Quantity format) of the disk attached to the VM The minimum diskSize is 1Gi bytes",
+	"deviceProperties": "deviceProperties are the properties of the disk device.",
+	"storageConfig":    "storageConfig are the storage configuration parameters of the VM disks.",
+	"dataSource":       "dataSource refers to a data source image for the VM disk",
+}
+
+func (NutanixVMDisk) SwaggerDoc() map[string]string {
+	return map_NutanixVMDisk
+}
+
+var map_NutanixVMDiskDeviceProperties = map[string]string{
+	"":            "NutanixVMDiskDeviceProperties specifies the",
+	"deviceType":  "deviceType is a disk type. The default is DISK.",
+	"diskAddress": "diskAddress is the address of disk to boot from.",
+}
+
+func (NutanixVMDiskDeviceProperties) SwaggerDoc() map[string]string {
+	return map_NutanixVMDiskDeviceProperties
+}
+
+var map_NutanixVMStorageConfig = map[string]string{
+	"":                 "NutanixVMStorageConfig specifies the storage configuration parameters for VM disks.",
+	"flashMode":        "flashMode specifies whether to pin the VM disk to the flash tier.",
+	"storageContainer": "storageContainer refers to the storage_container used by the VM disk.",
+}
+
+func (NutanixVMStorageConfig) SwaggerDoc() map[string]string {
+	return map_NutanixVMStorageConfig
 }
 
 var map_LoadBalancerReference = map[string]string{
