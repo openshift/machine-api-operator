@@ -36,21 +36,7 @@ func AllFeatureSets() map[ClusterProfileName]map[configv1.FeatureSet]*FeatureGat
 var (
 	allFeatureGates = map[ClusterProfileName]map[configv1.FeatureSet]*FeatureGateEnabledDisabled{}
 
-	FeatureGateServiceAccountTokenNodeBindingValidation = newFeatureGate("ServiceAccountTokenNodeBindingValidation").
-								reportProblemsToJiraComponent("apiserver-auth").
-								contactPerson("stlaz").
-								productScope(kubernetes).
-								enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
-								mustRegister()
-
 	FeatureGateServiceAccountTokenNodeBinding = newFeatureGate("ServiceAccountTokenNodeBinding").
-							reportProblemsToJiraComponent("apiserver-auth").
-							contactPerson("stlaz").
-							productScope(kubernetes).
-							enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
-							mustRegister()
-
-	FeatureGateServiceAccountTokenPodNodeInfo = newFeatureGate("ServiceAccountTokenPodNodeInfo").
 							reportProblemsToJiraComponent("apiserver-auth").
 							contactPerson("stlaz").
 							productScope(kubernetes).
@@ -229,6 +215,13 @@ var (
 					contactPerson("tssurya").
 					productScope(ocpSpecific).
 					enableIn(configv1.Default, configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
+					mustRegister()
+
+	FeatureGateNetworkSegmentation = newFeatureGate("NetworkSegmentation").
+					reportProblemsToJiraComponent("Networking/ovn-kubernetes").
+					contactPerson("tssurya").
+					productScope(ocpSpecific).
+					enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
 					mustRegister()
 
 	FeatureGateNetworkLiveMigration = newFeatureGate("NetworkLiveMigration").

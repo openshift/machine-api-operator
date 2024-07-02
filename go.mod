@@ -267,3 +267,6 @@ require (
 	sigs.k8s.io/kustomize/kyaml v0.14.3-0.20230601165947-6ce0bf390ce3 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 )
+
+// FIXME: after openshift/api/pull/135 is merged
+replace github.com/openshift/api => github.com/nutanix-cloud-native/openshift-api v0.0.0-20240702140846-09b641ae2ae7
