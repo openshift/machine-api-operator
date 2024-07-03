@@ -2137,7 +2137,8 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			testCase: "fail if placementGroupPartition is set, but placementGroupName is empty",
 			modifySpec: func(p *machinev1beta1.AWSMachineProviderConfig) {
 				p.PlacementGroupName = ""
-				p.PlacementGroupPartition = 2
+				partition := int32(2)
+				p.PlacementGroupPartition = &partition
 			},
 			expectedOk:    false,
 			expectedError: "providerSpec.placementGroupPartition: Invalid value: 2: providerSpec.placementGroupPartition is set but providerSpec.placementGroupName is empty",
@@ -2146,19 +2147,21 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			testCase: "fail if placementGroupPartition is outside 1-7 range (lower)",
 			modifySpec: func(p *machinev1beta1.AWSMachineProviderConfig) {
 				p.PlacementGroupName = "placement-group"
-				p.PlacementGroupPartition = -1
+				partition := int32(0)
+				p.PlacementGroupPartition = &partition
 			},
 			expectedOk:    false,
-			expectedError: "providerSpec.placementGroupPartition: Invalid value: -1: placementGroupPartition must be between 1 and 7",
+			expectedError: "providerSpec.placementGroupPartition: Invalid value: 0: providerSpec.placementGroupPartition must be between 1 and 7",
 		},
 		{
 			testCase: "fail if placementGroupPartition is outside 1-7 range (upper)",
 			modifySpec: func(p *machinev1beta1.AWSMachineProviderConfig) {
 				p.PlacementGroupName = "placement-group"
-				p.PlacementGroupPartition = 8
+				partition := int32(8)
+				p.PlacementGroupPartition = &partition
 			},
 			expectedOk:    false,
-			expectedError: "providerSpec.placementGroupPartition: Invalid value: 8: placementGroupPartition must be between 1 and 7",
+			expectedError: "providerSpec.placementGroupPartition: Invalid value: 8: providerSpec.placementGroupPartition must be between 1 and 7",
 		},
 		{
 			testCase: "allow if only placementGroupName is set",
@@ -2171,7 +2174,8 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			testCase: "allow if correct placementGroupName and placementGroupPartition are set",
 			modifySpec: func(p *machinev1beta1.AWSMachineProviderConfig) {
 				p.PlacementGroupName = "placement-group"
-				p.PlacementGroupPartition = 2
+				partition := int32(2)
+				p.PlacementGroupPartition = &partition
 			},
 			expectedOk: true,
 		},
