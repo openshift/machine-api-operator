@@ -746,28 +746,30 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 		)
 	}
 
-	// placementGroupPartition must be between 1 and 7 if it's not 0 (default).
-	if providerSpec.PlacementGroupPartition < 0 || providerSpec.PlacementGroupPartition > 7 {
-		errs = append(
-			errs,
-			field.Invalid(
-				field.NewPath("providerSpec", "placementGroupPartition"),
-				providerSpec.PlacementGroupPartition,
-				"placementGroupPartition must be between 1 and 7",
-			),
-		)
-	}
-
-	// If placementGroupPartition is not 0 (default), placementGroupName must be set.
-	if providerSpec.PlacementGroupName == "" && providerSpec.PlacementGroupPartition != 0 {
-		errs = append(
-			errs,
-			field.Invalid(
-				field.NewPath("providerSpec", "placementGroupPartition"),
-				providerSpec.PlacementGroupPartition,
-				"providerSpec.placementGroupPartition is set but providerSpec.placementGroupName is empty",
-			),
-		)
+	if providerSpec.PlacementGroupPartition != nil {
+		partition := *providerSpec.PlacementGroupPartition
+		// placementGroupPartition must be between 1 and 7
+		if partition < 1 || partition > 7 {
+			errs = append(
+				errs,
+				field.Invalid(
+					field.NewPath("providerSpec", "placementGroupPartition"),
+					partition,
+					"providerSpec.placementGroupPartition must be between 1 and 7",
+				),
+			)
+		}
+		// placementGroupName must be set
+		if providerSpec.PlacementGroupName == "" {
+			errs = append(
+				errs,
+				field.Invalid(
+					field.NewPath("providerSpec", "placementGroupPartition"),
+					partition,
+					"providerSpec.placementGroupPartition is set but providerSpec.placementGroupName is empty",
+				),
+			)
+		}
 	}
 
 	duplicatedTags := getDuplicatedTags(providerSpec.Tags)
