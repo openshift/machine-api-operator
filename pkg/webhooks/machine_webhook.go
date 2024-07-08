@@ -1665,10 +1665,122 @@ func validateNutanix(m *machinev1beta1.Machine, config *admissionConfig) (bool, 
 		}
 	}
 
+	// validate gpus if configured
+	if len(providerSpec.GPUs) > 0 {
+		fldPath := field.NewPath("providerSpec", "gpus")
+		for _, gpu := range providerSpec.GPUs {
+			switch gpu.Type {
+			case machinev1.NutanixGPUIdentifierDeviceID:
+				if gpu.DeviceID == nil {
+					errs = append(errs, field.Required(fldPath.Child("deviceID"), "missing gpu deviceID"))
+				}
+			case machinev1.NutanixGPUIdentifierName:
+				if gpu.Name == nil || *gpu.Name == "" {
+					errs = append(errs, field.Required(fldPath.Child("name"), "missing gpu name"))
+				}
+			default:
+				errMsg := fmt.Sprintf("invalid gpu identifier type, the valid types: %q, %q.", machinev1.NutanixGPUIdentifierDeviceID, machinev1.NutanixGPUIdentifierName)
+				errs = append(errs, field.Invalid(fldPath.Child("type"), gpu.Type, errMsg))
+			}
+		}
+	}
+
+	// validate dataDisks if configured
+	if len(providerSpec.DataDisks) > 0 {
+		for _, fldErr := range validateNutanixDataDisks(providerSpec.DataDisks) {
+			errs = append(errs, fldErr)
+		}
+	}
+
 	if len(errs) > 0 {
 		return false, warnings, errs
 	}
 	return true, warnings, nil
+}
+
+func validateNutanixDataDisks(disks []machinev1.NutanixVMDisk) (fldErrs []*field.Error) {
+	fldPath := field.NewPath("providerSpec", "dataDisks")
+	var errMsg string
+
+	for _, disk := range disks {
+		// validate the minimum diskSize of 1Gi
+		diskSizeBytes := disk.DiskSize.Value()
+		if diskSizeBytes < 1024*1024*1024 {
+			fldErrs = append(fldErrs, field.Invalid(fldPath.Child("diskSize"), fmt.Sprintf("%v bytes", diskSizeBytes), "The minimum diskSize is 1Gi bytes."))
+		}
+
+		if disk.DeviceProperties != nil {
+			switch disk.DeviceProperties.DeviceType {
+			case machinev1.NutanixDiskDeviceTypeDisk:
+				switch disk.DeviceProperties.AdapterType {
+				case machinev1.NutanixDiskAdapterTypeSCSI, machinev1.NutanixDiskAdapterTypeIDE, machinev1.NutanixDiskAdapterTypePCI, machinev1.NutanixDiskAdapterTypeSATA, machinev1.NutanixDiskAdapterTypeSPAPR:
+					// valid configuration
+				default:
+					// invalid configuration
+					fldErrs = append(fldErrs, field.Invalid(fldPath.Child("deviceProperties", "adapterType"), disk.DeviceProperties.AdapterType,
+						fmt.Sprintf("invalid adapter type for the %q device type, the valid values: %q, %q, %q, %q, %q.",
+							machinev1.NutanixDiskDeviceTypeDisk, machinev1.NutanixDiskAdapterTypeSCSI, machinev1.NutanixDiskAdapterTypeIDE,
+							machinev1.NutanixDiskAdapterTypePCI, machinev1.NutanixDiskAdapterTypeSATA, machinev1.NutanixDiskAdapterTypeSPAPR)))
+				}
+			case machinev1.NutanixDiskDeviceTypeCDROM:
+				switch disk.DeviceProperties.AdapterType {
+				case machinev1.NutanixDiskAdapterTypeIDE, machinev1.NutanixDiskAdapterTypeSATA:
+					// valid configuration
+				default:
+					// invalid configuration
+					fldErrs = append(fldErrs, field.Invalid(fldPath.Child("deviceProperties", "adapterType"), disk.DeviceProperties.AdapterType,
+						fmt.Sprintf("invalid adapter type for the %q device type, the valid values: %q, %q.",
+							machinev1.NutanixDiskDeviceTypeCDROM, machinev1.NutanixDiskAdapterTypeIDE, machinev1.NutanixDiskAdapterTypeSATA)))
+				}
+			default:
+				fldErrs = append(fldErrs, field.Invalid(fldPath.Child("deviceProperties", "deviceType"), disk.DeviceProperties.DeviceType,
+					fmt.Sprintf("invalid device type, the valid types: %q, %q.", machinev1.NutanixDiskDeviceTypeDisk, machinev1.NutanixDiskDeviceTypeCDROM)))
+			}
+
+			if disk.DeviceProperties.DeviceIndex < 0 {
+				fldErrs = append(fldErrs, field.Invalid(fldPath.Child("deviceProperties", "deviceIndex"),
+					disk.DeviceProperties.DeviceIndex, "invalid device index, the valid values are non-negative integers."))
+			}
+		}
+
+		if disk.StorageConfig != nil {
+			if disk.StorageConfig.DiskMode != machinev1.NutanixDiskModeStandard && disk.StorageConfig.DiskMode != machinev1.NutanixDiskModeFlash {
+				fldErrs = append(fldErrs, field.Invalid(fldPath.Child("storageConfig", "diskMode"), disk.StorageConfig.DiskMode,
+					fmt.Sprintf("invalid disk mode, the valid values: %q, %q.", machinev1.NutanixDiskModeStandard, machinev1.NutanixDiskModeFlash)))
+			}
+
+			storageContainerRef := disk.StorageConfig.StorageContainer
+			if storageContainerRef != nil {
+				switch storageContainerRef.Type {
+				case machinev1.NutanixIdentifierUUID:
+					if storageContainerRef.UUID == nil || *storageContainerRef.UUID == "" {
+						fldErrs = append(fldErrs, field.Required(fldPath.Child("storageConfig", "storageContainer", "uuid"), "missing storageContainer uuid."))
+					}
+				default:
+					errMsg = fmt.Sprintf("invalid storageContainer reference type, the valid values: %q.", machinev1.NutanixIdentifierUUID)
+					fldErrs = append(fldErrs, field.Invalid(fldPath.Child("storageConfig", "storageContainer", "type"), storageContainerRef.Type, errMsg))
+				}
+			}
+		}
+
+		if disk.DataSource != nil {
+			switch disk.DataSource.Type {
+			case machinev1.NutanixIdentifierUUID:
+				if disk.DataSource.UUID == nil || *disk.DataSource.UUID == "" {
+					fldErrs = append(fldErrs, field.Required(fldPath.Child("dataSource", "uuid"), "missing disk dataSource uuid."))
+				}
+			case machinev1.NutanixIdentifierName:
+				if disk.DataSource.Name == nil || *disk.DataSource.Name == "" {
+					fldErrs = append(fldErrs, field.Required(fldPath.Child("dataSource", "name"), "missing disk dataSource name."))
+				}
+			default:
+				errMsg := fmt.Sprintf("invalid disk dataSource reference type, the valid values: %q, %q.", machinev1.NutanixIdentifierUUID, machinev1.NutanixIdentifierName)
+				fldErrs = append(fldErrs, field.Invalid(fldPath.Child("dataSource", "type"), disk.DataSource.Type, errMsg))
+			}
+		}
+	}
+
+	return fldErrs
 }
 
 func validateNutanixResourceIdentifier(resource string, identifier machinev1.NutanixResourceIdentifier) *field.Error {

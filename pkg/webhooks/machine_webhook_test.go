@@ -5059,6 +5059,22 @@ func TestValidateNutanixProviderSpec(t *testing.T) {
 			expectedError: "providerSpec.categories.value: Invalid value: \"val0123456789012345678901234567890123456789012345678901234567890123456789\": value must be a string with length between 1 and 64.",
 		},
 		{
+			testCase: "with invalid gpu reference type provided",
+			modifySpec: func(p *machinev1.NutanixMachineProviderConfig) {
+				p.GPUs = append(p.GPUs, machinev1.NutanixGPU{Type: "invalid"})
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.gpus.type: Invalid value: \"invalid\": invalid gpu identifier type, the valid types: \"DeviceID\", \"Name\".",
+		},
+		{
+			testCase: "with too small diskSize provided",
+			modifySpec: func(p *machinev1.NutanixMachineProviderConfig) {
+				p.DataDisks = append(p.DataDisks, machinev1.NutanixVMDisk{DiskSize: resource.MustParse("500Mi")})
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.dataDisks.diskSize: Invalid value: \"524288000 bytes\": The minimum diskSize is 1Gi bytes.",
+		},
+		{
 			testCase:      "with all required fields it succeeds",
 			expectedOk:    true,
 			expectedError: "",
