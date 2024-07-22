@@ -1327,7 +1327,7 @@ func validateGCPDisks(disks []*machinev1beta1.GCPDisk, parentPath *field.Path) f
 		}
 
 		if disk.Type != "" {
-			diskTypes := sets.NewString("pd-standard", "pd-ssd", "pd-balanced")
+			diskTypes := sets.NewString("pd-standard", "pd-ssd", "pd-balanced", "hyperdisk-balanced")
 			if !diskTypes.Has(disk.Type) {
 				errs = append(errs, field.NotSupported(fldPath.Child("type"), disk.Type, diskTypes.List()))
 			}
