@@ -1,20 +1,17 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	configv1 "github.com/openshift/api/config/v1"
 	apifeatures "github.com/openshift/api/features"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
-	configv1client "github.com/openshift/client-go/config/clientset/versioned"
-	configinformers "github.com/openshift/client-go/config/informers/externalversions"
 	"github.com/openshift/library-go/pkg/config/leaderelection"
-	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
-	"github.com/openshift/library-go/pkg/operator/events"
+	"github.com/openshift/library-go/pkg/features"
 	capimachine "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere"
 	machine "github.com/openshift/machine-api-operator/pkg/controller/vsphere"
@@ -23,6 +20,9 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/util"
 	"github.com/openshift/machine-api-operator/pkg/version"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apiserver/pkg/util/feature"
+	k8sflag "k8s.io/component-base/cli/flag"
+	"k8s.io/component-base/featuregate"
 	"k8s.io/klog/v2"
 	"k8s.io/klog/v2/textlogger"
 	ipamv1beta1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
@@ -34,6 +34,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
+
+const timeout = 10 * time.Minute
 
 func main() {
 	var printVersion bool
@@ -90,6 +92,18 @@ func main() {
 		":9440",
 		"The address for health checking.",
 	)
+
+	// Sets up feature gates
+	defaultMutableGate := feature.DefaultMutableFeatureGate
+	_, err := features.NewFeatureGateOptions(defaultMutableGate, apifeatures.SelfManaged, apifeatures.FeatureGateVSphereStaticIPs, apifeatures.FeatureGateMachineAPIMigration)
+	if err != nil {
+		klog.Fatalf("Error setting up feature gates: %v", err)
+	}
+
+	featureGateArgs := map[string]bool{}
+	flag.Var(k8sflag.NewMapStringBool(&featureGateArgs), "feature-gates", "A set of key=value pairs that describe feature gates for alpha/experimental features. "+
+		"Options are:\n"+strings.Join(defaultMutableGate.KnownFeatures(), "\n"))
+
 	flag.Parse()
 
 	if logToStderr != nil {
@@ -102,7 +116,7 @@ func main() {
 	}
 
 	cfg := config.GetConfigOrDie()
-	syncPeriod := 10 * time.Minute
+	syncPeriod := timeout
 
 	le := util.GetLeaderElectionConfig(cfg, configv1.LeaderElection{
 		Disable:       !*leaderElect,
@@ -132,6 +146,17 @@ func main() {
 		klog.Infof("Watching machine-api objects only in namespace %q for reconciliation.", *watchNamespace)
 	}
 
+	// Sets feature gates from flags
+	klog.Infof("Initializing feature gates: %s", strings.Join(defaultMutableGate.KnownFeatures(), ", "))
+	err = defaultMutableGate.SetFromMap(featureGateArgs)
+	if err != nil {
+		klog.Fatalf("Error setting feature gates from flags: %v", err)
+	}
+	klog.Infof("FeatureGateMachineAPIMigration initialised: %t", defaultMutableGate.Enabled(featuregate.Feature(apifeatures.FeatureGateMachineAPIMigration)))
+
+	staticIPFeatureGateEnabled := defaultMutableGate.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereStaticIPs))
+	klog.Infof("FeatureGateVSphereStaticIPs initialised: %t", staticIPFeatureGateEnabled)
+
 	// Setup a Manager
 	mgr, err := manager.New(cfg, opts)
 	if err != nil {
@@ -141,41 +166,6 @@ func main() {
 	// Create a taskIDCache for create task IDs in case they are lost due to
 	// network error or stale cache.
 	taskIDCache := make(map[string]string)
-
-	desiredVersion := getReleaseVersion()
-	missingVersion := "0.0.1-snapshot"
-
-	configClient, err := configv1client.NewForConfig(mgr.GetConfig())
-	if err != nil {
-		klog.Fatal(err, "unable to create config client")
-		os.Exit(1)
-	}
-	configInformers := configinformers.NewSharedInformerFactory(configClient, 10*time.Minute)
-
-	// By default, this will exit(0) if the featuregates change
-	featureGateAccessor := featuregates.NewFeatureGateAccess(
-		desiredVersion, missingVersion,
-		configInformers.Config().V1().ClusterVersions(),
-		configInformers.Config().V1().FeatureGates(),
-		events.NewLoggingEventRecorder("vspherecontroller"),
-	)
-	go featureGateAccessor.Run(context.Background())
-	go configInformers.Start(context.Background().Done())
-
-	select {
-	case <-featureGateAccessor.InitialFeatureGatesObserved():
-		featureGates, _ := featureGateAccessor.CurrentFeatureGates()
-		klog.Infof("FeatureGates initialized: %v", featureGates.KnownFeatures())
-	case <-time.After(1 * time.Minute):
-		klog.Fatal("timed out waiting for FeatureGate detection")
-	}
-
-	featureGates, err := featureGateAccessor.CurrentFeatureGates()
-	if err != nil {
-		klog.Fatalf("unable to retrieve current feature gates: %v", err)
-	}
-	// read featuregate read and usage to set a variable to pass to a controller
-	staticIPFeatureGateEnabled := featureGates.Enabled(apifeatures.FeatureGateVSphereStaticIPs)
 
 	// Initialize machine actuator.
 	machineActuator := machine.NewActuator(machine.ActuatorParams{
@@ -227,12 +217,4 @@ func main() {
 	if err = mgr.Start(ctrl.SetupSignalHandler()); err != nil {
 		klog.Fatalf("Failed to run manager: %v", err)
 	}
-}
-
-func getReleaseVersion() string {
-	releaseVersion := os.Getenv("RELEASE_VERSION")
-	if len(releaseVersion) == 0 {
-		return "0.0.1-snapshot"
-	}
-	return releaseVersion
 }
