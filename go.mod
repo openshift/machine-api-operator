@@ -12,7 +12,7 @@ require (
 	github.com/onsi/gomega v1.32.0
 	github.com/openshift/api v0.0.0-20240708071937-c9a91940bf0f
 	github.com/openshift/client-go v0.0.0-20240528061634-b054aa794d87
-	github.com/openshift/library-go v0.0.0-20240116081341-964bcb3f545c
+	github.com/openshift/library-go v0.0.0-20240723172506-8bb8fe6cc56d
 	github.com/prometheus/client_golang v1.18.0
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/pflag v1.0.5
@@ -37,6 +37,7 @@ require (
 require (
 	github.com/golangci/golangci-lint v1.52.2
 	golang.org/x/time v0.5.0
+	k8s.io/component-base v0.30.1
 	sigs.k8s.io/kube-storage-version-migrator v0.0.6-0.20230721195810-5c8923c5ff96
 )
 
@@ -84,7 +85,6 @@ require (
 	github.com/firefart/nonamedreturns v1.0.4 // indirect
 	github.com/fsnotify/fsnotify v1.7.0 // indirect
 	github.com/fzipp/gocyclo v0.6.0 // indirect
-	github.com/ghodss/yaml v1.0.0 // indirect
 	github.com/go-critic/go-critic v0.7.0 // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
 	github.com/go-logr/zapr v1.3.0 // indirect
@@ -255,8 +255,7 @@ require (
 	honnef.co/go/tools v0.4.3 // indirect
 	k8s.io/apiextensions-apiserver v0.30.1 // indirect
 	k8s.io/cli-runtime v0.30.0 // indirect
-	k8s.io/component-base v0.30.1 // indirect
-	k8s.io/kube-aggregator v0.29.0 // indirect
+	k8s.io/kube-aggregator v0.30.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
 	mvdan.cc/gofumpt v0.4.0 // indirect
 	mvdan.cc/interfacer v0.0.0-20180901003855-c20040233aed // indirect
