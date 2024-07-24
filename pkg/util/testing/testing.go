@@ -6,10 +6,14 @@ import (
 
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 
+	openshiftfeatures "github.com/openshift/api/features"
+	"github.com/openshift/library-go/pkg/features"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/util/uuid"
+	"k8s.io/apiserver/pkg/util/feature"
+	"k8s.io/component-base/featuregate"
 	"k8s.io/utils/ptr"
 )
 
@@ -168,4 +172,19 @@ func NewMachineHealthCheck(name string) *machinev1.MachineHealthCheck {
 		},
 		Status: machinev1.MachineHealthCheckStatus{},
 	}
+}
+
+func NewDefaultMutableFeatureGate() (featuregate.MutableFeatureGate, error) {
+	defaultMutableGate := feature.DefaultMutableFeatureGate
+	_, err := features.NewFeatureGateOptions(defaultMutableGate, openshiftfeatures.SelfManaged, openshiftfeatures.FeatureGateMachineAPIMigration)
+	if err != nil {
+		return nil, err
+	}
+
+	err = defaultMutableGate.SetFromMap(map[string]bool{"MachineAPIMigration": true})
+	if err != nil {
+		return nil, err
+	}
+
+	return defaultMutableGate, nil
 }

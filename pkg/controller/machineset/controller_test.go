@@ -24,7 +24,9 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
+	"github.com/openshift/library-go/pkg/operator/configobserver/featuregates"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -55,6 +57,9 @@ func TestMachineSetToMachines(t *testing.T) {
 							machinev1.MachineClusterLabelName: "test-cluster",
 						},
 					},
+				},
+				Status: machinev1.MachineSetStatus{
+					AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 				},
 			},
 		},
@@ -152,7 +157,11 @@ func TestShouldExcludeMachine(t *testing.T) {
 		expected   bool
 	}{
 		{
-			machineSet: machinev1.MachineSet{},
+			machineSet: machinev1.MachineSet{
+				Status: machinev1.MachineSetStatus{
+					AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
+				},
+			},
 			machine: machinev1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      "withNoMatchingOwnerRef",
@@ -177,6 +186,9 @@ func TestShouldExcludeMachine(t *testing.T) {
 						},
 					},
 				},
+				Status: machinev1.MachineSetStatus{
+					AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
+				},
 			},
 			machine: machinev1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
@@ -190,7 +202,11 @@ func TestShouldExcludeMachine(t *testing.T) {
 			expected: false,
 		},
 		{
-			machineSet: machinev1.MachineSet{},
+			machineSet: machinev1.MachineSet{
+				Status: machinev1.MachineSetStatus{
+					AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
+				},
+			},
 			machine: machinev1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:              "withDeletionTimestamp",
@@ -223,6 +239,9 @@ func TestAdoptOrphan(t *testing.T) {
 	ms := machinev1.MachineSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "adoptOrphanMachine",
+		},
+		Status: machinev1.MachineSetStatus{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 		},
 	}
 	controller := true
@@ -273,10 +292,16 @@ var _ = Describe("MachineSet Reconcile", func() {
 
 	BeforeEach(func() {
 		rec = record.NewFakeRecorder(32)
+		featureGateAccessor := featuregates.NewHardcodedFeatureGateAccess(
+			[]configv1.FeatureGateName{
+				"MachineAPIMigration",
+			},
+			[]configv1.FeatureGateName{})
 
 		r = &ReconcileMachineSet{
-			scheme:   scheme.Scheme,
-			recorder: rec,
+			scheme:              scheme.Scheme,
+			recorder:            rec,
+			featureGateAccessor: featureGateAccessor,
 		}
 	})
 
@@ -302,7 +327,11 @@ var _ = Describe("MachineSet Reconcile", func() {
 				},
 				Spec: machinev1.MachineSetSpec{
 					Template: machinev1.MachineTemplateSpec{},
-				}}
+				},
+				Status: machinev1.MachineSetStatus{
+					AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
+				},
+			}
 
 			r.Client = fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(ms).WithStatusSubresource(&machinev1.MachineSet{}).Build()
 		})
@@ -330,6 +359,9 @@ var _ = Describe("MachineSet Reconcile", func() {
 				},
 				Spec: machinev1.MachineSetSpec{
 					Replicas: &replicas,
+				},
+				Status: machinev1.MachineSetStatus{
+					AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 				},
 			}
 
