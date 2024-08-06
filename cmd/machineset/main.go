@@ -20,12 +20,28 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
+	osconfigv1 "github.com/openshift/api/config/v1"
+	apifeatures "github.com/openshift/api/features"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
+	mapiwebhooks "github.com/openshift/machine-api-operator/pkg/webhooks"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
-	"k8s.io/klog/v2"
+	k8sflag "k8s.io/component-base/cli/flag"
 	ctrl "sigs.k8s.io/controller-runtime"
+
+	"github.com/openshift/library-go/pkg/config/leaderelection"
+	"github.com/openshift/library-go/pkg/features"
+	"github.com/openshift/machine-api-operator/pkg/controller"
+	"github.com/openshift/machine-api-operator/pkg/controller/machineset"
+	"github.com/openshift/machine-api-operator/pkg/metrics"
+	"github.com/openshift/machine-api-operator/pkg/operator"
+	"github.com/openshift/machine-api-operator/pkg/util"
+	"k8s.io/apiserver/pkg/util/feature"
+	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	"k8s.io/component-base/featuregate"
+	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -33,21 +49,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
-
-	osconfigv1 "github.com/openshift/api/config/v1"
-	machinev1 "github.com/openshift/api/machine/v1beta1"
-	"github.com/openshift/library-go/pkg/config/leaderelection"
-	"github.com/openshift/machine-api-operator/pkg/controller"
-	"github.com/openshift/machine-api-operator/pkg/controller/machineset"
-	"github.com/openshift/machine-api-operator/pkg/metrics"
-	"github.com/openshift/machine-api-operator/pkg/operator"
-	"github.com/openshift/machine-api-operator/pkg/util"
-	mapiwebhooks "github.com/openshift/machine-api-operator/pkg/webhooks"
 )
 
 const (
 	defaultWebhookPort    = operator.MachineSetWebhookPort
 	defaultWebhookCertdir = "/etc/machine-api-operator/tls"
+	timeout               = 10 * time.Minute
 )
 
 func main() {
@@ -102,6 +109,17 @@ func main() {
 		fmt.Sprintf("The duration that non-leader candidates will wait after observing a leadership renewal until attempting to acquire leadership of a led but unrenewed leader slot. This is effectively the maximum duration that a leader can be stopped before it is replaced by another candidate. This is only applicable if leader election is enabled. Default: (%s)", defaultLeaderElectionValues.LeaseDuration.Duration),
 	)
 
+	// Sets up feature gates
+	defaultMutableGate := feature.DefaultMutableFeatureGate
+	_, err := features.NewFeatureGateOptions(defaultMutableGate, apifeatures.SelfManaged, apifeatures.FeatureGateVSphereStaticIPs, apifeatures.FeatureGateMachineAPIMigration)
+	if err != nil {
+		klog.Fatalf("Error setting up feature gates: %v", err)
+	}
+
+	featureGateArgs := map[string]bool{}
+	flag.Var(k8sflag.NewMapStringBool(&featureGateArgs), "feature-gates", "A set of key=value pairs that describe feature gates for alpha/experimental features. "+
+		"Options are:\n"+strings.Join(defaultMutableGate.KnownFeatures(), "\n"))
+
 	flag.Parse()
 	if *watchNamespace != "" {
 		log.Printf("Watching cluster-api objects only in namespace %q for reconciliation.", *watchNamespace)
@@ -120,7 +138,7 @@ func main() {
 	})
 
 	// Create a new Cmd to provide shared dependencies and start components
-	syncPeriod := 10 * time.Minute
+	syncPeriod := timeout
 	opts := manager.Options{
 		Metrics: server.Options{
 			BindAddress: *metricsAddress,
@@ -151,6 +169,14 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// Sets feature gates from flags
+	klog.Infof("Initializing feature gates: %s", strings.Join(defaultMutableGate.KnownFeatures(), ", "))
+	err = defaultMutableGate.SetFromMap(featureGateArgs)
+	if err != nil {
+		klog.Fatalf("Error setting feature gates from flags: %v", err)
+	}
+	klog.Infof("FeatureGateMachineAPIMigration initialised: %t", defaultMutableGate.Enabled(featuregate.Feature(apifeatures.FeatureGateMachineAPIMigration)))
 
 	// Enable defaulting and validating webhooks
 	machineDefaulter, err := mapiwebhooks.NewMachineDefaulter()
@@ -188,7 +214,7 @@ func main() {
 	}
 
 	// Setup all Controllers
-	if err := controller.AddToManager(mgr, opts, machineset.Add); err != nil {
+	if err := controller.AddToManagerWithFeatureGates(mgr, opts, defaultMutableGate, machineset.Add); err != nil {
 		log.Fatal(err)
 	}
 
