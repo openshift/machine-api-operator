@@ -29,6 +29,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
+
+	testutils "github.com/openshift/machine-api-operator/pkg/util/testing"
 )
 
 var c client.Client
@@ -66,7 +68,12 @@ func TestReconcile(t *testing.T) {
 	c = mgr.GetClient()
 
 	a := newTestActuator()
-	recFn := newReconciler(mgr, a)
+	gate, err := testutils.NewDefaultMutableFeatureGate()
+	if err != nil {
+		t.Errorf("Unexpected error setting up feature gates: %v", err)
+	}
+
+	recFn := newReconciler(mgr, a, gate)
 	if err := add(mgr, recFn, "dummy"); err != nil {
 		t.Fatalf("error adding controller to manager: %v", err)
 	}
