@@ -193,7 +193,7 @@ func main() {
 		klog.Fatalf("unable to add ipamv1beta1 to scheme: %v", err)
 	}
 
-	if err := capimachine.AddWithActuator(mgr, machineActuator); err != nil {
+	if err := capimachine.AddWithActuator(mgr, machineActuator, defaultMutableGate); err != nil {
 		klog.Fatal(err)
 	}
 
