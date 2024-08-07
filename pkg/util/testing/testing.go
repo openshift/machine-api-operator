@@ -178,12 +178,12 @@ func NewDefaultMutableFeatureGate() (featuregate.MutableFeatureGate, error) {
 	defaultMutableGate := feature.DefaultMutableFeatureGate
 	_, err := features.NewFeatureGateOptions(defaultMutableGate, openshiftfeatures.SelfManaged, openshiftfeatures.FeatureGateMachineAPIMigration)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to set up default feature gate: %w", err)
 	}
 
 	err = defaultMutableGate.SetFromMap(map[string]bool{"MachineAPIMigration": true})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to set features from map: %w", err)
 	}
 
 	return defaultMutableGate, nil
