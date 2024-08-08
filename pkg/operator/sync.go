@@ -665,7 +665,7 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 	// --feature-gates=<name>=<bool>,<name>=<bool>... arg
 	featureGateArgs := append(args, buildFeatureGatesString(features))
 
-	machineControllerArgs := append([]string{}, args...)
+	machineControllerArgs := append([]string{}, featureGateArgs...)
 	switch config.PlatformType {
 	case v1.AzurePlatformType:
 		machineControllerArgs = append(machineControllerArgs, "--max-concurrent-reconciles=10")
