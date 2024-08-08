@@ -35,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/component-base/featuregate"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -60,14 +61,18 @@ var (
 
 // Add creates a new MachineSet Controller and adds it to the Manager with default RBAC.
 // The Manager will set fields on the Controller and Start it when the Manager is Started.
-func Add(mgr manager.Manager, opts manager.Options) error {
-	r := newReconciler(mgr)
+func Add(mgr manager.Manager, opts manager.Options, gate featuregate.MutableFeatureGate) error {
+	r := newReconciler(mgr, gate)
 	return add(mgr, r, r.MachineToMachineSets)
 }
 
 // newReconciler returns a new reconcile.Reconciler.
-func newReconciler(mgr manager.Manager) *ReconcileMachineSet {
-	return &ReconcileMachineSet{Client: mgr.GetClient(), scheme: mgr.GetScheme(), recorder: mgr.GetEventRecorderFor(controllerName)}
+func newReconciler(mgr manager.Manager, gate featuregate.MutableFeatureGate) *ReconcileMachineSet {
+	return &ReconcileMachineSet{
+		Client: mgr.GetClient(), scheme: mgr.GetScheme(),
+		recorder: mgr.GetEventRecorderFor(controllerName),
+		gate:     gate,
+	}
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler.
@@ -108,6 +113,7 @@ type ReconcileMachineSet struct {
 	client.Client
 	scheme   *runtime.Scheme
 	recorder record.EventRecorder
+	gate     featuregate.MutableFeatureGate
 }
 
 func (r *ReconcileMachineSet) MachineToMachineSets(ctx context.Context, o *machinev1.Machine) []reconcile.Request {

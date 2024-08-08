@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -186,7 +187,7 @@ func (optr *Operator) checkRolloutStatus(config *OperatorConfig) (reconcile.Resu
 }
 
 func (optr *Operator) syncClusterAPIController(config *OperatorConfig) error {
-	controllersDeployment := newDeployment(config, nil)
+	controllersDeployment := newDeployment(config, config.Features)
 
 	// we watch some resources so that our deployment will redeploy without explicitly and carefully ordered resource creation
 	inputHashes, err := resourcehash.MultipleObjectHashStringMapForObjectReferences(
@@ -635,6 +636,16 @@ func getProxyArgs(config *OperatorConfig) []corev1.EnvVar {
 	return envVars
 }
 
+// buildFeatureGatesString builds a string with the format: --feature-gates=<name>=<bool>,<name>=<bool>...
+func buildFeatureGatesString(featureGates map[string]bool) string {
+	var parts []string
+	for name, enabled := range featureGates {
+		part := fmt.Sprintf("%s=%t", name, enabled)
+		parts = append(parts, part)
+	}
+	return "--feature-gates=" + strings.Join(parts, ",")
+}
+
 func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Container {
 	resources := corev1.ResourceRequirements{
 		Requests: map[corev1.ResourceName]resource.Quantity{
@@ -650,6 +661,10 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 		fmt.Sprintf("--namespace=%s", config.TargetNamespace),
 	}
 
+	// Use the map of features to create a
+	// --feature-gates=<name>=<bool>,<name>=<bool>... arg
+	featureGateArgs := append(args, buildFeatureGatesString(features))
+
 	machineControllerArgs := append([]string{}, args...)
 	switch config.PlatformType {
 	case v1.AzurePlatformType:
@@ -663,7 +678,7 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 			Name:      "machineset-controller",
 			Image:     config.Controllers.MachineSet,
 			Command:   []string{"/machineset-controller"},
-			Args:      args,
+			Args:      featureGateArgs,
 			Resources: resources,
 			Env:       proxyEnvArgs,
 			Ports: []corev1.ContainerPort{

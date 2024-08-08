@@ -25,6 +25,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
+	testutils "github.com/openshift/machine-api-operator/pkg/util/testing"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -273,10 +274,13 @@ var _ = Describe("MachineSet Reconcile", func() {
 
 	BeforeEach(func() {
 		rec = record.NewFakeRecorder(32)
+		gate, err := testutils.NewDefaultMutableFeatureGate()
+		Expect(err).NotTo(HaveOccurred())
 
 		r = &ReconcileMachineSet{
 			scheme:   scheme.Scheme,
 			recorder: rec,
+			gate:     gate,
 		}
 	})
 

@@ -22,18 +22,25 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	machinev1 "github.com/openshift/api/machine/v1beta1"
+	machinev1resourcebuilder "github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/machine/v1beta1"
+	testutils "github.com/openshift/machine-api-operator/pkg/util/testing"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
+
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
 var _ = Describe("MachineSet Reconciler", func() {
-	namespace := &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{Name: "ms-test"}}
 	var mgrCtxCancel context.CancelFunc
 	var mgrStopped chan struct{}
+	var namespace *corev1.Namespace
+	var machineSetBuilder machinev1resourcebuilder.MachineSetBuilder
+	var replicas int32 = int32(2)
 
 	BeforeEach(func() {
 		By("Setting up a new manager")
@@ -46,11 +53,14 @@ var _ = Describe("MachineSet Reconciler", func() {
 
 		k8sClient = mgr.GetClient()
 
-		By("Setting up a new reconciler")
-		reconciler := newReconciler(mgr)
-
-		err = add(mgr, reconciler, reconciler.MachineToMachineSets)
+		By("Setting up feature gates")
+		gate, err := testutils.NewDefaultMutableFeatureGate()
 		Expect(err).NotTo(HaveOccurred())
+
+		By("Setting up a new reconciler")
+		reconciler := newReconciler(mgr, gate)
+
+		Expect(add(mgr, reconciler, reconciler.MachineToMachineSets)).To(Succeed())
 
 		var mgrCtx context.Context
 		mgrCtx, mgrCtxCancel = context.WithCancel(ctx)
@@ -65,12 +75,21 @@ var _ = Describe("MachineSet Reconciler", func() {
 		}()
 
 		By("Creating the namespace")
+		namespace = &corev1.Namespace{ObjectMeta: metav1.ObjectMeta{GenerateName: "ms-test"}}
 		Expect(k8sClient.Create(ctx, namespace)).To(Succeed())
+
+		By("Setting up the machine set builder")
+		machineSetBuilder = machinev1resourcebuilder.MachineSet().
+			WithNamespace(namespace.ObjectMeta.Name).
+			WithName("foo").
+			WithReplicas(replicas).
+			WithLabels(map[string]string{"foo": "bar"})
+
 	})
 
 	AfterEach(func() {
 		By("Deleting the machinesets")
-		Expect(cleanResources()).To(Succeed())
+		Expect(cleanResources(namespace.Name)).To(Succeed())
 
 		By("Deleting the namespace")
 		Expect(k8sClient.Delete(ctx, namespace)).To(Succeed())
@@ -81,29 +100,12 @@ var _ = Describe("MachineSet Reconciler", func() {
 	})
 
 	It("Should reconcile a MachineSet", func() {
-		replicas := int32(2)
-		labels := map[string]string{"foo": "bar"}
-
-		instance := &machinev1.MachineSet{
-			ObjectMeta: metav1.ObjectMeta{Name: "foo", Namespace: namespace.Name},
-			Spec: machinev1.MachineSetSpec{
-				Replicas: &replicas,
-				Selector: metav1.LabelSelector{
-					MatchLabels: labels,
-				},
-				Template: machinev1.MachineTemplateSpec{
-					ObjectMeta: machinev1.ObjectMeta{
-						Labels: labels,
-					},
-				},
-			},
-		}
+		instance := machineSetBuilder.Build()
 
 		By("Creating the MachineSet")
 		Expect(k8sClient.Create(ctx, instance)).To(Succeed())
 
 		machines := &machinev1.MachineList{}
-
 		By("Verifying that we have 2 replicas")
 		Eventually(func() (int, error) {
 			if err := k8sClient.List(ctx, machines, client.InNamespace(namespace.Name)); err != nil {
@@ -133,27 +135,15 @@ var _ = Describe("MachineSet Reconciler", func() {
 	})
 })
 
-func cleanResources() error {
-	machineSets := &machinev1.MachineSetList{}
-	if err := k8sClient.List(ctx, machineSets); err != nil {
+func cleanResources(namespace string) error {
+	machineSet := &machinev1.MachineSet{}
+	if err := k8sClient.DeleteAllOf(ctx, machineSet, client.InNamespace(namespace)); err != nil {
 		return err
-	}
-	for _, machineSet := range machineSets.Items {
-		ms := machineSet
-		if err := k8sClient.Delete(ctx, &ms); err != nil {
-			return err
-		}
 	}
 
-	machines := &machinev1.MachineList{}
-	if err := k8sClient.List(ctx, machines); err != nil {
+	machine := &machinev1.Machine{}
+	if err := k8sClient.DeleteAllOf(ctx, machine, client.InNamespace(namespace)); err != nil {
 		return err
-	}
-	for _, machine := range machines.Items {
-		m := machine
-		if err := k8sClient.Delete(ctx, &m); err != nil {
-			return err
-		}
 	}
 
 	return nil
