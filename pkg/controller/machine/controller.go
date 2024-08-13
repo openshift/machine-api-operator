@@ -35,6 +35,7 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation/field"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/component-base/featuregate"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -75,13 +76,13 @@ const (
 
 var DefaultActuator Actuator
 
-func AddWithActuator(mgr manager.Manager, actuator Actuator) error {
-	return AddWithActuatorOpts(mgr, actuator, controller.Options{})
+func AddWithActuator(mgr manager.Manager, actuator Actuator, gate featuregate.MutableFeatureGate) error {
+	return AddWithActuatorOpts(mgr, actuator, controller.Options{}, gate)
 }
 
-func AddWithActuatorOpts(mgr manager.Manager, actuator Actuator, opts controller.Options) error {
+func AddWithActuatorOpts(mgr manager.Manager, actuator Actuator, opts controller.Options, gate featuregate.MutableFeatureGate) error {
 	machineControllerOpts := opts
-	machineControllerOpts.Reconciler = newReconciler(mgr, actuator)
+	machineControllerOpts.Reconciler = newReconciler(mgr, actuator, gate)
 
 	if err := addWithOpts(mgr, machineControllerOpts, "machine-controller"); err != nil {
 		return err
@@ -96,14 +97,14 @@ func AddWithActuatorOpts(mgr manager.Manager, actuator Actuator, opts controller
 	return nil
 }
 
-// newReconciler returns a new reconcile.Reconciler
-func newReconciler(mgr manager.Manager, actuator Actuator) reconcile.Reconciler {
+func newReconciler(mgr manager.Manager, actuator Actuator, gate featuregate.MutableFeatureGate) reconcile.Reconciler {
 	r := &ReconcileMachine{
 		Client:        mgr.GetClient(),
 		eventRecorder: mgr.GetEventRecorderFor("machine-controller"),
 		config:        mgr.GetConfig(),
 		scheme:        mgr.GetScheme(),
 		actuator:      actuator,
+		gate:          gate,
 	}
 	return r
 }
@@ -137,6 +138,7 @@ type ReconcileMachine struct {
 	eventRecorder record.EventRecorder
 
 	actuator Actuator
+	gate     featuregate.MutableFeatureGate
 
 	// nowFunc is used to mock time in testing. It should be nil in production.
 	nowFunc func() time.Time
