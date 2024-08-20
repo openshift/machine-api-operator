@@ -19,12 +19,11 @@ require (
 	github.com/stretchr/testify v1.9.0
 	github.com/vmware/govmomi v0.37.2
 	golang.org/x/net v0.24.0
-	gopkg.in/gcfg.v1 v1.2.3 // indirect
+	gopkg.in/gcfg.v1 v1.2.3
 	k8s.io/api v0.30.1
 	k8s.io/apimachinery v0.30.1
 	k8s.io/apiserver v0.30.1
 	k8s.io/client-go v0.30.1
-	k8s.io/cloud-provider-vsphere v1.30.1
 	k8s.io/klog/v2 v2.120.1
 	k8s.io/kubectl v0.30.0
 	k8s.io/utils v0.0.0-20240310230437-4693a0247e57
@@ -38,6 +37,7 @@ require (
 	github.com/golangci/golangci-lint v1.54.2
 	github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20240626103413-ddea9c7c0aca
 	golang.org/x/time v0.5.0
+	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/component-base v0.30.1
 	sigs.k8s.io/kube-storage-version-migrator v0.0.6-0.20230721195810-5c8923c5ff96
 )
@@ -256,7 +256,6 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
-	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.4.5 // indirect
 	k8s.io/apiextensions-apiserver v0.30.1 // indirect
