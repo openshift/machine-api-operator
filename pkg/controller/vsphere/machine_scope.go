@@ -11,9 +11,10 @@ import (
 	apicorev1 "k8s.io/api/core/v1"
 	apimachineryerrors "k8s.io/apimachinery/pkg/api/errors"
 	apimachineryutilerrors "k8s.io/apimachinery/pkg/util/errors"
-	vsphere "k8s.io/cloud-provider-vsphere/pkg/common/config"
 	"k8s.io/klog/v2"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	vsphere "github.com/openshift/machine-api-operator/third_party/cloud-provider-vsphere/pkg/common/config"
 )
 
 const (
