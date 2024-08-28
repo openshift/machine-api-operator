@@ -468,11 +468,14 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 		mhcImage = ""
 	}
 
-	// Given we only support the MachineAPIMigration featuregate being passed by
-	// flags, it shold be the only thing populated our map (and therefore passed
+	// Given we only support a handful of featuregates being passed by
+	// flags, we selectively populate the map (and therefore passed
 	// as args)
 	features := map[string]bool{
-		string(apifeatures.FeatureGateMachineAPIMigration): featureGates.Enabled(apifeatures.FeatureGateMachineAPIMigration),
+		string(apifeatures.FeatureGateMachineAPIMigration):   featureGates.Enabled(apifeatures.FeatureGateMachineAPIMigration),
+		string(apifeatures.FeatureGateVSphereStaticIPs):      featureGates.Enabled(apifeatures.FeatureGateVSphereStaticIPs),
+		string(apifeatures.FeatureGateGCPLabelsTags):         featureGates.Enabled(apifeatures.FeatureGateGCPLabelsTags),
+		string(apifeatures.FeatureGateAzureWorkloadIdentity): featureGates.Enabled(apifeatures.FeatureGateAzureWorkloadIdentity),
 	}
 	if features[string(apifeatures.FeatureGateMachineAPIMigration)] {
 		klog.V(2).Info("Enabling MachineAPIMigration for provider controller and machinesets")

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -643,6 +644,8 @@ func buildFeatureGatesString(featureGates map[string]bool) string {
 		part := fmt.Sprintf("%s=%t", name, enabled)
 		parts = append(parts, part)
 	}
+	slices.Sort(parts)
+
 	return "--feature-gates=" + strings.Join(parts, ",")
 }
 
