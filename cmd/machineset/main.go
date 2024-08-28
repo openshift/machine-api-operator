@@ -28,7 +28,6 @@ import (
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	mapiwebhooks "github.com/openshift/machine-api-operator/pkg/webhooks"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	k8sflag "k8s.io/component-base/cli/flag"
 	ctrl "sigs.k8s.io/controller-runtime"
 
 	"github.com/openshift/library-go/pkg/config/leaderelection"
@@ -111,14 +110,13 @@ func main() {
 
 	// Sets up feature gates
 	defaultMutableGate := feature.DefaultMutableFeatureGate
-	_, err := features.NewFeatureGateOptions(defaultMutableGate, apifeatures.SelfManaged, apifeatures.FeatureGateVSphereStaticIPs, apifeatures.FeatureGateMachineAPIMigration)
+	gateOpts, err := features.NewFeatureGateOptions(defaultMutableGate, apifeatures.SelfManaged, apifeatures.FeatureGateVSphereStaticIPs, apifeatures.FeatureGateMachineAPIMigration)
 	if err != nil {
 		klog.Fatalf("Error setting up feature gates: %v", err)
 	}
 
-	featureGateArgs := map[string]bool{}
-	flag.Var(k8sflag.NewMapStringBool(&featureGateArgs), "feature-gates", "A set of key=value pairs that describe feature gates for alpha/experimental features. "+
-		"Options are:\n"+strings.Join(defaultMutableGate.KnownFeatures(), "\n"))
+	// Add the --feature-gates flag
+	gateOpts.AddFlagsToGoFlagSet(nil)
 
 	flag.Parse()
 	if *watchNamespace != "" {
@@ -172,10 +170,14 @@ func main() {
 
 	// Sets feature gates from flags
 	klog.Infof("Initializing feature gates: %s", strings.Join(defaultMutableGate.KnownFeatures(), ", "))
-	err = defaultMutableGate.SetFromMap(featureGateArgs)
+	warnings, err := gateOpts.ApplyTo(defaultMutableGate)
 	if err != nil {
 		klog.Fatalf("Error setting feature gates from flags: %v", err)
 	}
+	if len(warnings) > 0 {
+		klog.Infof("Warnings setting feature gates from flags: %v", warnings)
+	}
+
 	klog.Infof("FeatureGateMachineAPIMigration initialised: %t", defaultMutableGate.Enabled(featuregate.Feature(apifeatures.FeatureGateMachineAPIMigration)))
 
 	// Enable defaulting and validating webhooks
