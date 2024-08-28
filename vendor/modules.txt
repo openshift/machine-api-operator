@@ -703,7 +703,7 @@ github.com/openshift/client-go/machine/listers/machine/v1beta1
 github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder
 github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/config/v1
 github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/machine/v1beta1
-# github.com/openshift/library-go v0.0.0-20240723172506-8bb8fe6cc56d
+# github.com/openshift/library-go v0.0.0-20240822162747-42bcbbc4ccc6
 ## explicit; go 1.22.0
 github.com/openshift/library-go/pkg/certs
 github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers
