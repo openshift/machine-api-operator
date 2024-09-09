@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -208,6 +209,16 @@ func (r *Reconciler) create() error {
 
 	// if clone task finished successfully, power on the vm
 	if moTask.Info.DescriptionId == cloneVmTaskDescriptionId {
+
+		if r.machineScope.providerSpec.Workspace.VMGroup != "" {
+			klog.Infof("Adding on cloned machine: %v to vm group: %v", r.machine.Name, r.machineScope.providerSpec.Workspace.VMGroup)
+			err := moveToVMGroup(r.machineScope)
+
+			if err != nil {
+				return err
+			}
+		}
+
 		klog.Infof("Powering on cloned machine: %v", r.machine.Name)
 		task, err := powerOn(r.machineScope)
 		if err != nil {
@@ -845,6 +856,37 @@ func getHwVersion(ctx context.Context, vm *object.VirtualMachine) (int, error) {
 	return parsedVersion, nil
 }
 
+/* todo: jcallen: maybe a bug unrelated to the changes _shrug_
+	W0911 17:51:54.438906       1 controller.go:406] jcallen3-x7vcd-master-79gx8-0: failed to create machine: jcallen3-x7vcd-master-79gx8-0:
+reconciler failed to Create machine: ServerFaultCode: The object 'vim.Task:task-10064' has already been deleted or has not been completely created
+
+I0911 17:54:38.317971       1 reconciler.go:214] Adding on cloned machine: jcallen3-x7vcd-worker-1-v8mbz to vm group: jcallen3-x7vcd-us-east-2
+I0911 17:54:38.328573       1 recorder.go:104] "Created Machine jcallen3-x7vcd-worker-1-v8mbz" logger="events" type="Normal" object={"kind":"Machine","namespace":"openshift-machine-api","name":"jcallen3-x7vcd-worker-1-v8mbz","uid":"e7c0d81b-39b5-47ff-9902-0a2b9102e7de","apiVersion":"machine.openshift.io/v1beta1","resourceVersion":"99407"} reason="Create"
+I0911 17:54:38.345356       1 controller.go:416] jcallen3-x7vcd-worker-1-v8mbz: created instance, requeuing
+I0911 17:54:38.345387       1 controller.go:326] "Reconcile done, requeueing after 30s" controller="machine-controller" object="openshift-machine-api/jcallen3-x7vcd-worker-1-v8mbz" namespace="openshift-machine-api" name="jcallen3-x7vcd-worker-1-v8mbz" reconcileID="001e7225-94fd-4ecc-825b-09d8f6e3c696"
+I0911 17:54:38.345441       1 controller.go:310] "Reconciling" controller="machine-controller" object="openshift-machine-api/jcallen3-x7vcd-master-79gx8-0" namespace="openshift-machine-api" name="jcallen3-x7vcd-master-79gx8-0" reconcileID="5382423b-dcdb-4b49-8a6d-f7e3701f0867"
+I0911 17:54:38.345489       1 controller.go:178] jcallen3-x7vcd-master-79gx8-0: reconciling Machine
+I0911 17:54:38.345577       1 actuator.go:117] jcallen3-x7vcd-master-79gx8-0: actuator checking if machine exists
+I0911 17:54:38.352148       1 config.go:274] ReadConfig YAML succeeded
+I0911 17:54:38.352197       1 config.go:283] Config initialized
+I0911 17:54:38.357519       1 reconciler.go:344] jcallen3-x7vcd-master-79gx8-0: already exists, but was not powered on after clone
+I0911 17:54:38.375336       1 controller.go:404] jcallen3-x7vcd-master-79gx8-0: reconciling machine triggers idempotent create
+I0911 17:54:38.375362       1 actuator.go:72] jcallen3-x7vcd-master-79gx8-0: actuator creating machine
+
+
+todo: jcallen: once deleted the vms are still in the vm group
+
+
+
+Why is this an error when the task is not finished???
+
+E0911 17:57:35.112420       1 actuator.go:63] "jcallen3-x7vcd-worker-1-98992" error: jcallen3-x7vcd-worker-1-98992: reconciler failed to Create machine: VirtualMachine.clone task task-10079 has not finished
+I0911 17:57:35.112830       1 recorder.go:104] "jcallen3-x7vcd-worker-1-98992: reconciler failed to Create machine: VirtualMachine.clone task task-10079 has not finished" logger="events" type="Warning" object={"kind":"Machine","namespace":"openshift-machine-api","name":"jcallen3-x7vcd-worker-1-98992","uid":"1e70326c-dac7-4e0a-8b0b-a3c844b91e7b","apiVersion":"machine.openshift.io/v1beta1","resourceVersion":"102193"} reason="FailedCreate"
+W0911 17:57:35.156992       1 controller.go:406] jcallen3-x7vcd-worker-1-98992: failed to create machine: jcallen3-x7vcd-worker-1-98992: reconciler failed to Create machine: VirtualMachine.clone task task-10079 has not finished
+E0911 17:57:35.157055       1 controller.go:324] "Reconciler error" err="jcallen3-x7vcd-worker-1-98992: reconciler failed to Create machine: VirtualMachine.clone task task-10079 has not finished" controller="machine-controller" object="openshift-machine-api/jcallen3-x7vcd-worker-1-98992" namespace="openshift-machine-api" name="jcallen3-x7vcd-worker-1-98992" reconcileID="b515fad4-bfac-4f5d-ac72-1f4e8ffd35ce"
+
+*/
+
 func clone(s *machineScope) (string, error) {
 	userData, err := s.GetUserData()
 	if err != nil {
@@ -1034,6 +1076,88 @@ func clone(s *machineScope) (string, error) {
 	taskVal := task.Reference().Value
 	klog.V(3).Infof("%v: running task: %+v", s.machine.GetName(), taskVal)
 	return taskVal, nil
+}
+
+func moveToVMGroup(s *machineScope) error {
+	vmRef, err := findVM(s)
+	if err != nil {
+		if !isNotFound(err) {
+			return err
+		}
+		return fmt.Errorf("vm not found during move to vm group: %w", err)
+	}
+
+	rp, err := s.session.Finder.ResourcePool(s.Context, s.providerSpec.Workspace.ResourcePool)
+	if err != nil {
+		return err
+	}
+
+	ownerRef, err := rp.Owner(s.Context)
+	if err != nil {
+		return err
+	}
+
+	var ccr *object.ClusterComputeResource
+	var ok bool
+	if ccr, ok = ownerRef.(*object.ClusterComputeResource); !ok {
+		return fmt.Errorf("ownerRef is not a ClusterComputeResource")
+	}
+
+	clusterConfig, err := ccr.Configuration(s.Context)
+
+	if err != nil {
+		return err
+	}
+
+	var clusterVmGroup *types.ClusterVmGroup
+
+	for _, g := range clusterConfig.Group {
+		if vmg, ok := g.(*types.ClusterVmGroup); ok {
+			if vmg.Name == s.providerSpec.Workspace.VMGroup {
+				clusterVmGroup = vmg
+				break
+			}
+		}
+	}
+
+	vmGroupModified := false
+	if clusterVmGroup == nil {
+		vmGroupModified = true
+		clusterVmGroup = &types.ClusterVmGroup{
+			Vm: []types.ManagedObjectReference{vmRef},
+		}
+	} else if !slices.Contains(clusterVmGroup.Vm, vmRef) {
+		vmGroupModified = true
+		clusterVmGroup.Vm = append(clusterVmGroup.Vm, vmRef)
+	}
+
+	// todo: jcallen: this is working the cluster is not being reconfigured if the
+	// todo: jcallen: vm already exists in the group
+	if vmGroupModified {
+		clusterConfigSpec := &types.ClusterConfigSpecEx{
+			GroupSpec: []types.ClusterGroupSpec{
+				{
+					ArrayUpdateSpec: types.ArrayUpdateSpec{
+						Operation: types.ArrayUpdateOperation("edit"),
+					},
+					Info: &types.ClusterVmGroup{
+						ClusterGroupInfo: types.ClusterGroupInfo{
+							Name: s.providerSpec.Workspace.VMGroup,
+						},
+						Vm: clusterVmGroup.Vm,
+					},
+				},
+			},
+		}
+
+		task, err := ccr.Reconfigure(s.Context, clusterConfigSpec, true)
+		if err != nil {
+			return err
+		}
+
+		return task.Wait(s.Context)
+	}
+	return nil
 }
 
 func powerOn(s *machineScope) (string, error) {
