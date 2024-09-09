@@ -288,7 +288,7 @@ const (
 )
 
 // ClusterVersionCapability enumerates optional, core cluster components.
-// +kubebuilder:validation:Enum=openshift-samples;baremetal;marketplace;Console;Insights;Storage;CSISnapshot;NodeTuning;MachineAPI;Build;DeploymentConfig;ImageRegistry;OperatorLifecycleManager;CloudCredential;Ingress;CloudControllerManager;OperatorLifecycleManagerV1
+// +kubebuilder:validation:Enum=openshift-samples;baremetal;marketplace;Console;Insights;Storage;CSISnapshot;NodeTuning;MachineAPI;Build;DeploymentConfig;ImageRegistry;OperatorLifecycleManager;CloudCredential;Ingress;CloudControllerManager
 type ClusterVersionCapability string
 
 const (
@@ -379,13 +379,9 @@ const (
 	// allows to distribute Docker images
 	ClusterVersionCapabilityImageRegistry ClusterVersionCapability = "ImageRegistry"
 
-	// ClusterVersionCapabilityOperatorLifecycleManager manages the Operator Lifecycle Manager (legacy)
+	// ClusterVersionCapabilityOperatorLifecycleManager manages the Operator Lifecycle Manager
 	// which itself manages the lifecycle of operators
 	ClusterVersionCapabilityOperatorLifecycleManager ClusterVersionCapability = "OperatorLifecycleManager"
-
-	// ClusterVersionCapabilityOperatorLifecycleManagerV1 manages the Operator Lifecycle Manager (v1)
-	// which itself manages the lifecycle of operators
-	ClusterVersionCapabilityOperatorLifecycleManagerV1 ClusterVersionCapability = "OperatorLifecycleManagerV1"
 
 	// ClusterVersionCapabilityCloudCredential manages credentials for cloud providers
 	// in openshift cluster
@@ -426,7 +422,6 @@ var KnownClusterVersionCapabilities = []ClusterVersionCapability{
 	ClusterVersionCapabilityDeploymentConfig,
 	ClusterVersionCapabilityImageRegistry,
 	ClusterVersionCapabilityOperatorLifecycleManager,
-	ClusterVersionCapabilityOperatorLifecycleManagerV1,
 	ClusterVersionCapabilityCloudCredential,
 	ClusterVersionCapabilityIngress,
 	ClusterVersionCapabilityCloudControllerManager,
@@ -605,7 +600,6 @@ var ClusterVersionCapabilitySets = map[ClusterVersionCapabilitySet][]ClusterVers
 		ClusterVersionCapabilityDeploymentConfig,
 		ClusterVersionCapabilityImageRegistry,
 		ClusterVersionCapabilityOperatorLifecycleManager,
-		ClusterVersionCapabilityOperatorLifecycleManagerV1,
 		ClusterVersionCapabilityCloudCredential,
 		ClusterVersionCapabilityIngress,
 		ClusterVersionCapabilityCloudControllerManager,
@@ -624,7 +618,6 @@ var ClusterVersionCapabilitySets = map[ClusterVersionCapabilitySet][]ClusterVers
 		ClusterVersionCapabilityDeploymentConfig,
 		ClusterVersionCapabilityImageRegistry,
 		ClusterVersionCapabilityOperatorLifecycleManager,
-		ClusterVersionCapabilityOperatorLifecycleManagerV1,
 		ClusterVersionCapabilityCloudCredential,
 		ClusterVersionCapabilityIngress,
 		ClusterVersionCapabilityCloudControllerManager,

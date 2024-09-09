@@ -29,7 +29,7 @@ import (
 // ResourceSyncController is a controller that will copy source configmaps and secrets to their destinations.
 // It will also mirror deletions by deleting destinations.
 type ResourceSyncController struct {
-	name string
+	controllerInstanceName string
 	// syncRuleLock is used to ensure we avoid races on changes to syncing rules
 	syncRuleLock sync.RWMutex
 	// configMapSyncRules is a map from destination location to source location
@@ -54,6 +54,7 @@ var _ factory.Controller = &ResourceSyncController{}
 
 // NewResourceSyncController creates ResourceSyncController.
 func NewResourceSyncController(
+	instanceName string,
 	operatorConfigClient v1helpers.OperatorClient,
 	kubeInformersForNamespaces v1helpers.KubeInformersForNamespaces,
 	secretsGetter corev1client.SecretsGetter,
@@ -61,8 +62,8 @@ func NewResourceSyncController(
 	eventRecorder events.Recorder,
 ) *ResourceSyncController {
 	c := &ResourceSyncController{
-		name:                 "ResourceSyncController",
-		operatorConfigClient: operatorConfigClient,
+		controllerInstanceName: factory.ControllerInstanceName(instanceName, "ResourceSync"),
+		operatorConfigClient:   operatorConfigClient,
 
 		configMapSyncRules:         syncRules{},
 		secretSyncRules:            syncRules{},
@@ -86,7 +87,15 @@ func NewResourceSyncController(
 		informers = append(informers, informer.Core().V1().Secrets().Informer())
 	}
 
-	f := factory.New().WithSync(c.Sync).WithSyncContext(c.syncCtx).WithInformers(informers...).ResyncEvery(time.Minute).ToController(c.name, eventRecorder.WithComponentSuffix("resource-sync-controller"))
+	f := factory.New().
+		WithSync(c.Sync).
+		WithSyncContext(c.syncCtx).
+		WithInformers(informers...).
+		ResyncEvery(time.Minute).
+		ToController(
+			instanceName, // don't change what is passed here unless you also remove the old FooDegraded condition
+			eventRecorder.WithComponentSuffix("resource-sync-controller"),
+		)
 	c.runFn = f.Run
 
 	return c
@@ -97,7 +106,7 @@ func (c *ResourceSyncController) Run(ctx context.Context, workers int) {
 }
 
 func (c *ResourceSyncController) Name() string {
-	return c.name
+	return c.controllerInstanceName
 }
 
 func (c *ResourceSyncController) SyncConfigMap(destination, source ResourceLocation) error {
@@ -257,7 +266,7 @@ func (c *ResourceSyncController) Sync(ctx context.Context, syncCtx factory.SyncC
 				WithStatus(operatorv1.ConditionTrue).
 				WithReason("Error").
 				WithMessage(v1helpers.NewMultiLineAggregate(errors).Error()))
-		updateErr := c.operatorConfigClient.ApplyOperatorStatus(ctx, factory.ControllerFieldManager(c.name, "reportDegraded"), condition)
+		updateErr := c.operatorConfigClient.ApplyOperatorStatus(ctx, c.controllerInstanceName, condition)
 		if updateErr != nil {
 			return updateErr
 		}
@@ -268,7 +277,7 @@ func (c *ResourceSyncController) Sync(ctx context.Context, syncCtx factory.SyncC
 		WithConditions(applyoperatorv1.OperatorCondition().
 			WithType(condition.ResourceSyncControllerDegradedConditionType).
 			WithStatus(operatorv1.ConditionFalse))
-	updateErr := c.operatorConfigClient.ApplyOperatorStatus(ctx, factory.ControllerFieldManager(c.name, "reportDegraded"), condition)
+	updateErr := c.operatorConfigClient.ApplyOperatorStatus(ctx, c.controllerInstanceName, condition)
 	if updateErr != nil {
 		return updateErr
 	}
