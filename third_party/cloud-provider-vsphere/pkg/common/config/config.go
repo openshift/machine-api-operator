@@ -261,7 +261,7 @@ func ReadConfig(byConfig []byte) (*Config, error) {
 
 	cfg, err := ReadConfigYAML(byConfig)
 	if err != nil {
-		klog.Warningf("ReadConfigYAML failed: %s", err)
+		klog.V(4).Infof("ReadConfigYAML failed: %s", err)
 
 		cfg, err = ReadConfigINI(byConfig)
 		if err != nil {
