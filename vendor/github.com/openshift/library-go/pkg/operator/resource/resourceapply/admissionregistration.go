@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/openshift/library-go/pkg/operator/events"
+	"github.com/openshift/library-go/pkg/operator/resource/resourcehelper"
 	"github.com/openshift/library-go/pkg/operator/resource/resourcemerge"
 	admissionregistrationv1 "k8s.io/api/admissionregistration/v1"
 	admissionregistrationv1beta1 "k8s.io/api/admissionregistration/v1beta1"
@@ -34,7 +35,7 @@ func ApplyMutatingWebhookConfigurationImproved(ctx context.Context, client admis
 		required := requiredOriginal.DeepCopy()
 		actual, err := client.MutatingWebhookConfigurations().Create(
 			ctx, resourcemerge.WithCleanLabelsAndAnnotations(required).(*admissionregistrationv1.MutatingWebhookConfiguration), metav1.CreateOptions{})
-		reportCreateEvent(recorder, required, err)
+		resourcehelper.ReportCreateEvent(recorder, required, err)
 		if err != nil {
 			return nil, false, err
 		}
@@ -68,7 +69,7 @@ func ApplyMutatingWebhookConfigurationImproved(ctx context.Context, client admis
 	klog.V(2).Infof("MutatingWebhookConfiguration %q changes: %v", required.GetNamespace()+"/"+required.GetName(), JSONPatchNoError(existing, toWrite))
 
 	actual, err := client.MutatingWebhookConfigurations().Update(ctx, toWrite, metav1.UpdateOptions{})
-	reportUpdateEvent(recorder, required, err)
+	resourcehelper.ReportUpdateEvent(recorder, required, err)
 	if err != nil {
 		return nil, false, err
 	}
@@ -109,7 +110,7 @@ func ApplyValidatingWebhookConfigurationImproved(ctx context.Context, client adm
 		required := requiredOriginal.DeepCopy()
 		actual, err := client.ValidatingWebhookConfigurations().Create(
 			ctx, resourcemerge.WithCleanLabelsAndAnnotations(required).(*admissionregistrationv1.ValidatingWebhookConfiguration), metav1.CreateOptions{})
-		reportCreateEvent(recorder, required, err)
+		resourcehelper.ReportCreateEvent(recorder, required, err)
 		if err != nil {
 			return nil, false, err
 		}
@@ -143,7 +144,7 @@ func ApplyValidatingWebhookConfigurationImproved(ctx context.Context, client adm
 	klog.V(2).Infof("ValidatingWebhookConfiguration %q changes: %v", required.GetNamespace()+"/"+required.GetName(), JSONPatchNoError(existing, toWrite))
 
 	actual, err := client.ValidatingWebhookConfigurations().Update(ctx, toWrite, metav1.UpdateOptions{})
-	reportUpdateEvent(recorder, required, err)
+	resourcehelper.ReportUpdateEvent(recorder, required, err)
 	if err != nil {
 		return nil, false, err
 	}
@@ -160,7 +161,7 @@ func DeleteValidatingWebhookConfiguration(ctx context.Context, client admissionr
 	if err != nil {
 		return nil, false, err
 	}
-	reportDeleteEvent(recorder, required, err)
+	resourcehelper.ReportDeleteEvent(recorder, required, err)
 	return nil, true, nil
 }
 
@@ -196,7 +197,7 @@ func ApplyValidatingAdmissionPolicyV1beta1(ctx context.Context, client admission
 		required := requiredOriginal.DeepCopy()
 		actual, err := client.ValidatingAdmissionPolicies().Create(
 			ctx, resourcemerge.WithCleanLabelsAndAnnotations(required).(*admissionregistrationv1beta1.ValidatingAdmissionPolicy), metav1.CreateOptions{})
-		reportCreateEvent(recorder, required, err)
+		resourcehelper.ReportCreateEvent(recorder, required, err)
 		if err != nil {
 			return nil, false, err
 		}
@@ -229,7 +230,7 @@ func ApplyValidatingAdmissionPolicyV1beta1(ctx context.Context, client admission
 	klog.V(2).Infof("ValidatingAdmissionPolicyConfigurationV1beta1 %q changes: %v", required.GetNamespace()+"/"+required.GetName(), JSONPatchNoError(existing, toWrite))
 
 	actual, err := client.ValidatingAdmissionPolicies().Update(ctx, toWrite, metav1.UpdateOptions{})
-	reportUpdateEvent(recorder, required, err)
+	resourcehelper.ReportUpdateEvent(recorder, required, err)
 	if err != nil {
 		return nil, false, err
 	}
@@ -255,7 +256,7 @@ func ApplyValidatingAdmissionPolicyV1(ctx context.Context, client admissionregis
 		required := requiredOriginal.DeepCopy()
 		actual, err := client.ValidatingAdmissionPolicies().Create(
 			ctx, resourcemerge.WithCleanLabelsAndAnnotations(required).(*admissionregistrationv1.ValidatingAdmissionPolicy), metav1.CreateOptions{})
-		reportCreateEvent(recorder, required, err)
+		resourcehelper.ReportCreateEvent(recorder, required, err)
 		if err != nil {
 			return nil, false, err
 		}
@@ -288,7 +289,7 @@ func ApplyValidatingAdmissionPolicyV1(ctx context.Context, client admissionregis
 	klog.V(2).Infof("ValidatingAdmissionPolicyConfigurationV1 %q changes: %v", required.GetNamespace()+"/"+required.GetName(), JSONPatchNoError(existing, toWrite))
 
 	actual, err := client.ValidatingAdmissionPolicies().Update(ctx, toWrite, metav1.UpdateOptions{})
-	reportUpdateEvent(recorder, required, err)
+	resourcehelper.ReportUpdateEvent(recorder, required, err)
 	if err != nil {
 		return nil, false, err
 	}
@@ -314,7 +315,7 @@ func ApplyValidatingAdmissionPolicyBindingV1beta1(ctx context.Context, client ad
 		required := requiredOriginal.DeepCopy()
 		actual, err := client.ValidatingAdmissionPolicyBindings().Create(
 			ctx, resourcemerge.WithCleanLabelsAndAnnotations(required).(*admissionregistrationv1beta1.ValidatingAdmissionPolicyBinding), metav1.CreateOptions{})
-		reportCreateEvent(recorder, required, err)
+		resourcehelper.ReportCreateEvent(recorder, required, err)
 		if err != nil {
 			return nil, false, err
 		}
@@ -347,7 +348,7 @@ func ApplyValidatingAdmissionPolicyBindingV1beta1(ctx context.Context, client ad
 	klog.V(2).Infof("ValidatingAdmissionPolicyBindingConfigurationV1beta1 %q changes: %v", required.GetNamespace()+"/"+required.GetName(), JSONPatchNoError(existing, toWrite))
 
 	actual, err := client.ValidatingAdmissionPolicyBindings().Update(ctx, toWrite, metav1.UpdateOptions{})
-	reportUpdateEvent(recorder, required, err)
+	resourcehelper.ReportUpdateEvent(recorder, required, err)
 	if err != nil {
 		return nil, false, err
 	}
@@ -373,7 +374,7 @@ func ApplyValidatingAdmissionPolicyBindingV1(ctx context.Context, client admissi
 		required := requiredOriginal.DeepCopy()
 		actual, err := client.ValidatingAdmissionPolicyBindings().Create(
 			ctx, resourcemerge.WithCleanLabelsAndAnnotations(required).(*admissionregistrationv1.ValidatingAdmissionPolicyBinding), metav1.CreateOptions{})
-		reportCreateEvent(recorder, required, err)
+		resourcehelper.ReportCreateEvent(recorder, required, err)
 		if err != nil {
 			return nil, false, err
 		}
@@ -406,7 +407,7 @@ func ApplyValidatingAdmissionPolicyBindingV1(ctx context.Context, client admissi
 	klog.V(2).Infof("ValidatingAdmissionPolicyBindingConfigurationV1 %q changes: %v", required.GetNamespace()+"/"+required.GetName(), JSONPatchNoError(existing, toWrite))
 
 	actual, err := client.ValidatingAdmissionPolicyBindings().Update(ctx, toWrite, metav1.UpdateOptions{})
-	reportUpdateEvent(recorder, required, err)
+	resourcehelper.ReportUpdateEvent(recorder, required, err)
 	if err != nil {
 		return nil, false, err
 	}

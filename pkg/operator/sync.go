@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"time"
 
@@ -643,6 +644,8 @@ func buildFeatureGatesString(featureGates map[string]bool) string {
 		part := fmt.Sprintf("%s=%t", name, enabled)
 		parts = append(parts, part)
 	}
+	slices.Sort(parts)
+
 	return "--feature-gates=" + strings.Join(parts, ",")
 }
 
@@ -665,7 +668,7 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 	// --feature-gates=<name>=<bool>,<name>=<bool>... arg
 	featureGateArgs := append(args, buildFeatureGatesString(features))
 
-	machineControllerArgs := append([]string{}, args...)
+	machineControllerArgs := append([]string{}, featureGateArgs...)
 	switch config.PlatformType {
 	case v1.AzurePlatformType:
 		machineControllerArgs = append(machineControllerArgs, "--max-concurrent-reconciles=10")

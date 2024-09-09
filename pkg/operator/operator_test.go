@@ -39,6 +39,22 @@ const (
 	releaseVersion  = "0.0.0.test-unit"
 )
 
+var (
+	enabledFeatureGates = []openshiftv1.FeatureGateAttributes{
+		{Name: apifeatures.FeatureGateMachineAPIMigration},
+		{Name: apifeatures.FeatureGateVSphereStaticIPs},
+		{Name: apifeatures.FeatureGateGCPLabelsTags},
+		{Name: apifeatures.FeatureGateAzureWorkloadIdentity},
+	}
+
+	enabledFeatureMap = map[string]bool{
+		"MachineAPIMigration":   true,
+		"GCPLabelsTags":         true,
+		"AzureWorkloadIdentity": true,
+		"VSphereStaticIPs":      true,
+	}
+)
+
 func newFakeOperator(kubeObjects, osObjects, machineObjects []runtime.Object, imagesFile string, fg *openshiftv1.FeatureGate, stopCh <-chan struct{}) (*Operator, error) {
 	kubeClient := fakekube.NewSimpleClientset(kubeObjects...)
 	osClient := fakeos.NewSimpleClientset(osObjects...)
@@ -61,7 +77,7 @@ func newFakeOperator(kubeObjects, osObjects, machineObjects []runtime.Object, im
 				FeatureGates: []openshiftv1.FeatureGateDetails{
 					{
 						Version:  "",
-						Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIMigration}},
+						Enabled:  enabledFeatureGates,
 						Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
 					},
 				},
@@ -360,7 +376,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					FeatureGates: []openshiftv1.FeatureGateDetails{
 						{
 							Version:  "",
-							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIMigration}},
+							Enabled:  enabledFeatureGates,
 							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
 						},
 					},
@@ -379,9 +395,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
 				PlatformType: openshiftv1.AWSPlatformType,
-				Features: map[string]bool{
-					"MachineAPIMigration": true,
-				},
+				Features:     enabledFeatureMap,
 			},
 		},
 		{
@@ -396,7 +410,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					FeatureGates: []openshiftv1.FeatureGateDetails{
 						{
 							Version:  "",
-							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIMigration}},
+							Enabled:  enabledFeatureGates,
 							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
 						},
 					},
@@ -415,9 +429,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
 				PlatformType: openshiftv1.LibvirtPlatformType,
-				Features: map[string]bool{
-					"MachineAPIMigration": true,
-				},
+				Features:     enabledFeatureMap,
 			},
 		},
 		{
@@ -432,7 +444,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					FeatureGates: []openshiftv1.FeatureGateDetails{
 						{
 							Version:  "",
-							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIMigration}},
+							Enabled:  enabledFeatureGates,
 							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
 						},
 					},
@@ -451,9 +463,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
 				PlatformType: openshiftv1.OpenStackPlatformType,
-				Features: map[string]bool{
-					"MachineAPIMigration": true,
-				},
+				Features:     enabledFeatureMap,
 			},
 		},
 		{
@@ -468,7 +478,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					FeatureGates: []openshiftv1.FeatureGateDetails{
 						{
 							Version:  "",
-							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIMigration}},
+							Enabled:  enabledFeatureGates,
 							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
 						},
 					},
@@ -487,9 +497,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
 				PlatformType: openshiftv1.AzurePlatformType,
-				Features: map[string]bool{
-					"MachineAPIMigration": true,
-				},
+				Features:     enabledFeatureMap,
 			},
 		},
 		{
@@ -504,7 +512,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					FeatureGates: []openshiftv1.FeatureGateDetails{
 						{
 							Version:  "",
-							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIMigration}},
+							Enabled:  enabledFeatureGates,
 							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
 						},
 					},
@@ -523,9 +531,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
 				PlatformType: openshiftv1.BareMetalPlatformType,
-				Features: map[string]bool{
-					"MachineAPIMigration": true,
-				},
+				Features:     enabledFeatureMap,
 			},
 		},
 		{
@@ -540,7 +546,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					FeatureGates: []openshiftv1.FeatureGateDetails{
 						{
 							Version:  "",
-							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIMigration}},
+							Enabled:  enabledFeatureGates,
 							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
 						},
 					},
@@ -559,9 +565,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
 				PlatformType: openshiftv1.GCPPlatformType,
-				Features: map[string]bool{
-					"MachineAPIMigration": true,
-				},
+				Features:     enabledFeatureMap,
 			},
 		},
 		{
@@ -576,7 +580,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					FeatureGates: []openshiftv1.FeatureGateDetails{
 						{
 							Version:  "",
-							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIMigration}},
+							Enabled:  enabledFeatureGates,
 							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
 						},
 					},
@@ -595,9 +599,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
 				PlatformType: kubemarkPlatform,
-				Features: map[string]bool{
-					"MachineAPIMigration": true,
-				},
+				Features:     enabledFeatureMap,
 			},
 		},
 		{
@@ -612,7 +614,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					FeatureGates: []openshiftv1.FeatureGateDetails{
 						{
 							Version:  "",
-							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIMigration}},
+							Enabled:  enabledFeatureGates,
 							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
 						},
 					},
@@ -631,9 +633,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
 				PlatformType: openshiftv1.VSpherePlatformType,
-				Features: map[string]bool{
-					"MachineAPIMigration": true,
-				},
+				Features:     enabledFeatureMap,
 			},
 		},
 		{
@@ -648,7 +648,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					FeatureGates: []openshiftv1.FeatureGateDetails{
 						{
 							Version:  "",
-							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIMigration}},
+							Enabled:  enabledFeatureGates,
 							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
 						},
 					},
@@ -667,9 +667,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
 				PlatformType: openshiftv1.OvirtPlatformType,
-				Features: map[string]bool{
-					"MachineAPIMigration": true,
-				},
+				Features:     enabledFeatureMap,
 			},
 		},
 		{
@@ -684,7 +682,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					FeatureGates: []openshiftv1.FeatureGateDetails{
 						{
 							Version:  "",
-							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIMigration}},
+							Enabled:  enabledFeatureGates,
 							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
 						},
 					},
@@ -703,9 +701,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
 				PlatformType: openshiftv1.NonePlatformType,
-				Features: map[string]bool{
-					"MachineAPIMigration": true,
-				},
+				Features:     enabledFeatureMap,
 			},
 		},
 		{
@@ -722,7 +718,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					FeatureGates: []openshiftv1.FeatureGateDetails{
 						{
 							Version:  "",
-							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIMigration}},
+							Enabled:  enabledFeatureGates,
 							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
 						},
 					},
@@ -741,9 +737,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
 				PlatformType: openshiftv1.BareMetalPlatformType,
-				Features: map[string]bool{
-					"MachineAPIMigration": true,
-				},
+				Features:     enabledFeatureMap,
 			},
 		},
 		{
@@ -758,7 +752,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					FeatureGates: []openshiftv1.FeatureGateDetails{
 						{
 							Version:  "",
-							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}, {Name: apifeatures.FeatureGateMachineAPIMigration}},
+							Enabled:  append(enabledFeatureGates, openshiftv1.FeatureGateAttributes{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}),
 							Disabled: []openshiftv1.FeatureGateAttributes{},
 						},
 					},
@@ -777,9 +771,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
 				PlatformType: openshiftv1.BareMetalPlatformType,
-				Features: map[string]bool{
-					"MachineAPIMigration": true,
-				},
+				Features:     enabledFeatureMap,
 			},
 		},
 		{
@@ -794,7 +786,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					FeatureGates: []openshiftv1.FeatureGateDetails{
 						{
 							Version:  "",
-							Enabled:  []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIMigration}},
+							Enabled:  enabledFeatureGates,
 							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
 						},
 					},
@@ -813,9 +805,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
 				PlatformType: "bad-platform",
-				Features: map[string]bool{
-					"MachineAPIMigration": true,
-				},
+				Features:     enabledFeatureMap,
 			},
 		},
 		{
