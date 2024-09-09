@@ -588,7 +588,7 @@ github.com/onsi/gomega/matchers/support/goraph/edge
 github.com/onsi/gomega/matchers/support/goraph/node
 github.com/onsi/gomega/matchers/support/goraph/util
 github.com/onsi/gomega/types
-# github.com/openshift/api v0.0.0-20240731195412-e863d9f8a215
+# github.com/openshift/api v0.0.0-20240904015708-69df64132c91
 ## explicit; go 1.22.0
 github.com/openshift/api
 github.com/openshift/api/annotations
@@ -662,7 +662,7 @@ github.com/openshift/api/template
 github.com/openshift/api/template/v1
 github.com/openshift/api/user
 github.com/openshift/api/user/v1
-# github.com/openshift/client-go v0.0.0-20240528061634-b054aa794d87
+# github.com/openshift/client-go v0.0.0-20240904134955-cd42fd3d7408
 ## explicit; go 1.22.0
 github.com/openshift/client-go/config/applyconfigurations/config/v1
 github.com/openshift/client-go/config/applyconfigurations/config/v1alpha1
@@ -703,7 +703,7 @@ github.com/openshift/client-go/machine/listers/machine/v1beta1
 github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder
 github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/config/v1
 github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/machine/v1beta1
-# github.com/openshift/library-go v0.0.0-20240822162747-42bcbbc4ccc6
+# github.com/openshift/library-go v0.0.0-20240903143724-7c5c5d305ac1
 ## explicit; go 1.22.0
 github.com/openshift/library-go/pkg/certs
 github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers
@@ -1043,7 +1043,7 @@ golang.org/x/mod/internal/lazyregexp
 golang.org/x/mod/modfile
 golang.org/x/mod/module
 golang.org/x/mod/semver
-# golang.org/x/net v0.24.0
+# golang.org/x/net v0.25.0
 ## explicit; go 1.18
 golang.org/x/net/context
 golang.org/x/net/html
@@ -1064,15 +1064,15 @@ golang.org/x/oauth2/internal
 ## explicit; go 1.18
 golang.org/x/sync/errgroup
 golang.org/x/sync/semaphore
-# golang.org/x/sys v0.19.0
+# golang.org/x/sys v0.20.0
 ## explicit; go 1.18
 golang.org/x/sys/plan9
 golang.org/x/sys/unix
 golang.org/x/sys/windows
-# golang.org/x/term v0.19.0
+# golang.org/x/term v0.20.0
 ## explicit; go 1.18
 golang.org/x/term
-# golang.org/x/text v0.14.0
+# golang.org/x/text v0.15.0
 ## explicit; go 1.18
 golang.org/x/text/encoding
 golang.org/x/text/encoding/charmap
