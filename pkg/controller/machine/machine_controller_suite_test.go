@@ -20,6 +20,7 @@ import (
 	"context"
 	"flag"
 	"log"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -27,6 +28,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
@@ -40,9 +42,6 @@ func init() {
 	textLoggerConfig := textlogger.NewConfig()
 	textLoggerConfig.AddFlags(flag.CommandLine)
 	logf.SetLogger(textlogger.NewLogger(textLoggerConfig))
-
-	// Register required object kinds with global scheme.
-	_ = machinev1.Install(scheme.Scheme)
 }
 
 const (
@@ -64,17 +63,8 @@ func TestMachineController(t *testing.T) {
 
 var _ = BeforeSuite(func(ctx SpecContext) {
 	By("bootstrapping test environment")
-	testEnv = &envtest.Environment{
-
-		CRDInstallOptions: envtest.CRDInstallOptions{
-			Paths: []string{
-				filepath.Join("..", "..", "..", "vendor", "github.com", "openshift", "api", "machine", "v1beta1", "zz_generated.crd-manifests", "0000_10_machine-api_01_machines-CustomNoUpgrade.crd.yaml"),
-			},
-		},
-	}
-
 	var err error
-	cfg, err = testEnv.Start()
+	cfg, testEnv, err = StartEnvTest()
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
 
@@ -85,7 +75,19 @@ var _ = AfterSuite(func() {
 	Expect(testEnv.Stop()).To(Succeed())
 })
 
-func StartEnvTest(t *testing.T) func(t *testing.T) {
+func TestMain(m *testing.M) {
+	// Register required object kinds with global scheme.
+	if err := machinev1.Install(scheme.Scheme); err != nil {
+		log.Fatalf("cannot add scheme: %v", err)
+	}
+	if err := configv1.Install(scheme.Scheme); err != nil {
+		log.Fatalf("cannot add scheme: %v", err)
+	}
+	exitVal := m.Run()
+	os.Exit(exitVal)
+}
+
+func StartEnvTest() (*rest.Config, *envtest.Environment, error) {
 	testEnv := &envtest.Environment{
 
 		CRDInstallOptions: envtest.CRDInstallOptions{
@@ -94,18 +96,11 @@ func StartEnvTest(t *testing.T) func(t *testing.T) {
 			},
 		},
 	}
-	if err := machinev1.Install(scheme.Scheme); err != nil {
-		log.Fatalf("cannot add scheme: %v", err)
-	}
 
 	var err error
 	if cfg, err = testEnv.Start(); err != nil {
-		log.Fatal(err)
+		return nil, nil, err
 	}
 
-	return func(t *testing.T) {
-		if err = testEnv.Stop(); err != nil {
-			log.Fatal(err)
-		}
-	}
+	return cfg, testEnv, nil
 }
