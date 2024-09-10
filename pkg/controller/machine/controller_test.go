@@ -27,6 +27,8 @@ import (
 	. "github.com/onsi/gomega"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
+	testutils "github.com/openshift/machine-api-operator/pkg/util/testing"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -57,11 +59,15 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Spec: machinev1.MachineSpec{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 			ProviderSpec: machinev1.ProviderSpec{
 				Value: &runtime.RawExtension{
 					Raw: []byte("{}"),
 				},
 			},
+		},
+		Status: machinev1.MachineStatus{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 		},
 	}
 	machineProvisioning := machinev1.Machine{
@@ -78,6 +84,7 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Spec: machinev1.MachineSpec{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 			ProviderSpec: machinev1.ProviderSpec{
 				Value: &runtime.RawExtension{
 					Raw: []byte("{}"),
@@ -85,7 +92,8 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Status: machinev1.MachineStatus{
-			Phase: ptr.To[string](machinev1.PhaseProvisioning),
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
+			Phase:            ptr.To[string](machinev1.PhaseProvisioning),
 		},
 	}
 	machineProvisioned := machinev1.Machine{
@@ -102,6 +110,7 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Spec: machinev1.MachineSpec{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 			ProviderSpec: machinev1.ProviderSpec{
 				Value: &runtime.RawExtension{
 					Raw: []byte("{}"),
@@ -109,6 +118,7 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Status: machinev1.MachineStatus{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 			Addresses: []corev1.NodeAddress{
 				{
 					Type:    corev1.NodeInternalIP,
@@ -133,11 +143,15 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Spec: machinev1.MachineSpec{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 			ProviderSpec: machinev1.ProviderSpec{
 				Value: &runtime.RawExtension{
 					Raw: []byte("{}"),
 				},
 			},
+		},
+		Status: machinev1.MachineStatus{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 		},
 	}
 	machineDeletingPreDrainHook := machinev1.Machine{
@@ -155,6 +169,7 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Spec: machinev1.MachineSpec{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 			LifecycleHooks: machinev1.LifecycleHooks{
 				PreDrain: []machinev1.LifecycleHook{
 					{
@@ -170,6 +185,7 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Status: machinev1.MachineStatus{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 			NodeRef: &corev1.ObjectReference{
 				Name: "a node",
 			},
@@ -190,6 +206,7 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Spec: machinev1.MachineSpec{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 			LifecycleHooks: machinev1.LifecycleHooks{
 				PreDrain: []machinev1.LifecycleHook{
 					{
@@ -203,6 +220,9 @@ func TestReconcileRequest(t *testing.T) {
 					Raw: []byte("{}"),
 				},
 			},
+		},
+		Status: machinev1.MachineStatus{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 		},
 	}
 	machineDeletingPreTerminateHook := machinev1.Machine{
@@ -220,6 +240,7 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Spec: machinev1.MachineSpec{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 			LifecycleHooks: machinev1.LifecycleHooks{
 				PreTerminate: []machinev1.LifecycleHook{
 					{
@@ -233,6 +254,9 @@ func TestReconcileRequest(t *testing.T) {
 					Raw: []byte("{}"),
 				},
 			},
+		},
+		Status: machinev1.MachineStatus{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 		},
 	}
 	machineFailed := machinev1.Machine{
@@ -249,7 +273,8 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Spec: machinev1.MachineSpec{
-			ProviderID: ptr.To[string]("providerID"),
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
+			ProviderID:       ptr.To[string]("providerID"),
 			ProviderSpec: machinev1.ProviderSpec{
 				Value: &runtime.RawExtension{
 					Raw: []byte("{}"),
@@ -257,6 +282,7 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Status: machinev1.MachineStatus{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 			Addresses: []corev1.NodeAddress{
 				{
 					Type:    corev1.NodeInternalIP,
@@ -279,7 +305,8 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Spec: machinev1.MachineSpec{
-			ProviderID: ptr.To[string]("providerID"),
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
+			ProviderID:       ptr.To[string]("providerID"),
 			ProviderSpec: machinev1.ProviderSpec{
 				Value: &runtime.RawExtension{
 					Raw: []byte("{}"),
@@ -287,6 +314,7 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Status: machinev1.MachineStatus{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 			Addresses: []corev1.NodeAddress{
 				{
 					Type:    corev1.NodeInternalIP,
@@ -313,6 +341,7 @@ func TestReconcileRequest(t *testing.T) {
 			},
 		},
 		Spec: machinev1.MachineSpec{
+			AuthoritativeAPI: machinev1.MachineAuthorityMachineAPI,
 			LifecycleHooks: machinev1.LifecycleHooks{
 				PreDrain: []machinev1.LifecycleHook{
 					{
@@ -507,6 +536,10 @@ func TestReconcileRequest(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.request.Name, func(t *testing.T) {
+			gate, err := testutils.NewDefaultMutableFeatureGate()
+			if err != nil {
+				t.Errorf("Case: %s. Unexpected error setting up feature gates: %v", tc.request.Name, err)
+			}
 			act := newTestActuator()
 			act.ExistsValue = tc.existsValue
 			r := &ReconcileMachine{
@@ -524,6 +557,7 @@ func TestReconcileRequest(t *testing.T) {
 				).WithStatusSubresource(&machinev1.Machine{}).Build(),
 				scheme:   scheme.Scheme,
 				actuator: act,
+				gate:     gate,
 			}
 
 			result, err := r.Reconcile(ctx, tc.request)
@@ -681,12 +715,19 @@ func TestUpdateStatus(t *testing.T) {
 		},
 	}
 
+	// We don't need to recreate the test environment for every case.
+	g := NewWithT(t)
+	_, testEnv, err := StartEnvTest()
+	g.Expect(err).ToNot(HaveOccurred())
+	defer func() {
+		g.Expect(testEnv.Stop()).To(Succeed())
+	}()
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			g := NewWithT(t)
-
+			gs := NewWithT(t)
 			k8sClient, err := client.New(cfg, client.Options{})
-			g.Expect(err).ToNot(HaveOccurred())
+			gs.Expect(err).ToNot(HaveOccurred())
 			reconciler := &ReconcileMachine{
 				Client: k8sClient,
 				scheme: scheme.Scheme,
@@ -699,7 +740,7 @@ func TestUpdateStatus(t *testing.T) {
 					GenerateName: name,
 				},
 			}
-			g.Expect(k8sClient.Create(ctx, namespace)).To(Succeed())
+			gs.Expect(k8sClient.Create(ctx, namespace)).To(Succeed())
 
 			// Set up the test machine
 			machine := &machinev1.Machine{
@@ -709,7 +750,7 @@ func TestUpdateStatus(t *testing.T) {
 				},
 			}
 
-			g.Expect(k8sClient.Create(ctx, machine)).To(Succeed())
+			gs.Expect(k8sClient.Create(ctx, machine)).To(Succeed())
 			defer func() {
 				if err := k8sClient.Delete(ctx, machine); err != nil {
 					t.Fatalf("error deleting machine: %v", err)
@@ -722,7 +763,7 @@ func TestUpdateStatus(t *testing.T) {
 				}
 			}
 
-			g.Expect(k8sClient.Status().Update(ctx, machine)).To(Succeed())
+			gs.Expect(k8sClient.Status().Update(ctx, machine)).To(Succeed())
 
 			namespacedName := types.NamespacedName{
 				Namespace: machine.Namespace,
@@ -735,20 +776,20 @@ func TestUpdateStatus(t *testing.T) {
 			}
 
 			// Set the phase to Running initially
-			g.Expect(reconciler.updateStatus(context.TODO(), machine, machinev1.PhaseRunning, nil, []machinev1.Condition{})).To(Succeed())
+			gs.Expect(reconciler.updateStatus(context.TODO(), machine, machinev1.PhaseRunning, nil, []machinev1.Condition{})).To(Succeed())
 			// validate persisted object
 			got := machinev1.Machine{}
-			g.Expect(reconciler.Client.Get(context.TODO(), namespacedName, &got)).To(Succeed())
-			g.Expect(got.Status.Phase).ToNot(BeNil())
-			g.Expect(*got.Status.Phase).To(Equal(machinev1.PhaseRunning))
+			gs.Expect(reconciler.Client.Get(context.TODO(), namespacedName, &got)).To(Succeed())
+			gs.Expect(got.Status.Phase).ToNot(BeNil())
+			gs.Expect(*got.Status.Phase).To(Equal(machinev1.PhaseRunning))
 			lastUpdated := got.Status.LastUpdated
 			gotConditions := got.Status.Conditions
-			g.Expect(lastUpdated).ToNot(BeNil())
+			gs.Expect(lastUpdated).ToNot(BeNil())
 			// validate passed object
-			g.Expect(machine.Status.Phase).ToNot(BeNil())
-			g.Expect(*machine.Status.Phase).To(Equal(machinev1.PhaseRunning))
+			gs.Expect(machine.Status.Phase).ToNot(BeNil())
+			gs.Expect(*machine.Status.Phase).To(Equal(machinev1.PhaseRunning))
 			objectLastUpdated := machine.Status.LastUpdated
-			g.Expect(objectLastUpdated).ToNot(BeNil())
+			gs.Expect(objectLastUpdated).ToNot(BeNil())
 
 			// Set the time func so that we can check lastUpdated is set correctly
 			reconciler.nowFunc = func() time.Time {
@@ -760,38 +801,38 @@ func TestUpdateStatus(t *testing.T) {
 				c := cond
 				conditions.Set(machine, &c)
 			}
-			g.Expect(reconciler.updateStatus(context.TODO(), machine, tc.phase, tc.err, gotConditions)).To(Succeed())
+			gs.Expect(reconciler.updateStatus(context.TODO(), machine, tc.phase, tc.err, gotConditions)).To(Succeed())
 			// validate the persisted object
 			got = machinev1.Machine{}
-			g.Expect(reconciler.Client.Get(context.TODO(), namespacedName, &got)).To(Succeed())
+			gs.Expect(reconciler.Client.Get(context.TODO(), namespacedName, &got)).To(Succeed())
 
 			if tc.updated {
-				g.Expect(got.Status.LastUpdated.UnixNano()).ToNot(Equal(lastUpdated.UnixNano()))
-				g.Expect(machine.Status.LastUpdated.UnixNano()).ToNot(Equal(objectLastUpdated.UnixNano()))
+				gs.Expect(got.Status.LastUpdated.UnixNano()).ToNot(Equal(lastUpdated.UnixNano()))
+				gs.Expect(machine.Status.LastUpdated.UnixNano()).ToNot(Equal(objectLastUpdated.UnixNano()))
 			} else {
-				g.Expect(got.Status.LastUpdated.UnixNano()).To(Equal(lastUpdated.UnixNano()))
-				g.Expect(machine.Status.LastUpdated.UnixNano()).To(Equal(objectLastUpdated.UnixNano()))
+				gs.Expect(got.Status.LastUpdated.UnixNano()).To(Equal(lastUpdated.UnixNano()))
+				gs.Expect(machine.Status.LastUpdated.UnixNano()).To(Equal(objectLastUpdated.UnixNano()))
 			}
 
 			if tc.err != nil {
-				g.Expect(got.Status.ErrorMessage).ToNot(BeNil())
-				g.Expect(*got.Status.ErrorMessage).To(Equal(tc.err.Error()))
-				g.Expect(machine.Status.ErrorMessage).ToNot(BeNil())
-				g.Expect(*machine.Status.ErrorMessage).To(Equal(tc.err.Error()))
+				gs.Expect(got.Status.ErrorMessage).ToNot(BeNil())
+				gs.Expect(*got.Status.ErrorMessage).To(Equal(tc.err.Error()))
+				gs.Expect(machine.Status.ErrorMessage).ToNot(BeNil())
+				gs.Expect(*machine.Status.ErrorMessage).To(Equal(tc.err.Error()))
 			}
 
-			g.Expect(*got.Status.Phase).To(Equal(tc.phase))
-			g.Expect(*machine.Status.Phase).To(Equal(tc.phase))
+			gs.Expect(*got.Status.Phase).To(Equal(tc.phase))
+			gs.Expect(*machine.Status.Phase).To(Equal(tc.phase))
 
-			g.Expect(got.Status.Conditions).To(conditions.MatchConditions(tc.conditions))
-			g.Expect(machine.Status.Conditions).To(conditions.MatchConditions(tc.conditions))
+			gs.Expect(got.Status.Conditions).To(conditions.MatchConditions(tc.conditions))
+			gs.Expect(machine.Status.Conditions).To(conditions.MatchConditions(tc.conditions))
 
-			g.Expect(got.GetAnnotations()).To(Equal(tc.annotations))
-			g.Expect(machine.GetAnnotations()).To(Equal(tc.annotations))
+			gs.Expect(got.GetAnnotations()).To(Equal(tc.annotations))
+			gs.Expect(machine.GetAnnotations()).To(Equal(tc.annotations))
 
 			if tc.existingProviderStatus != "" {
-				g.Expect(got.Status.ProviderStatus).ToNot(BeNil())
-				g.Expect(got.Status.ProviderStatus.Raw).To(BeEquivalentTo(tc.expectedProviderStatus))
+				gs.Expect(got.Status.ProviderStatus).ToNot(BeNil())
+				gs.Expect(got.Status.ProviderStatus.Raw).To(BeEquivalentTo(tc.expectedProviderStatus))
 			}
 		})
 	}
