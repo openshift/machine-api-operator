@@ -778,8 +778,6 @@ mvdan.cc/unparam v0.0.0-20240427195214-063aff900ca1 h1:Nykk7fggxChwLK4rUPYESzeIw
 mvdan.cc/unparam v0.0.0-20240427195214-063aff900ca1/go.mod h1:ZzZjEpJDOmx8TdVU6umamY3Xy0UAQUI2DHbf05USVbI=
 sigs.k8s.io/cluster-api v1.6.1 h1:I34p/fwgRlEhs+o9cUhKXDwNNfPS3no0yJsd2bJyQVc=
 sigs.k8s.io/cluster-api v1.6.1/go.mod h1:DaxwruDvSaEYq5q6FREDaGzX6UsAVUCA99Sp8vfMHyQ=
-sigs.k8s.io/controller-runtime v0.18.3 h1:B5Wmmo8WMWK7izei+2LlXLVDGzMwAHBNLX68lwtlSR4=
-sigs.k8s.io/controller-runtime v0.18.3/go.mod h1:TVoGrfdpbA9VRFaRnKgk9P5/atA0pMwq+f+msb9M8Sg=
 sigs.k8s.io/controller-runtime v0.18.4 h1:87+guW1zhvuPLh1PHybKdYFLU0YJp4FhJRmiHvm5BZw=
 sigs.k8s.io/controller-runtime v0.18.4/go.mod h1:TVoGrfdpbA9VRFaRnKgk9P5/atA0pMwq+f+msb9M8Sg=
 sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20240522175850-2e9781e9fc60 h1:ihaeBTCFuEYPL1T1/FqAavDY7z5UcKSnWpnb+I3DYeM=
