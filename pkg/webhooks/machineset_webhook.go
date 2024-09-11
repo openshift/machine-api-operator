@@ -3,6 +3,7 @@ package webhooks
 import (
 	"context"
 	"fmt"
+	"k8s.io/component-base/featuregate"
 	"reflect"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
@@ -34,7 +35,7 @@ type machineSetDefaulterHandler struct {
 }
 
 // NewMachineSetValidator returns a new machineSetValidatorHandler.
-func NewMachineSetValidator(client client.Client) (*admission.Webhook, error) {
+func NewMachineSetValidator(client client.Client, featureGate featuregate.MutableFeatureGate) (*admission.Webhook, error) {
 	infra, err := getInfra()
 	if err != nil {
 		return nil, err
@@ -45,14 +46,15 @@ func NewMachineSetValidator(client client.Client) (*admission.Webhook, error) {
 		return nil, err
 	}
 
-	return createMachineSetValidator(infra, client, dns), nil
+	return createMachineSetValidator(infra, client, dns, featureGate), nil
 }
 
-func createMachineSetValidator(infra *osconfigv1.Infrastructure, client client.Client, dns *osconfigv1.DNS) *admission.Webhook {
+func createMachineSetValidator(infra *osconfigv1.Infrastructure, client client.Client, dns *osconfigv1.DNS, featureGate featuregate.MutableFeatureGate) *admission.Webhook {
 	admissionConfig := &admissionConfig{
 		dnsDisconnected: dns.Spec.PublicZone == nil,
 		clusterID:       infra.Status.InfrastructureName,
 		client:          client,
+		featureGates:    featureGate,
 	}
 
 	return admission.WithCustomValidator(scheme.Scheme, &machinev1beta1.MachineSet{}, &machineSetValidatorHandler{

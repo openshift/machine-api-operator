@@ -70,7 +70,7 @@ type VSphereMachineProviderSpec struct {
 	// When using LinkedClone, if no snapshots exist for the source template, falls back to FullClone.
 	// +optional
 	CloneMode CloneMode `json:"cloneMode,omitempty"`
-	// disks is a list of non OS disks to be created and attached to the VM.  The max number of disk allowed to be attached is
+	// dataDisks is a list of non OS disks to be created and attached to the VM.  The max number of disk allowed to be attached is
 	// currently 15.  This limitation is being applied to allow no more than 16 disks on the default scsi controller for the VM.
 	// The first disk on that SCSI controller will be the OS disk from the template.
 	// +openshift:enable:FeatureGate=VSphereMultiDisk
