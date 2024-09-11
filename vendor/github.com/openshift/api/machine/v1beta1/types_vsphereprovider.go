@@ -70,6 +70,15 @@ type VSphereMachineProviderSpec struct {
 	// When using LinkedClone, if no snapshots exist for the source template, falls back to FullClone.
 	// +optional
 	CloneMode CloneMode `json:"cloneMode,omitempty"`
+	// dataDisks is a list of non OS disks to be created and attached to the VM.  The max number of disk allowed to be attached is
+	// currently 15.  This limitation is being applied to allow no more than 16 disks on the default scsi controller for the VM.
+	// The first disk on that SCSI controller will be the OS disk from the template.
+	// +openshift:enable:FeatureGate=VSphereMultiDisk
+	// +optional
+	// +listType=map
+	// +listMapKey=name
+	// +kubebuilder:validation:MaxItems=29
+	DataDisks []VSphereDisk `json:"dataDisks,omitempty"`
 }
 
 // CloneMode is the type of clone operation used to clone a VM from a template.
@@ -172,6 +181,17 @@ type NetworkDeviceSpec struct {
 	AddressesFromPools []AddressesFromPool `json:"addressesFromPools,omitempty"`
 }
 
+// VSphereDisk describes additional disks for vSphere.
+type VSphereDisk struct {
+	// Name is used to identify the disk definition. Name is required needs to be unique so that it can be used to
+	// clearly identify purpose of the disk.
+	// +kubebuilder:validation:Required
+	Name string `json:"name,omitempty"`
+	// SizeGiB is the size of the disk in GiB.
+	// +kubebuilder:validation:Required
+	SizeGiB int32 `json:"sizeGiB"`
+}
+
 // WorkspaceConfig defines a workspace configuration for the vSphere cloud
 // provider.
 type Workspace struct {
@@ -190,6 +210,10 @@ type Workspace struct {
 	// ResourcePool is the resource pool in which VMs are created/located.
 	// +optional
 	ResourcePool string `gcfg:"resourcepool-path,omitempty" json:"resourcePool,omitempty"`
+	// vmGroup is the cluster vm group in which virtual machines will be added for vm host group based zonal.
+	// +openshift:validation:featureGate=VSphereHostVMGroupZonal
+	// +optional
+	VMGroup string `gcfg:"vmGroup,omitempty" json:"vmGroup,omitempty"`
 }
 
 // VSphereMachineProviderStatus is the type that will be embedded in a Machine.Status.ProviderStatus field.

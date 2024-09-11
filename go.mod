@@ -277,3 +277,9 @@ require (
 	sigs.k8s.io/kustomize/kyaml v0.17.1 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 )
+
+replace github.com/openshift/api => github.com/vr4manta/api v0.0.0-20241203153954-b8357fac9edf
+
+replace github.com/openshift/library-go => github.com/vr4manta/library-go v0.0.0-20240910183943-6bfccc981bf1
+
+// replace k8s.io/cloud-provider-vsphere => github.com/vr4manta/cloud-provider-vsphere v0.0.0-20240926163731-40cee92a0401
