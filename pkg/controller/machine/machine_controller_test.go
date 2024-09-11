@@ -31,8 +31,6 @@ import (
 	"github.com/openshift/cluster-control-plane-machine-set-operator/test/e2e/framework"
 	testutils "github.com/openshift/machine-api-operator/pkg/util/testing"
 
-	apierrs "k8s.io/apimachinery/pkg/api/errors"
-	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/komega"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
@@ -144,11 +142,6 @@ var _ = Describe("Machine Reconciler", func() {
 			HaveField("Status", Equal(corev1.ConditionTrue)),
 		))))
 
-		By("Transitioning the AuthoritativeAPI though 'Migrating' to MachineAPI")
-		Eventually(k.UpdateStatus(instance, func() {
-			instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityMigrating
-		})).Should(Succeed())
-
 		// The condition should remain true whilst transitioning through 'Migrating'
 		// Run this in a goroutine so we don't block
 
@@ -164,7 +157,7 @@ var _ = Describe("Machine Reconciler", func() {
 
 					localInstance := instanceCopy.DeepCopy()
 					if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(localInstance), localInstance); err != nil {
-						return g.Expect(err).Should(WithTransform(isRetryableAPIError, BeTrue()), "expected temporary error while getting machine: %v", err)
+						return g.Expect(err).Should(WithTransform(testutils.IsRetryableAPIError, BeTrue()), "expected temporary error while getting machine: %v", err)
 					}
 
 					return g.Expect(localInstance.Status.Conditions).Should(ContainElement(SatisfyAll(
@@ -179,12 +172,17 @@ var _ = Describe("Machine Reconciler", func() {
 
 					localInstance := instanceCopy.DeepCopy()
 					if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(localInstance), localInstance); err != nil {
-						return g.Expect(err).Should(WithTransform(isRetryableAPIError, BeTrue()), "expected temporary error while getting machine: %v", err)
+						return g.Expect(err).Should(WithTransform(testutils.IsRetryableAPIError, BeTrue()), "expected temporary error while getting machine: %v", err)
 					}
 
-					return g.Expect(localInstance.Status.AuthoritativeAPI).ToNot(Equal(machinev1.MachineAuthorityMachineAPI))
+					return g.Expect(localInstance.Status.AuthoritativeAPI).To(Equal(machinev1.MachineAuthorityMachineAPI))
 				})
 		}()
+
+		By("Transitioning the AuthoritativeAPI though 'Migrating' to MachineAPI")
+		Eventually(k.UpdateStatus(instance, func() {
+			instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityMigrating
+		})).Should(Succeed())
 
 		By("Updating the AuthoritativeAPI from Migrating to MachineAPI")
 		Eventually(k.UpdateStatus(instance, func() {
@@ -219,22 +217,4 @@ func cleanResources(namespace string) error {
 	}
 
 	return nil
-}
-
-// isRetryableAPIError returns whether an API error is retryable or not.
-// inspired by: k8s.io/kubernetes/test/utils.
-func isRetryableAPIError(err error) bool {
-	// These errors may indicate a transient error that we can retry in tests.
-	if apierrs.IsInternalError(err) || apierrs.IsTimeout(err) || apierrs.IsServerTimeout(err) ||
-		apierrs.IsTooManyRequests(err) || utilnet.IsProbableEOF(err) || utilnet.IsConnectionReset(err) ||
-		utilnet.IsHTTP2ConnectionLost(err) {
-		return true
-	}
-
-	// If the error sends the Retry-After header, we respect it as an explicit confirmation we should retry.
-	if _, shouldRetry := apierrs.SuggestsClientDelay(err); shouldRetry {
-		return true
-	}
-
-	return false
 }
