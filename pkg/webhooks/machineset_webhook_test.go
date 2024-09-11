@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"testing"
 
-	testutils "github.com/openshift/machine-api-operator/pkg/util/testing"
-
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	. "github.com/onsi/gomega"
@@ -25,6 +23,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+
+	testutils "github.com/openshift/machine-api-operator/pkg/util/testing"
 )
 
 func TestMachineSetCreation(t *testing.T) {

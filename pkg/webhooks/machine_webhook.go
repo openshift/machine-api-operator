@@ -128,6 +128,9 @@ var (
 
 	// tagUrnPattern is helps validate the format of a given tag URN
 	tagUrnPattern = regexp.MustCompile(`^(urn):(vmomi):(InventoryServiceTag):([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}):([^:]+)$`)
+
+	// vSphereDataDiskNamePattern is used to validate the name of a data disk
+	vSphereDataDiskNamePattern = regexp.MustCompile(`^[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?$`)
 )
 
 const (
@@ -177,6 +180,12 @@ const (
 	minVSphereMemoryMiB = 2048
 	// https://docs.openshift.com/container-platform/4.1/installing/installing_vsphere/installing-vsphere.html#minimum-resource-requirements_installing-vsphere
 	minVSphereDiskGiB = 120
+	// Maximum number of data disks allowed to be added to a VM
+	maxVSphereDataDisks = 29
+	// Max length of a DataDisk name
+	maxVSphereDataDiskNameLength = 80
+	// Max size of any data disk in vSphere is 62 TiB.  We are currently limiting to 16TiB (16384 GiB) as a starting point.
+	maxVSphereDataDiskSize = 16384
 
 	// Nutanix Defaults
 	// Minimum Nutanix values taken from Nutanix reconciler
@@ -1495,10 +1504,52 @@ func validateVSphere(m *machinev1beta1.Machine, config *admissionConfig) (bool, 
 		}
 	}
 
+	if len(providerSpec.DataDisks) > 0 {
+		if !config.featureGates.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereMultiDisk)) {
+			errs = append(errs, field.Forbidden(field.NewPath("providerSpec", "disks"), "this field is protected by the VSphereMultiDisk feature gate which must be enabled through either the TechPreviewNoUpgrade or CustomNoUpgrade feature set"))
+		} else {
+			errs = append(errs, validateVSphereDataDisks(providerSpec.DataDisks)...)
+		}
+	}
+
 	if len(errs) > 0 {
 		return false, warnings, errs
 	}
 	return true, warnings, nil
+}
+
+func validateVSphereDataDisks(dataDisks []machinev1beta1.VSphereDisk) field.ErrorList {
+	var errs field.ErrorList
+
+	disksPath := field.NewPath("providerSpec", "disks")
+	if len(dataDisks) > maxVSphereDataDisks {
+		errs = append(errs, field.Invalid(disksPath, len(dataDisks), fmt.Sprintf("data disk count must not exceed %d", maxVSphereDataDisks)))
+	}
+
+	for i, disk := range dataDisks {
+		diskPath := disksPath.Index(i)
+
+		if len(disk.Name) == 0 {
+			errs = append(errs, field.Required(diskPath.Child("name"), "data disk name must be set"))
+		} else {
+			if len(disk.Name) > maxVSphereDataDiskNameLength {
+				errs = append(errs, field.Invalid(diskPath.Child("name"), len(disk.Name), fmt.Sprintf("data disk name must not exceed %d", maxVSphereDataDiskNameLength)))
+			}
+			if vSphereDataDiskNamePattern.FindStringSubmatch(disk.Name) == nil {
+				errs = append(errs, field.Invalid(diskPath.Child("name"), disk.Name, "data disk name must consist only of alphanumeric characters, hyphens and underscores, and must start and end with an alphanumeric character."))
+			}
+		}
+
+		if disk.SizeGiB == 0 {
+			errs = append(errs, field.Required(diskPath.Child("sizeGiB"), "data disk size must be set"))
+		}
+
+		if disk.SizeGiB > maxVSphereDataDiskSize {
+			errs = append(errs, field.Invalid(diskPath.Child("sizeGiB"), disk.SizeGiB, fmt.Sprintf("data disk size (GiB) must not exceed %d", maxVSphereDataDiskSize)))
+		}
+	}
+
+	return errs
 }
 
 func validateVSphereWorkspace(workspace *machinev1beta1.Workspace, config *admissionConfig, parentPath *field.Path) ([]string, field.ErrorList) {

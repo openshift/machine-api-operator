@@ -1195,6 +1195,7 @@ func TestGetDiskSpec(t *testing.T) {
 		expectedError        error
 		devices              func() object.VirtualDeviceList
 		diskSize             int32
+		diskCount            int32
 		expectedCapacityInKB int64
 	}{
 		{
@@ -1207,6 +1208,7 @@ func TestGetDiskSpec(t *testing.T) {
 				return devices
 			},
 			diskSize:             10,
+			diskCount:            1,
 			expectedCapacityInKB: 10485760,
 		},
 		{
@@ -1219,6 +1221,7 @@ func TestGetDiskSpec(t *testing.T) {
 				return devices
 			},
 			diskSize:             30,
+			diskCount:            1,
 			expectedCapacityInKB: 31457280,
 		},
 		{
@@ -1233,6 +1236,7 @@ func TestGetDiskSpec(t *testing.T) {
 			},
 			expectedError:        errors.New("invalid disk count: 2"),
 			diskSize:             1,
+			diskCount:            1,
 			expectedCapacityInKB: 1048576,
 		},
 	}
@@ -1281,6 +1285,186 @@ func printOperations(networkDevices []types.BaseVirtualDeviceConfigSpec) string 
 		output += fmt.Sprintf("device: %v has operation: %v, ", i, string(networkDevices[i].GetVirtualDeviceConfigSpec().Operation))
 	}
 	return output
+}
+
+func TestCreateDataDisks(t *testing.T) {
+	model, session, server := initSimulator(t)
+	t.Cleanup(model.Remove)
+	t.Cleanup(server.Close)
+	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	machine := object.NewVirtualMachine(session.Client.Client, vm.Reference())
+
+	deviceList, err := machine.Device(context.TODO())
+	if err != nil {
+		t.Fatalf("Failed to obtain vm devices: %v", err)
+	}
+
+	// Find primary disk and get controller
+	disks := deviceList.SelectByType((*types.VirtualDisk)(nil))
+	primaryDisk := disks[0].(*types.VirtualDisk)
+	controller, ok := deviceList.FindByKey(primaryDisk.ControllerKey).(types.BaseVirtualController)
+	if !ok {
+		t.Fatalf("unable to get controller for test")
+	}
+
+	getMachineScope := func(providerSpec *machinev1.VSphereMachineProviderSpec) *machineScope {
+		gates, _ := testutils.NewDefaultMutableFeatureGate()
+		return &machineScope{
+			Context: context.TODO(),
+			machine: &machinev1.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test",
+					Namespace: "test",
+					Labels: map[string]string{
+						machinev1.MachineClusterIDLabel: "CLUSTERID",
+					},
+				},
+			},
+			providerSpec:   providerSpec,
+			session:        session,
+			providerStatus: &machinev1.VSphereMachineProviderStatus{},
+			featureGates:   gates,
+		}
+	}
+
+	testCases := []struct {
+		name               string
+		devices            object.VirtualDeviceList
+		controller         types.BaseVirtualController
+		dataDisks          []machinev1.VSphereDisk
+		expectedUnitNumber []int
+		err                string
+	}{
+		{
+			name:               "Add data disk with 1 ova disk",
+			devices:            deviceList,
+			controller:         controller,
+			dataDisks:          createDataDiskDefinitions(1),
+			expectedUnitNumber: []int{1},
+		},
+		{
+			name:               "Add data disk with 2 ova disk",
+			devices:            createAdditionalDisks(deviceList, controller, 1),
+			controller:         controller,
+			dataDisks:          createDataDiskDefinitions(1),
+			expectedUnitNumber: []int{2},
+		},
+		{
+			name:               "Add multiple data disk with 1 ova disk",
+			devices:            deviceList,
+			controller:         controller,
+			dataDisks:          createDataDiskDefinitions(2),
+			expectedUnitNumber: []int{1, 2},
+		},
+		{
+			name:       "Add too many data disks with 1 ova disk",
+			devices:    deviceList,
+			controller: controller,
+			dataDisks:  createDataDiskDefinitions(30),
+			err:        "all unit numbers are already in-use",
+		},
+		{
+			name:       "Add data disk with no ova disk",
+			devices:    nil,
+			controller: nil,
+			dataDisks:  createDataDiskDefinitions(1),
+			err:        "invalid disk count: 0",
+		},
+		{
+			name:       "Add too many data disks with 1 ova disk",
+			devices:    deviceList,
+			controller: controller,
+			dataDisks:  createDataDiskDefinitions(40),
+			err:        "all unit numbers are already in-use",
+		},
+	}
+
+	for _, test := range testCases {
+		tc := test
+		t.Run(tc.name, func(t *testing.T) {
+			var funcError error
+			scope := getMachineScope(&machinev1.VSphereMachineProviderSpec{
+				DataDisks: tc.dataDisks,
+			})
+
+			// Create the data disks
+			newDisks, funcError := createDataDisks(scope, tc.devices)
+			if (tc.err != "" && funcError == nil) || (tc.err == "" && funcError != nil) || (funcError != nil && tc.err != funcError.Error()) {
+				t.Fatalf("Expected to get '%v' error from assignUnitNumber, got: '%v'", tc.err, funcError)
+			}
+
+			if tc.err == "" && funcError == nil {
+				// Check number of disks present
+				if len(newDisks) != len(tc.dataDisks) {
+					t.Fatalf("Expected device count to be %v, but found %v", len(tc.dataDisks), len(newDisks))
+				}
+
+				// Validate the configs of new data disks
+				for index, disk := range newDisks {
+					// Check disk size matches original request
+					vd := disk.GetVirtualDeviceConfigSpec().Device.(*types.VirtualDisk)
+					expectedSize := int64(tc.dataDisks[index].SizeGiB * 1024 * 1024)
+					if vd.CapacityInKB != expectedSize {
+						t.Fatalf("Expected disk size (KB) %d to match %d", vd.CapacityInKB, expectedSize)
+					}
+
+					// Check unit number
+					unitNumber := *disk.GetVirtualDeviceConfigSpec().Device.GetVirtualDevice().UnitNumber
+					if tc.err == "" && unitNumber != int32(tc.expectedUnitNumber[index]) {
+						t.Fatalf("Expected to get unitNumber '%d' error from assignUnitNumber, got: '%d'", tc.expectedUnitNumber[index], unitNumber)
+					}
+				}
+			}
+		})
+	}
+}
+
+func createAdditionalDisks(devices object.VirtualDeviceList, controller types.BaseVirtualController, numOfDisks int) object.VirtualDeviceList {
+	deviceList := devices
+	disks := devices.SelectByType((*types.VirtualDisk)(nil))
+	primaryDisk := disks[0].(*types.VirtualDisk)
+
+	for i := 0; i < numOfDisks; i++ {
+		newDevice := createVirtualDisk(primaryDisk.ControllerKey+1, controller, 10)
+		newUnitNumber := *primaryDisk.UnitNumber + int32(i+1)
+		newDevice.UnitNumber = &newUnitNumber
+		deviceList = append(deviceList, newDevice)
+	}
+	return deviceList
+}
+
+func createVirtualDisk(key int32, controller types.BaseVirtualController, diskSize int32) *types.VirtualDisk {
+	dev := &types.VirtualDisk{
+		VirtualDevice: types.VirtualDevice{
+			Key: key,
+			Backing: &types.VirtualDiskFlatVer2BackingInfo{
+				DiskMode:        string(types.VirtualDiskModePersistent),
+				ThinProvisioned: types.NewBool(true),
+				VirtualDeviceFileBackingInfo: types.VirtualDeviceFileBackingInfo{
+					FileName: "",
+				},
+			},
+		},
+		CapacityInKB: int64(diskSize) * 1024 * 1024,
+	}
+
+	if controller != nil {
+		dev.VirtualDevice.ControllerKey = controller.GetVirtualController().Key
+	}
+	return dev
+}
+
+func createDataDiskDefinitions(numOfDataDisks int) []machinev1.VSphereDisk {
+	disks := []machinev1.VSphereDisk{}
+
+	for i := 0; i < numOfDataDisks; i++ {
+		disk := machinev1.VSphereDisk{
+			Name:    fmt.Sprintf("disk_%d", i),
+			SizeGiB: 10 * int32(i),
+		}
+		disks = append(disks, disk)
+	}
+	return disks
 }
 
 func TestGetNetworkStatusList(t *testing.T) {
@@ -3381,6 +3565,21 @@ func TestVmDisksManipulation(t *testing.T) {
 				vmdkFilenames: []string{
 					"[DS] foo.vmdk",
 					fmt.Sprintf("[DS] foo/%s.vmdk", machineObj.Name),
+					"[DS] bar.vmdk",
+					"some nonsense",
+				},
+				expectedFilenames: []string{
+					"[DS] foo.vmdk",
+					"[DS] bar.vmdk",
+					"some nonsense",
+				},
+			},
+			{
+				name: "multiple vmdk names with machine name should be filtered out",
+				vmdkFilenames: []string{
+					"[DS] foo.vmdk",
+					fmt.Sprintf("[DS] foo/%s.vmdk", machineObj.Name),
+					fmt.Sprintf("[DS] foo/%s_1.vmdk", machineObj.Name),
 					"[DS] bar.vmdk",
 					"some nonsense",
 				},

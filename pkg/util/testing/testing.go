@@ -183,7 +183,8 @@ func NewDefaultMutableFeatureGate() (featuregate.MutableFeatureGate, error) {
 		openshiftfeatures.SelfManaged,
 		openshiftfeatures.FeatureGateMachineAPIMigration,
 		openshiftfeatures.FeatureGateVSphereStaticIPs,
-		openshiftfeatures.FeatureGateVSphereHostVMGroupZonal)
+		openshiftfeatures.FeatureGateVSphereHostVMGroupZonal,
+		openshiftfeatures.FeatureGateVSphereMultiDisk)
 	if err != nil {
 		return nil, fmt.Errorf("failed to set up default feature gate: %w", err)
 	}
@@ -191,6 +192,7 @@ func NewDefaultMutableFeatureGate() (featuregate.MutableFeatureGate, error) {
 		map[string]bool{
 			"MachineAPIMigration": true,
 			"VSphereStaticIPs":    true,
+			"VSphereMultiDisk":    true,
 		},
 	); err != nil {
 		return nil, fmt.Errorf("failed to set features from map: %w", err)

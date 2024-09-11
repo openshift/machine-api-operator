@@ -93,7 +93,7 @@ func main() {
 
 	// Sets up feature gates
 	defaultMutableGate := feature.DefaultMutableFeatureGate
-	gateOpts, err := features.NewFeatureGateOptions(defaultMutableGate, apifeatures.SelfManaged, apifeatures.FeatureGateVSphereStaticIPs, apifeatures.FeatureGateMachineAPIMigration, apifeatures.FeatureGateVSphereHostVMGroupZonal)
+	gateOpts, err := features.NewFeatureGateOptions(defaultMutableGate, apifeatures.SelfManaged, apifeatures.FeatureGateVSphereStaticIPs, apifeatures.FeatureGateMachineAPIMigration, apifeatures.FeatureGateVSphereHostVMGroupZonal, apifeatures.FeatureGateVSphereMultiDisk)
 	if err != nil {
 		klog.Fatalf("Error setting up feature gates: %v", err)
 	}
@@ -155,6 +155,8 @@ func main() {
 	klog.Infof("FeatureGateVSphereStaticIPs initialised: %t", staticIPFeatureGateEnabled)
 	hostVMGroupZonalFeatureGateEnabled := defaultMutableGate.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereHostVMGroupZonal))
 	klog.Infof("FeatureGateVSphereHostVMGroupZonal initialised %t", hostVMGroupZonalFeatureGateEnabled)
+	multiDiskFeatureGateEnabled := defaultMutableGate.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereMultiDisk))
+	klog.Infof("FeatureGateVSphereMultiDisk initialised: %t", multiDiskFeatureGateEnabled)
 
 	// Setup a Manager
 	mgr, err := manager.New(cfg, opts)
