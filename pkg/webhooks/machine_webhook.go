@@ -11,6 +11,7 @@ import (
 	"strconv"
 	"strings"
 
+	apifeatures "github.com/openshift/api/features"
 	"k8s.io/component-base/featuregate"
 
 	corev1 "k8s.io/api/core/v1"
@@ -175,7 +176,8 @@ const (
 	minVSphereCPU       = 2
 	minVSphereMemoryMiB = 2048
 	// https://docs.openshift.com/container-platform/4.1/installing/installing_vsphere/installing-vsphere.html#minimum-resource-requirements_installing-vsphere
-	minVSphereDiskGiB = 120
+	minVSphereDiskGiB  = 120
+	maxAdditionalDisks = 15
 
 	// Nutanix Defaults
 	// Minimum Nutanix values taken from Nutanix reconciler
@@ -1491,6 +1493,14 @@ func validateVSphere(m *machinev1beta1.Machine, config *admissionConfig) (bool, 
 			errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret", "name"), "name must be provided"))
 		} else {
 			warnings = append(warnings, credentialsSecretExists(config.client, providerSpec.CredentialsSecret.Name, m.GetNamespace())...)
+		}
+	}
+
+	if len(providerSpec.DataDisks) > 0 {
+		if !config.featureGates.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereMultiDisk)) {
+			errs = append(errs, field.Forbidden(field.NewPath("providerSpec", "disks"), "this field is protected by the VSphereMultiDisk feature gate which must be enabled through either the TechPreviewNoUpgrade or CustomNoUpgrade feature set"))
+		} else if len(providerSpec.DataDisks) > maxAdditionalDisks {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "disks"), len(providerSpec.DataDisks), fmt.Sprintf("additional disk count must not exceed %d", maxAdditionalDisks)))
 		}
 	}
 

@@ -1162,6 +1162,7 @@ func TestGetDiskSpec(t *testing.T) {
 		expectedError        error
 		devices              func() object.VirtualDeviceList
 		diskSize             int32
+		diskCount            int32
 		expectedCapacityInKB int64
 	}{
 		{
@@ -1174,6 +1175,7 @@ func TestGetDiskSpec(t *testing.T) {
 				return devices
 			},
 			diskSize:             10,
+			diskCount:            1,
 			expectedCapacityInKB: 10485760,
 		},
 		{
@@ -1186,6 +1188,7 @@ func TestGetDiskSpec(t *testing.T) {
 				return devices
 			},
 			diskSize:             30,
+			diskCount:            1,
 			expectedCapacityInKB: 31457280,
 		},
 		{
@@ -1200,6 +1203,7 @@ func TestGetDiskSpec(t *testing.T) {
 			},
 			expectedError:        errors.New("invalid disk count: 2"),
 			diskSize:             1,
+			diskCount:            1,
 			expectedCapacityInKB: 1048576,
 		},
 	}
@@ -3238,6 +3242,21 @@ func TestVmDisksManipulation(t *testing.T) {
 				vmdkFilenames: []string{
 					"[DS] foo.vmdk",
 					fmt.Sprintf("[DS] foo/%s.vmdk", machineObj.Name),
+					"[DS] bar.vmdk",
+					"some nonsense",
+				},
+				expectedFilenames: []string{
+					"[DS] foo.vmdk",
+					"[DS] bar.vmdk",
+					"some nonsense",
+				},
+			},
+			{
+				name: "multiple vmdk names with machine name should be filtered out",
+				vmdkFilenames: []string{
+					"[DS] foo.vmdk",
+					fmt.Sprintf("[DS] foo/%s.vmdk", machineObj.Name),
+					fmt.Sprintf("[DS] foo/%s_1.vmdk", machineObj.Name),
 					"[DS] bar.vmdk",
 					"some nonsense",
 				},
