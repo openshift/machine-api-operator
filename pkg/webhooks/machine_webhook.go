@@ -9,6 +9,9 @@ import (
 	"strconv"
 	"strings"
 
+	apifeatures "github.com/openshift/api/features"
+	"k8s.io/component-base/featuregate"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -171,7 +174,8 @@ const (
 	minVSphereCPU       = 2
 	minVSphereMemoryMiB = 2048
 	// https://docs.openshift.com/container-platform/4.1/installing/installing_vsphere/installing-vsphere.html#minimum-resource-requirements_installing-vsphere
-	minVSphereDiskGiB = 120
+	minVSphereDiskGiB  = 120
+	maxAdditionalDisks = 15
 
 	// Nutanix Defaults
 	// Minimum Nutanix values taken from Nutanix reconciler
@@ -322,6 +326,7 @@ type admissionConfig struct {
 	platformStatus  *osconfigv1.PlatformStatus
 	dnsDisconnected bool
 	client          client.Client
+	featureGates    featuregate.MutableFeatureGate
 }
 
 type admissionHandler struct {
@@ -351,7 +356,7 @@ type machineDefaulterHandler struct {
 }
 
 // NewValidator returns a new machineValidatorHandler.
-func NewMachineValidator(client client.Client) (*admission.Webhook, error) {
+func NewMachineValidator(client client.Client, featureGate featuregate.MutableFeatureGate) (*admission.Webhook, error) {
 	infra, err := getInfra()
 	if err != nil {
 		return nil, err
@@ -362,15 +367,16 @@ func NewMachineValidator(client client.Client) (*admission.Webhook, error) {
 		return nil, err
 	}
 
-	return admission.WithCustomValidator(scheme.Scheme, &machinev1beta1.Machine{}, createMachineValidator(infra, client, dns)), nil
+	return admission.WithCustomValidator(scheme.Scheme, &machinev1beta1.Machine{}, createMachineValidator(infra, client, dns, featureGate)), nil
 }
 
-func createMachineValidator(infra *osconfigv1.Infrastructure, client client.Client, dns *osconfigv1.DNS) *machineValidatorHandler {
+func createMachineValidator(infra *osconfigv1.Infrastructure, client client.Client, dns *osconfigv1.DNS, featureGate featuregate.MutableFeatureGate) *machineValidatorHandler {
 	admissionConfig := &admissionConfig{
 		dnsDisconnected: dns.Spec.PublicZone == nil,
 		clusterID:       infra.Status.InfrastructureName,
 		platformStatus:  infra.Status.PlatformStatus,
 		client:          client,
+		featureGates:    featureGate,
 	}
 	return &machineValidatorHandler{
 		admissionHandler: &admissionHandler{
@@ -1479,6 +1485,14 @@ func validateVSphere(m *machinev1beta1.Machine, config *admissionConfig) (bool, 
 			errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret", "name"), "name must be provided"))
 		} else {
 			warnings = append(warnings, credentialsSecretExists(config.client, providerSpec.CredentialsSecret.Name, m.GetNamespace())...)
+		}
+	}
+
+	if len(providerSpec.Disks) > 0 {
+		if !config.featureGates.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereMultiDisk)) {
+			errs = append(errs, field.Forbidden(field.NewPath("providerSpec", "disks"), "this field is protected by the VSphereMultiDisk feature gate which must be enabled through either the TechPreviewNoUpgrade or CustomNoUpgrade feature set"))
+		} else if len(providerSpec.Disks) > maxAdditionalDisks {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "disks"), len(providerSpec.Disks), fmt.Sprintf("additional disk count must not exceed %d", maxAdditionalDisks)))
 		}
 	}
 
