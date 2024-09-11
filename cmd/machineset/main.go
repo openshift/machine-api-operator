@@ -110,7 +110,7 @@ func main() {
 
 	// Sets up feature gates
 	defaultMutableGate := feature.DefaultMutableFeatureGate
-	gateOpts, err := features.NewFeatureGateOptions(defaultMutableGate, apifeatures.SelfManaged, apifeatures.FeatureGateVSphereStaticIPs, apifeatures.FeatureGateMachineAPIMigration)
+	gateOpts, err := features.NewFeatureGateOptions(defaultMutableGate, apifeatures.SelfManaged, apifeatures.FeatureGateVSphereStaticIPs, apifeatures.FeatureGateMachineAPIMigration, apifeatures.FeatureGateVSphereMultiDisk)
 	if err != nil {
 		klog.Fatalf("Error setting up feature gates: %v", err)
 	}
@@ -186,7 +186,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	machineValidator, err := mapiwebhooks.NewMachineValidator(mgr.GetClient())
+	machineValidator, err := mapiwebhooks.NewMachineValidator(mgr.GetClient(), defaultMutableGate)
 	if err != nil {
 		log.Fatal(err)
 	}

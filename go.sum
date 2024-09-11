@@ -517,8 +517,8 @@ github.com/uudashr/gocognit v1.1.2 h1:l6BAEKJqQH2UpKAPKdMfZf5kE4W/2xk8pfU1OVLvni
 github.com/uudashr/gocognit v1.1.2/go.mod h1:aAVdLURqcanke8h3vg35BC++eseDm66Z7KmchI5et4k=
 github.com/vmware/govmomi v0.37.2 h1:5ANLoaTxWv600ZnoosJ2zXbM3A+EaxqGheEZbRN8YVE=
 github.com/vmware/govmomi v0.37.2/go.mod h1:mtGWtM+YhTADHlCgJBiskSRPOZRsN9MSjPzaZLte/oQ=
-github.com/vr4manta/api v0.0.0-20240918114912-682c24cf41c8 h1:nAD7An3qW+NHM3pAViVVbdMAjYH5VPPXcnlgaUOdsbo=
-github.com/vr4manta/api v0.0.0-20240918114912-682c24cf41c8/go.mod h1:OOh6Qopf21pSzqNVCB5gomomBXb8o5sGKZxG2KNpaXM=
+github.com/vr4manta/api v0.0.0-20240924150740-ec5392903387 h1:WDXPgFYRTEmlo3wKeo3/9idb42JbckSd75GyfjpgLPU=
+github.com/vr4manta/api v0.0.0-20240924150740-ec5392903387/go.mod h1:OOh6Qopf21pSzqNVCB5gomomBXb8o5sGKZxG2KNpaXM=
 github.com/vr4manta/library-go v0.0.0-20240910183943-6bfccc981bf1 h1:1gyQPwD2jHfHESPJxs4/R7yxCLwiT2hJuavRvIksyWY=
 github.com/vr4manta/library-go v0.0.0-20240910183943-6bfccc981bf1/go.mod h1:HRCtk80UWFVTW7UShIFimUV0smpP7LGcQJw5mHuAmIw=
 github.com/xen0n/gosmopolitan v1.2.2 h1:/p2KTnMzwRexIW8GlKawsTWOxn7UHA+jCMF/V8HHtvU=

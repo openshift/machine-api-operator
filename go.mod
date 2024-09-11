@@ -280,6 +280,6 @@ require (
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 )
 
-replace github.com/openshift/api => github.com/vr4manta/api v0.0.0-20240918114912-682c24cf41c8
+replace github.com/openshift/api => github.com/vr4manta/api v0.0.0-20240924150740-ec5392903387
 
 replace github.com/openshift/library-go => github.com/vr4manta/library-go v0.0.0-20240910183943-6bfccc981bf1

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -27,9 +28,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	apimachineryutilerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/component-base/featuregate"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 
+	apifeatures "github.com/openshift/api/features"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
@@ -82,7 +85,7 @@ func (r *Reconciler) create() error {
 	}
 
 	if ipam.HasStaticIPConfiguration(r.providerSpec) {
-		if !r.staticIPFeatureGateEnabled {
+		if !r.featureGates.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereStaticIPs)) {
 			return fmt.Errorf("%v: static IP/IPAM configuration is only available with the VSphereStaticIPs feature gate", r.machine.GetName())
 		}
 
@@ -389,7 +392,7 @@ func (r *Reconciler) delete() error {
 			return err
 		}
 		klog.Infof("%v: vm does not exist", r.machine.GetName())
-		if r.staticIPFeatureGateEnabled {
+		if r.featureGates.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereStaticIPs)) {
 			// remove any finalizers for IPAddressClaims which may be associated with the machine
 			err = ipam.RemoveFinalizersForIPAddressClaims(r.Context, r.client, *r.machine)
 			if err != nil {
@@ -456,9 +459,11 @@ func (r *Reconciler) delete() error {
 	if err != nil {
 		return fmt.Errorf("%v: can not obtain virtual disks attached to the vm: %w", r.machine.GetName(), err)
 	}
+
+	additionalDisks := len(r.providerSpec.Disks)
 	// Currently, MAPI does not provide any API knobs to configure additional volumes for a VM.
 	// So, we are expecting the VM to have only one disk, which is OS disk.
-	if len(disks) > 1 {
+	if len(disks) > 1+additionalDisks {
 		// If node drain was skipped we need to detach disks forcefully to prevent possible data corruption.
 		if drainSkipped {
 			klog.V(1).Infof(
@@ -968,6 +973,13 @@ func clone(s *machineScope) (string, error) {
 		deviceSpecs = append(deviceSpecs, diskSpec)
 	}
 
+	// Add any additional disks
+	additionalDisks, err := getAdditionalDiskSpecs(s, devices, datastore)
+	if err != nil {
+		return "", fmt.Errorf("error getting additional disk specs: %w", err)
+	}
+	deviceSpecs = append(deviceSpecs, additionalDisks...)
+
 	klog.V(3).Infof("Getting network devices")
 	networkDevices, err := getNetworkDevices(s, resourcepool, devices)
 	if err != nil {
@@ -988,7 +1000,7 @@ func clone(s *machineScope) (string, error) {
 		Value: "TRUE",
 	})
 
-	if s.staticIPFeatureGateEnabled {
+	if s.featureGates.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereStaticIPs)) {
 		if ipam.HasStaticIPConfiguration(s.providerSpec) {
 			networkKargs, err := constructKargsFromNetworkConfig(s)
 			if err != nil {
@@ -1086,6 +1098,66 @@ func getDiskSpec(s *machineScope, devices object.VirtualDeviceList) (types.BaseV
 		Operation: types.VirtualDeviceConfigSpecOperationEdit,
 		Device:    disk,
 	}, nil
+}
+
+func getAdditionalDiskSpecs(s *machineScope, devices object.VirtualDeviceList, datastore *object.Datastore) ([]types.BaseVirtualDeviceConfigSpec, error) {
+	var diskSpecs []types.BaseVirtualDeviceConfigSpec
+
+	klog.InfoS("About to iterate through disks", "disk", s.providerSpec.Disks)
+
+	klog.Infof("Feature Gates: %v", s.featureGates)
+	// Only add additional disks if the feature gate is enabled.
+	if len(s.providerSpec.Disks) > 0 && !s.featureGates.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereMultiDisk)) {
+		return nil, machinecontroller.InvalidMachineConfiguration(
+			"machines cannot contain additional disks due to VSphereMultiDisk feature gate being disabled")
+	}
+
+	// Let's create the data disks now
+	for i := range s.providerSpec.Disks {
+		//var ccrMo mo.ClusterComputeResource
+		//var backing types.BaseVirtualDeviceBackingInfo
+		klog.Infof("Getting disk at index %d", i)
+		diskSpec := s.providerSpec.Disks[i]
+		klog.InfoS("Adding disk", "spec", diskSpec)
+
+		// Need storage policy
+		// Need scsi controller
+		controller, err := devices.FindDiskController("scsi")
+		if err != nil {
+			klog.Infof("Unable to get scsi controller")
+		}
+
+		unit := int32(i + 1)
+
+		dev := &types.VirtualDisk{
+			VirtualDevice: types.VirtualDevice{
+				Key: devices.NewKey() - int32(i),
+				Backing: &types.VirtualDiskFlatVer2BackingInfo{
+					DiskMode:        string(types.VirtualDiskModePersistent),
+					ThinProvisioned: types.NewBool(true),
+					VirtualDeviceFileBackingInfo: types.VirtualDeviceFileBackingInfo{
+						FileName:  "",
+						Datastore: types.NewReference(datastore.Reference()),
+					},
+				},
+				UnitNumber:    &unit,
+				ControllerKey: controller.GetVirtualController().Key,
+			},
+			CapacityInKB: diskSpec.SizeGiB * 1024 * 1024,
+		}
+
+		diskConfigSpec := types.VirtualDeviceConfigSpec{
+			Device:        dev,
+			Operation:     types.VirtualDeviceConfigSpecOperationAdd,
+			FileOperation: types.VirtualDeviceConfigSpecFileOperationCreate,
+		}
+
+		klog.InfoS("Generated device", "dev", dev)
+
+		diskSpecs = append(diskSpecs, &diskConfigSpec)
+	}
+
+	return diskSpecs, nil
 }
 
 func getNetworkDevices(s *machineScope, resourcepool *object.ResourcePool, devices object.VirtualDeviceList) ([]types.BaseVirtualDeviceConfigSpec, error) {
@@ -1520,15 +1592,16 @@ type attachedDisk struct {
 	diskMode string
 }
 
-// Filters out disks that look like vm OS disk.
+// Filters out disks that look like vm OS disk or any of the additional disks.
 // VM os disks filename contains the machine name in it
 // and has the format like "[DATASTORE] path-within-datastore/machine-name.vmdk".
 // This is based on vSphere behavior, an OS disk file gets a name that equals the target VM name during the clone operation.
 func filterOutVmOsDisk(attachedDisks []attachedDisk, machine *machinev1.Machine) []attachedDisk {
 	var disks []attachedDisk
+	regex, _ := regexp.Compile(fmt.Sprintf(".*\\/%s(_\\d*)?.vmdk", machine.GetName()))
 
 	for _, disk := range attachedDisks {
-		if strings.HasSuffix(disk.fileName, fmt.Sprintf("/%s.vmdk", machine.GetName())) {
+		if regex.MatchString(disk.fileName) {
 			continue
 		}
 		disks = append(disks, disk)
