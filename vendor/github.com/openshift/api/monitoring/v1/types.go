@@ -67,8 +67,8 @@ type AlertingRuleList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 
 	// items is a list of AlertingRule objects.
-	// +required
-	Items []AlertingRule `json:"items"`
+	// +optional
+	Items []AlertingRule `json:"items,omitempty"`
 }
 
 // AlertingRuleSpec is the desired state of an AlertingRule resource.
@@ -285,9 +285,8 @@ type AlertRelabelConfigList struct {
 	metav1.ListMeta `json:"metadata,omitempty"`
 
 	// items is a list of AlertRelabelConfigs.
-	// +kubebuilder:validation:MinItems:=1
-	// +required
-	Items []*AlertRelabelConfig `json:"items"`
+	// +optional
+	Items []AlertRelabelConfig `json:"items,omitempty"`
 }
 
 // LabelName is a valid Prometheus label name which may only contain ASCII

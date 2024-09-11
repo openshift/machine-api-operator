@@ -54,6 +54,13 @@ lint:
 lint-fix:
 	hack/lint-fix.sh
 
+# Ignore the exit code of the fix lint, it will always error as there are unfixed issues
+# that cannot be fixed from historic commits.
+.PHONY: verify-lint-fix
+verify-lint-fix:
+	make lint-fix 2>/dev/null || true
+	git diff --exit-code
+
 .PHONY: verify-scripts
 verify-scripts:
 	bash -x hack/verify-deepcopy.sh

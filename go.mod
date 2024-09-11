@@ -11,11 +11,11 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/onsi/ginkgo/v2 v2.20.2
 	github.com/onsi/gomega v1.34.2
-	github.com/openshift/api v0.0.0-20241210144725-fa836ae33dad
+	github.com/openshift/api v0.0.0-20250108172834-78bd56dba39b
 	github.com/openshift/client-go v0.0.0-20241203091221-452dfb8fa071
 	github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20241007145816-7038c320d36c
 	github.com/openshift/cluster-control-plane-machine-set-operator v0.0.0-20240909043600-373ac49835bf
-	github.com/openshift/library-go v0.0.0-20241210151741-8d0b2ce3fb30
+	github.com/openshift/library-go v0.0.0-20250114132252-af5b21ebad2f
 	github.com/prometheus/client_golang v1.20.5
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/pflag v1.0.5
