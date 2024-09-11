@@ -1,8 +1,8 @@
 module github.com/openshift/machine-api-operator
 
-go 1.22.0
+go 1.22.5
 
-toolchain go1.22.3
+toolchain go1.22.7
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
@@ -13,12 +13,12 @@ require (
 	github.com/openshift/api v0.0.0-20240919193929-2669d1ebc910
 	github.com/openshift/client-go v0.0.0-20240918182115-6a8ead8397fd
 	github.com/openshift/library-go v0.0.0-20240919205913-c96b82b3762b
-	github.com/prometheus/client_golang v1.19.1
+	github.com/prometheus/client_golang v1.20.2
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.9.0
-	github.com/vmware/govmomi v0.39.0
-	golang.org/x/net v0.26.0
+	github.com/vmware/govmomi v0.42.0
+	golang.org/x/net v0.28.0
 	gopkg.in/gcfg.v1 v1.2.3 // indirect
 	k8s.io/api v0.31.1
 	k8s.io/apimachinery v0.31.1
@@ -154,6 +154,7 @@ require (
 	github.com/karamaru-alpha/copyloopvar v1.1.0 // indirect
 	github.com/kisielk/errcheck v1.7.0 // indirect
 	github.com/kkHAIKE/contextcheck v1.1.5 // indirect
+	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/kulti/thelper v0.6.3 // indirect
 	github.com/kunwardeep/paralleltest v1.0.10 // indirect
 	github.com/kyoh86/exportloopref v0.1.11 // indirect
@@ -255,10 +256,10 @@ require (
 	golang.org/x/exp/typeparams v0.0.0-20240314144324-c7f7c6466f7f // indirect
 	golang.org/x/mod v0.17.0 // indirect
 	golang.org/x/oauth2 v0.21.0 // indirect
-	golang.org/x/sync v0.7.0 // indirect
-	golang.org/x/sys v0.21.0 // indirect
-	golang.org/x/term v0.21.0 // indirect
-	golang.org/x/text v0.16.0 // indirect
+	golang.org/x/sync v0.8.0 // indirect
+	golang.org/x/sys v0.23.0 // indirect
+	golang.org/x/term v0.23.0 // indirect
+	golang.org/x/text v0.17.0 // indirect
 	golang.org/x/tools v0.21.1-0.20240508182429-e35e4ccd0d2d // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
@@ -280,3 +281,9 @@ require (
 	sigs.k8s.io/kustomize/kyaml v0.17.1 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 )
+
+replace github.com/openshift/api => github.com/vr4manta/api v0.0.0-20241011151817-acc042bfc491
+
+replace github.com/openshift/library-go => github.com/vr4manta/library-go v0.0.0-20240910183943-6bfccc981bf1
+
+replace k8s.io/cloud-provider-vsphere => github.com/vr4manta/cloud-provider-vsphere v0.0.0-20240926163731-40cee92a0401
