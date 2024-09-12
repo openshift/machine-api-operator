@@ -9,8 +9,10 @@ import (
 	openshiftfeatures "github.com/openshift/api/features"
 	"github.com/openshift/library-go/pkg/features"
 	corev1 "k8s.io/api/core/v1"
+	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/pkg/util/uuid"
 	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/component-base/featuregate"
@@ -187,4 +189,22 @@ func NewDefaultMutableFeatureGate() (featuregate.MutableFeatureGate, error) {
 	}
 
 	return defaultMutableGate, nil
+}
+
+// IsRetryableAPIError returns whether an API error is retryable or not.
+// inspired by: k8s.io/kubernetes/test/utils.
+func IsRetryableAPIError(err error) bool {
+	// These errors may indicate a transient error that we can retry in tests.
+	if apierrs.IsInternalError(err) || apierrs.IsTimeout(err) || apierrs.IsServerTimeout(err) ||
+		apierrs.IsTooManyRequests(err) || utilnet.IsProbableEOF(err) || utilnet.IsConnectionReset(err) ||
+		utilnet.IsHTTP2ConnectionLost(err) {
+		return true
+	}
+
+	// If the error sends the Retry-After header, we respect it as an explicit confirmation we should retry.
+	if _, shouldRetry := apierrs.SuggestsClientDelay(err); shouldRetry {
+		return true
+	}
+
+	return false
 }

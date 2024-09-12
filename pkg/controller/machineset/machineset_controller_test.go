@@ -25,11 +25,13 @@ import (
 
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	machinev1resourcebuilder "github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/machine/v1beta1"
-	testutils "github.com/openshift/machine-api-operator/pkg/util/testing"
 
+	"github.com/openshift/cluster-control-plane-machine-set-operator/test/e2e/framework"
+	testutils "github.com/openshift/machine-api-operator/pkg/util/testing"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/envtest/komega"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -38,6 +40,7 @@ import (
 var _ = Describe("MachineSet Reconciler", func() {
 	var mgrCtxCancel context.CancelFunc
 	var mgrStopped chan struct{}
+	var k komega.Komega
 	var namespace *corev1.Namespace
 	var machineSetBuilder machinev1resourcebuilder.MachineSetBuilder
 	var replicas int32 = int32(2)
@@ -52,6 +55,7 @@ var _ = Describe("MachineSet Reconciler", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		k8sClient = mgr.GetClient()
+		k = komega.New(k8sClient)
 
 		By("Setting up feature gates")
 		gate, err := testutils.NewDefaultMutableFeatureGate()
@@ -105,6 +109,11 @@ var _ = Describe("MachineSet Reconciler", func() {
 		By("Creating the MachineSet")
 		Expect(k8sClient.Create(ctx, instance)).To(Succeed())
 
+		By("Setting the AuthoritativeAPI to MachineAPI")
+		Eventually(k.UpdateStatus(instance, func() {
+			instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityMachineAPI
+		})).Should(Succeed())
+
 		machines := &machinev1.MachineList{}
 		By("Verifying that we have 2 replicas")
 		Eventually(func() (int, error) {
@@ -132,6 +141,96 @@ var _ = Describe("MachineSet Reconciler", func() {
 			}
 			return ready, nil
 		}, timeout*3).Should(BeEquivalentTo(replicas))
+	})
+
+	It("Should set the Paused condition appropriately", func() {
+		instance := machineSetBuilder.
+			WithName("baz").
+			WithLabels(map[string]string{"baz": "bar"}).
+			Build()
+
+		By("Creating the MachineSet")
+		Expect(k8sClient.Create(ctx, instance)).To(Succeed())
+
+		By("Setting the AuthoritativeAPI to ClusterAPI")
+		Eventually(k.UpdateStatus(instance, func() {
+			instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityClusterAPI
+		})).Should(Succeed())
+
+		By("Verifying that the AuthoritativeAPI is set to Cluster API")
+		Eventually(k.Object(instance), timeout).Should(HaveField("Status.AuthoritativeAPI", Equal(machinev1.MachineAuthorityClusterAPI)))
+
+		By("Verifying the paused condition is approproately set to true")
+		Eventually(k.Object(instance), timeout).Should(HaveField("Status.Conditions", ContainElement(SatisfyAll(
+			HaveField("Type", Equal(PausedCondition)),
+			HaveField("Status", Equal(corev1.ConditionTrue)),
+		))))
+
+		// The condition should remain true whilst transitioning through 'Migrating'
+		// Run this in a goroutine so we don't block
+
+		// Copy the instance before starting the goroutine, to avoid data races
+		instanceCopy := instance.DeepCopy()
+		go func() {
+			defer GinkgoRecover()
+			framework.RunCheckUntil(
+				ctx,
+				// Check that we consistently have the Paused condition true
+				func(_ context.Context, g framework.GomegaAssertions) bool {
+					By("Checking that the paused condition is consistently true whilst migrating to MachineAPI")
+
+					localInstance := instanceCopy.DeepCopy()
+					if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(localInstance), localInstance); err != nil {
+						return g.Expect(err).Should(WithTransform(testutils.IsRetryableAPIError, BeTrue()), "expected temporary error while getting machine: %v", err)
+					}
+
+					return g.Expect(localInstance.Status.Conditions).Should(ContainElement(SatisfyAll(
+						HaveField("Type", Equal(PausedCondition)),
+						HaveField("Status", Equal(corev1.ConditionTrue)),
+					)))
+
+				},
+				// Condition / until function: until we observe the MachineAuthority being MAPI
+				func(_ context.Context, g framework.GomegaAssertions) bool {
+					By("Checking that the AuthoritativeAPI is not MachineAPI")
+
+					localInstance := instanceCopy.DeepCopy()
+					if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(localInstance), localInstance); err != nil {
+						return g.Expect(err).Should(WithTransform(testutils.IsRetryableAPIError, BeTrue()), "expected temporary error while getting machine: %v", err)
+					}
+
+					return g.Expect(localInstance.Status.AuthoritativeAPI).To(Equal(machinev1.MachineAuthorityMachineAPI))
+				})
+		}()
+
+		By("Transitioning the AuthoritativeAPI though Migrating")
+		Eventually(k.UpdateStatus(instance, func() {
+			instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityMigrating
+		})).Should(Succeed())
+
+		By("Updating the AuthoritativeAPI from Migrating to MachineAPI")
+		Eventually(k.UpdateStatus(instance, func() {
+			instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityMachineAPI
+		})).Should(Succeed())
+
+		Eventually(k.Object(instance), timeout).Should(HaveField("Status.AuthoritativeAPI", Equal(machinev1.MachineAuthorityMachineAPI)))
+
+		By("Verifying the paused condition is approproately set to false")
+		Eventually(k.Object(instance), timeout).Should(HaveField("Status.Conditions", ContainElement(SatisfyAll(
+			HaveField("Type", Equal(PausedCondition)),
+			HaveField("Status", Equal(corev1.ConditionFalse)),
+		))))
+
+		By("Unsetting the AuthoritativeAPI field in the status")
+		Eventually(k.UpdateStatus(instance, func() {
+			instance.Status.AuthoritativeAPI = ""
+		})).Should(Succeed())
+
+		By("Verifying the paused condition is still approproately set to false")
+		Eventually(k.Object(instance), timeout).Should(HaveField("Status.Conditions", ContainElement(SatisfyAll(
+			HaveField("Type", Equal(PausedCondition)),
+			HaveField("Status", Equal(corev1.ConditionFalse)),
+		))))
 	})
 })
 
