@@ -182,6 +182,7 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 	originalConditions := conditions.DeepCopyConditions(m.Status.Conditions)
 
 	if r.gate.Enabled(featuregate.Feature(openshiftfeatures.FeatureGateMachineAPIMigration)) {
+		klog.Infof("(DEBUG) controller.go: Inside If statement where MachineAPIMigration FG enabled")
 		// Check Status.AuthoritativeAPI
 		// If not MachineAPI. Set the paused condition true and return early.
 		//
@@ -209,10 +210,12 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 			machinev1.ConditionSeverityInfo,
 			"The AuthoritativeAPI is set to %s", m.Status.AuthoritativeAPI,
 		))
+		klog.Infof("(DEBUG) controller.go: setting paused condition -> true")
 		if patchErr := r.updateStatus(ctx, m, ptr.Deref(m.Status.Phase, ""), nil, originalConditions); patchErr != nil {
 			klog.Errorf("%v: error patching status: %v", machineName, patchErr)
 		}
 	}
+	klog.Infof("(DEBUG) controller.go: outside If statement where MachineAPIMigration FG enabled")
 
 	if errList := validateMachine(m); len(errList) > 0 {
 		err := fmt.Errorf("%v: machine validation failed: %v", machineName, errList.ToAggregate().Error())
