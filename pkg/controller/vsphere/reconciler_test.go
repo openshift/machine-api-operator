@@ -2631,8 +2631,7 @@ func TestCreate(t *testing.T) {
 				t.Errorf("Unexpected error setting up feature gates: %v", err)
 			}
 
-			err = gates.Set(fmt.Sprintf("%v=%v", features.FeatureGateVSphereStaticIPs, tc.staticIPFeatureGateEnabled))
-			if err != nil {
+			if err = gates.Set(fmt.Sprintf("%v=%v", features.FeatureGateVSphereStaticIPs, tc.staticIPFeatureGateEnabled)); err != nil {
 				t.Errorf("Unexpected error setting static IP feature gates: %v", err)
 			}
 
