@@ -56,6 +56,7 @@ func TestMain(m *testing.M) {
 		CRDDirectoryPaths: []string{
 			filepath.Join("..", "..", "install"),
 			filepath.Join("..", "..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1", "zz_generated.crd-manifests"),
+			filepath.Join("..", "..", "..", "..", "third_party", "cluster-api", "crd"),
 		},
 		WebhookInstallOptions: envtest.WebhookInstallOptions{
 			MutatingWebhooks:   []*admissionregistrationv1.MutatingWebhookConfiguration{NewMachineMutatingWebhookConfiguration()},
