@@ -281,6 +281,9 @@ func TestMachineOldestDelete(t *testing.T) {
 	new := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -5))}}
 	old := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -10))}}
 	oldest := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -10))}}
+	old500Day := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -500))}}
+	old1000Day := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -1000))}}
+	old3750Day := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -3750))}}
 	annotatedMachine := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{DeleteNodeAnnotation: "yes"}, CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -1))}}
 	oldAnnotatedMachine := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{Annotations: map[string]string{oldDeleteNodeAnnotation: "yes"}, CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -1))}}
 	unhealthyMachine := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{CreationTimestamp: metav1.NewTime(currentTime.Time.AddDate(0, 0, -10))}, Status: machinev1.MachineStatus{ErrorReason: &statusError}}
@@ -346,6 +349,22 @@ func TestMachineOldestDelete(t *testing.T) {
 				empty, new, oldest, old, newest, unhealthyMachine,
 			},
 			expect: []*machinev1.Machine{unhealthyMachine},
+		},
+		{
+			desc: "func=oldestDeletePriority, diff=1 (old but with annotate priority)",
+			diff: 1,
+			machines: []*machinev1.Machine{
+				new, annotatedMachine, old500Day, old1000Day, old3750Day,
+			},
+			expect: []*machinev1.Machine{annotatedMachine},
+		},
+		{
+			desc: "func=oldestDeletePriority, diff=3 (old machines in order)",
+			diff: 3,
+			machines: []*machinev1.Machine{
+				new, old500Day, old1000Day, old3750Day,
+			},
+			expect: []*machinev1.Machine{old3750Day, old1000Day, old500Day},
 		},
 	}
 
