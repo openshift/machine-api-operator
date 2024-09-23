@@ -25,6 +25,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/openshift/api/features"
+
+	testutils "github.com/openshift/machine-api-operator/pkg/util/testing"
+
 	. "github.com/onsi/gomega"
 
 	"github.com/vmware/govmomi/object"
@@ -178,6 +182,7 @@ func TestClone(t *testing.T) {
 	}
 
 	getMachineScope := func(providerSpec *machinev1.VSphereMachineProviderSpec) *machineScope {
+		gates, _ := testutils.NewDefaultMutableFeatureGate()
 		return &machineScope{
 			Context: context.TODO(),
 			machine: &machinev1.Machine{
@@ -193,6 +198,7 @@ func TestClone(t *testing.T) {
 			session:        session,
 			providerStatus: &machinev1.VSphereMachineProviderStatus{},
 			client:         fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(&credentialsSecret, &userDataSecret).Build(),
+			featureGates:   gates,
 		}
 	}
 
@@ -1158,6 +1164,7 @@ func TestGetDiskSpec(t *testing.T) {
 		expectedError        error
 		devices              func() object.VirtualDeviceList
 		diskSize             int32
+		diskCount            int32
 		expectedCapacityInKB int64
 	}{
 		{
@@ -1170,6 +1177,7 @@ func TestGetDiskSpec(t *testing.T) {
 				return devices
 			},
 			diskSize:             10,
+			diskCount:            1,
 			expectedCapacityInKB: 10485760,
 		},
 		{
@@ -1182,6 +1190,7 @@ func TestGetDiskSpec(t *testing.T) {
 				return devices
 			},
 			diskSize:             30,
+			diskCount:            1,
 			expectedCapacityInKB: 31457280,
 		},
 		{
@@ -1196,6 +1205,7 @@ func TestGetDiskSpec(t *testing.T) {
 			},
 			expectedError:        errors.New("invalid disk count: 2"),
 			diskSize:             1,
+			diskCount:            1,
 			expectedCapacityInKB: 1048576,
 		},
 	}
@@ -1949,6 +1959,11 @@ func TestDelete(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			gates, err := testutils.NewDefaultMutableFeatureGate()
+			if err != nil {
+				t.Errorf("Unexpected error setting up feature gates: %v", err)
+			}
+
 			client := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(
 				simParams.secret,
 				tc.machine(t, simParams.host),
@@ -1961,6 +1976,7 @@ func TestDelete(t *testing.T) {
 				machine:                  tc.machine(t, simParams.host),
 				apiReader:                client,
 				openshiftConfigNameSpace: openshiftConfigNamespaceForTest,
+				featureGates:             gates,
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -2610,13 +2626,23 @@ func TestCreate(t *testing.T) {
 
 			client := builder.Build()
 
+			gates, err := testutils.NewDefaultMutableFeatureGate()
+			if err != nil {
+				t.Errorf("Unexpected error setting up feature gates: %v", err)
+			}
+
+			err = gates.Set(fmt.Sprintf("%v=%v", features.FeatureGateVSphereStaticIPs, tc.staticIPFeatureGateEnabled))
+			if err != nil {
+				t.Errorf("Unexpected error setting static IP feature gates: %v", err)
+			}
+
 			machineScope, err := newMachineScope(machineScopeParams{
-				client:                     client,
-				Context:                    context.Background(),
-				machine:                    machine,
-				apiReader:                  client,
-				StaticIPFeatureGateEnabled: tc.staticIPFeatureGateEnabled,
-				openshiftConfigNameSpace:   openshiftConfigNamespaceForTest,
+				client:                   client,
+				Context:                  context.Background(),
+				machine:                  machine,
+				apiReader:                client,
+				openshiftConfigNameSpace: openshiftConfigNamespaceForTest,
+				featureGates:             gates,
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -3219,6 +3245,21 @@ func TestVmDisksManipulation(t *testing.T) {
 				vmdkFilenames: []string{
 					"[DS] foo.vmdk",
 					fmt.Sprintf("[DS] foo/%s.vmdk", machineObj.Name),
+					"[DS] bar.vmdk",
+					"some nonsense",
+				},
+				expectedFilenames: []string{
+					"[DS] foo.vmdk",
+					"[DS] bar.vmdk",
+					"some nonsense",
+				},
+			},
+			{
+				name: "multiple vmdk names with machine name should be filtered out",
+				vmdkFilenames: []string{
+					"[DS] foo.vmdk",
+					fmt.Sprintf("[DS] foo/%s.vmdk", machineObj.Name),
+					fmt.Sprintf("[DS] foo/%s_1.vmdk", machineObj.Name),
 					"[DS] bar.vmdk",
 					"some nonsense",
 				},

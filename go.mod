@@ -10,9 +10,9 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/onsi/ginkgo/v2 v2.17.2
 	github.com/onsi/gomega v1.33.1
-	github.com/openshift/api v0.0.0-20240904015708-69df64132c91
-	github.com/openshift/client-go v0.0.0-20240904134955-cd42fd3d7408
-	github.com/openshift/library-go v0.0.0-20240903143724-7c5c5d305ac1
+	github.com/openshift/api v0.0.0-20240909041644-5852b58f4b10
+	github.com/openshift/client-go v0.0.0-20240906181530-b2f7c4ab0984
+	github.com/openshift/library-go v0.0.0-20240723172506-8bb8fe6cc56d
 	github.com/prometheus/client_golang v1.18.0
 	github.com/spf13/cobra v1.8.0
 	github.com/spf13/pflag v1.0.5
@@ -279,3 +279,7 @@ require (
 	sigs.k8s.io/kustomize/kyaml v0.14.3-0.20230601165947-6ce0bf390ce3 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 )
+
+replace github.com/openshift/api => github.com/vr4manta/api v0.0.0-20240918114912-682c24cf41c8
+
+replace github.com/openshift/library-go => github.com/vr4manta/library-go v0.0.0-20240910183943-6bfccc981bf1
