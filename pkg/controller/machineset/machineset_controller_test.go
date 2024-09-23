@@ -30,7 +30,9 @@ import (
 	testutils "github.com/openshift/machine-api-operator/pkg/util/testing"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/komega"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 
@@ -64,7 +66,10 @@ var _ = Describe("MachineSet Reconciler", func() {
 		By("Setting up a new reconciler")
 		reconciler := newReconciler(mgr, gate)
 
-		Expect(add(mgr, reconciler, reconciler.MachineToMachineSets)).To(Succeed())
+		Expect(addWithOpts(mgr, controller.Options{
+			Reconciler:         reconciler,
+			SkipNameValidation: ptr.To(true),
+		}, reconciler.MachineToMachineSets)).To(Succeed())
 
 		var mgrCtx context.Context
 		mgrCtx, mgrCtxCancel = context.WithCancel(ctx)

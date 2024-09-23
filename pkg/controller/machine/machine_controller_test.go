@@ -26,12 +26,14 @@ import (
 	"golang.org/x/net/context"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/utils/ptr"
 
 	machinev1resourcebuilder "github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/machine/v1beta1"
 	"github.com/openshift/cluster-control-plane-machine-set-operator/test/e2e/framework"
 	testutils "github.com/openshift/machine-api-operator/pkg/util/testing"
 
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/envtest/komega"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -64,7 +66,10 @@ var _ = Describe("Machine Reconciler", func() {
 		act := newTestActuator()
 		reconciler := newReconciler(mgr, act, gate)
 
-		Expect(add(mgr, reconciler, "testing")).To(Succeed())
+		Expect(addWithOpts(mgr, controller.Options{
+			Reconciler:         reconciler,
+			SkipNameValidation: ptr.To(true),
+		}, "testing")).To(Succeed())
 
 		var mgrCtx context.Context
 		mgrCtx, mgrCtxCancel = context.WithCancel(ctx)

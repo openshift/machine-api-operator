@@ -73,7 +73,7 @@ var (
 // The Manager will set fields on the Controller and Start it when the Manager is Started.
 func Add(mgr manager.Manager, opts manager.Options, gate featuregate.MutableFeatureGate) error {
 	r := newReconciler(mgr, gate)
-	return add(mgr, r, r.MachineToMachineSets)
+	return addWithOpts(mgr, controller.Options{Reconciler: r}, r.MachineToMachineSets)
 }
 
 // newReconciler returns a new reconcile.Reconciler.
@@ -86,9 +86,9 @@ func newReconciler(mgr manager.Manager, gate featuregate.MutableFeatureGate) *Re
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler.
-func add(mgr manager.Manager, r reconcile.Reconciler, mapFn handler.TypedMapFunc[*machinev1.Machine, reconcile.Request]) error {
+func addWithOpts(mgr manager.Manager, opts controller.Options, mapFn handler.TypedMapFunc[*machinev1.Machine, reconcile.Request]) error {
 	// Create a new controller.
-	c, err := controller.New(controllerName, mgr, controller.Options{Reconciler: r})
+	c, err := controller.New(controllerName, mgr, opts)
 	if err != nil {
 		return err
 	}

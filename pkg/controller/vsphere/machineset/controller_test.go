@@ -28,6 +28,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/log"
@@ -53,7 +54,9 @@ var _ = Describe("Reconciler", func() {
 			Client: mgr.GetClient(),
 			Log:    log.Log,
 		}
-		Expect(r.SetupWithManager(mgr, controller.Options{})).To(Succeed())
+		Expect(r.SetupWithManager(mgr, controller.Options{
+			SkipNameValidation: ptr.To(true),
+		})).To(Succeed())
 
 		fakeRecorder = record.NewFakeRecorder(1)
 		r.recorder = fakeRecorder
