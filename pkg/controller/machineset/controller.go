@@ -86,7 +86,7 @@ func newReconciler(mgr manager.Manager, gate featuregate.MutableFeatureGate) *Re
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler.
-func add(mgr manager.Manager, r reconcile.Reconciler, mapFn handler.TypedMapFunc[*machinev1.Machine]) error {
+func add(mgr manager.Manager, r reconcile.Reconciler, mapFn handler.TypedMapFunc[*machinev1.Machine, reconcile.Request]) error {
 	// Create a new controller.
 	c, err := controller.New(controllerName, mgr, controller.Options{Reconciler: r})
 	if err != nil {

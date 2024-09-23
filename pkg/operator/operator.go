@@ -81,7 +81,7 @@ type Operator struct {
 	featureGateAccessor featuregates.FeatureGateAccess
 
 	// queue only ever has one item, but it has nice error handling backoff/retry semantics
-	queue           workqueue.RateLimitingInterface
+	queue           workqueue.TypedRateLimitingInterface[string]
 	operandVersions []osconfigv1.OperandVersion
 
 	generations []osoperatorv1.GenerationStatus
@@ -122,16 +122,18 @@ func New(
 	}
 
 	optr := &Operator{
-		namespace:       namespace,
-		name:            name,
-		imagesFile:      imagesFile,
-		kubeClient:      kubeClient,
-		osClient:        osClient,
-		machineClient:   machineClient,
-		dynamicClient:   dynamicClient,
-		eventRecorder:   eventRecorder,
-		recorder:        recorder,
-		queue:           workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "machineapioperator"),
+		namespace:     namespace,
+		name:          name,
+		imagesFile:    imagesFile,
+		kubeClient:    kubeClient,
+		osClient:      osClient,
+		machineClient: machineClient,
+		dynamicClient: dynamicClient,
+		eventRecorder: eventRecorder,
+		recorder:      recorder,
+		queue: workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.DefaultTypedControllerRateLimiter[string](), workqueue.TypedRateLimitingQueueConfig[string]{
+			Name: "machineapioperator",
+		}),
 		operandVersions: operandVersions,
 	}
 
@@ -368,13 +370,13 @@ func (optr *Operator) processNextWorkItem() bool {
 	defer optr.queue.Done(key)
 
 	klog.V(4).Infof("Processing key %s", key)
-	result, err := optr.syncHandler(key.(string))
+	result, err := optr.syncHandler(key)
 	optr.handleSyncResult(result, err, key)
 
 	return true
 }
 
-func (optr *Operator) handleSyncResult(result reconcile.Result, err error, key interface{}) {
+func (optr *Operator) handleSyncResult(result reconcile.Result, err error, key string) {
 	switch {
 	case err != nil && optr.queue.NumRequeues(key) < maxRetries:
 		klog.V(1).Infof("Error syncing operator %v: %v", key, err)
