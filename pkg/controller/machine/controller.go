@@ -122,11 +122,6 @@ func newReconciler(mgr manager.Manager, actuator Actuator, gate featuregate.Muta
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
-func add(mgr manager.Manager, r reconcile.Reconciler, controllerName string) error {
-	return addWithOpts(mgr, controller.Options{Reconciler: r}, controllerName)
-}
-
-// add adds a new Controller to mgr with r as the reconcile.Reconciler
 func addWithOpts(mgr manager.Manager, opts controller.Options, controllerName string) error {
 	// Create a new controller
 	c, err := controller.New(controllerName, mgr, opts)

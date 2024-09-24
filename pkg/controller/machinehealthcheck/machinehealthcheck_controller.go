@@ -121,7 +121,7 @@ func indexMachineByNodeName(object client.Object) []string {
 }
 
 // add adds a new Controller to mgr with r as the reconcile.Reconciler
-func add(mgr manager.Manager, r reconcile.Reconciler, mapMachineToMHC handler.TypedMapFunc[*machinev1.Machine], mapNodeToMHC handler.TypedMapFunc[*corev1.Node]) error {
+func add(mgr manager.Manager, r reconcile.Reconciler, mapMachineToMHC handler.TypedMapFunc[*machinev1.Machine, reconcile.Request], mapNodeToMHC handler.TypedMapFunc[*corev1.Node, reconcile.Request]) error {
 	c, err := controller.New(controllerName, mgr, controller.Options{Reconciler: r})
 	if err != nil {
 		return err
