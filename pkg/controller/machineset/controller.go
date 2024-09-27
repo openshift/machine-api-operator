@@ -27,6 +27,7 @@ import (
 
 	openshiftfeatures "github.com/openshift/api/features"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
+	"github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/util"
 	"github.com/openshift/machine-api-operator/pkg/util/conditions"
 	corev1 "k8s.io/api/core/v1"
@@ -45,14 +46,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 	"sigs.k8s.io/controller-runtime/pkg/source"
-)
-
-const (
-	PausedCondition machinev1.ConditionType = "Paused"
-
-	PausedConditionReason = "AuthoritativeAPI is not set to MachineAPI"
-
-	NotPausedConditionReason = "AuthoritativeAPI is set to MachineAPI"
 )
 
 var (
@@ -190,9 +183,9 @@ func (r *ReconcileMachineSet) Reconcile(ctx context.Context, request reconcile.R
 		if machineSet.Status.AuthoritativeAPI != "" &&
 			machineSet.Status.AuthoritativeAPI != machinev1.MachineAuthorityMachineAPI {
 			conditions.Set(machineSetCopy, conditions.TrueConditionWithReason(
-				PausedCondition,
-				PausedConditionReason,
-				"The AuthoritativeAPI is set to %s", machineSet.Status.AuthoritativeAPI,
+				machine.PausedCondition,
+				machine.PausedConditionReason,
+				"The AuthoritativeAPI is set to %s", string(machineSet.Status.AuthoritativeAPI),
 			))
 
 			_, err := updateMachineSetStatus(r.Client, machineSet, machineSetCopy.Status)
@@ -204,10 +197,19 @@ func (r *ReconcileMachineSet) Reconcile(ctx context.Context, request reconcile.R
 			return reconcile.Result{}, nil
 		}
 
+		var pausedFalseReason string
+		if machineSet.Status.AuthoritativeAPI != "" {
+			pausedFalseReason = fmt.Sprintf("The AuthoritativeAPI is set to %s", string(machineSet.Status.AuthoritativeAPI))
+		} else {
+			pausedFalseReason = "The AuthoritativeAPI is not set"
+		}
+
+		// Set the paused condition to false, continue reconciliation
 		conditions.Set(machineSetCopy, conditions.FalseCondition(
-			PausedCondition,
-			NotPausedConditionReason,
-			"The AuthoritativeAPI is set to %s", string(machineSet.Status.AuthoritativeAPI),
+			machine.PausedCondition,
+			machine.NotPausedConditionReason,
+			machinev1.ConditionSeverityInfo,
+			pausedFalseReason,
 		))
 		_, err := updateMachineSetStatus(r.Client, machineSet, machineSetCopy.Status)
 		if err != nil {
