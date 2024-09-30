@@ -25,6 +25,7 @@ import (
 
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	machinev1resourcebuilder "github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/machine/v1beta1"
+	"github.com/openshift/machine-api-operator/pkg/controller/machine"
 
 	"github.com/openshift/cluster-control-plane-machine-set-operator/test/e2e/framework"
 	testutils "github.com/openshift/machine-api-operator/pkg/util/testing"
@@ -167,7 +168,7 @@ var _ = Describe("MachineSet Reconciler", func() {
 
 		By("Verifying the paused condition is approproately set to true")
 		Eventually(k.Object(instance), timeout).Should(HaveField("Status.Conditions", ContainElement(SatisfyAll(
-			HaveField("Type", Equal(PausedCondition)),
+			HaveField("Type", Equal(machine.PausedCondition)),
 			HaveField("Status", Equal(corev1.ConditionTrue)),
 		))))
 
@@ -190,7 +191,7 @@ var _ = Describe("MachineSet Reconciler", func() {
 					}
 
 					return g.Expect(localInstance.Status.Conditions).Should(ContainElement(SatisfyAll(
-						HaveField("Type", Equal(PausedCondition)),
+						HaveField("Type", Equal(machine.PausedCondition)),
 						HaveField("Status", Equal(corev1.ConditionTrue)),
 					)))
 
@@ -222,7 +223,7 @@ var _ = Describe("MachineSet Reconciler", func() {
 
 		By("Verifying the paused condition is approproately set to false")
 		Eventually(k.Object(instance), timeout).Should(HaveField("Status.Conditions", ContainElement(SatisfyAll(
-			HaveField("Type", Equal(PausedCondition)),
+			HaveField("Type", Equal(machine.PausedCondition)),
 			HaveField("Status", Equal(corev1.ConditionFalse)),
 		))))
 
@@ -233,7 +234,7 @@ var _ = Describe("MachineSet Reconciler", func() {
 
 		By("Verifying the paused condition is still approproately set to false")
 		Eventually(k.Object(instance), timeout).Should(HaveField("Status.Conditions", ContainElement(SatisfyAll(
-			HaveField("Type", Equal(PausedCondition)),
+			HaveField("Type", Equal(machine.PausedCondition)),
 			HaveField("Status", Equal(corev1.ConditionFalse)),
 		))))
 	})
