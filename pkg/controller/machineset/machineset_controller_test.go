@@ -91,7 +91,7 @@ var _ = Describe("MachineSet Reconciler", func() {
 		By("Setting up the machine set builder")
 		machineSetBuilder = machinev1resourcebuilder.MachineSet().
 			WithNamespace(namespace.ObjectMeta.Name).
-			WithName("foo").
+			WithGenerateName("foo").
 			WithReplicas(replicas).
 			WithLabels(map[string]string{"foo": "bar"})
 
@@ -151,7 +151,7 @@ var _ = Describe("MachineSet Reconciler", func() {
 
 	It("Should set the Paused condition appropriately", func() {
 		instance := machineSetBuilder.
-			WithName("baz").
+			WithGenerateName("baz").
 			WithLabels(map[string]string{"baz": "bar"}).
 			Build()
 
