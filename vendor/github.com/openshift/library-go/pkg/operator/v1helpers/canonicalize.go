@@ -2,13 +2,12 @@ package v1helpers
 
 import (
 	"fmt"
+	operatorv1 "github.com/openshift/api/operator/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/json"
+	"k8s.io/utils/ptr"
 	"slices"
 	"strings"
-
-	operatorv1 "github.com/openshift/api/operator/v1"
-	"k8s.io/apimachinery/pkg/util/json"
-
-	"k8s.io/utils/ptr"
 
 	applyoperatorv1 "github.com/openshift/client-go/operator/applyconfigurations/operator/v1"
 )
@@ -31,6 +30,40 @@ func ToStaticPodOperator(in *applyoperatorv1.StaticPodOperatorStatusApplyConfigu
 	}
 
 	return ret, nil
+}
+
+func SetApplyConditionsLastTransitionTime(newConditions *[]applyoperatorv1.OperatorConditionApplyConfiguration, oldConditions []applyoperatorv1.OperatorConditionApplyConfiguration) {
+	if newConditions == nil {
+		return
+	}
+
+	now := metav1.Now()
+	for i := range *newConditions {
+		newCondition := (*newConditions)[i]
+
+		// if the condition status is the same, then the lastTransitionTime doesn't change
+		if existingCondition := FindApplyCondition(oldConditions, newCondition.Type); existingCondition != nil && ptr.Equal(existingCondition.Status, newCondition.Status) {
+			newCondition.LastTransitionTime = existingCondition.LastTransitionTime
+		}
+
+		// backstop to handle upgrade case too.  If the newCondition doesn't have a lastTransitionTime it needs something
+		if newCondition.LastTransitionTime == nil {
+			newCondition.LastTransitionTime = &now
+		}
+
+		(*newConditions)[i] = newCondition
+	}
+}
+
+func FindApplyCondition(haystack []applyoperatorv1.OperatorConditionApplyConfiguration, conditionType *string) *applyoperatorv1.OperatorConditionApplyConfiguration {
+	for i := range haystack {
+		curr := haystack[i]
+		if ptr.Equal(curr.Type, conditionType) {
+			return &curr
+		}
+	}
+
+	return nil
 }
 
 func CanonicalizeStaticPodOperatorStatus(obj *applyoperatorv1.StaticPodOperatorStatusApplyConfiguration) {

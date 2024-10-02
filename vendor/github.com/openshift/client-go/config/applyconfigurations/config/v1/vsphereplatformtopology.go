@@ -2,19 +2,20 @@
 
 package v1
 
-// VSpherePlatformTopologyApplyConfiguration represents an declarative configuration of the VSpherePlatformTopology type for use
+// VSpherePlatformTopologyApplyConfiguration represents a declarative configuration of the VSpherePlatformTopology type for use
 // with apply.
 type VSpherePlatformTopologyApplyConfiguration struct {
-	Datacenter     *string  `json:"datacenter,omitempty"`
-	ComputeCluster *string  `json:"computeCluster,omitempty"`
-	Networks       []string `json:"networks,omitempty"`
-	Datastore      *string  `json:"datastore,omitempty"`
-	ResourcePool   *string  `json:"resourcePool,omitempty"`
-	Folder         *string  `json:"folder,omitempty"`
-	Template       *string  `json:"template,omitempty"`
+	Datacenter     *string                                         `json:"datacenter,omitempty"`
+	ComputeCluster *string                                         `json:"computeCluster,omitempty"`
+	Networks       []string                                        `json:"networks,omitempty"`
+	Datastore      *string                                         `json:"datastore,omitempty"`
+	ResourcePool   *string                                         `json:"resourcePool,omitempty"`
+	Folder         *string                                         `json:"folder,omitempty"`
+	Template       *string                                         `json:"template,omitempty"`
+	Affinity       *VSphereFailureDomainAffinityApplyConfiguration `json:"affinity,omitempty"`
 }
 
-// VSpherePlatformTopologyApplyConfiguration constructs an declarative configuration of the VSpherePlatformTopology type for use with
+// VSpherePlatformTopologyApplyConfiguration constructs a declarative configuration of the VSpherePlatformTopology type for use with
 // apply.
 func VSpherePlatformTopology() *VSpherePlatformTopologyApplyConfiguration {
 	return &VSpherePlatformTopologyApplyConfiguration{}
@@ -75,5 +76,13 @@ func (b *VSpherePlatformTopologyApplyConfiguration) WithFolder(value string) *VS
 // If called multiple times, the Template field is set to the value of the last call.
 func (b *VSpherePlatformTopologyApplyConfiguration) WithTemplate(value string) *VSpherePlatformTopologyApplyConfiguration {
 	b.Template = &value
+	return b
+}
+
+// WithAffinity sets the Affinity field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Affinity field is set to the value of the last call.
+func (b *VSpherePlatformTopologyApplyConfiguration) WithAffinity(value *VSphereFailureDomainAffinityApplyConfiguration) *VSpherePlatformTopologyApplyConfiguration {
+	b.Affinity = value
 	return b
 }
