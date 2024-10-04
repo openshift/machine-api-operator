@@ -3,6 +3,7 @@ package webhooks
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"regexp"
 	goruntime "runtime"
@@ -727,6 +728,12 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 
 	if providerSpec.IAMInstanceProfile == nil {
 		warnings = append(warnings, "providerSpec.iamInstanceProfile: no IAM instance profile provided: nodes may be unable to join the cluster")
+	}
+
+	if providerSpec.CapacityReservationID != "" {
+		if err := validateAwsCapacityReservationId(providerSpec.CapacityReservationID); err != nil {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "capacityReservationId"), providerSpec.CapacityReservationID, err.Error()))
+		}
 	}
 
 	// TODO(alberto): Validate providerSpec.BlockDevices.
@@ -2268,4 +2275,17 @@ func appendNextAzureResourceIDValidation(parts []string, id string) error {
 		return appendNextAzureResourceIDValidation(parts[2:], id)
 	}
 	return fmt.Errorf("invalid resource ID: %s", id)
+}
+
+// validateAWScapacityReservationId validate capacity reservation group ID.
+func validateAwsCapacityReservationId(capacityReservationId string) error {
+	if len(capacityReservationId) == 0 {
+		return errors.New("invalid capacityReservationId: capacityReservationId cannot be empty")
+	}
+	// It must starts with cr-xxxxxxxxxxxxxxxxx with length of 17 characters excluding cr-
+	re := regexp.MustCompile(`^cr-[0-9a-f]{17}$`)
+	if !re.MatchString(capacityReservationId) {
+		return fmt.Errorf("invalid value for capacityReservationId: %q, it must start with 'cr-' and be exactly 20 characters long with 17 hexadecimal characters", capacityReservationId)
+	}
+	return nil
 }
