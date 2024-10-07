@@ -27,8 +27,9 @@ import (
 	machinev1resourcebuilder "github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/machine/v1beta1"
 	"github.com/openshift/machine-api-operator/pkg/controller/machine"
 
+	testutils "github.com/openshift/cluster-api-actuator-pkg/testutils"
 	"github.com/openshift/cluster-control-plane-machine-set-operator/test/e2e/framework"
-	testutils "github.com/openshift/machine-api-operator/pkg/util/testing"
+	"github.com/openshift/machine-api-operator/pkg/util/testing"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
@@ -56,12 +57,10 @@ var _ = Describe("MachineSet Reconciler", func() {
 			},
 		})
 		Expect(err).NotTo(HaveOccurred())
-
-		k8sClient = mgr.GetClient()
 		k = komega.New(k8sClient)
 
 		By("Setting up feature gates")
-		gate, err := testutils.NewDefaultMutableFeatureGate()
+		gate, err := testing.NewDefaultMutableFeatureGate()
 		Expect(err).NotTo(HaveOccurred())
 
 		By("Setting up a new reconciler")
@@ -91,22 +90,21 @@ var _ = Describe("MachineSet Reconciler", func() {
 		By("Setting up the machine set builder")
 		machineSetBuilder = machinev1resourcebuilder.MachineSet().
 			WithNamespace(namespace.ObjectMeta.Name).
-			WithName("foo").
+			WithGenerateName("foo").
 			WithReplicas(replicas).
 			WithLabels(map[string]string{"foo": "bar"})
-
 	})
 
 	AfterEach(func() {
-		By("Deleting the machinesets")
-		Expect(cleanResources(namespace.Name)).To(Succeed())
-
-		By("Deleting the namespace")
-		Expect(k8sClient.Delete(ctx, namespace)).To(Succeed())
-
 		By("Closing the manager")
 		mgrCtxCancel()
 		Eventually(mgrStopped, timeout).WithTimeout(20 * time.Second).Should(BeClosed())
+
+		By("Cleaning up test resources")
+		testutils.CleanupResources(Default, ctx, cfg, k8sClient, namespace.GetName(),
+			&machinev1.Machine{},
+			&machinev1.MachineSet{},
+		)
 	})
 
 	It("Should reconcile a MachineSet", func() {
@@ -149,107 +147,100 @@ var _ = Describe("MachineSet Reconciler", func() {
 		}, timeout*3).Should(BeEquivalentTo(replicas))
 	})
 
-	It("Should set the Paused condition appropriately", func() {
-		instance := machineSetBuilder.
-			WithName("baz").
-			WithLabels(map[string]string{"baz": "bar"}).
-			Build()
+	Describe("Paused Condition", func() {
+		var instance *machinev1.MachineSet
+		BeforeEach(func() {
+			instance = machineSetBuilder.
+				WithGenerateName("baz-").
+				WithLabels(map[string]string{"baz": "bar"}).
+				Build()
+		})
+		It("Should set the Paused condition appropriately", func() {
 
-		By("Creating the MachineSet")
-		Expect(k8sClient.Create(ctx, instance)).To(Succeed())
+			By("Creating the MachineSet")
+			Expect(k8sClient.Create(ctx, instance)).To(Succeed())
 
-		By("Setting the AuthoritativeAPI to ClusterAPI")
-		Eventually(k.UpdateStatus(instance, func() {
-			instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityClusterAPI
-		})).Should(Succeed())
+			By("Setting the AuthoritativeAPI to ClusterAPI")
+			Eventually(k.UpdateStatus(instance, func() {
+				instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityClusterAPI
+			})).Should(Succeed())
 
-		By("Verifying that the AuthoritativeAPI is set to Cluster API")
-		Eventually(k.Object(instance), timeout).Should(HaveField("Status.AuthoritativeAPI", Equal(machinev1.MachineAuthorityClusterAPI)))
+			By("Verifying the paused condition is approproately set to true")
+			Eventually(k.Object(instance), timeout).Should(SatisfyAll(
+				HaveField("Status.Conditions", ContainElement(SatisfyAll(
+					HaveField("Type", Equal(machine.PausedCondition)),
+					HaveField("Status", Equal(corev1.ConditionTrue)),
+				))),
+				HaveField("Status.AuthoritativeAPI", Equal(machinev1.MachineAuthorityClusterAPI)),
+			))
 
-		By("Verifying the paused condition is approproately set to true")
-		Eventually(k.Object(instance), timeout).Should(HaveField("Status.Conditions", ContainElement(SatisfyAll(
-			HaveField("Type", Equal(machine.PausedCondition)),
-			HaveField("Status", Equal(corev1.ConditionTrue)),
-		))))
+			// The condition should remain true whilst transitioning through 'Migrating'
+			// Run this in a goroutine so we don't block
 
-		// The condition should remain true whilst transitioning through 'Migrating'
-		// Run this in a goroutine so we don't block
+			// Copy the instance before starting the goroutine, to avoid data races
+			instanceCopy := instance.DeepCopy()
+			go func() {
+				defer GinkgoRecover()
+				framework.RunCheckUntil(
+					ctx,
+					// Check that we consistently have the Paused condition true
+					func(_ context.Context, g framework.GomegaAssertions) bool {
+						By("Checking that the paused condition is consistently true whilst migrating to MachineAPI")
 
-		// Copy the instance before starting the goroutine, to avoid data races
-		instanceCopy := instance.DeepCopy()
-		go func() {
-			defer GinkgoRecover()
-			framework.RunCheckUntil(
-				ctx,
-				// Check that we consistently have the Paused condition true
-				func(_ context.Context, g framework.GomegaAssertions) bool {
-					By("Checking that the paused condition is consistently true whilst migrating to MachineAPI")
+						localInstance := instanceCopy.DeepCopy()
+						if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(localInstance), localInstance); err != nil {
+							return g.Expect(err).Should(WithTransform(testing.IsRetryableAPIError, BeTrue()), "expected temporary error while getting machine: %v", err)
+						}
 
-					localInstance := instanceCopy.DeepCopy()
-					if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(localInstance), localInstance); err != nil {
-						return g.Expect(err).Should(WithTransform(testutils.IsRetryableAPIError, BeTrue()), "expected temporary error while getting machine: %v", err)
-					}
+						return g.Expect(localInstance.Status.Conditions).Should(ContainElement(SatisfyAll(
+							HaveField("Type", Equal(machine.PausedCondition)),
+							HaveField("Status", Equal(corev1.ConditionTrue)),
+						)))
 
-					return g.Expect(localInstance.Status.Conditions).Should(ContainElement(SatisfyAll(
-						HaveField("Type", Equal(machine.PausedCondition)),
-						HaveField("Status", Equal(corev1.ConditionTrue)),
-					)))
+					},
+					// Condition / until function: until we observe the MachineAuthority being MAPI
+					func(_ context.Context, g framework.GomegaAssertions) bool {
+						By("Checking that the AuthoritativeAPI is not MachineAPI")
 
-				},
-				// Condition / until function: until we observe the MachineAuthority being MAPI
-				func(_ context.Context, g framework.GomegaAssertions) bool {
-					By("Checking that the AuthoritativeAPI is not MachineAPI")
+						localInstance := instanceCopy.DeepCopy()
+						if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(localInstance), localInstance); err != nil {
+							return g.Expect(err).Should(WithTransform(testing.IsRetryableAPIError, BeTrue()), "expected temporary error while getting machine: %v", err)
+						}
 
-					localInstance := instanceCopy.DeepCopy()
-					if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(localInstance), localInstance); err != nil {
-						return g.Expect(err).Should(WithTransform(testutils.IsRetryableAPIError, BeTrue()), "expected temporary error while getting machine: %v", err)
-					}
+						return g.Expect(localInstance.Status.AuthoritativeAPI).To(Equal(machinev1.MachineAuthorityMachineAPI))
+					})
+			}()
 
-					return g.Expect(localInstance.Status.AuthoritativeAPI).To(Equal(machinev1.MachineAuthorityMachineAPI))
-				})
-		}()
+			By("Transitioning the AuthoritativeAPI though Migrating")
+			Eventually(k.UpdateStatus(instance, func() {
+				instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityMigrating
+			})).Should(Succeed())
 
-		By("Transitioning the AuthoritativeAPI though Migrating")
-		Eventually(k.UpdateStatus(instance, func() {
-			instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityMigrating
-		})).Should(Succeed())
+			By("Updating the AuthoritativeAPI from Migrating to MachineAPI")
+			Eventually(k.UpdateStatus(instance, func() {
+				instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityMachineAPI
+			})).Should(Succeed())
 
-		By("Updating the AuthoritativeAPI from Migrating to MachineAPI")
-		Eventually(k.UpdateStatus(instance, func() {
-			instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityMachineAPI
-		})).Should(Succeed())
+			By("Verifying the paused condition is approproately set to false")
+			Eventually(k.Object(instance), timeout).Should(SatisfyAll(
+				HaveField("Status.Conditions", ContainElement(SatisfyAll(
+					HaveField("Type", Equal(machine.PausedCondition)),
+					HaveField("Status", Equal(corev1.ConditionFalse)),
+				))),
+				HaveField("Status.AuthoritativeAPI", Equal(machinev1.MachineAuthorityMachineAPI)),
+			))
 
-		Eventually(k.Object(instance), timeout).Should(HaveField("Status.AuthoritativeAPI", Equal(machinev1.MachineAuthorityMachineAPI)))
+			By("Unsetting the AuthoritativeAPI field in the status")
+			Eventually(k.UpdateStatus(instance, func() {
+				instance.Status.AuthoritativeAPI = ""
+			})).Should(Succeed())
 
-		By("Verifying the paused condition is approproately set to false")
-		Eventually(k.Object(instance), timeout).Should(HaveField("Status.Conditions", ContainElement(SatisfyAll(
-			HaveField("Type", Equal(machine.PausedCondition)),
-			HaveField("Status", Equal(corev1.ConditionFalse)),
-		))))
-
-		By("Unsetting the AuthoritativeAPI field in the status")
-		Eventually(k.UpdateStatus(instance, func() {
-			instance.Status.AuthoritativeAPI = ""
-		})).Should(Succeed())
-
-		By("Verifying the paused condition is still approproately set to false")
-		Eventually(k.Object(instance), timeout).Should(HaveField("Status.Conditions", ContainElement(SatisfyAll(
-			HaveField("Type", Equal(machine.PausedCondition)),
-			HaveField("Status", Equal(corev1.ConditionFalse)),
-		))))
+			By("Verifying the paused condition is still approproately set to false")
+			Eventually(k.Object(instance), timeout).Should(HaveField("Status.Conditions", ContainElement(SatisfyAll(
+				HaveField("Type", Equal(machine.PausedCondition)),
+				HaveField("Status", Equal(corev1.ConditionFalse)),
+				HaveField("Message", Equal("The AuthoritativeAPI is not set")),
+			))))
+		})
 	})
 })
-
-func cleanResources(namespace string) error {
-	machineSet := &machinev1.MachineSet{}
-	if err := k8sClient.DeleteAllOf(ctx, machineSet, client.InNamespace(namespace)); err != nil {
-		return err
-	}
-
-	machine := &machinev1.Machine{}
-	if err := k8sClient.DeleteAllOf(ctx, machine, client.InNamespace(namespace)); err != nil {
-		return err
-	}
-
-	return nil
-}

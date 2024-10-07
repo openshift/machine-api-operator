@@ -188,12 +188,12 @@ func (r *ReconcileMachineSet) Reconcile(ctx context.Context, request reconcile.R
 				"The AuthoritativeAPI is set to %s", string(machineSet.Status.AuthoritativeAPI),
 			))
 
-			_, err := updateMachineSetStatus(r.Client, machineSet, machineSetCopy.Status)
+			machineSet, err := updateMachineSetStatus(r.Client, machineSet, machineSetCopy.Status)
 			if err != nil {
 				klog.Errorf("%v: error updating status: %v", machineSet.Name, err)
 			}
 
-			klog.Infof("%v: machine is paused, taking no further action", machineSet.Name)
+			klog.Infof("%v: machine set is paused, taking no further action", machineSet.Name)
 			return reconcile.Result{}, nil
 		}
 
@@ -211,7 +211,7 @@ func (r *ReconcileMachineSet) Reconcile(ctx context.Context, request reconcile.R
 			machinev1.ConditionSeverityInfo,
 			pausedFalseReason,
 		))
-		_, err := updateMachineSetStatus(r.Client, machineSet, machineSetCopy.Status)
+		machineSet, err := updateMachineSetStatus(r.Client, machineSet, machineSetCopy.Status)
 		if err != nil {
 			klog.Errorf("%v: error updating status: %v", machineSet.Name, err)
 		}

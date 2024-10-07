@@ -35,6 +35,7 @@ import (
 	"k8s.io/klog/v2/textlogger"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
+	"sigs.k8s.io/controller-runtime/pkg/envtest/komega"
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -57,11 +58,10 @@ var (
 
 func TestMachinesetController(t *testing.T) {
 	RegisterFailHandler(Fail)
-
 	RunSpecs(t, "MachineSet Controller Suite")
 }
 
-var _ = BeforeSuite(func(ctx SpecContext) {
+var _ = BeforeSuite(func() {
 	By("bootstrapping test environment")
 
 	testEnv = &envtest.Environment{
@@ -80,6 +80,12 @@ var _ = BeforeSuite(func(ctx SpecContext) {
 	cfg, err = testEnv.Start()
 	Expect(err).ToNot(HaveOccurred())
 	Expect(cfg).ToNot(BeNil())
+
+	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
+	Expect(err).ToNot(HaveOccurred())
+
+	komega.SetContext(ctx)
+	komega.SetClient(k8sClient)
 })
 
 var _ = AfterSuite(func() {
