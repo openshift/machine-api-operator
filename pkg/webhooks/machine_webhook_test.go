@@ -153,6 +153,48 @@ func TestMachineCreation(t *testing.T) {
 			expectedError: "",
 		},
 		{
+			name:         "with AWS and CapacityReservationID is empty",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					CapacityReservationID: "",
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "with AWS and CapacityReservationID is valid",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					CapacityReservationID: "cr-12345678901234567",
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "with AWS and CapacityReservationID is not valid",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					CapacityReservationID: "cr-123",
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: providerSpec.capacityReservationId: Invalid value: \"cr-123\": invalid value for capacityReservationId: \"cr-123\", it must start with 'cr-' and be exactly 20 characters long with 17 hexadecimal characters",
+		},
+		{
 			name:              "with Azure and a nil provider spec value",
 			platformType:      osconfigv1.AzurePlatformType,
 			clusterID:         "azure-cluster",
