@@ -92,7 +92,7 @@ var _ = Describe("MachineSet Reconciler", func() {
 			WithNamespace(namespace.ObjectMeta.Name).
 			WithGenerateName("foo").
 			WithReplicas(replicas).
-			WithLabels(map[string]string{"foo": "bar"})
+			WithMachineTemplateLabels(map[string]string{"foo": "bar"})
 	})
 
 	AfterEach(func() {
@@ -152,7 +152,7 @@ var _ = Describe("MachineSet Reconciler", func() {
 		BeforeEach(func() {
 			instance = machineSetBuilder.
 				WithGenerateName("baz-").
-				WithLabels(map[string]string{"baz": "bar"}).
+				WithMachineTemplateLabels(map[string]string{"baz": "bar"}).
 				Build()
 		})
 		It("Should set the Paused condition appropriately", func() {
