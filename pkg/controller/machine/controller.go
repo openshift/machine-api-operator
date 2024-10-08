@@ -209,6 +209,7 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 			PausedCondition,
 			NotPausedConditionReason,
 			machinev1.ConditionSeverityInfo,
+			"%s",
 			pausedFalseReason,
 		))
 		if patchErr := r.updateStatus(ctx, m, ptr.Deref(m.Status.Phase, ""), nil, originalConditions); patchErr != nil {

@@ -194,7 +194,7 @@ func (r *Reconciler) create() error {
 			if statusError != nil {
 				return fmt.Errorf("failed to set provider status: %w", statusError)
 			}
-			return machinecontroller.CreateMachine(err.Error())
+			return machinecontroller.CreateMachine("%s", err.Error())
 		} else {
 			return fmt.Errorf("failed to check task status: %w", err)
 		}
@@ -867,12 +867,10 @@ func clone(s *machineScope) (string, error) {
 	}
 	if hwVersion < minimumHWVersion {
 		return "", machinecontroller.InvalidMachineConfiguration(
-			fmt.Sprintf(
-				"Hardware lower than %d is not supported, clone stopped. "+
-					"Detected machine template version is %d. "+
-					"Please update machine template: https://docs.openshift.com/container-platform/latest/updating/updating_a_cluster/updating-hardware-on-nodes-running-on-vsphere.html",
-				minimumHWVersion, hwVersion,
-			),
+			"Hardware lower than %d is not supported, clone stopped. "+
+				"Detected machine template version is %d. "+
+				"Please update machine template: https://docs.openshift.com/container-platform/latest/updating/updating_a_cluster/updating-hardware-on-nodes-running-on-vsphere.html",
+			minimumHWVersion, hwVersion,
 		)
 	}
 
@@ -1225,12 +1223,12 @@ func setProviderStatus(taskRef string, condition metav1.Condition, scope *machin
 func handleVSphereError(multipleFoundMsg, notFoundMsg string, defaultError, vsphereError error) error {
 	var multipleFoundError *find.MultipleFoundError
 	if errors.As(vsphereError, &multipleFoundError) {
-		return machinecontroller.InvalidMachineConfiguration(multipleFoundMsg)
+		return machinecontroller.InvalidMachineConfiguration("%s", multipleFoundMsg)
 	}
 
 	var notFoundError *find.NotFoundError
 	if errors.As(vsphereError, &notFoundError) {
-		return machinecontroller.InvalidMachineConfiguration(notFoundMsg)
+		return machinecontroller.InvalidMachineConfiguration("%s", notFoundMsg)
 	}
 
 	return defaultError
