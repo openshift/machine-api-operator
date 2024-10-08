@@ -2,14 +2,13 @@ package config
 
 import (
 	"os"
-	"regexp"
 	"strings"
 
 	hcversion "github.com/hashicorp/go-version"
 	"github.com/ldez/gomoddirectives"
 )
 
-// Config encapsulates the config data specified in the golangci-lint yaml config file.
+// Config encapsulates the config data specified in the golangci-lint YAML config file.
 type Config struct {
 	cfgDir string // The directory containing the golangci-lint config file.
 
@@ -88,23 +87,4 @@ func detectGoVersion() string {
 	}
 
 	return "1.17"
-}
-
-// Trims the Go version to keep only M.m.
-// Since Go 1.21 the version inside the go.mod can be a patched version (ex: 1.21.0).
-// The version can also include information which we want to remove (ex: 1.21alpha1)
-// https://go.dev/doc/toolchain#versions
-// This a problem with staticcheck and gocritic.
-func trimGoVersion(v string) string {
-	if v == "" {
-		return ""
-	}
-
-	exp := regexp.MustCompile(`(\d\.\d+)(?:\.\d+|[a-z]+\d)`)
-
-	if exp.MatchString(v) {
-		return exp.FindStringSubmatch(v)[1]
-	}
-
-	return v
 }

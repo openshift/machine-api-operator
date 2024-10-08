@@ -25,9 +25,6 @@ var defaultLintersSettings = LintersSettings{
 	Dupl: DuplSettings{
 		Threshold: 150,
 	},
-	Errcheck: ErrcheckSettings{
-		Ignore: "fmt:.*",
-	},
 	ErrorLint: ErrorLintSettings{
 		Errorf:      true,
 		ErrorfMulti: true,
@@ -146,10 +143,10 @@ var defaultLintersSettings = LintersSettings{
 		AttrOnly:       false,
 		NoGlobal:       "",
 		Context:        "",
-		ContextOnly:    false,
 		StaticMsg:      false,
 		NoRawKeys:      false,
 		KeyNamingCase:  "",
+		ForbiddenKeys:  nil,
 		ArgsOnSepLines: false,
 	},
 	TagAlign: TagAlignSettings{
@@ -468,6 +465,7 @@ type GciSettings struct {
 	Sections      []string `mapstructure:"sections"`
 	SkipGenerated bool     `mapstructure:"skip-generated"`
 	CustomOrder   bool     `mapstructure:"custom-order"`
+	NoLexOrder    bool     `mapstructure:"no-lex-order"`
 
 	// Deprecated: use Sections instead.
 	LocalPrefixes string `mapstructure:"local-prefixes"`
@@ -719,7 +717,7 @@ type MustTagSettings struct {
 }
 
 type NakedretSettings struct {
-	MaxFuncLines int `mapstructure:"max-func-lines"`
+	MaxFuncLines uint `mapstructure:"max-func-lines"`
 }
 
 type NestifSettings struct {
@@ -794,8 +792,9 @@ type ReassignSettings struct {
 }
 
 type ReviveSettings struct {
-	MaxOpenFiles          int  `mapstructure:"max-open-files"`
-	IgnoreGeneratedHeader bool `mapstructure:"ignore-generated-header"`
+	Go                    string `mapstructure:"-"`
+	MaxOpenFiles          int    `mapstructure:"max-open-files"`
+	IgnoreGeneratedHeader bool   `mapstructure:"ignore-generated-header"`
 	Confidence            float64
 	Severity              string
 	EnableAllRules        bool `mapstructure:"enable-all-rules"`
@@ -819,16 +818,19 @@ type RowsErrCheckSettings struct {
 }
 
 type SlogLintSettings struct {
-	NoMixedArgs    bool   `mapstructure:"no-mixed-args"`
-	KVOnly         bool   `mapstructure:"kv-only"`
-	AttrOnly       bool   `mapstructure:"attr-only"`
-	NoGlobal       string `mapstructure:"no-global"`
-	Context        string `mapstructure:"context"`
-	ContextOnly    bool   `mapstructure:"context-only"` // Deprecated: use Context instead.
-	StaticMsg      bool   `mapstructure:"static-msg"`
-	NoRawKeys      bool   `mapstructure:"no-raw-keys"`
-	KeyNamingCase  string `mapstructure:"key-naming-case"`
-	ArgsOnSepLines bool   `mapstructure:"args-on-sep-lines"`
+	NoMixedArgs    bool     `mapstructure:"no-mixed-args"`
+	KVOnly         bool     `mapstructure:"kv-only"`
+	AttrOnly       bool     `mapstructure:"attr-only"`
+	NoGlobal       string   `mapstructure:"no-global"`
+	Context        string   `mapstructure:"context"`
+	StaticMsg      bool     `mapstructure:"static-msg"`
+	NoRawKeys      bool     `mapstructure:"no-raw-keys"`
+	KeyNamingCase  string   `mapstructure:"key-naming-case"`
+	ForbiddenKeys  []string `mapstructure:"forbidden-keys"`
+	ArgsOnSepLines bool     `mapstructure:"args-on-sep-lines"`
+
+	// Deprecated: use Context instead.
+	ContextOnly bool `mapstructure:"context-only"`
 }
 
 type SpancheckSettings struct {
@@ -878,6 +880,15 @@ type TestifylintSettings struct {
 	ExpectedActual struct {
 		ExpVarPattern string `mapstructure:"pattern"`
 	} `mapstructure:"expected-actual"`
+
+	Formatter struct {
+		CheckFormatString *bool `mapstructure:"check-format-string"`
+		RequireFFuncs     bool  `mapstructure:"require-f-funcs"`
+	} `mapstructure:"formatter"`
+
+	GoRequire struct {
+		IgnoreHTTPHandlers bool `mapstructure:"ignore-http-handlers"`
+	} `mapstructure:"go-require"`
 
 	RequireError struct {
 		FnPattern string `mapstructure:"fn-pattern"`
@@ -938,7 +949,7 @@ type UnparamSettings struct {
 type UnusedSettings struct {
 	FieldWritesAreUses     bool `mapstructure:"field-writes-are-uses"`
 	PostStatementsAreReads bool `mapstructure:"post-statements-are-reads"`
-	ExportedIsUsed         bool `mapstructure:"exported-is-used"`
+	ExportedIsUsed         bool `mapstructure:"exported-is-used"` // Deprecated
 	ExportedFieldsAreUsed  bool `mapstructure:"exported-fields-are-used"`
 	ParametersAreUsed      bool `mapstructure:"parameters-are-used"`
 	LocalVariablesAreUsed  bool `mapstructure:"local-variables-are-used"`
