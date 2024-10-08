@@ -5,6 +5,7 @@ MUTABLE_TAG ?= latest
 IMAGE        = $(REGISTRY)machine-api-operator
 BUILD_IMAGE ?= registry.ci.openshift.org/openshift/release:golang-1.22
 GOLANGCI_LINT = go run ./vendor/github.com/golangci/golangci-lint/cmd/golangci-lint
+ENVTEST_K8S_VERSION = 1.31.1
 
 # Enable go modules and vendoring
 # https://github.com/golang/go/wiki/Modules#how-to-install-and-activate-module-support
@@ -55,7 +56,6 @@ endif
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
 ENVTEST = go run ${PROJECT_DIR}/vendor/sigs.k8s.io/controller-runtime/tools/setup-envtest
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.29.1
 
 .PHONY: vendor
 vendor:
@@ -103,8 +103,7 @@ test-sec:
 test: unit
 
 unit:
-	# GCS bucket support will be going away, but explicitly enable it to use our own bucket.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) --use-deprecated-gcs=true -p path --bin-dir $(PROJECT_DIR)/bin --remote-bucket openshift-kubebuilder-tools)" ./hack/ci-test.sh
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(PROJECT_DIR)/bin --index https://raw.githubusercontent.com/openshift/api/master/envtest-releases.yaml)" ./hack/ci-test.sh
 
 .PHONY: image
 image: ## Build docker image
