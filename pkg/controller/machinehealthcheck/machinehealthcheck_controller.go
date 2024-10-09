@@ -346,7 +346,7 @@ func (r *ReconcileMachineHealthCheck) externalRemediation(ctx context.Context, m
 	}
 	from, err := external.Get(ctx, r.client, m.Spec.RemediationTemplate, t.Machine.Namespace)
 	if err != nil {
-		conditions.MarkFalse(m, machinev1.ExternalRemediationTemplateAvailable, machinev1.ExternalRemediationTemplateNotFound, machinev1.ConditionSeverityError, err.Error())
+		conditions.MarkFalse(m, machinev1.ExternalRemediationTemplateAvailable, machinev1.ExternalRemediationTemplateNotFound, machinev1.ConditionSeverityError, "%s", err.Error())
 		return fmt.Errorf("error retrieving remediation template %v %q for machine %q in namespace %q: %v", m.Spec.RemediationTemplate.GroupVersionKind(), m.Spec.RemediationTemplate.Name, t.Machine.Name, t.Machine.Namespace, err)
 	}
 
@@ -372,7 +372,7 @@ func (r *ReconcileMachineHealthCheck) externalRemediation(ctx context.Context, m
 	klog.V(3).Info("Target has failed health check, creating an external remediation request", "remediation request name", to.GetName(), "target", t.string())
 	// Create the external clone.
 	if err := r.client.Create(ctx, to); err != nil {
-		conditions.MarkFalse(m, machinev1.ExternalRemediationRequestAvailable, machinev1.ExternalRemediationRequestCreationFailed, machinev1.ConditionSeverityError, err.Error())
+		conditions.MarkFalse(m, machinev1.ExternalRemediationRequestAvailable, machinev1.ExternalRemediationRequestCreationFailed, machinev1.ConditionSeverityError, "%s", err.Error())
 		return fmt.Errorf("error creating remediation request for machine %q in namespace %q: %v", t.Machine.Name, t.Machine.Namespace, err)
 	}
 	return nil

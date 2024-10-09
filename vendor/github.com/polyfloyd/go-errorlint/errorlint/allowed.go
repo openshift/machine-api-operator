@@ -57,6 +57,8 @@ func setDefaultAllowedErrors() {
 		{Err: "io.ErrUnexpectedEOF", Fun: "io.ReadAtLeast"},
 		{Err: "io.EOF", Fun: "io.ReadFull"},
 		{Err: "io.ErrUnexpectedEOF", Fun: "io.ReadFull"},
+		// pkg/mime
+		{Err: "mime.ErrInvalidMediaParameter", Fun: "mime.ParseMediaType"},
 		// pkg/net/http
 		{Err: "net/http.ErrServerClosed", Fun: "(*net/http.Server).ListenAndServe"},
 		{Err: "net/http.ErrServerClosed", Fun: "(*net/http.Server).ListenAndServeTLS"},
@@ -127,13 +129,13 @@ func isAllowedErrAndFunc(err, fun string) bool {
 	return false
 }
 
-func isAllowedErrorComparison(pass *TypesInfoExt, binExpr *ast.BinaryExpr) bool {
+func isAllowedErrorComparison(pass *TypesInfoExt, a, b ast.Expr) bool {
 	var errName string // `<package>.<name>`, e.g. `io.EOF`
 	var callExprs []*ast.CallExpr
 
 	// Figure out which half of the expression is the returned error and which
 	// half is the presumed error declaration.
-	for _, expr := range []ast.Expr{binExpr.X, binExpr.Y} {
+	for _, expr := range []ast.Expr{a, b} {
 		switch t := expr.(type) {
 		case *ast.SelectorExpr:
 			// A selector which we assume refers to a staticaly declared error

@@ -209,6 +209,7 @@ func (r *ReconcileMachineSet) Reconcile(ctx context.Context, request reconcile.R
 			machine.PausedCondition,
 			machine.NotPausedConditionReason,
 			machinev1.ConditionSeverityInfo,
+			"%s",
 			pausedFalseReason,
 		))
 		machineSet, err := updateMachineSetStatus(r.Client, machineSet, machineSetCopy.Status)

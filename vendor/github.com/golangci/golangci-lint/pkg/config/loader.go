@@ -14,6 +14,7 @@ import (
 
 	"github.com/golangci/golangci-lint/pkg/exitcodes"
 	"github.com/golangci/golangci-lint/pkg/fsutils"
+	"github.com/golangci/golangci-lint/pkg/goutil"
 	"github.com/golangci/golangci-lint/pkg/logutils"
 )
 
@@ -73,6 +74,11 @@ func (l *Loader) Load(opts LoadOptions) error {
 	}
 
 	l.handleGoVersion()
+
+	err = goutil.CheckGoVersion(l.cfg.Run.Go)
+	if err != nil {
+		return err
+	}
 
 	err = l.handleEnableOnlyOption()
 	if err != nil {
@@ -290,7 +296,9 @@ func (l *Loader) handleGoVersion() {
 		l.cfg.LintersSettings.Gofumpt.LangVersion = l.cfg.Run.Go
 	}
 
-	trimmedGoVersion := trimGoVersion(l.cfg.Run.Go)
+	trimmedGoVersion := goutil.TrimGoVersion(l.cfg.Run.Go)
+
+	l.cfg.LintersSettings.Revive.Go = trimmedGoVersion
 
 	l.cfg.LintersSettings.Gocritic.Go = trimmedGoVersion
 
@@ -304,6 +312,8 @@ func (l *Loader) handleGoVersion() {
 	if l.cfg.LintersSettings.Stylecheck.GoVersion == "" {
 		l.cfg.LintersSettings.Stylecheck.GoVersion = trimmedGoVersion
 	}
+
+	os.Setenv("GOSECGOVERSION", l.cfg.Run.Go)
 }
 
 func (l *Loader) handleDeprecation() error {
@@ -348,6 +358,19 @@ func (l *Loader) handleDeprecation() error {
 		}
 
 		l.cfg.Output.Formats = f
+	}
+
+	for _, format := range l.cfg.Output.Formats {
+		if format.Format == OutFormatGithubActions {
+			l.log.Warnf("The output format `%s` is deprecated, please use `%s`", OutFormatGithubActions, OutFormatColoredLineNumber)
+			break // To avoid repeating the message if there are several usages of github-actions format.
+		}
+	}
+
+	// Deprecated since v1.59.0
+	if l.cfg.Issues.ExcludeGeneratedStrict {
+		l.log.Warnf("The configuration option `issues.exclude-generated-strict` is deprecated, please use `issues.exclude-generated`")
+		l.cfg.Issues.ExcludeGenerated = "strict" // Don't use the constants to avoid cyclic dependencies.
 	}
 
 	l.handleLinterOptionDeprecations()
@@ -414,6 +437,11 @@ func (l *Loader) handleLinterOptionDeprecations() {
 	// Deprecated since v1.47.0
 	if l.cfg.LintersSettings.Stylecheck.GoVersion != "" {
 		l.log.Warnf("The configuration option `linters.stylecheck.go` is deprecated, please use global `run.go`.")
+	}
+
+	// Deprecated since v1.60.0
+	if !l.cfg.LintersSettings.Unused.ExportedIsUsed {
+		l.log.Warnf("The configuration option `linters.unused.exported-is-used` is deprecated.")
 	}
 
 	// Deprecated since v1.58.0
