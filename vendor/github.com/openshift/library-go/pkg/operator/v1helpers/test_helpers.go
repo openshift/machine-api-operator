@@ -163,6 +163,15 @@ func (c *fakeStaticPodOperatorClient) ApplyOperatorSpec(ctx context.Context, fie
 }
 
 func (c *fakeStaticPodOperatorClient) ApplyOperatorStatus(ctx context.Context, fieldManager string, applyConfiguration *applyoperatorv1.OperatorStatusApplyConfiguration) (err error) {
+	if c.triggerStatusUpdateError != nil {
+		operatorStatus := &operatorv1.StaticPodOperatorStatus{OperatorStatus: *convertOperatorStatusApplyConfiguration(applyConfiguration)}
+		if err := c.triggerStatusUpdateError("", operatorStatus); err != nil {
+			return err
+		}
+	}
+	c.fakeStaticPodOperatorStatus = &operatorv1.StaticPodOperatorStatus{
+		OperatorStatus: *convertOperatorStatusApplyConfiguration(applyConfiguration),
+	}
 	return nil
 }
 
@@ -171,6 +180,7 @@ func (c *fakeStaticPodOperatorClient) ApplyStaticPodOperatorSpec(ctx context.Con
 }
 
 func (c *fakeStaticPodOperatorClient) ApplyStaticPodOperatorStatus(ctx context.Context, fieldManager string, applyConfiguration *applyoperatorv1.StaticPodOperatorStatusApplyConfiguration) (err error) {
+	c.fakeStaticPodOperatorStatus = convertStaticPodOperatorStatusApplyConfiguration(applyConfiguration)
 	return nil
 }
 
@@ -342,9 +352,10 @@ func (c *fakeOperatorClient) SetObjectMeta(meta *metav1.ObjectMeta) {
 
 func convertOperatorStatusApplyConfiguration(applyConfiguration *applyoperatorv1.OperatorStatusApplyConfiguration) *v1.OperatorStatus {
 	status := &v1.OperatorStatus{
-		ObservedGeneration: ptr.Deref(applyConfiguration.ObservedGeneration, 0),
-		Version:            ptr.Deref(applyConfiguration.Version, ""),
-		ReadyReplicas:      ptr.Deref(applyConfiguration.ReadyReplicas, 0),
+		ObservedGeneration:      ptr.Deref(applyConfiguration.ObservedGeneration, 0),
+		Version:                 ptr.Deref(applyConfiguration.Version, ""),
+		ReadyReplicas:           ptr.Deref(applyConfiguration.ReadyReplicas, 0),
+		LatestAvailableRevision: ptr.Deref(applyConfiguration.LatestAvailableRevision, 0),
 	}
 
 	for _, condition := range applyConfiguration.Conditions {
@@ -367,6 +378,35 @@ func convertOperatorStatusApplyConfiguration(applyConfiguration *applyoperatorv1
 			Hash:           ptr.Deref(generation.Hash, ""),
 		}
 		status.Generations = append(status.Generations, newGeneration)
+	}
+
+	return status
+}
+
+func convertStaticPodOperatorStatusApplyConfiguration(applyConfiguration *applyoperatorv1.StaticPodOperatorStatusApplyConfiguration) *v1.StaticPodOperatorStatus {
+	status := &v1.StaticPodOperatorStatus{
+		OperatorStatus: *convertOperatorStatusApplyConfiguration(&applyConfiguration.OperatorStatusApplyConfiguration),
+	}
+
+	for _, nodeStatus := range applyConfiguration.NodeStatuses {
+		newNodeStatus := operatorv1.NodeStatus{
+			NodeName:                 ptr.Deref(nodeStatus.NodeName, ""),
+			CurrentRevision:          ptr.Deref(nodeStatus.CurrentRevision, 0),
+			TargetRevision:           ptr.Deref(nodeStatus.TargetRevision, 0),
+			LastFailedRevision:       ptr.Deref(nodeStatus.LastFailedRevision, 0),
+			LastFailedTime:           nil,
+			LastFailedReason:         ptr.Deref(nodeStatus.LastFailedReason, ""),
+			LastFailedCount:          ptr.Deref(nodeStatus.LastFailedCount, 0),
+			LastFallbackCount:        ptr.Deref(nodeStatus.LastFallbackCount, 0),
+			LastFailedRevisionErrors: nil,
+		}
+		if nodeStatus.LastFailedTime != nil {
+			newNodeStatus.LastFailedTime = nodeStatus.LastFailedTime
+		}
+		for _, curr := range nodeStatus.LastFailedRevisionErrors {
+			newNodeStatus.LastFailedRevisionErrors = append(newNodeStatus.LastFailedRevisionErrors, curr)
+		}
+		status.NodeStatuses = append(status.NodeStatuses, newNodeStatus)
 	}
 
 	return status
