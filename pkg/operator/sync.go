@@ -695,17 +695,23 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 				},
 			},
 			ReadinessProbe: &corev1.Probe{
+				PeriodSeconds:       10,
+				TimeoutSeconds:      5,
+				InitialDelaySeconds: 5,
 				ProbeHandler: corev1.ProbeHandler{
 					HTTPGet: &corev1.HTTPGetAction{
-						Path: "/healthz",
+						Path: "/readyz",
 						Port: intstr.Parse("healthz"),
 					},
 				},
 			},
 			LivenessProbe: &corev1.Probe{
+				PeriodSeconds:       10,
+				TimeoutSeconds:      5,
+				InitialDelaySeconds: 5,
 				ProbeHandler: corev1.ProbeHandler{
 					HTTPGet: &corev1.HTTPGetAction{
-						Path: "/readyz",
+						Path: "/healthz",
 						Port: intstr.Parse("healthz"),
 					},
 				},
