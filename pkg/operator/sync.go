@@ -694,18 +694,41 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 					ContainerPort: defaultMachineSetHealthPort,
 				},
 			},
-			ReadinessProbe: &corev1.Probe{
+			StartupProbe: &corev1.Probe{
+				PeriodSeconds:       10,
+				TimeoutSeconds:      10,
+				FailureThreshold:    30,
+				SuccessThreshold:    1,
+				InitialDelaySeconds: 0,
 				ProbeHandler: corev1.ProbeHandler{
 					HTTPGet: &corev1.HTTPGetAction{
-						Path: "/healthz",
+						Path: "/readyz",
+						Port: intstr.Parse("healthz"),
+					},
+				},
+			},
+			ReadinessProbe: &corev1.Probe{
+				PeriodSeconds:       10,
+				TimeoutSeconds:      5,
+				FailureThreshold:    3,
+				SuccessThreshold:    1,
+				InitialDelaySeconds: 0,
+				ProbeHandler: corev1.ProbeHandler{
+					HTTPGet: &corev1.HTTPGetAction{
+						Path: "/readyz",
 						Port: intstr.Parse("healthz"),
 					},
 				},
 			},
 			LivenessProbe: &corev1.Probe{
+				PeriodSeconds:       10,
+				TimeoutSeconds:      5,
+				FailureThreshold:    3,
+				SuccessThreshold:    1,
+				InitialDelaySeconds: 0,
 				ProbeHandler: corev1.ProbeHandler{
 					HTTPGet: &corev1.HTTPGetAction{
-						Path: "/readyz",
+						Path: "/healthz",
 						Port: intstr.Parse("healthz"),
 					},
 				},
