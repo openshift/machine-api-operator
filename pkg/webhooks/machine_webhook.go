@@ -1588,14 +1588,10 @@ func validateNutanix(m *machinev1beta1.Machine, config *admissionConfig) (bool, 
 	if err := validateNutanixResourceIdentifier("image", providerSpec.Image); err != nil {
 		errs = append(errs, err)
 	}
-	// Currently, we only support one subnet per VM in Openshift
-	// We may extend this to support more than one subnet per VM in future releases
+
 	if len(providerSpec.Subnets) == 0 {
 		subnets, _ := json.Marshal(providerSpec.Subnets)
 		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "subnets"), string(subnets), "missing subnets: nodes may fail to start if no subnets are configured"))
-	} else if len(providerSpec.Subnets) > 1 {
-		subnets, _ := json.Marshal(providerSpec.Subnets)
-		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "subnets"), string(subnets), "too many subnets: currently nutanix platform supports one subnet per VM but more than one subnets are configured"))
 	}
 
 	for _, subnet := range providerSpec.Subnets {
