@@ -1,8 +1,8 @@
 module github.com/openshift/machine-api-operator
 
-go 1.22.1
+go 1.22.5
 
-toolchain go1.22.3
+toolchain go1.22.7
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
@@ -16,19 +16,19 @@ require (
 	github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20241007145816-7038c320d36c
 	github.com/openshift/cluster-control-plane-machine-set-operator v0.0.0-20240909043600-373ac49835bf
 	github.com/openshift/library-go v0.0.0-20240919205913-c96b82b3762b
-	github.com/prometheus/client_golang v1.19.1
+	github.com/prometheus/client_golang v1.20.5
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.9.0
-	github.com/vmware/govmomi v0.39.0
-	golang.org/x/net v0.28.0
+	github.com/vmware/govmomi v0.43.0
+	golang.org/x/net v0.30.0
 	golang.org/x/time v0.6.0
 	gopkg.in/gcfg.v1 v1.2.3 // indirect
 	k8s.io/api v0.31.1
 	k8s.io/apimachinery v0.31.1
 	k8s.io/apiserver v0.31.1
 	k8s.io/client-go v0.31.1
-	k8s.io/cloud-provider-vsphere v1.31.0
+	k8s.io/cloud-provider-vsphere v1.31.1-0.20241023084500-cfc4c525856d
 	k8s.io/component-base v0.31.1
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/kubectl v0.31.1
@@ -151,6 +151,7 @@ require (
 	github.com/karamaru-alpha/copyloopvar v1.1.0 // indirect
 	github.com/kisielk/errcheck v1.7.0 // indirect
 	github.com/kkHAIKE/contextcheck v1.1.5 // indirect
+	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/kulti/thelper v0.6.3 // indirect
 	github.com/kunwardeep/paralleltest v1.0.10 // indirect
 	github.com/kyoh86/exportloopref v0.1.11 // indirect
@@ -252,9 +253,9 @@ require (
 	golang.org/x/mod v0.21.0 // indirect
 	golang.org/x/oauth2 v0.22.0 // indirect
 	golang.org/x/sync v0.8.0 // indirect
-	golang.org/x/sys v0.25.0 // indirect
-	golang.org/x/term v0.23.0 // indirect
-	golang.org/x/text v0.18.0 // indirect
+	golang.org/x/sys v0.26.0 // indirect
+	golang.org/x/term v0.25.0 // indirect
+	golang.org/x/text v0.19.0 // indirect
 	golang.org/x/tools v0.24.0 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	google.golang.org/protobuf v1.34.2 // indirect
