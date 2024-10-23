@@ -23,7 +23,6 @@ import (
 	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/component-base/featuregate"
 	"k8s.io/klog/v2"
-	"k8s.io/klog/v2/textlogger"
 	ipamv1beta1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -46,9 +45,14 @@ func main() {
 		"", "",
 	)
 
-	textLoggerConfig := textlogger.NewConfig()
-	textLoggerConfig.AddFlags(flag.CommandLine)
-	ctrl.SetLogger(textlogger.NewLogger(textLoggerConfig))
+	// Set log for controller-runtime
+	ctrl.SetLogger(klog.NewKlogr())
+
+	klog.InitFlags(nil)
+	if err := flag.Set("logtostderr", "true"); err != nil {
+		klog.Fatalf("failed to set logtostderr flag: %v", err)
+	}
+
 	watchNamespace := flag.String(
 		"namespace",
 		"",
@@ -80,12 +84,6 @@ func main() {
 		"Address for hosting metrics",
 	)
 
-	logToStderr := flag.Bool(
-		"logtostderr",
-		true,
-		"log to standard error instead of files",
-	)
-
 	healthAddr := flag.String(
 		"health-addr",
 		":9440",
@@ -103,10 +101,6 @@ func main() {
 	gateOpts.AddFlagsToGoFlagSet(nil)
 
 	flag.Parse()
-
-	if logToStderr != nil {
-		klog.LogToStderr(*logToStderr)
-	}
 
 	if printVersion {
 		fmt.Println(version.String)
