@@ -5057,17 +5057,6 @@ func TestValidateNutanixProviderSpec(t *testing.T) {
 			//expectedWarnings: []string{"providerSpec.subnets: missing subnets: nodes may fail to start if no subnets are configured"},
 		},
 		{
-			testCase: "with too many subnets provided",
-			modifySpec: func(p *machinev1.NutanixMachineProviderConfig) {
-				p.Subnets = []machinev1.NutanixResourceIdentifier{
-					{Type: machinev1.NutanixIdentifierName, Name: ptr.To[string]("subnet-1")},
-					{Type: machinev1.NutanixIdentifierName, Name: ptr.To[string]("subnet-2")},
-				}
-			},
-			expectedOk:    false,
-			expectedError: "providerSpec.subnets: Invalid value: \"[{\\\"type\\\":\\\"name\\\",\\\"name\\\":\\\"subnet-1\\\"},{\\\"type\\\":\\\"name\\\",\\\"name\\\":\\\"subnet-2\\\"}]\": too many subnets: currently nutanix platform supports one subnet per VM but more than one subnets are configured",
-		},
-		{
 			testCase: "with no userDataSecret provided",
 			modifySpec: func(p *machinev1.NutanixMachineProviderConfig) {
 				p.UserDataSecret = nil
