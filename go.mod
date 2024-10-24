@@ -11,8 +11,8 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/onsi/ginkgo/v2 v2.20.2
 	github.com/onsi/gomega v1.34.2
-	github.com/openshift/api v0.0.0-20240924155631-232984653385
-	github.com/openshift/client-go v0.0.0-20240918182115-6a8ead8397fd
+	github.com/openshift/api v0.0.0-20241001152557-e415140e5d5f
+	github.com/openshift/client-go v0.0.0-20241001162912-da6d55e4611f
 	github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20241007145816-7038c320d36c
 	github.com/openshift/cluster-control-plane-machine-set-operator v0.0.0-20240909043600-373ac49835bf
 	github.com/openshift/library-go v0.0.0-20240919205913-c96b82b3762b
@@ -32,7 +32,7 @@ require (
 	k8s.io/component-base v0.31.1
 	k8s.io/klog/v2 v2.130.1
 	k8s.io/kubectl v0.31.1
-	k8s.io/utils v0.0.0-20240711033017-18e509b52bc8
+	k8s.io/utils v0.0.0-20240921022957-49e7df575cb6
 	sigs.k8s.io/cluster-api v1.6.1
 	sigs.k8s.io/controller-runtime v0.19.0
 	sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20240923090159-236e448db12c
@@ -266,9 +266,9 @@ require (
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 	honnef.co/go/tools v0.5.1 // indirect
-	k8s.io/apiextensions-apiserver v0.31.0 // indirect
+	k8s.io/apiextensions-apiserver v0.31.1 // indirect
 	k8s.io/cli-runtime v0.31.1 // indirect
-	k8s.io/kube-aggregator v0.30.1 // indirect
+	k8s.io/kube-aggregator v0.31.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20240228011516-70dd3763d340 // indirect
 	mvdan.cc/gofumpt v0.7.0 // indirect
 	mvdan.cc/unparam v0.0.0-20240528143540-8a5130ca722f // indirect
@@ -277,3 +277,9 @@ require (
 	sigs.k8s.io/kustomize/kyaml v0.17.1 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 )
+
+replace github.com/openshift/api => github.com/jcpowermac/api v0.0.0-20241024163812-9a3df3c1f129
+
+replace github.com/openshift/client-go => github.com/jcpowermac/client-go v0.0.0-20241024164306-8b5ca9459feb
+
+replace github.com/openshift/library-go => github.com/jcpowermac/library-go v0.0.0-20241024164406-e138031fee11
