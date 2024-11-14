@@ -2,7 +2,6 @@ package factory
 
 import (
 	"context"
-	"fmt"
 
 	"k8s.io/client-go/util/workqueue"
 
@@ -46,7 +45,3 @@ type SyncContext interface {
 // The syncContext.syncContext passed is the main controller syncContext, when cancelled it means the controller is being shut down.
 // The syncContext provides access to controller name, queue and event recorder.
 type SyncFunc func(ctx context.Context, controllerContext SyncContext) error
-
-func ControllerFieldManager(controllerName, usageName string) string {
-	return fmt.Sprintf("%s-%s", controllerName, usageName)
-}

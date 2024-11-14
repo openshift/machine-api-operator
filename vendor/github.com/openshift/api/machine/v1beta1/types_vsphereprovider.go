@@ -53,8 +53,8 @@ type VSphereMachineProviderSpec struct {
 	DiskGiB int32 `json:"diskGiB,omitempty"`
 	// tagIDs is an optional set of tags to add to an instance. Specified tagIDs
 	// must use URN-notation instead of display names. A maximum of 10 tag IDs may be specified.
-	// +kubebuilder:validation:Pattern:="^(urn):(vmomi):(InventoryServiceTag):([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}):([^:]+)$"
-	// +kubebuilder:example=urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9578:GLOBAL
+	// +kubebuilder:validation:Pattern="^(urn):(vmomi):(InventoryServiceTag):([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}):([^:]+)$"
+	// +kubebuilder:example="urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9578:GLOBAL"
 	// +optional
 	TagIDs []string `json:"tagIDs,omitempty"`
 	// Snapshot is the name of the snapshot from which the VM was cloned
@@ -70,6 +70,12 @@ type VSphereMachineProviderSpec struct {
 	// When using LinkedClone, if no snapshots exist for the source template, falls back to FullClone.
 	// +optional
 	CloneMode CloneMode `json:"cloneMode,omitempty"`
+	// dataDisks is a list of non OS disks to be created and attached to the VM.  The max number of disk allowed to be attached is
+	// currently 15.  This limitation is being applied to allow no more than 16 disks on the default scsi controller for the VM.
+	// The first disk on that SCSI controller will be the OS disk from the template.
+	// +openshift:enable:FeatureGate=VSphereMultiDisk
+	// +optional
+	DataDisks []VSphereDisk `json:"dataDisks,omitempty"`
 }
 
 // CloneMode is the type of clone operation used to clone a VM from a template.
@@ -99,19 +105,19 @@ type AddressesFromPool struct {
 	// group of the IP address pool type known to an external IPAM controller.
 	// This should be a fully qualified domain name, for example, externalipam.controller.io.
 	// +kubebuilder:example=externalipam.controller.io
-	// +kubebuilder:validation:Pattern:="^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
+	// +kubebuilder:validation:Pattern="^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?(.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$"
 	// +kubebuilder:validation:Required
 	Group string `json:"group"`
 	// resource of the IP address pool type known to an external IPAM controller.
 	// It is normally the plural form of the resource kind in lowercase, for example,
 	// ippools.
 	// +kubebuilder:example=ippools
-	// +kubebuilder:validation:Pattern:="^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+	// +kubebuilder:validation:Pattern="^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
 	// +kubebuilder:validation:Required
 	Resource string `json:"resource"`
 	// name of an IP address pool, for example, pool-config-1.
 	// +kubebuilder:example=pool-config-1
-	// +kubebuilder:validation:Pattern:="^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+	// +kubebuilder:validation:Pattern="^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
 	// +kubebuilder:validation:Required
 	Name string `json:"name"`
 }
@@ -132,8 +138,8 @@ type NetworkDeviceSpec struct {
 	// for example, 192.168.1.1.
 	// +kubebuilder:validation:Format=ipv4
 	// +kubebuilder:validation:Format=ipv6
-	// +kubebuilder:example=192.168.1.1
-	// +kubebuilder:example=2001:DB8:0000:0000:244:17FF:FEB6:D37D
+	// +kubebuilder:example="192.168.1.1"
+	// +kubebuilder:example="2001:DB8:0000:0000:244:17FF:FEB6:D37D"
 	// +optional
 	Gateway string `json:"gateway,omitempty"`
 
@@ -146,8 +152,8 @@ type NetworkDeviceSpec struct {
 	// ipAddrs will be applied first followed by IP addresses from addressesFromPools.
 	// +kubebuilder:validation:Format=ipv4
 	// +kubebuilder:validation:Format=ipv6
-	// +kubebuilder:example=192.168.1.100/24
-	// +kubebuilder:example=2001:DB8:0000:0000:244:17FF:FEB6:D37D/64
+	// +kubebuilder:example="192.168.1.100/24"
+	// +kubebuilder:example="2001:DB8:0000:0000:244:17FF:FEB6:D37D/64"
 	// +optional
 	IPAddrs []string `json:"ipAddrs,omitempty"`
 
@@ -156,7 +162,7 @@ type NetworkDeviceSpec struct {
 	// source of IP addresses for this network device, nameservers should include a valid nameserver.
 	// +kubebuilder:validation:Format=ipv4
 	// +kubebuilder:validation:Format=ipv6
-	// +kubebuilder:example=8.8.8.8
+	// +kubebuilder:example="8.8.8.8"
 	// +optional
 	Nameservers []string `json:"nameservers,omitempty"`
 
@@ -170,6 +176,18 @@ type NetworkDeviceSpec struct {
 	// +kubebuilder:validation:Format=ipv4
 	// +optional
 	AddressesFromPools []AddressesFromPool `json:"addressesFromPools,omitempty"`
+}
+
+// VSphereDisk describes additional disks for vSphere.
+type VSphereDisk struct {
+	// name is a name to be used to identify the disk definition. If name is not specified,
+	// the disk will still be created.  The name should be unique so that it can be used to clearly
+	// identify purpose of the disk, but is not required to be unique.
+	// +optional
+	Name string `json:"name,omitempty"`
+	// sizeGiB is the size of the disk (in GiB).
+	// +kubebuilder:validation:Required
+	SizeGiB int32 `json:"sizeGiB"`
 }
 
 // WorkspaceConfig defines a workspace configuration for the vSphere cloud

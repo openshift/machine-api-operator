@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	applyoperatorv1 "github.com/openshift/client-go/operator/applyconfigurations/operator/v1"
 	"net/http"
 	"sort"
 	"strings"
@@ -251,26 +250,24 @@ func (c *ResourceSyncController) Sync(ctx context.Context, syncCtx factory.SyncC
 	}
 
 	if len(errors) > 0 {
-		condition := applyoperatorv1.OperatorStatus().
-			WithConditions(applyoperatorv1.OperatorCondition().
-				WithType(condition.ResourceSyncControllerDegradedConditionType).
-				WithStatus(operatorv1.ConditionTrue).
-				WithReason("Error").
-				WithMessage(v1helpers.NewMultiLineAggregate(errors).Error()))
-		updateErr := c.operatorConfigClient.ApplyOperatorStatus(ctx, factory.ControllerFieldManager(c.name, "reportDegraded"), condition)
-		if updateErr != nil {
-			return updateErr
+		cond := operatorv1.OperatorCondition{
+			Type:    condition.ResourceSyncControllerDegradedConditionType,
+			Status:  operatorv1.ConditionTrue,
+			Reason:  "Error",
+			Message: v1helpers.NewMultiLineAggregate(errors).Error(),
+		}
+		if _, _, updateError := v1helpers.UpdateStatus(ctx, c.operatorConfigClient, v1helpers.UpdateConditionFn(cond)); updateError != nil {
+			return updateError
 		}
 		return nil
 	}
 
-	condition := applyoperatorv1.OperatorStatus().
-		WithConditions(applyoperatorv1.OperatorCondition().
-			WithType(condition.ResourceSyncControllerDegradedConditionType).
-			WithStatus(operatorv1.ConditionFalse))
-	updateErr := c.operatorConfigClient.ApplyOperatorStatus(ctx, factory.ControllerFieldManager(c.name, "reportDegraded"), condition)
-	if updateErr != nil {
-		return updateErr
+	cond := operatorv1.OperatorCondition{
+		Type:   condition.ResourceSyncControllerDegradedConditionType,
+		Status: operatorv1.ConditionFalse,
+	}
+	if _, _, updateError := v1helpers.UpdateStatus(ctx, c.operatorConfigClient, v1helpers.UpdateConditionFn(cond)); updateError != nil {
+		return updateError
 	}
 	return nil
 }
