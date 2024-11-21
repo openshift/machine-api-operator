@@ -150,6 +150,10 @@ func (optr *Operator) syncStatus(co *osconfigv1.ClusterOperator, conds []osconfi
 	for _, c := range conds {
 		v1helpers.SetStatusCondition(&co.Status.Conditions, c)
 	}
+	if co.Annotations == nil {
+		co.Annotations = map[string]string{}
+	}
+	co.Annotations["openshift.io/required-scc"] = "restricted-v2"
 
 	_, err := optr.osClient.ConfigV1().ClusterOperators().UpdateStatus(context.Background(), co, metav1.UpdateOptions{})
 	return err
@@ -237,6 +241,9 @@ func (optr *Operator) defaultClusterOperator() *osconfigv1.ClusterOperator {
 	return &osconfigv1.ClusterOperator{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: clusterOperatorName,
+			Annotations: map[string]string{
+				"openshift.io/required-scc": "restricted-v2",
+			},
 		},
 		Status: osconfigv1.ClusterOperatorStatus{
 			Conditions:     optr.defaultStatusConditions(),
