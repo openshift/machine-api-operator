@@ -126,9 +126,6 @@ func (b *featureGateBuilder) register() (configv1.FeatureGateName, error) {
 	_, enhancementPRErr := url.Parse(b.enhancementPRURL)
 	switch {
 	case b.enhancementPRURL == legacyFeatureGateWithoutEnhancement:
-		if !legacyFeatureGates.Has(b.name) {
-			return "", fmt.Errorf("FeatureGate/%s is a new feature gate, not an existing one.  It must have an enhancementPR with GA Graduation Criteria like https://github.com/openshift/enhancements/pull/#### or https://github.com/kubernetes/enhancements/issues/####", b.name)
-		}
 
 	case len(b.enhancementPRURL) == 0:
 		return "", fmt.Errorf("FeatureGate/%s is missing an enhancementPR with GA Graduation Criteria like https://github.com/openshift/enhancements/pull/#### or https://github.com/kubernetes/enhancements/issues/####", b.name)
