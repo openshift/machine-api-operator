@@ -76,13 +76,13 @@ func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error
 	klog.Infof("%s: actuator creating machine", machine.GetName())
 
 	scope, err := newMachineScope(machineScopeParams{
-		Context:                       ctx,
-		client:                        a.client,
-		machine:                       machine,
-		apiReader:                     a.apiReader,
-		StaticIPFeatureGateEnabled:    a.StaticIPFeatureGateEnabled,
-		VMHostZonalFeatureGateEnabled: a.HostVMGroupZonalFeatureGateEnabled,
-		openshiftConfigNameSpace:      a.openshiftConfigNamespace,
+		Context:                            ctx,
+		client:                             a.client,
+		machine:                            machine,
+		apiReader:                          a.apiReader,
+		StaticIPFeatureGateEnabled:         a.StaticIPFeatureGateEnabled,
+		HostVMGroupZonalFeatureGateEnabled: a.HostVMGroupZonalFeatureGateEnabled,
+		openshiftConfigNameSpace:           a.openshiftConfigNamespace,
 	})
 	if err != nil {
 		fmtErr := fmt.Errorf(scopeFailFmt, machine.GetName(), err)

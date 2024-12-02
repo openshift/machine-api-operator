@@ -2459,15 +2459,16 @@ func TestCreate(t *testing.T) {
 	}
 
 	cases := []struct {
-		name                       string
-		machineName                string
-		expectedError              error
-		providerSpec               machinev1.VSphereMachineProviderSpec
-		labels                     map[string]string
-		notConnectedToVCenter      bool
-		staticIPFeatureGateEnabled bool
-		ipAddressClaim             *ipamv1beta1.IPAddressClaim
-		ipAddress                  *ipamv1beta1.IPAddress
+		name                               string
+		machineName                        string
+		expectedError                      error
+		providerSpec                       machinev1.VSphereMachineProviderSpec
+		labels                             map[string]string
+		notConnectedToVCenter              bool
+		staticIPFeatureGateEnabled         bool
+		hostVMGroupZonalFeatureGateEnabled bool
+		ipAddressClaim                     *ipamv1beta1.IPAddressClaim
+		ipAddress                          *ipamv1beta1.IPAddress
 	}{
 		{
 			name:        "Successfully create machine",
@@ -2504,6 +2505,7 @@ func TestCreate(t *testing.T) {
 					Name: userDataSecretName,
 				},
 			},
+			hostVMGroupZonalFeatureGateEnabled: true,
 		},
 		{
 			name:        "Fail to create machine with static IP when tech preview not enabled",
@@ -2676,12 +2678,13 @@ func TestCreate(t *testing.T) {
 			client := builder.Build()
 
 			machineScope, err := newMachineScope(machineScopeParams{
-				client:                     client,
-				Context:                    context.Background(),
-				machine:                    machine,
-				apiReader:                  client,
-				StaticIPFeatureGateEnabled: tc.staticIPFeatureGateEnabled,
-				openshiftConfigNameSpace:   openshiftConfigNamespaceForTest,
+				client:                             client,
+				Context:                            context.Background(),
+				machine:                            machine,
+				apiReader:                          client,
+				StaticIPFeatureGateEnabled:         tc.staticIPFeatureGateEnabled,
+				HostVMGroupZonalFeatureGateEnabled: tc.hostVMGroupZonalFeatureGateEnabled,
+				openshiftConfigNameSpace:           openshiftConfigNamespaceForTest,
 			})
 			if err != nil {
 				t.Fatal(err)

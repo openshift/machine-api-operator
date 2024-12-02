@@ -24,12 +24,12 @@ const (
 // machineScopeParams defines the input parameters used to create a new MachineScope.
 type machineScopeParams struct {
 	context.Context
-	client                        runtimeclient.Client
-	apiReader                     runtimeclient.Reader
-	machine                       *machinev1.Machine
-	StaticIPFeatureGateEnabled    bool
-	VMHostZonalFeatureGateEnabled bool
-	openshiftConfigNameSpace      string
+	client                             runtimeclient.Client
+	apiReader                          runtimeclient.Reader
+	machine                            *machinev1.Machine
+	StaticIPFeatureGateEnabled         bool
+	HostVMGroupZonalFeatureGateEnabled bool
+	openshiftConfigNameSpace           string
 }
 
 // machineScope defines a scope defined around a machine and its cluster.
@@ -100,7 +100,7 @@ func newMachineScope(params machineScopeParams) (*machineScope, error) {
 		providerStatus:                     providerStatus,
 		vSphereConfig:                      vSphereConfig,
 		staticIPFeatureGateEnabled:         params.StaticIPFeatureGateEnabled,
-		hostVMGroupZonalFeatureGateEnabled: params.VMHostZonalFeatureGateEnabled,
+		hostVMGroupZonalFeatureGateEnabled: params.HostVMGroupZonalFeatureGateEnabled,
 		machineToBePatched:                 runtimeclient.MergeFrom(params.machine.DeepCopy()),
 	}, nil
 }
