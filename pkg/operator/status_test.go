@@ -204,6 +204,9 @@ func TestGetOrCreateClusterOperator(t *testing.T) {
 			expectedCO: &osconfigv1.ClusterOperator{
 				ObjectMeta: metav1.ObjectMeta{
 					Name: clusterOperatorName,
+					Annotations: map[string]string{
+						"openshift.io/required-scc": "restricted-v2",
+					},
 				},
 				Status: osconfigv1.ClusterOperatorStatus{
 					Conditions: defaultConditions,
