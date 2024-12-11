@@ -28,22 +28,24 @@ var controlplanemachinesetsKind = v1.SchemeGroupVersion.WithKind("ControlPlaneMa
 
 // Get takes name of the controlPlaneMachineSet, and returns the corresponding controlPlaneMachineSet object, and an error if there is any.
 func (c *FakeControlPlaneMachineSets) Get(ctx context.Context, name string, options metav1.GetOptions) (result *v1.ControlPlaneMachineSet, err error) {
+	emptyResult := &v1.ControlPlaneMachineSet{}
 	obj, err := c.Fake.
-		Invokes(testing.NewGetAction(controlplanemachinesetsResource, c.ns, name), &v1.ControlPlaneMachineSet{})
+		Invokes(testing.NewGetActionWithOptions(controlplanemachinesetsResource, c.ns, name, options), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.ControlPlaneMachineSet), err
 }
 
 // List takes label and field selectors, and returns the list of ControlPlaneMachineSets that match those selectors.
 func (c *FakeControlPlaneMachineSets) List(ctx context.Context, opts metav1.ListOptions) (result *v1.ControlPlaneMachineSetList, err error) {
+	emptyResult := &v1.ControlPlaneMachineSetList{}
 	obj, err := c.Fake.
-		Invokes(testing.NewListAction(controlplanemachinesetsResource, controlplanemachinesetsKind, c.ns, opts), &v1.ControlPlaneMachineSetList{})
+		Invokes(testing.NewListActionWithOptions(controlplanemachinesetsResource, controlplanemachinesetsKind, c.ns, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 
 	label, _, _ := testing.ExtractFromListOptions(opts)
@@ -62,40 +64,43 @@ func (c *FakeControlPlaneMachineSets) List(ctx context.Context, opts metav1.List
 // Watch returns a watch.Interface that watches the requested controlPlaneMachineSets.
 func (c *FakeControlPlaneMachineSets) Watch(ctx context.Context, opts metav1.ListOptions) (watch.Interface, error) {
 	return c.Fake.
-		InvokesWatch(testing.NewWatchAction(controlplanemachinesetsResource, c.ns, opts))
+		InvokesWatch(testing.NewWatchActionWithOptions(controlplanemachinesetsResource, c.ns, opts))
 
 }
 
 // Create takes the representation of a controlPlaneMachineSet and creates it.  Returns the server's representation of the controlPlaneMachineSet, and an error, if there is any.
 func (c *FakeControlPlaneMachineSets) Create(ctx context.Context, controlPlaneMachineSet *v1.ControlPlaneMachineSet, opts metav1.CreateOptions) (result *v1.ControlPlaneMachineSet, err error) {
+	emptyResult := &v1.ControlPlaneMachineSet{}
 	obj, err := c.Fake.
-		Invokes(testing.NewCreateAction(controlplanemachinesetsResource, c.ns, controlPlaneMachineSet), &v1.ControlPlaneMachineSet{})
+		Invokes(testing.NewCreateActionWithOptions(controlplanemachinesetsResource, c.ns, controlPlaneMachineSet, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.ControlPlaneMachineSet), err
 }
 
 // Update takes the representation of a controlPlaneMachineSet and updates it. Returns the server's representation of the controlPlaneMachineSet, and an error, if there is any.
 func (c *FakeControlPlaneMachineSets) Update(ctx context.Context, controlPlaneMachineSet *v1.ControlPlaneMachineSet, opts metav1.UpdateOptions) (result *v1.ControlPlaneMachineSet, err error) {
+	emptyResult := &v1.ControlPlaneMachineSet{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateAction(controlplanemachinesetsResource, c.ns, controlPlaneMachineSet), &v1.ControlPlaneMachineSet{})
+		Invokes(testing.NewUpdateActionWithOptions(controlplanemachinesetsResource, c.ns, controlPlaneMachineSet, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.ControlPlaneMachineSet), err
 }
 
 // UpdateStatus was generated because the type contains a Status member.
 // Add a +genclient:noStatus comment above the type to avoid generating UpdateStatus().
-func (c *FakeControlPlaneMachineSets) UpdateStatus(ctx context.Context, controlPlaneMachineSet *v1.ControlPlaneMachineSet, opts metav1.UpdateOptions) (*v1.ControlPlaneMachineSet, error) {
+func (c *FakeControlPlaneMachineSets) UpdateStatus(ctx context.Context, controlPlaneMachineSet *v1.ControlPlaneMachineSet, opts metav1.UpdateOptions) (result *v1.ControlPlaneMachineSet, err error) {
+	emptyResult := &v1.ControlPlaneMachineSet{}
 	obj, err := c.Fake.
-		Invokes(testing.NewUpdateSubresourceAction(controlplanemachinesetsResource, "status", c.ns, controlPlaneMachineSet), &v1.ControlPlaneMachineSet{})
+		Invokes(testing.NewUpdateSubresourceActionWithOptions(controlplanemachinesetsResource, "status", c.ns, controlPlaneMachineSet, opts), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.ControlPlaneMachineSet), err
 }
@@ -110,7 +115,7 @@ func (c *FakeControlPlaneMachineSets) Delete(ctx context.Context, name string, o
 
 // DeleteCollection deletes a collection of objects.
 func (c *FakeControlPlaneMachineSets) DeleteCollection(ctx context.Context, opts metav1.DeleteOptions, listOpts metav1.ListOptions) error {
-	action := testing.NewDeleteCollectionAction(controlplanemachinesetsResource, c.ns, listOpts)
+	action := testing.NewDeleteCollectionActionWithOptions(controlplanemachinesetsResource, c.ns, opts, listOpts)
 
 	_, err := c.Fake.Invokes(action, &v1.ControlPlaneMachineSetList{})
 	return err
@@ -118,11 +123,12 @@ func (c *FakeControlPlaneMachineSets) DeleteCollection(ctx context.Context, opts
 
 // Patch applies the patch and returns the patched controlPlaneMachineSet.
 func (c *FakeControlPlaneMachineSets) Patch(ctx context.Context, name string, pt types.PatchType, data []byte, opts metav1.PatchOptions, subresources ...string) (result *v1.ControlPlaneMachineSet, err error) {
+	emptyResult := &v1.ControlPlaneMachineSet{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(controlplanemachinesetsResource, c.ns, name, pt, data, subresources...), &v1.ControlPlaneMachineSet{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(controlplanemachinesetsResource, c.ns, name, pt, data, opts, subresources...), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.ControlPlaneMachineSet), err
 }
@@ -140,11 +146,12 @@ func (c *FakeControlPlaneMachineSets) Apply(ctx context.Context, controlPlaneMac
 	if name == nil {
 		return nil, fmt.Errorf("controlPlaneMachineSet.Name must be provided to Apply")
 	}
+	emptyResult := &v1.ControlPlaneMachineSet{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(controlplanemachinesetsResource, c.ns, *name, types.ApplyPatchType, data), &v1.ControlPlaneMachineSet{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(controlplanemachinesetsResource, c.ns, *name, types.ApplyPatchType, data, opts.ToPatchOptions()), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.ControlPlaneMachineSet), err
 }
@@ -163,11 +170,12 @@ func (c *FakeControlPlaneMachineSets) ApplyStatus(ctx context.Context, controlPl
 	if name == nil {
 		return nil, fmt.Errorf("controlPlaneMachineSet.Name must be provided to Apply")
 	}
+	emptyResult := &v1.ControlPlaneMachineSet{}
 	obj, err := c.Fake.
-		Invokes(testing.NewPatchSubresourceAction(controlplanemachinesetsResource, c.ns, *name, types.ApplyPatchType, data, "status"), &v1.ControlPlaneMachineSet{})
+		Invokes(testing.NewPatchSubresourceActionWithOptions(controlplanemachinesetsResource, c.ns, *name, types.ApplyPatchType, data, opts.ToPatchOptions(), "status"), emptyResult)
 
 	if obj == nil {
-		return nil, err
+		return emptyResult, err
 	}
 	return obj.(*v1.ControlPlaneMachineSet), err
 }
