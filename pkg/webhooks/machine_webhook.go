@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
+	apifeatures "github.com/openshift/api/features"
 	machinev1 "github.com/openshift/api/machine/v1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
@@ -1447,7 +1448,7 @@ func validateVSphere(m *machinev1beta1.Machine, config *admissionConfig) (bool, 
 		errs = append(errs, field.Required(field.NewPath("providerSpec", "template"), "template must be provided"))
 	}
 
-	workspaceWarnings, workspaceErrors := validateVSphereWorkspace(providerSpec.Workspace, field.NewPath("providerSpec", "workspace"))
+	workspaceWarnings, workspaceErrors := validateVSphereWorkspace(providerSpec.Workspace, config, field.NewPath("providerSpec", "workspace"))
 	warnings = append(warnings, workspaceWarnings...)
 	errs = append(errs, workspaceErrors...)
 
@@ -1500,7 +1501,7 @@ func validateVSphere(m *machinev1beta1.Machine, config *admissionConfig) (bool, 
 	return true, warnings, nil
 }
 
-func validateVSphereWorkspace(workspace *machinev1beta1.Workspace, parentPath *field.Path) ([]string, field.ErrorList) {
+func validateVSphereWorkspace(workspace *machinev1beta1.Workspace, config *admissionConfig, parentPath *field.Path) ([]string, field.ErrorList) {
 	if workspace == nil {
 		return []string{}, field.ErrorList{field.Required(parentPath, "workspace must be provided")}
 	}
@@ -1519,6 +1520,14 @@ func validateVSphereWorkspace(workspace *machinev1beta1.Workspace, parentPath *f
 			errMsg := fmt.Sprintf("folder must be absolute path: expected prefix %q", expectedPrefix)
 			errs = append(errs, field.Invalid(parentPath.Child("folder"), workspace.Folder, errMsg))
 		}
+	}
+
+	if config.featureGates.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereHostVMGroupZonal)) {
+		if len(workspace.VMGroup) > 80 {
+			errs = append(errs, field.Invalid(parentPath.Child("vmGroup"), workspace.VMGroup, "vmGroup must be less than 80 characters in length"))
+		}
+	} else if workspace.VMGroup != "" {
+		errs = append(errs, field.Invalid(parentPath.Child("vmGroup"), workspace.VMGroup, "feature gate VSphereHostVMGroupZonal must be enabled to use vmGroup"))
 	}
 
 	return warnings, errs

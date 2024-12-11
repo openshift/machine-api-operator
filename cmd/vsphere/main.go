@@ -7,18 +7,6 @@ import (
 	"strings"
 	"time"
 
-	configv1 "github.com/openshift/api/config/v1"
-	apifeatures "github.com/openshift/api/features"
-	machinev1 "github.com/openshift/api/machine/v1beta1"
-	"github.com/openshift/library-go/pkg/config/leaderelection"
-	"github.com/openshift/library-go/pkg/features"
-	capimachine "github.com/openshift/machine-api-operator/pkg/controller/machine"
-	"github.com/openshift/machine-api-operator/pkg/controller/vsphere"
-	machine "github.com/openshift/machine-api-operator/pkg/controller/vsphere"
-	machinesetcontroller "github.com/openshift/machine-api-operator/pkg/controller/vsphere/machineset"
-	"github.com/openshift/machine-api-operator/pkg/metrics"
-	"github.com/openshift/machine-api-operator/pkg/util"
-	"github.com/openshift/machine-api-operator/pkg/version"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/component-base/featuregate"
@@ -31,6 +19,19 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
+
+	configv1 "github.com/openshift/api/config/v1"
+	apifeatures "github.com/openshift/api/features"
+	machinev1 "github.com/openshift/api/machine/v1beta1"
+	"github.com/openshift/library-go/pkg/config/leaderelection"
+	"github.com/openshift/library-go/pkg/features"
+	capimachine "github.com/openshift/machine-api-operator/pkg/controller/machine"
+	"github.com/openshift/machine-api-operator/pkg/controller/vsphere"
+	machine "github.com/openshift/machine-api-operator/pkg/controller/vsphere"
+	machinesetcontroller "github.com/openshift/machine-api-operator/pkg/controller/vsphere/machineset"
+	"github.com/openshift/machine-api-operator/pkg/metrics"
+	"github.com/openshift/machine-api-operator/pkg/util"
+	"github.com/openshift/machine-api-operator/pkg/version"
 )
 
 const timeout = 10 * time.Minute
@@ -92,7 +93,7 @@ func main() {
 
 	// Sets up feature gates
 	defaultMutableGate := feature.DefaultMutableFeatureGate
-	gateOpts, err := features.NewFeatureGateOptions(defaultMutableGate, apifeatures.SelfManaged, apifeatures.FeatureGateVSphereStaticIPs, apifeatures.FeatureGateMachineAPIMigration)
+	gateOpts, err := features.NewFeatureGateOptions(defaultMutableGate, apifeatures.SelfManaged, apifeatures.FeatureGateVSphereStaticIPs, apifeatures.FeatureGateMachineAPIMigration, apifeatures.FeatureGateVSphereHostVMGroupZonal)
 	if err != nil {
 		klog.Fatalf("Error setting up feature gates: %v", err)
 	}
@@ -152,6 +153,8 @@ func main() {
 
 	staticIPFeatureGateEnabled := defaultMutableGate.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereStaticIPs))
 	klog.Infof("FeatureGateVSphereStaticIPs initialised: %t", staticIPFeatureGateEnabled)
+	hostVMGroupZonalFeatureGateEnabled := defaultMutableGate.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereHostVMGroupZonal))
+	klog.Infof("FeatureGateVSphereHostVMGroupZonal initialised %t", hostVMGroupZonalFeatureGateEnabled)
 
 	// Setup a Manager
 	mgr, err := manager.New(cfg, opts)

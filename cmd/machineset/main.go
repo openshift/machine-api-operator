@@ -23,20 +23,14 @@ import (
 	"strings"
 	"time"
 
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	ctrl "sigs.k8s.io/controller-runtime"
+
 	osconfigv1 "github.com/openshift/api/config/v1"
 	apifeatures "github.com/openshift/api/features"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	mapiwebhooks "github.com/openshift/machine-api-operator/pkg/webhooks"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	ctrl "sigs.k8s.io/controller-runtime"
 
-	"github.com/openshift/library-go/pkg/config/leaderelection"
-	"github.com/openshift/library-go/pkg/features"
-	"github.com/openshift/machine-api-operator/pkg/controller"
-	"github.com/openshift/machine-api-operator/pkg/controller/machineset"
-	"github.com/openshift/machine-api-operator/pkg/metrics"
-	"github.com/openshift/machine-api-operator/pkg/operator"
-	"github.com/openshift/machine-api-operator/pkg/util"
 	"k8s.io/apiserver/pkg/util/feature"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
 	"k8s.io/component-base/featuregate"
@@ -48,6 +42,14 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/manager/signals"
 	"sigs.k8s.io/controller-runtime/pkg/metrics/server"
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
+
+	"github.com/openshift/library-go/pkg/config/leaderelection"
+	"github.com/openshift/library-go/pkg/features"
+	"github.com/openshift/machine-api-operator/pkg/controller"
+	"github.com/openshift/machine-api-operator/pkg/controller/machineset"
+	"github.com/openshift/machine-api-operator/pkg/metrics"
+	"github.com/openshift/machine-api-operator/pkg/operator"
+	"github.com/openshift/machine-api-operator/pkg/util"
 )
 
 const (
@@ -110,7 +112,7 @@ func main() {
 
 	// Sets up feature gates
 	defaultMutableGate := feature.DefaultMutableFeatureGate
-	gateOpts, err := features.NewFeatureGateOptions(defaultMutableGate, apifeatures.SelfManaged, apifeatures.FeatureGateVSphereStaticIPs, apifeatures.FeatureGateMachineAPIMigration)
+	gateOpts, err := features.NewFeatureGateOptions(defaultMutableGate, apifeatures.SelfManaged, apifeatures.FeatureGateVSphereStaticIPs, apifeatures.FeatureGateMachineAPIMigration, apifeatures.FeatureGateVSphereHostVMGroupZonal)
 	if err != nil {
 		klog.Fatalf("Error setting up feature gates: %v", err)
 	}
