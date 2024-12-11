@@ -5,15 +5,16 @@ import (
 	"errors"
 	"fmt"
 
-	machinev1 "github.com/openshift/api/machine/v1beta1"
-	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
-	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
 	apicorev1 "k8s.io/api/core/v1"
 	apimachineryerrors "k8s.io/apimachinery/pkg/api/errors"
 	apimachineryutilerrors "k8s.io/apimachinery/pkg/util/errors"
 	vsphere "k8s.io/cloud-provider-vsphere/pkg/common/config"
 	"k8s.io/klog/v2"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
+
+	machinev1 "github.com/openshift/api/machine/v1beta1"
+	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
+	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
 )
 
 const (
@@ -23,11 +24,12 @@ const (
 // machineScopeParams defines the input parameters used to create a new MachineScope.
 type machineScopeParams struct {
 	context.Context
-	client                     runtimeclient.Client
-	apiReader                  runtimeclient.Reader
-	machine                    *machinev1.Machine
-	StaticIPFeatureGateEnabled bool
-	openshiftConfigNameSpace   string
+	client                             runtimeclient.Client
+	apiReader                          runtimeclient.Reader
+	machine                            *machinev1.Machine
+	StaticIPFeatureGateEnabled         bool
+	HostVMGroupZonalFeatureGateEnabled bool
+	openshiftConfigNameSpace           string
 }
 
 // machineScope defines a scope defined around a machine and its cluster.
@@ -42,11 +44,12 @@ type machineScope struct {
 	// vSphere cloud-provider config
 	vSphereConfig *vsphere.Config
 	// machine resource
-	machine                    *machinev1.Machine
-	providerSpec               *machinev1.VSphereMachineProviderSpec
-	providerStatus             *machinev1.VSphereMachineProviderStatus
-	machineToBePatched         runtimeclient.Patch
-	staticIPFeatureGateEnabled bool
+	machine                            *machinev1.Machine
+	providerSpec                       *machinev1.VSphereMachineProviderSpec
+	providerStatus                     *machinev1.VSphereMachineProviderStatus
+	machineToBePatched                 runtimeclient.Patch
+	staticIPFeatureGateEnabled         bool
+	hostVMGroupZonalFeatureGateEnabled bool
 }
 
 // newMachineScope creates a new machineScope from the supplied parameters.
@@ -88,16 +91,17 @@ func newMachineScope(params machineScopeParams) (*machineScope, error) {
 	}
 
 	return &machineScope{
-		Context:                    params.Context,
-		client:                     params.client,
-		apiReader:                  params.apiReader,
-		session:                    authSession,
-		machine:                    params.machine,
-		providerSpec:               providerSpec,
-		providerStatus:             providerStatus,
-		vSphereConfig:              vSphereConfig,
-		staticIPFeatureGateEnabled: params.StaticIPFeatureGateEnabled,
-		machineToBePatched:         runtimeclient.MergeFrom(params.machine.DeepCopy()),
+		Context:                            params.Context,
+		client:                             params.client,
+		apiReader:                          params.apiReader,
+		session:                            authSession,
+		machine:                            params.machine,
+		providerSpec:                       providerSpec,
+		providerStatus:                     providerStatus,
+		vSphereConfig:                      vSphereConfig,
+		staticIPFeatureGateEnabled:         params.StaticIPFeatureGateEnabled,
+		hostVMGroupZonalFeatureGateEnabled: params.HostVMGroupZonalFeatureGateEnabled,
+		machineToBePatched:                 runtimeclient.MergeFrom(params.machine.DeepCopy()),
 	}, nil
 }
 
