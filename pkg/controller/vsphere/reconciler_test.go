@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path"
 	"reflect"
 	"strings"
 	"testing"
@@ -46,9 +47,10 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 
+	ipamv1beta1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
+
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
-	ipamv1beta1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
 
 	_ "github.com/vmware/govmomi/vapi/simulator"
 )
@@ -543,6 +545,37 @@ func TestClone(t *testing.T) {
 			})
 		}
 	})
+}
+
+// https://github.com/openshift/installer/tree/master/pkg/infrastructure/vsphere/clusterapi/ (group.go)
+
+func createVMGroup(ctx context.Context, session *session.Session, cluster, vmGroup string) error {
+	clusterObj, err := session.Finder.ClusterComputeResource(ctx, cluster)
+	if err != nil {
+		return err
+	}
+
+	clusterConfigSpec := &types.ClusterConfigSpecEx{
+		GroupSpec: []types.ClusterGroupSpec{
+			{
+				ArrayUpdateSpec: types.ArrayUpdateSpec{
+					Operation: types.ArrayUpdateOperation("add"),
+				},
+				Info: &types.ClusterVmGroup{
+					ClusterGroupInfo: types.ClusterGroupInfo{
+						Name: vmGroup,
+					},
+				},
+			},
+		},
+	}
+
+	task, err := clusterObj.Reconfigure(ctx, clusterConfigSpec, true)
+	if err != nil {
+		return err
+	}
+
+	return task.Wait(ctx)
 }
 
 func TestPowerOn(t *testing.T) {
@@ -2268,11 +2301,24 @@ func TestCreate(t *testing.T) {
 	credentialsSecretUsername := fmt.Sprintf("%s.username", host)
 	credentialsSecretPassword := fmt.Sprintf("%s.password", host)
 	password, _ := server.URL.User.Password()
+	vmGroup := "testVMGroupName"
 	vmName := "testName"
 	namespace := "test"
 	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
 	vm.Name = vmName
 	vm.Config.Version = minimumHWVersionString
+
+	ctx := context.Background()
+	ccrObj, err := session.Finder.ClusterComputeResourceOrDefault(ctx, "/...")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	resourcePoolInventoryPath := path.Join(ccrObj.InventoryPath, "Resources")
+
+	if err := createVMGroup(ctx, session, ccrObj.Name(), vmGroup); err != nil {
+		t.Fatal(err)
+	}
 
 	credentialsSecretName := "test"
 	credentialsSecret := &corev1.Secret{
@@ -2413,15 +2459,16 @@ func TestCreate(t *testing.T) {
 	}
 
 	cases := []struct {
-		name                       string
-		machineName                string
-		expectedError              error
-		providerSpec               machinev1.VSphereMachineProviderSpec
-		labels                     map[string]string
-		notConnectedToVCenter      bool
-		staticIPFeatureGateEnabled bool
-		ipAddressClaim             *ipamv1beta1.IPAddressClaim
-		ipAddress                  *ipamv1beta1.IPAddress
+		name                               string
+		machineName                        string
+		expectedError                      error
+		providerSpec                       machinev1.VSphereMachineProviderSpec
+		labels                             map[string]string
+		notConnectedToVCenter              bool
+		staticIPFeatureGateEnabled         bool
+		hostVMGroupZonalFeatureGateEnabled bool
+		ipAddressClaim                     *ipamv1beta1.IPAddressClaim
+		ipAddress                          *ipamv1beta1.IPAddress
 	}{
 		{
 			name:        "Successfully create machine",
@@ -2439,6 +2486,26 @@ func TestCreate(t *testing.T) {
 					Name: userDataSecretName,
 				},
 			},
+		},
+		{
+			name:        "Successfully create machine and assign to vm-host group virtual machine",
+			machineName: "test-vmgroup",
+			providerSpec: machinev1.VSphereMachineProviderSpec{
+				Template: vmName,
+				Workspace: &machinev1.Workspace{
+					Server:       host,
+					VMGroup:      vmGroup,
+					ResourcePool: resourcePoolInventoryPath,
+				},
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: "test",
+				},
+				DiskGiB: 10,
+				UserDataSecret: &corev1.LocalObjectReference{
+					Name: userDataSecretName,
+				},
+			},
+			hostVMGroupZonalFeatureGateEnabled: true,
 		},
 		{
 			name:        "Fail to create machine with static IP when tech preview not enabled",
@@ -2611,12 +2678,13 @@ func TestCreate(t *testing.T) {
 			client := builder.Build()
 
 			machineScope, err := newMachineScope(machineScopeParams{
-				client:                     client,
-				Context:                    context.Background(),
-				machine:                    machine,
-				apiReader:                  client,
-				StaticIPFeatureGateEnabled: tc.staticIPFeatureGateEnabled,
-				openshiftConfigNameSpace:   openshiftConfigNamespaceForTest,
+				client:                             client,
+				Context:                            context.Background(),
+				machine:                            machine,
+				apiReader:                          client,
+				StaticIPFeatureGateEnabled:         tc.staticIPFeatureGateEnabled,
+				HostVMGroupZonalFeatureGateEnabled: tc.hostVMGroupZonalFeatureGateEnabled,
+				openshiftConfigNameSpace:           openshiftConfigNamespaceForTest,
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -2625,6 +2693,17 @@ func TestCreate(t *testing.T) {
 			reconciler := newReconciler(machineScope)
 
 			err = reconciler.create()
+
+			// While debugging the execution of TestCreate it does not
+			// get through to powerOn. For vm-host zonal testing
+			// we wait for the task to complete and rerun create()
+			// which powers on the guest and runs modifyVMGroup.
+			if tc.providerSpec.Workspace.VMGroup != "" {
+				if err := waitForTaskToComplete(session, reconciler); err != nil {
+					t.Fatal(err)
+				}
+				err = reconciler.create()
+			}
 
 			if tc.expectedError != nil {
 				if err == nil {
@@ -2657,19 +2736,26 @@ func TestCreate(t *testing.T) {
 
 				// The create task above runs asynchronously so we must wait on it here to prevent early teardown
 				// of vCenter simulator.
-				task, err := session.GetTask(context.TODO(), reconciler.providerStatus.TaskRef)
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				taskObj := object.NewTask(session.Client.Client, task.Reference())
-				err = taskObj.Wait(context.TODO())
-				if err != nil {
+				if err := waitForTaskToComplete(session, reconciler); err != nil {
 					t.Fatal(err)
 				}
 			}
 		})
 	}
+}
+
+func waitForTaskToComplete(session *session.Session, reconciler *Reconciler) error {
+	task, err := session.GetTask(context.TODO(), reconciler.providerStatus.TaskRef)
+	if err != nil {
+		return err
+	}
+
+	taskObj := object.NewTask(session.Client.Client, task.Reference())
+	err = taskObj.Wait(context.TODO())
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func TestUpdate(t *testing.T) {

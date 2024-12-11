@@ -1517,6 +1517,12 @@ func validateVSphereWorkspace(workspace *machinev1beta1.Workspace, parentPath *f
 		}
 	}
 
+	if workspace.VMGroup != "" {
+		if len(workspace.VMGroup) > 80 {
+			errs = append(errs, field.Invalid(parentPath.Child("folder"), workspace.VMGroup, "vmGroup must be less than 80 characters in length"))
+		}
+	}
+
 	return warnings, errs
 }
 

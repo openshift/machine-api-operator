@@ -16,6 +16,7 @@ import (
 	utilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/clock"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
@@ -202,8 +203,9 @@ func (optr *Operator) syncClusterAPIController(config *OperatorConfig) error {
 	ensureDependecyAnnotations(inputHashes, controllersDeployment)
 
 	expectedGeneration := resourcemerge.ExpectedDeploymentGeneration(controllersDeployment, optr.generations)
+
 	d, updated, err := resourceapply.ApplyDeployment(context.TODO(), optr.kubeClient.AppsV1(),
-		events.NewLoggingEventRecorder(optr.name), controllersDeployment, expectedGeneration)
+		events.NewLoggingEventRecorder(optr.name, clock.RealClock{}), controllersDeployment, expectedGeneration)
 	if err != nil {
 		return err
 	}
@@ -218,7 +220,7 @@ func (optr *Operator) syncTerminationHandler(config *OperatorConfig) error {
 	terminationDaemonSet := newTerminationDaemonSet(config)
 	expectedGeneration := resourcemerge.ExpectedDaemonSetGeneration(terminationDaemonSet, optr.generations)
 	ds, updated, err := resourceapply.ApplyDaemonSet(context.TODO(), optr.kubeClient.AppsV1(),
-		events.NewLoggingEventRecorder(optr.name), terminationDaemonSet, expectedGeneration)
+		events.NewLoggingEventRecorder(optr.name, clock.RealClock{}), terminationDaemonSet, expectedGeneration)
 	if err != nil {
 		return err
 	}
@@ -248,7 +250,7 @@ func (optr *Operator) syncWebhookConfiguration(config *OperatorConfig) error {
 
 func (optr *Operator) syncMachineValidatingWebhook() error {
 	validatingWebhook, updated, err := resourceapply.ApplyValidatingWebhookConfigurationImproved(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
-		events.NewLoggingEventRecorder(optr.name),
+		events.NewLoggingEventRecorder(optr.name, clock.RealClock{}),
 		mapiwebhooks.NewMachineValidatingWebhookConfiguration(),
 		optr.cache)
 	if err != nil {
@@ -263,7 +265,7 @@ func (optr *Operator) syncMachineValidatingWebhook() error {
 
 func (optr *Operator) syncMachineMutatingWebhook() error {
 	mutatingWebhook, updated, err := resourceapply.ApplyMutatingWebhookConfigurationImproved(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
-		events.NewLoggingEventRecorder(optr.name),
+		events.NewLoggingEventRecorder(optr.name, clock.RealClock{}),
 		mapiwebhooks.NewMachineMutatingWebhookConfiguration(),
 		optr.cache)
 	if err != nil {
@@ -280,7 +282,7 @@ func (optr *Operator) syncMachineMutatingWebhook() error {
 // actual webhook implementation can be found in cluster-api-provider-baremetal
 func (optr *Operator) syncMetal3RemediationValidatingWebhook() error {
 	validatingWebhook, updated, err := resourceapply.ApplyValidatingWebhookConfigurationImproved(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
-		events.NewLoggingEventRecorder(optr.name),
+		events.NewLoggingEventRecorder(optr.name, clock.RealClock{}),
 		mapiwebhooks.NewMetal3RemediationValidatingWebhookConfiguration(),
 		optr.cache)
 	if err != nil {
@@ -297,7 +299,7 @@ func (optr *Operator) syncMetal3RemediationValidatingWebhook() error {
 // actual webhook implementation can be found in cluster-api-provider-baremetal
 func (optr *Operator) syncMetal3RemediationMutatingWebhook() error {
 	mutatingWebhook, updated, err := resourceapply.ApplyMutatingWebhookConfigurationImproved(context.TODO(), optr.kubeClient.AdmissionregistrationV1(),
-		events.NewLoggingEventRecorder(optr.name),
+		events.NewLoggingEventRecorder(optr.name, clock.RealClock{}),
 		mapiwebhooks.NewMetal3RemediationMutatingWebhookConfiguration(),
 		optr.cache)
 	if err != nil {
