@@ -44,10 +44,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
 	configv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/api/features"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
+	testutils "github.com/openshift/machine-api-operator/pkg/util/testing"
 	ipamv1beta1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
 
 	_ "github.com/vmware/govmomi/vapi/simulator"
@@ -178,6 +180,7 @@ func TestClone(t *testing.T) {
 	}
 
 	getMachineScope := func(providerSpec *machinev1.VSphereMachineProviderSpec) *machineScope {
+		gates, _ := testutils.NewDefaultMutableFeatureGate()
 		return &machineScope{
 			Context: context.TODO(),
 			machine: &machinev1.Machine{
@@ -193,6 +196,7 @@ func TestClone(t *testing.T) {
 			session:        session,
 			providerStatus: &machinev1.VSphereMachineProviderStatus{},
 			client:         fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(&credentialsSecret, &userDataSecret).Build(),
+			featureGates:   gates,
 		}
 	}
 
@@ -1949,6 +1953,11 @@ func TestDelete(t *testing.T) {
 				t.Fatal(err)
 			}
 
+			gates, err := testutils.NewDefaultMutableFeatureGate()
+			if err != nil {
+				t.Errorf("Unexpected error setting up feature gates: %v", err)
+			}
+
 			client := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(
 				simParams.secret,
 				tc.machine(t, simParams.host),
@@ -1961,6 +1970,7 @@ func TestDelete(t *testing.T) {
 				machine:                  tc.machine(t, simParams.host),
 				apiReader:                client,
 				openshiftConfigNameSpace: openshiftConfigNamespaceForTest,
+				featureGates:             gates,
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -2610,13 +2620,22 @@ func TestCreate(t *testing.T) {
 
 			client := builder.Build()
 
+			gates, err := testutils.NewDefaultMutableFeatureGate()
+			if err != nil {
+				t.Errorf("Unexpected error setting up feature gates: %v", err)
+			}
+
+			if err := gates.Set(fmt.Sprintf("%v=%v", features.FeatureGateVSphereStaticIPs, tc.staticIPFeatureGateEnabled)); err != nil {
+				t.Errorf("Unexpected error setting static IP feature gates: %v", err)
+			}
+
 			machineScope, err := newMachineScope(machineScopeParams{
-				client:                     client,
-				Context:                    context.Background(),
-				machine:                    machine,
-				apiReader:                  client,
-				StaticIPFeatureGateEnabled: tc.staticIPFeatureGateEnabled,
-				openshiftConfigNameSpace:   openshiftConfigNamespaceForTest,
+				client:                   client,
+				Context:                  context.Background(),
+				machine:                  machine,
+				apiReader:                client,
+				openshiftConfigNameSpace: openshiftConfigNamespaceForTest,
+				featureGates:             gates,
 			})
 			if err != nil {
 				t.Fatal(err)

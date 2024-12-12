@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 
+	"k8s.io/component-base/featuregate"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -324,6 +326,7 @@ type admissionConfig struct {
 	platformStatus  *osconfigv1.PlatformStatus
 	dnsDisconnected bool
 	client          client.Client
+	featureGates    featuregate.MutableFeatureGate
 }
 
 type admissionHandler struct {
@@ -353,7 +356,7 @@ type machineDefaulterHandler struct {
 }
 
 // NewValidator returns a new machineValidatorHandler.
-func NewMachineValidator(client client.Client) (*admission.Webhook, error) {
+func NewMachineValidator(client client.Client, featureGate featuregate.MutableFeatureGate) (*admission.Webhook, error) {
 	infra, err := getInfra()
 	if err != nil {
 		return nil, err
@@ -364,15 +367,16 @@ func NewMachineValidator(client client.Client) (*admission.Webhook, error) {
 		return nil, err
 	}
 
-	return admission.WithCustomValidator(scheme.Scheme, &machinev1beta1.Machine{}, createMachineValidator(infra, client, dns)), nil
+	return admission.WithCustomValidator(scheme.Scheme, &machinev1beta1.Machine{}, createMachineValidator(infra, client, dns, featureGate)), nil
 }
 
-func createMachineValidator(infra *osconfigv1.Infrastructure, client client.Client, dns *osconfigv1.DNS) *machineValidatorHandler {
+func createMachineValidator(infra *osconfigv1.Infrastructure, client client.Client, dns *osconfigv1.DNS, featureGate featuregate.MutableFeatureGate) *machineValidatorHandler {
 	admissionConfig := &admissionConfig{
 		dnsDisconnected: dns.Spec.PublicZone == nil,
 		clusterID:       infra.Status.InfrastructureName,
 		platformStatus:  infra.Status.PlatformStatus,
 		client:          client,
+		featureGates:    featureGate,
 	}
 	return &machineValidatorHandler{
 		admissionHandler: &admissionHandler{

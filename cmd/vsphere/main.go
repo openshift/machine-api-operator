@@ -165,12 +165,12 @@ func main() {
 
 	// Initialize machine actuator.
 	machineActuator := machine.NewActuator(machine.ActuatorParams{
-		Client:                     mgr.GetClient(),
-		APIReader:                  mgr.GetAPIReader(),
-		EventRecorder:              mgr.GetEventRecorderFor("vspherecontroller"),
-		TaskIDCache:                taskIDCache,
-		StaticIPFeatureGateEnabled: staticIPFeatureGateEnabled,
-		OpenshiftConfigNamespace:   vsphere.OpenshiftConfigNamespace,
+		Client:                   mgr.GetClient(),
+		APIReader:                mgr.GetAPIReader(),
+		EventRecorder:            mgr.GetEventRecorderFor("vspherecontroller"),
+		TaskIDCache:              taskIDCache,
+		FeatureGates:             defaultMutableGate,
+		OpenshiftConfigNamespace: vsphere.OpenshiftConfigNamespace,
 	})
 
 	if err := configv1.Install(mgr.GetScheme()); err != nil {

@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"testing"
 
+	testutils "github.com/openshift/machine-api-operator/pkg/util/testing"
+
 	"k8s.io/apimachinery/pkg/util/intstr"
 
 	. "github.com/onsi/gomega"
@@ -509,8 +511,14 @@ func TestMachineSetCreation(t *testing.T) {
 			if !tc.disconnected {
 				dns.Spec.PublicZone = &osconfigv1.DNSZone{}
 			}
+
+			gate, err := testutils.NewDefaultMutableFeatureGate()
+			if err != nil {
+				t.Errorf("Unexpected error setting up feature gates: %v", err)
+			}
+
 			machineSetDefaulter := createMachineSetDefaulter(platformStatus, tc.clusterID)
-			machineSetValidator := createMachineSetValidator(infra, c, dns)
+			machineSetValidator := createMachineSetValidator(infra, c, dns, gate)
 			mgr.GetWebhookServer().Register(DefaultMachineSetMutatingHookPath, &webhook.Admission{Handler: machineSetDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineSetValidatingHookPath, &webhook.Admission{Handler: machineSetValidator})
 
@@ -1193,8 +1201,13 @@ func TestMachineSetUpdate(t *testing.T) {
 			infra.Status.InfrastructureName = tc.clusterID
 			infra.Status.PlatformStatus = platformStatus
 
+			gate, err := testutils.NewDefaultMutableFeatureGate()
+			if err != nil {
+				t.Errorf("Unexpected error setting up feature gates: %v", err)
+			}
+
 			machineSetDefaulter := createMachineSetDefaulter(platformStatus, tc.clusterID)
-			machineSetValidator := createMachineSetValidator(infra, c, plainDNS)
+			machineSetValidator := createMachineSetValidator(infra, c, plainDNS, gate)
 			mgr.GetWebhookServer().Register(DefaultMachineSetMutatingHookPath, &webhook.Admission{Handler: machineSetDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineSetValidatingHookPath, &webhook.Admission{Handler: machineSetValidator})
 

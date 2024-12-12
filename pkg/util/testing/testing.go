@@ -178,7 +178,7 @@ func NewMachineHealthCheck(name string) *machinev1.MachineHealthCheck {
 
 func NewDefaultMutableFeatureGate() (featuregate.MutableFeatureGate, error) {
 	defaultMutableGate := feature.DefaultMutableFeatureGate
-	_, err := features.NewFeatureGateOptions(defaultMutableGate, openshiftfeatures.SelfManaged, openshiftfeatures.FeatureGateMachineAPIMigration)
+	_, err := features.NewFeatureGateOptions(defaultMutableGate, openshiftfeatures.SelfManaged, openshiftfeatures.FeatureGateMachineAPIMigration, openshiftfeatures.FeatureGateVSphereStaticIPs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to set up default feature gate: %w", err)
 	}

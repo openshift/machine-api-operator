@@ -186,7 +186,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	machineValidator, err := mapiwebhooks.NewMachineValidator(mgr.GetClient())
+	machineValidator, err := mapiwebhooks.NewMachineValidator(mgr.GetClient(), defaultMutableGate)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -196,7 +196,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	machineSetValidator, err := mapiwebhooks.NewMachineSetValidator(mgr.GetClient())
+	machineSetValidator, err := mapiwebhooks.NewMachineSetValidator(mgr.GetClient(), defaultMutableGate)
 	if err != nil {
 		log.Fatal(err)
 	}
