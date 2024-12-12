@@ -44,7 +44,7 @@ const (
 	couldDelete   deletePriority = 20.0
 	mustNotDelete deletePriority = 0.0
 
-	secondsPerTenDays float64 = 864000
+	secondsPerHundredDays float64 = 8640000
 )
 
 type deletePriorityFunc func(machine *machinev1.Machine) deletePriority
@@ -67,7 +67,12 @@ func oldestDeletePriority(machine *machinev1.Machine) deletePriority {
 	if d.Seconds() < 0 {
 		return mustNotDelete
 	}
-	return deletePriority(float64(mustDelete) * (1.0 - math.Exp(-d.Seconds()/secondsPerTenDays)))
+
+	// The oldest machine, not already marked for deletion, should be deleted first.
+	// The priority is calculated as a function of the time since the machine was created.
+	// As the machine gets older the exponential term will approach 1, and the priority will approach the value of betterDelete.
+	// With the current division by secondsPerHundredDays, the priority will tend to betterDelete after approx ~3750 days (~10.3 years).
+	return deletePriority(float64(betterDelete) * (1.0 - math.Exp(-d.Seconds()/secondsPerHundredDays)))
 }
 
 func newestDeletePriority(machine *machinev1.Machine) deletePriority {
