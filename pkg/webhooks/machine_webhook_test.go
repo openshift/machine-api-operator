@@ -8,6 +8,8 @@ import (
 	"reflect"
 	"testing"
 
+	testutils "github.com/openshift/machine-api-operator/pkg/util/testing"
+
 	. "github.com/onsi/gomega"
 	osconfigv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1"
@@ -1246,6 +1248,11 @@ func TestMachineCreation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			gs := NewWithT(t)
 
+			gate, err := testutils.NewDefaultMutableFeatureGate()
+			if err != nil {
+				t.Errorf("Unexpected error setting up feature gates: %v", err)
+			}
+
 			mgr, err := manager.New(cfg, manager.Options{
 				Metrics: metricsserver.Options{
 					BindAddress: "0",
@@ -1275,7 +1282,7 @@ func TestMachineCreation(t *testing.T) {
 				dns.Spec.PublicZone = &osconfigv1.DNSZone{}
 			}
 			machineDefaulter := admission.WithCustomDefaulter(scheme.Scheme, &machinev1beta1.Machine{}, createMachineDefaulter(platformStatus, tc.clusterID))
-			machineValidator := admission.WithCustomValidator(scheme.Scheme, &machinev1beta1.Machine{}, createMachineValidator(infra, c, dns))
+			machineValidator := admission.WithCustomValidator(scheme.Scheme, &machinev1beta1.Machine{}, createMachineValidator(infra, c, dns, gate))
 			mgr.GetWebhookServer().Register(DefaultMachineMutatingHookPath, &webhook.Admission{Handler: machineDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineValidatingHookPath, &webhook.Admission{Handler: machineValidator})
 
@@ -2048,6 +2055,11 @@ func TestMachineUpdate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			gs := NewWithT(t)
 
+			gate, err := testutils.NewDefaultMutableFeatureGate()
+			if err != nil {
+				t.Errorf("Unexpected error setting up feature gates: %v", err)
+			}
+
 			mgr, err := manager.New(cfg, manager.Options{
 				Metrics: metricsserver.Options{
 					BindAddress: "0",
@@ -2073,7 +2085,7 @@ func TestMachineUpdate(t *testing.T) {
 				},
 			}
 			machineDefaulter := admission.WithCustomDefaulter(scheme.Scheme, &machinev1beta1.Machine{}, createMachineDefaulter(platformStatus, tc.clusterID))
-			machineValidator := admission.WithCustomValidator(scheme.Scheme, &machinev1beta1.Machine{}, createMachineValidator(infra, c, plainDNS))
+			machineValidator := admission.WithCustomValidator(scheme.Scheme, &machinev1beta1.Machine{}, createMachineValidator(infra, c, plainDNS, gate))
 			mgr.GetWebhookServer().Register(DefaultMachineMutatingHookPath, &webhook.Admission{Handler: machineDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineValidatingHookPath, &webhook.Admission{Handler: machineValidator})
 
@@ -2454,7 +2466,13 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 	infra := plainInfra.DeepCopy()
 	infra.Status.InfrastructureName = "clusterID"
 	infra.Status.PlatformStatus.Type = osconfigv1.AWSPlatformType
-	h := createMachineValidator(infra, c, plainDNS)
+
+	gate, err := testutils.NewDefaultMutableFeatureGate()
+	if err != nil {
+		t.Errorf("Unexpected error setting up feature gates: %v", err)
+	}
+
+	h := createMachineValidator(infra, c, plainDNS, gate)
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
@@ -3124,7 +3142,12 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 			infra.Status.PlatformStatus.Type = osconfigv1.AzurePlatformType
 			infra.Status.PlatformStatus.Azure = tc.azurePlatformStatus
 
-			h := createMachineValidator(infra, c, plainDNS)
+			gate, err := testutils.NewDefaultMutableFeatureGate()
+			if err != nil {
+				t.Errorf("Unexpected error setting up feature gates: %v", err)
+			}
+
+			h := createMachineValidator(infra, c, plainDNS, gate)
 
 			// create a valid spec that will then be 'broken' by modifySpec
 			providerSpec := &machinev1beta1.AzureMachineProviderSpec{
@@ -3799,7 +3822,13 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 	infra := plainInfra.DeepCopy()
 	infra.Status.InfrastructureName = "clusterID"
 	infra.Status.PlatformStatus.Type = osconfigv1.GCPPlatformType
-	h := createMachineValidator(infra, c, plainDNS)
+
+	gate, err := testutils.NewDefaultMutableFeatureGate()
+	if err != nil {
+		t.Errorf("Unexpected error setting up feature gates: %v", err)
+	}
+
+	h := createMachineValidator(infra, c, plainDNS, gate)
 
 	for _, tc := range testCases {
 		providerSpec := &machinev1beta1.GCPMachineProviderSpec{
@@ -4252,7 +4281,13 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 	infra := plainInfra.DeepCopy()
 	infra.Status.InfrastructureName = "clusterID"
 	infra.Status.PlatformStatus.Type = osconfigv1.VSpherePlatformType
-	h := createMachineValidator(infra, c, plainDNS)
+
+	gate, err := testutils.NewDefaultMutableFeatureGate()
+	if err != nil {
+		t.Errorf("Unexpected error setting up feature gates: %v", err)
+	}
+
+	h := createMachineValidator(infra, c, plainDNS, gate)
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
@@ -4484,7 +4519,13 @@ func TestUpdateFinalizer(t *testing.T) {
 	infra := plainInfra.DeepCopy()
 	infra.Status.InfrastructureName = "clusterID"
 	infra.Status.PlatformStatus.Type = osconfigv1.AWSPlatformType
-	h := createMachineValidator(infra, c, plainDNS)
+
+	gate, err := testutils.NewDefaultMutableFeatureGate()
+	if err != nil {
+		t.Errorf("Unexpected error setting up feature gates: %v", err)
+	}
+
+	h := createMachineValidator(infra, c, plainDNS, gate)
 
 	providerSpec := &machinev1beta1.AWSMachineProviderConfig{
 		AMI: machinev1beta1.AWSResourceReference{
@@ -4913,7 +4954,12 @@ func TestValidatePowerVSProviderSpec(t *testing.T) {
 	infra := plainInfra.DeepCopy()
 	infra.Status.InfrastructureName = "clusterID"
 	infra.Status.PlatformStatus.Type = osconfigv1.PowerVSPlatformType
-	h := createMachineValidator(infra, c, plainDNS)
+	gate, err := testutils.NewDefaultMutableFeatureGate()
+	if err != nil {
+		t.Errorf("Unexpected error setting up feature gates: %v", err)
+	}
+
+	h := createMachineValidator(infra, c, plainDNS, gate)
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
@@ -5196,7 +5242,13 @@ func TestValidateNutanixProviderSpec(t *testing.T) {
 	infra := plainInfra.DeepCopy()
 	infra.Status.InfrastructureName = "clusterID"
 	infra.Status.PlatformStatus.Type = osconfigv1.NutanixPlatformType
-	h := createMachineValidator(infra, c, plainDNS)
+
+	gate, err := testutils.NewDefaultMutableFeatureGate()
+	if err != nil {
+		t.Errorf("Unexpected error setting up feature gates: %v", err)
+	}
+
+	h := createMachineValidator(infra, c, plainDNS, gate)
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {

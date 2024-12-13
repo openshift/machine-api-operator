@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	testutils "github.com/openshift/machine-api-operator/pkg/util/testing"
+
 	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
@@ -363,6 +365,11 @@ func TestMachineEvents(t *testing.T) {
 			}
 			gs.Eventually(getNode, timeout).Should(Succeed())
 
+			gate, err := testutils.NewDefaultMutableFeatureGate()
+			if err != nil {
+				t.Errorf("Unexpected error setting up feature gates: %v", err)
+			}
+
 			taskIDCache := make(map[string]string)
 			params := ActuatorParams{
 				Client:                   k8sClient,
@@ -370,6 +377,7 @@ func TestMachineEvents(t *testing.T) {
 				APIReader:                k8sClient,
 				TaskIDCache:              taskIDCache,
 				OpenshiftConfigNamespace: openshiftConfigNamespaceForTest,
+				FeatureGates:             gate,
 			}
 
 			actuator := NewActuator(params)

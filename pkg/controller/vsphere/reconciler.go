@@ -27,9 +27,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	apimachineryutilerrors "k8s.io/apimachinery/pkg/util/errors"
+	"k8s.io/component-base/featuregate"
 	"k8s.io/klog/v2"
 	"k8s.io/utils/ptr"
 
+	apifeatures "github.com/openshift/api/features"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
@@ -82,7 +84,7 @@ func (r *Reconciler) create() error {
 	}
 
 	if ipam.HasStaticIPConfiguration(r.providerSpec) {
-		if !r.staticIPFeatureGateEnabled {
+		if !r.featureGates.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereStaticIPs)) {
 			return fmt.Errorf("%v: static IP/IPAM configuration is only available with the VSphereStaticIPs feature gate", r.machine.GetName())
 		}
 
@@ -389,7 +391,7 @@ func (r *Reconciler) delete() error {
 			return err
 		}
 		klog.Infof("%v: vm does not exist", r.machine.GetName())
-		if r.staticIPFeatureGateEnabled {
+		if r.featureGates.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereStaticIPs)) {
 			// remove any finalizers for IPAddressClaims which may be associated with the machine
 			err = ipam.RemoveFinalizersForIPAddressClaims(r.Context, r.client, *r.machine)
 			if err != nil {
@@ -986,7 +988,7 @@ func clone(s *machineScope) (string, error) {
 		Value: "TRUE",
 	})
 
-	if s.staticIPFeatureGateEnabled {
+	if s.featureGates.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereStaticIPs)) {
 		if ipam.HasStaticIPConfiguration(s.providerSpec) {
 			networkKargs, err := constructKargsFromNetworkConfig(s)
 			if err != nil {
