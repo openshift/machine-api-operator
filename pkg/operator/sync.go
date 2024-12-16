@@ -445,7 +445,8 @@ func newDeployment(config *OperatorConfig, features map[string]bool) *appsv1.Dep
 			Name:      "machine-api-controllers",
 			Namespace: config.TargetNamespace,
 			Annotations: map[string]string{
-				maoOwnedAnnotation: "",
+				maoOwnedAnnotation:          "",
+				"openshift.io/required-scc": "restricted-v2",
 			},
 			Labels: map[string]string{
 				"api":     "clusterapi",
