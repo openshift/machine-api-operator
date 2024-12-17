@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -458,9 +459,12 @@ func (r *Reconciler) delete() error {
 	if err != nil {
 		return fmt.Errorf("%v: can not obtain virtual disks attached to the vm: %w", r.machine.GetName(), err)
 	}
-	// Currently, MAPI does not provide any API knobs to configure additional volumes for a VM.
-	// So, we are expecting the VM to have only one disk, which is OS disk.
-	if len(disks) > 1 {
+
+	additionalDisks := len(r.providerSpec.DataDisks)
+	// Currently, MAPI only allows VMs to be configured w/ 1 primary did in the template and a limited number of additional
+	// disks via the data disks configuration.  So, we are expecting the VM to have only one disk, which is OS disk, plus
+	// the additional disks defined in the DataDisks configuration.
+	if len(disks) > 1+additionalDisks {
 		// If node drain was skipped we need to detach disks forcefully to prevent possible data corruption.
 		if drainSkipped {
 			klog.V(1).Infof(
@@ -968,6 +972,13 @@ func clone(s *machineScope) (string, error) {
 		deviceSpecs = append(deviceSpecs, diskSpec)
 	}
 
+	// Add any additional disks
+	additionalDisks, err := getAdditionalDiskSpecs(s, devices, datastore)
+	if err != nil {
+		return "", fmt.Errorf("error getting additional disk specs: %w", err)
+	}
+	deviceSpecs = append(deviceSpecs, additionalDisks...)
+
 	klog.V(3).Infof("Getting network devices")
 	networkDevices, err := getNetworkDevices(s, resourcepool, devices)
 	if err != nil {
@@ -1086,6 +1097,113 @@ func getDiskSpec(s *machineScope, devices object.VirtualDeviceList) (types.BaseV
 		Operation: types.VirtualDeviceConfigSpecOperationEdit,
 		Device:    disk,
 	}, nil
+}
+
+func getAdditionalDiskSpecs(s *machineScope, devices object.VirtualDeviceList, datastore *object.Datastore) ([]types.BaseVirtualDeviceConfigSpec, error) {
+	var diskSpecs []types.BaseVirtualDeviceConfigSpec
+	unit := int32(1)
+
+	// Only add additional disks if the feature gate is enabled.
+	if len(s.providerSpec.DataDisks) > 0 && !s.featureGates.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereMultiDisk)) {
+		return nil, machinecontroller.InvalidMachineConfiguration(
+			"machines cannot contain additional disks due to VSphereMultiDisk feature gate being disabled")
+	}
+
+	// Get primary disk
+	disks := devices.SelectByType((*types.VirtualDisk)(nil))
+	primaryDisk := disks[0].(*types.VirtualDisk)
+
+	// Let's create the data disks now
+	additionalDisks := []types.BaseVirtualDeviceConfigSpec{}
+	for i := range s.providerSpec.DataDisks {
+		diskSpec := s.providerSpec.DataDisks[i]
+		klog.InfoS("Adding disk", "spec", diskSpec)
+
+		//  Get controller.  Only supporting using same controller as primary disk at this time
+		controller, ok := devices.FindByKey(primaryDisk.ControllerKey).(types.BaseVirtualController)
+		if !ok {
+			klog.Infof("Unable to get scsi controller")
+		}
+
+		dev := &types.VirtualDisk{
+			VirtualDevice: types.VirtualDevice{
+				Key: devices.NewKey() - int32(i),
+				Backing: &types.VirtualDiskFlatVer2BackingInfo{
+					DiskMode:        string(types.VirtualDiskModePersistent),
+					ThinProvisioned: types.NewBool(true),
+					VirtualDeviceFileBackingInfo: types.VirtualDeviceFileBackingInfo{
+						FileName:  "",
+						Datastore: types.NewReference(datastore.Reference()),
+					},
+				},
+				ControllerKey: controller.GetVirtualController().Key,
+			},
+			CapacityInKB: int64(diskSpec.SizeGiB * 1024 * 1024),
+		}
+
+		assignUnitNumber(dev, devices, additionalDisks, controller, unit)
+		unit = *dev.UnitNumber
+
+		diskConfigSpec := types.VirtualDeviceConfigSpec{
+			Device:        dev,
+			Operation:     types.VirtualDeviceConfigSpecOperationAdd,
+			FileOperation: types.VirtualDeviceConfigSpecFileOperationCreate,
+		}
+
+		klog.V(1).InfoS("Generated device", "disk", dev)
+
+		additionalDisks = append(additionalDisks, &diskConfigSpec)
+	}
+	diskSpecs = append(diskSpecs, additionalDisks...)
+
+	return diskSpecs, nil
+}
+
+// assignController assigns a device to a controller.
+func assignUnitNumber(device types.BaseVirtualDevice, existingDevices object.VirtualDeviceList, newDevices []types.BaseVirtualDeviceConfigSpec, controller types.BaseVirtualController, offset int32) {
+	vd := device.GetVirtualDevice()
+	vd.ControllerKey = controller.GetVirtualController().Key
+	vd.UnitNumber = &offset
+
+	units := make([]bool, 30)
+	for i := 0; i < int(offset); i++ {
+		units[i] = true
+	}
+
+	switch sc := controller.(type) {
+	case types.BaseVirtualSCSIController:
+		//  The SCSI controller sits on its own bus
+		units[sc.GetVirtualSCSIController().ScsiCtlrUnitNumber] = true
+	}
+
+	key := controller.GetVirtualController().Key
+
+	// Check all existing devices
+	for _, device := range existingDevices {
+		d := device.GetVirtualDevice()
+
+		if d.ControllerKey == key && d.UnitNumber != nil {
+			units[int(*d.UnitNumber)] = true
+		}
+	}
+
+	// Check new devices
+	for _, device := range newDevices {
+		d := device.GetVirtualDeviceConfigSpec().Device.GetVirtualDevice()
+
+		if d.ControllerKey == key && d.UnitNumber != nil {
+			units[int(*d.UnitNumber)] = true
+		}
+	}
+
+	for unit, used := range units {
+		if !used {
+			unit32 := int32(unit)
+			vd.UnitNumber = &unit32
+			klog.Infof("Assigned unit number %d = %d", unit, *vd.UnitNumber)
+			break
+		}
+	}
 }
 
 func getNetworkDevices(s *machineScope, resourcepool *object.ResourcePool, devices object.VirtualDeviceList) ([]types.BaseVirtualDeviceConfigSpec, error) {
@@ -1520,15 +1638,16 @@ type attachedDisk struct {
 	diskMode string
 }
 
-// Filters out disks that look like vm OS disk.
+// Filters out disks that look like vm OS disk or any of the additional disks.
 // VM os disks filename contains the machine name in it
 // and has the format like "[DATASTORE] path-within-datastore/machine-name.vmdk".
 // This is based on vSphere behavior, an OS disk file gets a name that equals the target VM name during the clone operation.
 func filterOutVmOsDisk(attachedDisks []attachedDisk, machine *machinev1.Machine) []attachedDisk {
 	var disks []attachedDisk
+	regex, _ := regexp.Compile(fmt.Sprintf(".*\\/%s(_\\d*)?.vmdk", machine.GetName()))
 
 	for _, disk := range attachedDisks {
-		if strings.HasSuffix(disk.fileName, fmt.Sprintf("/%s.vmdk", machine.GetName())) {
+		if regex.MatchString(disk.fileName) {
 			continue
 		}
 		disks = append(disks, disk)

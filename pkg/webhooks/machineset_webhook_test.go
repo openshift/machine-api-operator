@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	testutils "github.com/openshift/machine-api-operator/pkg/util/testing"
 	"testing"
 
 	testutils "github.com/openshift/machine-api-operator/pkg/util/testing"

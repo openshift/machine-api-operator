@@ -3,6 +3,7 @@ package webhooks
 import (
 	"context"
 	"fmt"
+	"k8s.io/component-base/featuregate"
 	"reflect"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
