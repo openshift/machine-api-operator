@@ -8,12 +8,10 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/openshift/api/features"
 	testutils "github.com/openshift/machine-api-operator/pkg/util/testing"
 
 	. "github.com/onsi/gomega"
-	osconfigv1 "github.com/openshift/api/config/v1"
-	machinev1 "github.com/openshift/api/machine/v1"
-	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/equality"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -33,6 +31,10 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
 	"sigs.k8s.io/yaml"
+
+	osconfigv1 "github.com/openshift/api/config/v1"
+	machinev1 "github.com/openshift/api/machine/v1"
+	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 )
 
 var (
@@ -4067,11 +4069,12 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 	}
 
 	testCases := []struct {
-		testCase         string
-		modifySpec       func(*machinev1beta1.VSphereMachineProviderSpec)
-		expectedError    string
-		expectedOk       bool
-		expectedWarnings []string
+		testCase            string
+		modifySpec          func(*machinev1beta1.VSphereMachineProviderSpec)
+		expectedError       string
+		expectedOk          bool
+		expectedWarnings    []string
+		featureGatesEnabled map[string]bool
 	}{
 		{
 			testCase: "with no template provided",
@@ -4269,6 +4272,44 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 			},
 			expectedOk: true,
 		},
+		{
+			testCase: "with vmGroup greater than 80 characters",
+			modifySpec: func(p *machinev1beta1.VSphereMachineProviderSpec) {
+				p.Workspace.VMGroup = "thisvmgroupnameismorethaneightycharactersthisvmgroupnameismorethaneightycharactersthisvmgroupnameismorethaneightycharacters"
+			},
+			expectedOk: false,
+			featureGatesEnabled: func() map[string]bool {
+				fg := make(map[string]bool)
+				fg[string(features.FeatureGateVSphereHostVMGroupZonal)] = true
+				return fg
+			}(),
+			expectedError: "providerSpec.workspace.vmGroup: Invalid value: \"thisvmgroupnameismorethaneightycharactersthisvmgroupnameismorethaneightycharactersthisvmgroupnameismorethaneightycharacters\": vmGroup must be less than 80 characters in length",
+		},
+		{
+			testCase: "with vmGroup configured without feature gate enabled",
+			modifySpec: func(p *machinev1beta1.VSphereMachineProviderSpec) {
+				p.Workspace.VMGroup = "thisisavmgroup"
+			},
+			expectedOk: false,
+			featureGatesEnabled: func() map[string]bool {
+				fg := make(map[string]bool)
+				fg[string(features.FeatureGateVSphereHostVMGroupZonal)] = false
+				return fg
+			}(),
+			expectedError: "providerSpec.workspace.vmGroup: Invalid value: \"thisisavmgroup\": feature gate VSphereHostVMGroupZonal must be enabled to use vmGroup",
+		},
+		{
+			testCase: "with vmGroup configured with feature gate enabled",
+			modifySpec: func(p *machinev1beta1.VSphereMachineProviderSpec) {
+				p.Workspace.VMGroup = "thisisavmgroup"
+			},
+			expectedOk: true,
+			featureGatesEnabled: func() map[string]bool {
+				fg := make(map[string]bool)
+				fg[string(features.FeatureGateVSphereHostVMGroupZonal)] = true
+				return fg
+			}(),
+		},
 	}
 
 	secret := &corev1.Secret{
@@ -4282,15 +4323,20 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 	infra.Status.InfrastructureName = "clusterID"
 	infra.Status.PlatformStatus.Type = osconfigv1.VSpherePlatformType
 
-	gate, err := testutils.NewDefaultMutableFeatureGate()
-	if err != nil {
-		t.Errorf("Unexpected error setting up feature gates: %v", err)
-	}
-
-	h := createMachineValidator(infra, c, plainDNS, gate)
-
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
+			gate, err := testutils.NewDefaultMutableFeatureGate()
+			if err != nil {
+				t.Errorf("Unexpected error setting up feature gates: %v", err)
+			}
+
+			if len(tc.featureGatesEnabled) != 0 {
+				if err := gate.SetFromMap(tc.featureGatesEnabled); err != nil {
+					t.Errorf("Unexpected error setting up feature gates via map: %v", err)
+				}
+			}
+
+			h := createMachineValidator(infra, c, plainDNS, gate)
 			providerSpec := &machinev1beta1.VSphereMachineProviderSpec{
 				Template: "template",
 				Workspace: &machinev1beta1.Workspace{

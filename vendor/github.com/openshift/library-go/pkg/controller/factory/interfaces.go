@@ -50,3 +50,7 @@ type SyncFunc func(ctx context.Context, controllerContext SyncContext) error
 func ControllerFieldManager(controllerName, usageName string) string {
 	return fmt.Sprintf("%s-%s", controllerName, usageName)
 }
+
+func ControllerInstanceName(instanceName, controllerName string) string {
+	return fmt.Sprintf("%s-%s", instanceName, controllerName)
+}

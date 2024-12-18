@@ -8,8 +8,11 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/vmware/govmomi/task"
 
 	"github.com/openshift/machine-api-operator/pkg/util/ipam"
 
@@ -81,6 +84,10 @@ func newReconciler(scope *machineScope) *Reconciler {
 func (r *Reconciler) create() error {
 	if err := validateMachine(*r.machine); err != nil {
 		return fmt.Errorf("%v: failed validating machine provider spec: %w", r.machine.GetName(), err)
+	}
+
+	if r.providerSpec.Workspace.VMGroup != "" && !r.featureGates.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereHostVMGroupZonal)) {
+		return fmt.Errorf("%v: vmGroup is only available with the VSphereHostVMGroupZonal feature gate", r.machine.GetName())
 	}
 
 	if ipam.HasStaticIPConfiguration(r.providerSpec) {
@@ -209,7 +216,21 @@ func (r *Reconciler) create() error {
 	}
 
 	// if clone task finished successfully, power on the vm
-	if moTask.Info.DescriptionId == cloneVmTaskDescriptionId {
+	// The simulator task.Info.DescriptionId is different (VirtualMachine.cloneVM)
+	if strings.Contains(moTask.Info.DescriptionId, cloneVmTaskDescriptionId) {
+		if r.machineScope.providerSpec.Workspace.VMGroup != "" {
+			klog.Infof("Adding on cloned machine: %s to vm group: %s", r.machine.Name, r.machineScope.providerSpec.Workspace.VMGroup)
+
+			if err := modifyVMGroup(r.machineScope, false); err != nil {
+				var taskError task.Error
+				if errors.As(err, &taskError) {
+					return fmt.Errorf("could not update VM Group membership: %w", taskError)
+				}
+
+				return fmt.Errorf("could not update VM Group membership: %w", err)
+			}
+		}
+
 		klog.Infof("Powering on cloned machine: %v", r.machine.Name)
 		task, err := powerOn(r.machineScope)
 		if err != nil {
@@ -492,6 +513,13 @@ func (r *Reconciler) delete() error {
 			Reason:    "Destroy finished with error",
 		})
 		return fmt.Errorf("%v: failed to destroy vm: %w", r.machine.GetName(), err)
+	}
+
+	if r.machineScope.providerSpec.Workspace.VMGroup != "" {
+		klog.Infof("Removing machine: %v from vm group: %v", r.machine.Name, r.machineScope.providerSpec.Workspace.VMGroup)
+		if err := modifyVMGroup(r.machineScope, true); err != nil {
+			return fmt.Errorf("failed to remove machine from vm group: %w", err)
+		}
 	}
 
 	if err := setProviderStatus(task.Reference().Value, conditionSuccess(), r.machineScope, vm); err != nil {
@@ -1034,6 +1062,86 @@ func clone(s *machineScope) (string, error) {
 	taskVal := task.Reference().Value
 	klog.V(3).Infof("%v: running task: %+v", s.machine.GetName(), taskVal)
 	return taskVal, nil
+}
+
+func modifyVMGroup(s *machineScope, delete bool) error {
+	vmRef, err := findVM(s)
+	if err != nil {
+		if isNotFound(err) {
+			return fmt.Errorf("virtual machine %s was not found: %w", s.machine.Name, err)
+		}
+		return fmt.Errorf("error finding virtual machine: %w", err)
+	}
+
+	rp, err := s.session.Finder.ResourcePool(s.Context, s.providerSpec.Workspace.ResourcePool)
+	if err != nil {
+		return fmt.Errorf("error getting resource pool %s: %w", s.providerSpec.Workspace.ResourcePool, err)
+	}
+
+	ownerRef, err := rp.Owner(s.Context)
+	if err != nil {
+		return fmt.Errorf("error getting cluster owner reference from resource pool %s: %w", s.providerSpec.Workspace.ResourcePool, err)
+	}
+
+	var ccr *object.ClusterComputeResource
+	var ok bool
+	if ccr, ok = ownerRef.(*object.ClusterComputeResource); !ok {
+		return fmt.Errorf("error getting cluster from resource pool %s: %w", s.providerSpec.Workspace.ResourcePool, err)
+	}
+
+	clusterConfig, err := ccr.Configuration(s.Context)
+	if err != nil {
+		return fmt.Errorf("error getting cluster %s configuration: %w", s.providerSpec.Workspace.ResourcePool, err)
+	}
+
+	var clusterVmGroup *types.ClusterVmGroup
+
+	for _, g := range clusterConfig.Group {
+		if vmg, ok := g.(*types.ClusterVmGroup); ok {
+			if vmg.Name == s.providerSpec.Workspace.VMGroup {
+				clusterVmGroup = vmg
+				break
+			}
+		}
+	}
+
+	switch {
+	case clusterVmGroup == nil:
+		clusterVmGroup = &types.ClusterVmGroup{
+			Vm: []types.ManagedObjectReference{vmRef},
+		}
+	case slices.Contains(clusterVmGroup.Vm, vmRef) && delete:
+		clusterVmGroup.Vm = slices.DeleteFunc(clusterVmGroup.Vm, func(ref types.ManagedObjectReference) bool {
+			return vmRef.Value == ref.Value
+		})
+	case !slices.Contains(clusterVmGroup.Vm, vmRef):
+		clusterVmGroup.Vm = append(clusterVmGroup.Vm, vmRef)
+	default:
+		return nil
+	}
+
+	clusterConfigSpec := &types.ClusterConfigSpecEx{
+		GroupSpec: []types.ClusterGroupSpec{
+			{
+				ArrayUpdateSpec: types.ArrayUpdateSpec{
+					Operation: types.ArrayUpdateOperation("edit"),
+				},
+				Info: &types.ClusterVmGroup{
+					ClusterGroupInfo: types.ClusterGroupInfo{
+						Name: s.providerSpec.Workspace.VMGroup,
+					},
+					Vm: clusterVmGroup.Vm,
+				},
+			},
+		},
+	}
+
+	clusterTask, err := ccr.Reconfigure(s.Context, clusterConfigSpec, true)
+	if err != nil {
+		return fmt.Errorf("error reconfiguring cluster %s for vm-host group %s: %w", ccr.Name(), clusterVmGroup.Name, err)
+	}
+
+	return clusterTask.Wait(s.Context)
 }
 
 func powerOn(s *machineScope) (string, error) {

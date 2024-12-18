@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path"
 	"reflect"
 	"strings"
 	"testing"
@@ -47,10 +48,11 @@ import (
 	"github.com/openshift/api/features"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 
+	ipamv1beta1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
+
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
 	testutils "github.com/openshift/machine-api-operator/pkg/util/testing"
-	ipamv1beta1 "sigs.k8s.io/cluster-api/exp/ipam/api/v1beta1"
 
 	_ "github.com/vmware/govmomi/vapi/simulator"
 )
@@ -547,6 +549,37 @@ func TestClone(t *testing.T) {
 			})
 		}
 	})
+}
+
+// https://github.com/openshift/installer/tree/master/pkg/infrastructure/vsphere/clusterapi/ (group.go)
+
+func createVMGroup(ctx context.Context, session *session.Session, cluster, vmGroup string) error {
+	clusterObj, err := session.Finder.ClusterComputeResource(ctx, cluster)
+	if err != nil {
+		return err
+	}
+
+	clusterConfigSpec := &types.ClusterConfigSpecEx{
+		GroupSpec: []types.ClusterGroupSpec{
+			{
+				ArrayUpdateSpec: types.ArrayUpdateSpec{
+					Operation: types.ArrayUpdateOperation("add"),
+				},
+				Info: &types.ClusterVmGroup{
+					ClusterGroupInfo: types.ClusterGroupInfo{
+						Name: vmGroup,
+					},
+				},
+			},
+		},
+	}
+
+	task, err := clusterObj.Reconfigure(ctx, clusterConfigSpec, true)
+	if err != nil {
+		return fmt.Errorf("error reconfiguring simulator cluster object: %w", err)
+	}
+
+	return task.Wait(ctx)
 }
 
 func TestPowerOn(t *testing.T) {
@@ -2278,11 +2311,24 @@ func TestCreate(t *testing.T) {
 	credentialsSecretUsername := fmt.Sprintf("%s.username", host)
 	credentialsSecretPassword := fmt.Sprintf("%s.password", host)
 	password, _ := server.URL.User.Password()
+	vmGroup := "testVMGroupName"
 	vmName := "testName"
 	namespace := "test"
 	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
 	vm.Name = vmName
 	vm.Config.Version = minimumHWVersionString
+
+	ctx := context.Background()
+	ccrObj, err := session.Finder.ClusterComputeResourceOrDefault(ctx, "/...")
+	if err != nil {
+		t.Fatalf("error finding simulator cluster object: %v", err)
+	}
+
+	resourcePoolInventoryPath := path.Join(ccrObj.InventoryPath, "Resources")
+
+	if err := createVMGroup(ctx, session, ccrObj.Name(), vmGroup); err != nil {
+		t.Fatalf("error creating a vmgroup in the simulator: %v", err)
+	}
 
 	credentialsSecretName := "test"
 	credentialsSecret := &corev1.Secret{
@@ -2423,15 +2469,15 @@ func TestCreate(t *testing.T) {
 	}
 
 	cases := []struct {
-		name                       string
-		machineName                string
-		expectedError              error
-		providerSpec               machinev1.VSphereMachineProviderSpec
-		labels                     map[string]string
-		notConnectedToVCenter      bool
-		staticIPFeatureGateEnabled bool
-		ipAddressClaim             *ipamv1beta1.IPAddressClaim
-		ipAddress                  *ipamv1beta1.IPAddress
+		name                  string
+		machineName           string
+		expectedError         error
+		providerSpec          machinev1.VSphereMachineProviderSpec
+		labels                map[string]string
+		notConnectedToVCenter bool
+		ipAddressClaim        *ipamv1beta1.IPAddressClaim
+		ipAddress             *ipamv1beta1.IPAddress
+		featureGatesEnabled   map[string]bool
 	}{
 		{
 			name:        "Successfully create machine",
@@ -2449,6 +2495,80 @@ func TestCreate(t *testing.T) {
 					Name: userDataSecretName,
 				},
 			},
+		},
+		{
+			name:        "Successfully create machine and assign to vm-host group virtual machine",
+			machineName: "test-vmgroup-1",
+			providerSpec: machinev1.VSphereMachineProviderSpec{
+				Template: vmName,
+				Workspace: &machinev1.Workspace{
+					Server:       host,
+					VMGroup:      vmGroup,
+					ResourcePool: resourcePoolInventoryPath,
+				},
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: "test",
+				},
+				DiskGiB: 10,
+				UserDataSecret: &corev1.LocalObjectReference{
+					Name: userDataSecretName,
+				},
+			},
+			featureGatesEnabled: func() map[string]bool {
+				fg := make(map[string]bool)
+				fg[string(features.FeatureGateVSphereHostVMGroupZonal)] = true
+				return fg
+			}(),
+		},
+		{
+			name:        "fail to create machine with vm-host group when feature gate is not enabled",
+			machineName: "test-vmgroup-2",
+			providerSpec: machinev1.VSphereMachineProviderSpec{
+				Template: vmName,
+				Workspace: &machinev1.Workspace{
+					Server:       host,
+					VMGroup:      vmGroup,
+					ResourcePool: resourcePoolInventoryPath,
+				},
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: "test",
+				},
+				DiskGiB: 10,
+				UserDataSecret: &corev1.LocalObjectReference{
+					Name: userDataSecretName,
+				},
+			},
+			featureGatesEnabled: func() map[string]bool {
+				fg := make(map[string]bool)
+				fg[string(features.FeatureGateVSphereHostVMGroupZonal)] = false
+				return fg
+			}(),
+			expectedError: errors.New("test-vmgroup-2: vmGroup is only available with the VSphereHostVMGroupZonal feature gate"),
+		},
+		{
+			name:        "fail to create machine with vm-host group when wrong vmGroup is provided",
+			machineName: "test-vmgroup-3",
+			providerSpec: machinev1.VSphereMachineProviderSpec{
+				Template: vmName,
+				Workspace: &machinev1.Workspace{
+					Server:       host,
+					VMGroup:      "thisgroupdoesnotexist",
+					ResourcePool: resourcePoolInventoryPath,
+				},
+				CredentialsSecret: &corev1.LocalObjectReference{
+					Name: "test",
+				},
+				DiskGiB: 10,
+				UserDataSecret: &corev1.LocalObjectReference{
+					Name: userDataSecretName,
+				},
+			},
+			featureGatesEnabled: func() map[string]bool {
+				fg := make(map[string]bool)
+				fg[string(features.FeatureGateVSphereHostVMGroupZonal)] = true
+				return fg
+			}(),
+			expectedError: errors.New("could not update VM Group membership: *types.InvalidArgument"),
 		},
 		{
 			name:        "Fail to create machine with static IP when tech preview not enabled",
@@ -2469,6 +2589,11 @@ func TestCreate(t *testing.T) {
 					Devices: staticIpAddressClaim,
 				},
 			},
+			featureGatesEnabled: func() map[string]bool {
+				fg := make(map[string]bool)
+				fg[string(features.FeatureGateVSphereStaticIPs)] = false
+				return fg
+			}(),
 			expectedError: errors.New("test-2: static IP/IPAM configuration is only available with the VSphereStaticIPs feature gate"),
 		},
 		{
@@ -2490,9 +2615,8 @@ func TestCreate(t *testing.T) {
 					Devices: staticIpAddressClaimTest3,
 				},
 			},
-			staticIPFeatureGateEnabled: true,
-			ipAddressClaim:             ipAddressClaimTest3,
-			ipAddress:                  ipAddress,
+			ipAddressClaim: ipAddressClaimTest3,
+			ipAddress:      ipAddress,
 		},
 		{
 			name:        "Successfully create machine with static IP addresses when tech preview enabled",
@@ -2513,7 +2637,6 @@ func TestCreate(t *testing.T) {
 					Devices: staticIpAddresses,
 				},
 			},
-			staticIPFeatureGateEnabled: true,
 		},
 		{
 			name:        "Failed to create machine with static IP address claim when tech preview enabled due to waiting for IP",
@@ -2534,9 +2657,8 @@ func TestCreate(t *testing.T) {
 					Devices: staticIpAddressClaim,
 				},
 			},
-			staticIPFeatureGateEnabled: true,
-			ipAddressClaim:             ipAddressClaimNoAddress,
-			expectedError:              errors.New("error getting addresses from IP pool: error retrieving bound IP address: no IPAddress is bound to claim test-5-claim-0-0"),
+			ipAddressClaim: ipAddressClaimNoAddress,
+			expectedError:  errors.New("error getting addresses from IP pool: error retrieving bound IP address: no IPAddress is bound to claim test-5-claim-0-0"),
 		},
 		{
 			name:        "Fail on invalid missing machine label",
@@ -2625,8 +2747,10 @@ func TestCreate(t *testing.T) {
 				t.Errorf("Unexpected error setting up feature gates: %v", err)
 			}
 
-			if err := gates.Set(fmt.Sprintf("%v=%v", features.FeatureGateVSphereStaticIPs, tc.staticIPFeatureGateEnabled)); err != nil {
-				t.Errorf("Unexpected error setting static IP feature gates: %v", err)
+			if len(tc.featureGatesEnabled) != 0 {
+				if err := gates.SetFromMap(tc.featureGatesEnabled); err != nil {
+					t.Errorf("Unexpected error setting feature gates via map: %v", err)
+				}
 			}
 
 			machineScope, err := newMachineScope(machineScopeParams{
@@ -2644,6 +2768,18 @@ func TestCreate(t *testing.T) {
 			reconciler := newReconciler(machineScope)
 
 			err = reconciler.create()
+
+			// While debugging the execution of TestCreate it does not
+			// get through to powerOn. For vm-host zonal testing
+			// we wait for the task to complete and rerun create()
+			// which powers on the guest and runs modifyVMGroup.
+			// This should only be executed if there is no reconciler error
+			if err == nil && tc.providerSpec.Workspace.VMGroup != "" {
+				if err := waitForTaskToComplete(session, reconciler); err != nil {
+					t.Fatalf("error waiting for simulator task to complete: %v", err)
+				}
+				err = reconciler.create()
+			}
 
 			if tc.expectedError != nil {
 				if err == nil {
@@ -2676,19 +2812,26 @@ func TestCreate(t *testing.T) {
 
 				// The create task above runs asynchronously so we must wait on it here to prevent early teardown
 				// of vCenter simulator.
-				task, err := session.GetTask(context.TODO(), reconciler.providerStatus.TaskRef)
-				if err != nil {
-					t.Fatal(err)
-				}
-
-				taskObj := object.NewTask(session.Client.Client, task.Reference())
-				err = taskObj.Wait(context.TODO())
-				if err != nil {
+				if err := waitForTaskToComplete(session, reconciler); err != nil {
 					t.Fatal(err)
 				}
 			}
 		})
 	}
+}
+
+func waitForTaskToComplete(session *session.Session, reconciler *Reconciler) error {
+	task, err := session.GetTask(context.TODO(), reconciler.providerStatus.TaskRef)
+	if err != nil {
+		return err
+	}
+
+	taskObj := object.NewTask(session.Client.Client, task.Reference())
+	err = taskObj.Wait(context.TODO())
+	if err != nil {
+		return fmt.Errorf("error waiting for task to complete: %w", err)
+	}
+	return nil
 }
 
 func TestUpdate(t *testing.T) {

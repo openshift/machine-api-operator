@@ -6,8 +6,6 @@ import (
 
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 
-	openshiftfeatures "github.com/openshift/api/features"
-	"github.com/openshift/library-go/pkg/features"
 	corev1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -17,6 +15,9 @@ import (
 	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/component-base/featuregate"
 	"k8s.io/utils/ptr"
+
+	openshiftfeatures "github.com/openshift/api/features"
+	"github.com/openshift/library-go/pkg/features"
 )
 
 const (
@@ -178,13 +179,20 @@ func NewMachineHealthCheck(name string) *machinev1.MachineHealthCheck {
 
 func NewDefaultMutableFeatureGate() (featuregate.MutableFeatureGate, error) {
 	defaultMutableGate := feature.DefaultMutableFeatureGate
-	_, err := features.NewFeatureGateOptions(defaultMutableGate, openshiftfeatures.SelfManaged, openshiftfeatures.FeatureGateMachineAPIMigration, openshiftfeatures.FeatureGateVSphereStaticIPs)
+	_, err := features.NewFeatureGateOptions(defaultMutableGate,
+		openshiftfeatures.SelfManaged,
+		openshiftfeatures.FeatureGateMachineAPIMigration,
+		openshiftfeatures.FeatureGateVSphereStaticIPs,
+		openshiftfeatures.FeatureGateVSphereHostVMGroupZonal)
 	if err != nil {
 		return nil, fmt.Errorf("failed to set up default feature gate: %w", err)
 	}
-
-	err = defaultMutableGate.SetFromMap(map[string]bool{"MachineAPIMigration": true})
-	if err != nil {
+	if err := defaultMutableGate.SetFromMap(
+		map[string]bool{
+			"MachineAPIMigration": true,
+			"VSphereStaticIPs":    true,
+		},
+	); err != nil {
 		return nil, fmt.Errorf("failed to set features from map: %w", err)
 	}
 

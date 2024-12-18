@@ -9,12 +9,6 @@ import (
 	"os"
 	"strconv"
 
-	osconfigv1 "github.com/openshift/api/config/v1"
-	"github.com/openshift/library-go/pkg/operator/events"
-	"github.com/openshift/machine-api-operator/pkg/metrics"
-	"github.com/openshift/machine-api-operator/pkg/operator"
-	"github.com/openshift/machine-api-operator/pkg/util"
-	"github.com/openshift/machine-api-operator/pkg/version"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
@@ -27,6 +21,14 @@ import (
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/clock"
+
+	osconfigv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/library-go/pkg/operator/events"
+	"github.com/openshift/machine-api-operator/pkg/metrics"
+	"github.com/openshift/machine-api-operator/pkg/operator"
+	"github.com/openshift/machine-api-operator/pkg/util"
+	"github.com/openshift/machine-api-operator/pkg/version"
 )
 
 const (
@@ -137,7 +139,7 @@ func initRecorder(kubeClient kubernetes.Interface) (events.Recorder, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create controller ref for recorder: %v", err)
 	}
-	recorder := events.NewKubeRecorder(kubeClient.CoreV1().Events(componentNamespace), "machineapioperator", controllerRef)
+	recorder := events.NewKubeRecorder(kubeClient.CoreV1().Events(componentNamespace), "machineapioperator", controllerRef, clock.RealClock{})
 	return recorder, nil
 }
 
