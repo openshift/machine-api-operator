@@ -732,8 +732,30 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 		)
 	}
 
+	if providerSpec.Subnet.ARN != nil {
+		warnings = append(
+			warnings,
+			"can't use providerSpec.subnet.arn, only providerSpec.subnet.id or providerSpec.subnet.filters can be used to reference Subnet",
+		)
+	}
+
 	if providerSpec.IAMInstanceProfile == nil {
 		warnings = append(warnings, "providerSpec.iamInstanceProfile: no IAM instance profile provided: nodes may be unable to join the cluster")
+	} else {
+
+		if providerSpec.IAMInstanceProfile.ARN != nil {
+			warnings = append(
+				warnings,
+				"can't use providerSpec.iamInstanceProfile.arn, only providerSpec.iamInstanceProfile.id can be used to reference IAMInstanceProfile",
+			)
+		}
+
+		if providerSpec.IAMInstanceProfile.Filters != nil {
+			warnings = append(
+				warnings,
+				"can't use providerSpec.iamInstanceProfile.filters, only providerSpec.iamInstanceProfile.id can be used to reference IAMInstanceProfile",
+			)
+		}
 	}
 
 	if providerSpec.CapacityReservationID != "" {
