@@ -4,7 +4,13 @@ linters-settings:
       type: "module"
       description: KAL is the Kube-API-Linter and lints Kube like APIs based on API conventions and best practices.
       settings:
-        linters: {}
+        linters:
+          enable:
+          - "nobools"
+        lintersConfig:
+          conditions:
+            isFirstField: Warn
+            useProtobuf: Ignore
 linters:
   disable-all: true
   enable:

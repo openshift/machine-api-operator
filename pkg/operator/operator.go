@@ -478,6 +478,7 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 		string(apifeatures.FeatureGateVSphereStaticIPs):      featureGates.Enabled(apifeatures.FeatureGateVSphereStaticIPs),
 		string(apifeatures.FeatureGateGCPLabelsTags):         featureGates.Enabled(apifeatures.FeatureGateGCPLabelsTags),
 		string(apifeatures.FeatureGateAzureWorkloadIdentity): featureGates.Enabled(apifeatures.FeatureGateAzureWorkloadIdentity),
+		string(apifeatures.FeatureGateVSphereMultiDisk):      featureGates.Enabled(apifeatures.FeatureGateVSphereMultiDisk),
 	}
 	if features[string(apifeatures.FeatureGateMachineAPIMigration)] {
 		klog.V(2).Info("Enabling MachineAPIMigration for provider controller and machinesets")

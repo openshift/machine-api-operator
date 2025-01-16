@@ -45,6 +45,7 @@ var (
 		{Name: apifeatures.FeatureGateVSphereStaticIPs},
 		{Name: apifeatures.FeatureGateGCPLabelsTags},
 		{Name: apifeatures.FeatureGateAzureWorkloadIdentity},
+		{Name: apifeatures.FeatureGateVSphereMultiDisk},
 	}
 
 	enabledFeatureMap = map[string]bool{
@@ -52,6 +53,7 @@ var (
 		"GCPLabelsTags":         true,
 		"AzureWorkloadIdentity": true,
 		"VSphereStaticIPs":      true,
+		"VSphereMultiDisk":      true,
 	}
 )
 

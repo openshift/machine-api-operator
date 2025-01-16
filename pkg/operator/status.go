@@ -13,6 +13,7 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/clock"
 )
 
 // StatusReason is a MixedCaps string representing the reason for a
@@ -148,7 +149,7 @@ func newClusterOperatorStatusCondition(conditionType osconfigv1.ClusterStatusCon
 // syncStatus applies the new condition to the mao ClusterOperator object.
 func (optr *Operator) syncStatus(co *osconfigv1.ClusterOperator, conds []osconfigv1.ClusterOperatorStatusCondition) error {
 	for _, c := range conds {
-		v1helpers.SetStatusCondition(&co.Status.Conditions, c)
+		v1helpers.SetStatusCondition(&co.Status.Conditions, c, clock.RealClock{})
 	}
 	if co.Annotations == nil {
 		co.Annotations = map[string]string{}
@@ -273,7 +274,7 @@ func (optr *Operator) setMissingStatusConditions(co *osconfigv1.ClusterOperator)
 
 	for _, c := range optr.defaultStatusConditions() {
 		if v1helpers.FindStatusCondition(co.Status.Conditions, c.Type) == nil {
-			v1helpers.SetStatusCondition(&co.Status.Conditions, c)
+			v1helpers.SetStatusCondition(&co.Status.Conditions, c, clock.RealClock{})
 			modified = true
 		}
 	}

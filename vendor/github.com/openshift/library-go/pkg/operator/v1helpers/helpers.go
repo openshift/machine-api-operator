@@ -352,6 +352,10 @@ func NewMultiLineAggregate(errList []error) error {
 	if len(errs) == 0 {
 		return nil
 	}
+	// We sort errors to allow for consistent output for testing.
+	sort.SliceStable(errs, func(i, j int) bool {
+		return errs[i].Error() < errs[j].Error()
+	})
 	return aggregate(errs)
 }
 

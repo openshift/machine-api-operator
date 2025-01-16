@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"net"
 	"net/netip"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -50,6 +51,10 @@ const (
 	regionKey             = "region"
 	zoneKey               = "zone"
 	minimumHWVersion      = 15
+	// maxUnitNumber constant is used to define the maximum number of devices that can be assigned to a virtual machine's controller.
+	// Not all controllers support up to 30, but the maximum is 30.
+	// xref: https://docs.vmware.com/en/VMware-vSphere/8.0/vsphere-vm-administration/GUID-5872D173-A076-42FE-8D0B-9DB0EB0E7362.html#:~:text=If%20you%20add%20a%20hard,values%20from%200%20to%2014.
+	maxUnitNumber = 30
 )
 
 // These are the guestinfo variables used by Ignition.
@@ -479,9 +484,12 @@ func (r *Reconciler) delete() error {
 	if err != nil {
 		return fmt.Errorf("%v: can not obtain virtual disks attached to the vm: %w", r.machine.GetName(), err)
 	}
-	// Currently, MAPI does not provide any API knobs to configure additional volumes for a VM.
-	// So, we are expecting the VM to have only one disk, which is OS disk.
-	if len(disks) > 1 {
+
+	additionalDisks := len(r.providerSpec.DataDisks)
+	// Currently, MAPI only allows VMs to be configured w/ 1 primary disk in the template and a limited number of additional
+	// disks via the data disks configuration.  So, we are expecting the VM to have only one disk, which is OS disk, plus
+	// the additional disks defined in the DataDisks configuration.
+	if len(disks) > 1+additionalDisks {
 		// If node drain was skipped we need to detach disks forcefully to prevent possible data corruption.
 		if drainSkipped {
 			klog.V(1).Infof(
@@ -996,6 +1004,13 @@ func clone(s *machineScope) (string, error) {
 		deviceSpecs = append(deviceSpecs, diskSpec)
 	}
 
+	// Process all DataDisks definitions to dynamically create and add disks to the VM
+	additionalDisks, err := createDataDisks(s, devices)
+	if err != nil {
+		return "", fmt.Errorf("error getting additional disk specs: %w", err)
+	}
+	deviceSpecs = append(deviceSpecs, additionalDisks...)
+
 	klog.V(3).Infof("Getting network devices")
 	networkDevices, err := getNetworkDevices(s, resourcepool, devices)
 	if err != nil {
@@ -1194,6 +1209,122 @@ func getDiskSpec(s *machineScope, devices object.VirtualDeviceList) (types.BaseV
 		Operation: types.VirtualDeviceConfigSpecOperationEdit,
 		Device:    disk,
 	}, nil
+}
+
+func createDataDisks(s *machineScope, devices object.VirtualDeviceList) ([]types.BaseVirtualDeviceConfigSpec, error) {
+	var diskSpecs []types.BaseVirtualDeviceConfigSpec
+
+	// Only add additional disks if the feature gate is enabled.
+	if len(s.providerSpec.DataDisks) > 0 && !s.featureGates.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereMultiDisk)) {
+		return nil, machinecontroller.InvalidMachineConfiguration(
+			"machines cannot contain additional disks due to VSphereMultiDisk feature gate being disabled")
+	}
+
+	// Get primary disk
+	disks := devices.SelectByType((*types.VirtualDisk)(nil))
+	if len(disks) == 0 {
+		return nil, fmt.Errorf("invalid disk count: %d", len(disks))
+	}
+
+	// There is at least one disk
+	primaryDisk := disks[0].(*types.VirtualDisk)
+
+	// Get the controller of the primary disk.
+	controller, ok := devices.FindByKey(primaryDisk.ControllerKey).(types.BaseVirtualController)
+	if !ok {
+		return nil, fmt.Errorf("unable to find controller with key=%v", primaryDisk.ControllerKey)
+	}
+
+	controllerKey := controller.GetVirtualController().Key
+	unitNumberAssigner, err := newUnitNumberAssigner(controller, devices)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create unit number assigner: %v", err)
+	}
+
+	// Let's create the data disks now
+	for i, dataDisk := range s.providerSpec.DataDisks {
+		klog.V(2).InfoS("Adding disk", "name", dataDisk.Name, "spec", dataDisk)
+
+		dev := &types.VirtualDisk{
+			VirtualDevice: types.VirtualDevice{
+				// Key needs to be unique and cannot match another new disk being added.  So we'll use the index as an
+				// input to NewKey.  NewKey() will always return same value since our new devices are not part of devices yet.
+				Key: devices.NewKey() - int32(i),
+				Backing: &types.VirtualDiskFlatVer2BackingInfo{
+					DiskMode:        string(types.VirtualDiskModePersistent),
+					ThinProvisioned: types.NewBool(true),
+					VirtualDeviceFileBackingInfo: types.VirtualDeviceFileBackingInfo{
+						FileName: "",
+					},
+				},
+				ControllerKey: controller.GetVirtualController().Key,
+			},
+			CapacityInKB: int64(dataDisk.SizeGiB) * 1024 * 1024,
+		}
+
+		vd := dev.GetVirtualDevice()
+		vd.ControllerKey = controllerKey
+
+		// Assign unit number to the new disk.  Should be next available slot on the controller.
+		unitNumber, err := unitNumberAssigner.assign()
+		if err != nil {
+			return nil, err
+		}
+		vd.UnitNumber = &unitNumber
+
+		klog.V(2).InfoS("Created device for data disk device", "name", dataDisk.Name, "spec", dataDisk, "device", dev)
+		diskSpecs = append(diskSpecs, &types.VirtualDeviceConfigSpec{
+			Device:        dev,
+			Operation:     types.VirtualDeviceConfigSpecOperationAdd,
+			FileOperation: types.VirtualDeviceConfigSpecFileOperationCreate,
+		})
+	}
+
+	return diskSpecs, nil
+}
+
+type unitNumberAssigner struct {
+	used   []bool
+	offset int32
+}
+
+func newUnitNumberAssigner(controller types.BaseVirtualController, existingDevices object.VirtualDeviceList) (*unitNumberAssigner, error) {
+	if controller == nil {
+		return nil, errors.New("controller parameter cannot be nil")
+	}
+	used := make([]bool, maxUnitNumber)
+
+	// SCSIControllers also use a unit.
+	if scsiController, ok := controller.(types.BaseVirtualSCSIController); ok {
+		used[scsiController.GetVirtualSCSIController().ScsiCtlrUnitNumber] = true
+	}
+	controllerKey := controller.GetVirtualController().Key
+
+	// Mark all unit numbers of existing devices as used
+	for _, device := range existingDevices {
+		d := device.GetVirtualDevice()
+		if d.ControllerKey == controllerKey && d.UnitNumber != nil {
+			used[*d.UnitNumber] = true
+		}
+	}
+
+	// Set offset to 0, it will auto-increment on the first assignment.
+	return &unitNumberAssigner{used: used, offset: 0}, nil
+}
+
+func (a *unitNumberAssigner) assign() (int32, error) {
+	if int(a.offset) > len(a.used) {
+		return -1, fmt.Errorf("all unit numbers are already in-use")
+	}
+	for i, isInUse := range a.used[a.offset:] {
+		unit := int32(i) + a.offset
+		if !isInUse {
+			a.used[unit] = true
+			a.offset++
+			return unit, nil
+		}
+	}
+	return -1, fmt.Errorf("all unit numbers are already in-use")
 }
 
 func getNetworkDevices(s *machineScope, resourcepool *object.ResourcePool, devices object.VirtualDeviceList) ([]types.BaseVirtualDeviceConfigSpec, error) {
@@ -1628,15 +1759,16 @@ type attachedDisk struct {
 	diskMode string
 }
 
-// Filters out disks that look like vm OS disk.
+// Filters out disks that look like vm OS disk or any of the additional disks.
 // VM os disks filename contains the machine name in it
 // and has the format like "[DATASTORE] path-within-datastore/machine-name.vmdk".
 // This is based on vSphere behavior, an OS disk file gets a name that equals the target VM name during the clone operation.
 func filterOutVmOsDisk(attachedDisks []attachedDisk, machine *machinev1.Machine) []attachedDisk {
 	var disks []attachedDisk
+	regex, _ := regexp.Compile(fmt.Sprintf(".*\\/%s(_\\d*)?.vmdk", machine.GetName()))
 
 	for _, disk := range attachedDisks {
-		if strings.HasSuffix(disk.fileName, fmt.Sprintf("/%s.vmdk", machine.GetName())) {
+		if regex.MatchString(disk.fileName) {
 			continue
 		}
 		disks = append(disks, disk)
