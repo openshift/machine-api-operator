@@ -3506,7 +3506,7 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 				}
 			},
 			expectedOk:    false,
-			expectedError: "providerSpec.disks[0].type: Unsupported value: \"invalid\": supported values: \"hyperdisk-balanced\", \"pd-balanced\", \"pd-ssd\", \"pd-standard\"",
+			expectedError: "providerSpec.disks[0].type: Unsupported value: \"invalid\": supported values: \"hyperdisk-balanced\", \"hyperdisk-extreme\", \"pd-balanced\", \"pd-ssd\", \"pd-standard\"",
 		},
 		{
 			testCase: "with a disk type that is supported",
