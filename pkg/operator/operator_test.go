@@ -46,14 +46,16 @@ var (
 		{Name: apifeatures.FeatureGateGCPLabelsTags},
 		{Name: apifeatures.FeatureGateAzureWorkloadIdentity},
 		{Name: apifeatures.FeatureGateVSphereMultiDisk},
+		{Name: apifeatures.FeatureGateVSphereHostVMGroupZonal},
 	}
 
 	enabledFeatureMap = map[string]bool{
-		"MachineAPIMigration":   true,
-		"GCPLabelsTags":         true,
-		"AzureWorkloadIdentity": true,
-		"VSphereStaticIPs":      true,
-		"VSphereMultiDisk":      true,
+		"MachineAPIMigration":     true,
+		"GCPLabelsTags":           true,
+		"AzureWorkloadIdentity":   true,
+		"VSphereStaticIPs":        true,
+		"VSphereMultiDisk":        true,
+		"VSphereHostVMGroupZonal": true,
 	}
 )
 
