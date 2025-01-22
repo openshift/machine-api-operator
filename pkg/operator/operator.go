@@ -474,11 +474,12 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 	// flags, we selectively populate the map (and therefore passed
 	// as args)
 	features := map[string]bool{
-		string(apifeatures.FeatureGateMachineAPIMigration):   featureGates.Enabled(apifeatures.FeatureGateMachineAPIMigration),
-		string(apifeatures.FeatureGateVSphereStaticIPs):      featureGates.Enabled(apifeatures.FeatureGateVSphereStaticIPs),
-		string(apifeatures.FeatureGateGCPLabelsTags):         featureGates.Enabled(apifeatures.FeatureGateGCPLabelsTags),
-		string(apifeatures.FeatureGateAzureWorkloadIdentity): featureGates.Enabled(apifeatures.FeatureGateAzureWorkloadIdentity),
-		string(apifeatures.FeatureGateVSphereMultiDisk):      featureGates.Enabled(apifeatures.FeatureGateVSphereMultiDisk),
+		string(apifeatures.FeatureGateMachineAPIMigration):     featureGates.Enabled(apifeatures.FeatureGateMachineAPIMigration),
+		string(apifeatures.FeatureGateVSphereStaticIPs):        featureGates.Enabled(apifeatures.FeatureGateVSphereStaticIPs),
+		string(apifeatures.FeatureGateGCPLabelsTags):           featureGates.Enabled(apifeatures.FeatureGateGCPLabelsTags),
+		string(apifeatures.FeatureGateAzureWorkloadIdentity):   featureGates.Enabled(apifeatures.FeatureGateAzureWorkloadIdentity),
+		string(apifeatures.FeatureGateVSphereMultiDisk):        featureGates.Enabled(apifeatures.FeatureGateVSphereMultiDisk),
+		string(apifeatures.FeatureGateVSphereHostVMGroupZonal): featureGates.Enabled(apifeatures.FeatureGateVSphereHostVMGroupZonal),
 	}
 	if features[string(apifeatures.FeatureGateMachineAPIMigration)] {
 		klog.V(2).Info("Enabling MachineAPIMigration for provider controller and machinesets")
