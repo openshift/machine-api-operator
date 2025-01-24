@@ -171,6 +171,14 @@ var (
 						enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
 						mustRegister()
 
+	FeatureGateSigstoreImageVerificationPKI = newFeatureGate("SigstoreImageVerificationPKI").
+						reportProblemsToJiraComponent("node").
+						contactPerson("QiWang").
+						productScope(ocpSpecific).
+						enhancementPR("https://github.com/openshift/enhancements/pull/1658").
+						enableIn(configv1.DevPreviewNoUpgrade).
+						mustRegister()
+
 	FeatureGateGCPLabelsTags = newFeatureGate("GCPLabelsTags").
 					reportProblemsToJiraComponent("Installer").
 					contactPerson("bhb").
@@ -522,6 +530,14 @@ var (
 				enableForClusterProfile(SelfManaged, configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade, configv1.Default).
 				mustRegister()
 
+	FeatureGateNewOLMCatalogdAPIV1Metas = newFeatureGate("NewOLMCatalogdAPIV1Metas").
+						reportProblemsToJiraComponent("olm").
+						contactPerson("jordank").
+						productScope(ocpSpecific).
+						enhancementPR("https://github.com/openshift/enhancements/pull/1749").
+						enableForClusterProfile(SelfManaged, configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
+						mustRegister()
+
 	FeatureGateInsightsOnDemandDataGather = newFeatureGate("InsightsOnDemandDataGather").
 						reportProblemsToJiraComponent("insights").
 						contactPerson("tremes").
@@ -724,8 +740,11 @@ var (
 						contactPerson("eggfoobar").
 						productScope(ocpSpecific).
 						enhancementPR("https://github.com/openshift/enhancements/pull/1674").
-						enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
-						mustRegister()
+		// TODO: Do not go GA until jira issue is resolved: https://issues.redhat.com/browse/OCPEDGE-1637
+		// Annotations must correctly handle either DualReplica or HighlyAvailableArbiter going GA with
+		// the other still in TechPreview.
+		enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
+		mustRegister()
 
 	FeatureGateCVOConfiguration = newFeatureGate("ClusterVersionOperatorConfiguration").
 					reportProblemsToJiraComponent("Cluster Version Operator").
@@ -734,4 +753,47 @@ var (
 					enhancementPR("https://github.com/openshift/enhancements/pull/1492").
 					enableIn(configv1.DevPreviewNoUpgrade).
 					mustRegister()
+
+	FeatureGateGCPCustomAPIEndpoints = newFeatureGate("GCPCustomAPIEndpoints").
+						reportProblemsToJiraComponent("Installer").
+						contactPerson("barbacbd").
+						productScope(ocpSpecific).
+						enhancementPR("https://github.com/openshift/enhancements/pull/1492").
+						enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
+						mustRegister()
+
+	FeatureGateDyanmicServiceEndpointIBMCloud = newFeatureGate("DyanmicServiceEndpointIBMCloud").
+							reportProblemsToJiraComponent("Cloud Compute / IBM Provider").
+							contactPerson("jared-hayes-dev").
+							productScope(ocpSpecific).
+							enhancementPR("https://github.com/openshift/enhancements/pull/1712").
+							enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
+							mustRegister()
+
+	FeatureGateSELinuxChangePolicy = newFeatureGate("SELinuxChangePolicy").
+					reportProblemsToJiraComponent("Storage / Kubernetes").
+					contactPerson("jsafrane").
+					productScope(kubernetes).
+					enhancementPR("https://github.com/kubernetes/enhancements/issues/1710").
+					enableIn(configv1.DevPreviewNoUpgrade).
+					mustRegister()
+
+	FeatureGateSELinuxMount = newFeatureGate("SELinuxMount").
+				reportProblemsToJiraComponent("Storage / Kubernetes").
+				contactPerson("jsafrane").
+				productScope(kubernetes).
+				enhancementPR("https://github.com/kubernetes/enhancements/issues/1710").
+				enableIn(configv1.DevPreviewNoUpgrade).
+				mustRegister()
+
+	FeatureGateDualReplica = newFeatureGate("DualReplica").
+				reportProblemsToJiraComponent("Two Node Fencing").
+				contactPerson("jaypoulz").
+				productScope(ocpSpecific).
+				enhancementPR("https://github.com/openshift/enhancements/pull/1675").
+		// TODO: Do not go GA until jira issue is resolved: https://issues.redhat.com/browse/OCPEDGE-1637
+		// Annotations must correctly handle either DualReplica or HighlyAvailableArbiter going GA with
+		// the other still in TechPreview.
+		enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
+		mustRegister()
 )
