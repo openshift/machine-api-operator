@@ -225,7 +225,7 @@ const (
 
 // GCP Confidential VM supports Compute Engine machine types in the following series:
 // reference: https://cloud.google.com/compute/confidential-vm/docs/os-and-machine-type#machine-type
-var gcpConfidentialComputeSupportedMachineSeries = []string{"n2d", "c2d"}
+var gcpConfidentialComputeSupportedMachineSeries = []string{"n2d", "c2d", "c3d"}
 
 // defaultInstanceTypeForCloudProvider returns the default instance type for the given cloud provider and architecture.
 // If the cloud provider is not supported, an empty string is returned.
