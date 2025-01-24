@@ -50,6 +50,8 @@ github.com/ashanbrown/makezero v1.1.1 h1:iCQ87C0V0vSyO+M9E/FZYbu65auqH0lnsOkf5Fc
 github.com/ashanbrown/makezero v1.1.1/go.mod h1:i1bJLCRSCHOcOa9Y6MyF2FTfMZMFdHvxKHxgO5Z1axI=
 github.com/beorn7/perks v1.0.1 h1:VlbKKnNfV8bJzeqoa4cOKqO6bYr3WgKZxO8Z16+hsOM=
 github.com/beorn7/perks v1.0.1/go.mod h1:G2ZrVWU2WbWT9wwq4/hrbKbnv/1ERSJQ0ibhJ6rlkpw=
+github.com/bgartzi/api v0.0.0-20250127151915-232b41e08bd4 h1:E5GhHpwEMytT+S6Waj0OYdfPw8HhaPOueDp7vpaV+is=
+github.com/bgartzi/api v0.0.0-20250127151915-232b41e08bd4/go.mod h1:Shkl4HanLwDiiBzakv+con/aMGnVE2MAGvoKp5oyYUo=
 github.com/bkielbasa/cyclop v1.2.1 h1:AeF71HZDob1P2/pRm1so9cd1alZnrpyc4q2uP2l0gJY=
 github.com/bkielbasa/cyclop v1.2.1/go.mod h1:K/dT/M0FPAiYjBgQGau7tz+3TMh4FWAEqlMhzFWCrgM=
 github.com/blang/semver v3.5.1+incompatible h1:cQNTCjp13qL8KC3Nbxr/y2Bqb63oX6wdnnjpJbkM4JQ=
@@ -371,8 +373,6 @@ github.com/onsi/ginkgo/v2 v2.20.2 h1:7NVCeyIWROIAheY21RLS+3j2bb52W0W82tkberYytp4
 github.com/onsi/ginkgo/v2 v2.20.2/go.mod h1:K9gyxPIlb+aIvnZ8bd9Ak+YP18w3APlR+5coaZoE2ag=
 github.com/onsi/gomega v1.34.2 h1:pNCwDkzrsv7MS9kpaQvVb1aVLahQXyJ/Tv5oAZMI3i8=
 github.com/onsi/gomega v1.34.2/go.mod h1:v1xfxRgk0KIsG+QOdm7p8UosrOzPYRo60fd3B/1Dukc=
-github.com/openshift/api v0.0.0-20250108172834-78bd56dba39b h1:Nt4V9k5pyw2CiUL2L5IFlstvURf+12Z7uSzi/v30UpE=
-github.com/openshift/api v0.0.0-20250108172834-78bd56dba39b/go.mod h1:Shkl4HanLwDiiBzakv+con/aMGnVE2MAGvoKp5oyYUo=
 github.com/openshift/client-go v0.0.0-20241203091221-452dfb8fa071 h1:l0++HnGVKBcs8kXFL/1yeozxioxPGNpp0PYe3Y+0sq4=
 github.com/openshift/client-go v0.0.0-20241203091221-452dfb8fa071/go.mod h1:gL0laCCiIaNTNw1ZsMQZXBVu2NeQFpNWm9bLtYO9+ZU=
 github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20241007145816-7038c320d36c h1:9A/0QoTZo2xh5j6nmh5CGNVBG8Ql1RmXmCcrikBnG+w=
