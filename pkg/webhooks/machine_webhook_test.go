@@ -3825,7 +3825,7 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 				p.MachineType = "e2-standard-4"
 			},
 			expectedOk:    false,
-			expectedError: "providerSpec.machineType: Invalid value: \"e2-standard-4\": ConfidentialCompute require machine type in the following series: n2d,c2d",
+			expectedError: "providerSpec.machineType: Invalid value: \"e2-standard-4\": ConfidentialCompute require machine type in the following series: n2d,c2d,c3d",
 		},
 		{
 			testCase: "with GPUs and Migrate onHostMaintenance",
