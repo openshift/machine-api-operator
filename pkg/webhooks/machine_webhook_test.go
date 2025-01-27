@@ -3773,7 +3773,74 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 				p.MachineType = "e2-standard-4"
 			},
 			expectedOk:    false,
-			expectedError: "providerSpec.machineType: Invalid value: \"e2-standard-4\": ConfidentialCompute require machine type in the following series: n2d,c2d",
+			expectedError: "providerSpec.machineType: Invalid value: \"e2-standard-4\": ConfidentialCompute require machine type in the following series: n2d,c2d,c3d",
+		},
+		{
+			testCase: "with ConfidentialCompute enabled and an invalid ConfidentialInstanceType",
+			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
+				p.ConfidentialCompute = machinev1beta1.ConfidentialComputePolicyEnabled
+				p.OnHostMaintenance = machinev1beta1.TerminateHostMaintenanceType
+				p.MachineType = "c2d-standard-4"
+				p.ConfidentialInstanceType = "foobar"
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.confidentialInstanceType: Invalid value: \"foobar\": confidentialInstanceType can be empty, sev, or sev-snp",
+		},
+		{
+			testCase: "with ConfidentialCompute enabled and a valid ConfidentialInstanceType",
+			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
+				p.ConfidentialCompute = machinev1beta1.ConfidentialComputePolicyEnabled
+				p.OnHostMaintenance = machinev1beta1.TerminateHostMaintenanceType
+				p.MachineType = "c2d-standard-4"
+				p.ConfidentialInstanceType = machinev1beta1.ConfidentialVMTechSEV
+			},
+			expectedOk:    true,
+			expectedError: "",
+		},
+		{
+			testCase: "with ConfidentialCompute disabled and a valid ConfidentialInstanceType",
+			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
+				p.ConfidentialCompute = machinev1beta1.ConfidentialComputePolicyDisabled
+				p.OnHostMaintenance = machinev1beta1.TerminateHostMaintenanceType
+				p.MachineType = "n2d-standard-4"
+				p.ConfidentialInstanceType = machinev1beta1.ConfidentialVMTechSEVSNP
+			},
+			expectedOk:    true,
+			expectedError: "",
+		},
+		{
+			testCase: "with ConfidentialCompute disabled and an invalid ConfidentialInstanceType",
+			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
+				p.ConfidentialCompute = machinev1beta1.ConfidentialComputePolicyDisabled
+				p.OnHostMaintenance = machinev1beta1.TerminateHostMaintenanceType
+				p.MachineType = "n2d-standard-4"
+				p.ConfidentialInstanceType = "foobar"
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.confidentialInstanceType: Invalid value: \"foobar\": confidentialInstanceType can be empty, sev, or sev-snp",
+		},
+		{
+			testCase: "with ConfidentialCompute disabled a valid ConfidentialInstanceType and OnHostMaintenance Migrate",
+			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
+				p.ConfidentialCompute = machinev1beta1.ConfidentialComputePolicyDisabled
+				p.OnHostMaintenance = machinev1beta1.MigrateHostMaintenanceType
+				p.MachineType = "n2d-standard-4"
+				p.ConfidentialInstanceType = machinev1beta1.ConfidentialVMTechSEVSNP
+				p.GPUs = []machinev1beta1.GCPGPUConfig{}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.onHostMaintenance: Invalid value: \"Migrate\": ConfidentialCompute require OnHostMaintenance to be set to Terminate, the current value is: Migrate",
+		},
+		{
+			testCase: "with ConfidentialCompute disabled a ConfidentialInstanceType sev_snp, and an invalid machine type",
+			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
+				p.ConfidentialCompute = machinev1beta1.ConfidentialComputePolicyDisabled
+				p.OnHostMaintenance = machinev1beta1.TerminateHostMaintenanceType
+				p.MachineType = "c2d-standard-4"
+				p.ConfidentialInstanceType = machinev1beta1.ConfidentialVMTechSEVSNP
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.machineType: Invalid value: \"c2d-standard-4\": ConfidentialCompute require machine type in the following series: n2d",
 		},
 		{
 			testCase: "with GPUs and Migrate onHostMaintenance",

@@ -216,7 +216,8 @@ const (
 
 // GCP Confidential VM supports Compute Engine machine types in the following series:
 // reference: https://cloud.google.com/compute/confidential-vm/docs/os-and-machine-type#machine-type
-var gcpConfidentialComputeSupportedMachineSeries = []string{"n2d", "c2d"}
+var gcpConfidentialTypeMachineSeriesSupportingSEV = []string{"n2d", "c2d", "c3d"}
+var gcpConfidentialTypeMachineSeriesSupportingSEVSNP = []string{"n2d"}
 
 // defaultInstanceTypeForCloudProvider returns the default instance type for the given cloud provider and architecture.
 // If the cloud provider is not supported, an empty string is returned.
@@ -1303,26 +1304,51 @@ func validateShieldedInstanceConfig(providerSpec *machinev1beta1.GCPMachineProvi
 	return errs
 }
 
+func validateGCPConfidentialMachine(errs field.ErrorList, machineType string, confidentialType machinev1beta1.ConfidentialVMTechnology, onHostMaintenance machinev1beta1.GCPHostMaintenanceType) field.ErrorList {
+	var supportedMachineSeries []string
+	// Check on host maintenance
+	if onHostMaintenance != machinev1beta1.TerminateHostMaintenanceType {
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "onHostMaintenance"),
+			onHostMaintenance,
+			fmt.Sprintf("ConfidentialCompute require OnHostMaintenance to be set to %s, the current value is: %s", machinev1beta1.TerminateHostMaintenanceType, onHostMaintenance)))
+	}
+	switch confidentialType {
+	case machinev1beta1.ConfidentialVMTechSEV:
+		supportedMachineSeries = gcpConfidentialTypeMachineSeriesSupportingSEV
+	case machinev1beta1.ConfidentialVMTechSEVSNP:
+		supportedMachineSeries = gcpConfidentialTypeMachineSeriesSupportingSEVSNP
+	default:
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "confidentialInstanceType"),
+			confidentialType,
+			fmt.Sprintf("confidentialInstanceType can be empty, %s, or %s", machinev1beta1.ConfidentialVMTechSEV, machinev1beta1.ConfidentialVMTechSEVSNP)),
+		)
+		return errs
+	}
+	// Check machine series supports confidential computing
+	machineSeries := strings.Split(machineType, "-")[0]
+	if !slices.Contains(supportedMachineSeries, machineSeries) {
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "machineType"),
+			machineType,
+			fmt.Sprintf("ConfidentialCompute require machine type in the following series: %s", strings.Join(supportedMachineSeries, `,`))),
+		)
+	}
+	return errs
+}
+
 func validateGCPConfidentialComputing(providerSpec *machinev1beta1.GCPMachineProviderSpec) field.ErrorList {
 	var errs field.ErrorList
 
 	switch providerSpec.ConfidentialCompute {
 	case machinev1beta1.ConfidentialComputePolicyEnabled:
-		// Check on host maintenance
-		if providerSpec.OnHostMaintenance != machinev1beta1.TerminateHostMaintenanceType {
-			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "onHostMaintenance"),
-				providerSpec.OnHostMaintenance,
-				fmt.Sprintf("ConfidentialCompute require OnHostMaintenance to be set to %s, the current value is: %s", machinev1beta1.TerminateHostMaintenanceType, providerSpec.OnHostMaintenance)))
-		}
-		// Check machine series supports confidential computing
-		machineSeries := strings.Split(providerSpec.MachineType, "-")[0]
-		if !slices.Contains(gcpConfidentialComputeSupportedMachineSeries, machineSeries) {
-			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "machineType"),
-				providerSpec.MachineType,
-				fmt.Sprintf("ConfidentialCompute require machine type in the following series: %s", strings.Join(gcpConfidentialComputeSupportedMachineSeries, `,`))),
-			)
+		if providerSpec.ConfidentialInstanceType == "" {
+			errs = validateGCPConfidentialMachine(errs, providerSpec.MachineType, machinev1beta1.ConfidentialVMTechSEV, providerSpec.OnHostMaintenance)
+		} else {
+			errs = validateGCPConfidentialMachine(errs, providerSpec.MachineType, providerSpec.ConfidentialInstanceType, providerSpec.OnHostMaintenance)
 		}
 	case machinev1beta1.ConfidentialComputePolicyDisabled, "":
+		if providerSpec.ConfidentialInstanceType != "" {
+			errs = validateGCPConfidentialMachine(errs, providerSpec.MachineType, providerSpec.ConfidentialInstanceType, providerSpec.OnHostMaintenance)
+		}
 	default:
 		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "confidentialCompute"),
 			providerSpec.ConfidentialCompute,
