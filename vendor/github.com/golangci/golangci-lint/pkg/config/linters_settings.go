@@ -47,6 +47,9 @@ var defaultLintersSettings = LintersSettings{
 		Sections:      []string{"standard", "default"},
 		SkipGenerated: true,
 	},
+	GoChecksumType: GoChecksumTypeSettings{
+		DefaultSignifiesExhaustive: true,
+	},
 	Gocognit: GocognitSettings{
 		MinComplexity: 30,
 	},
@@ -102,6 +105,7 @@ var defaultLintersSettings = LintersSettings{
 		Kitlog:           true,
 		Klog:             true,
 		Logr:             true,
+		Slog:             true,
 		Zap:              true,
 		RequireStringKey: false,
 		NoPrintfLike:     false,
@@ -165,7 +169,6 @@ var defaultLintersSettings = LintersSettings{
 	Unused: UnusedSettings{
 		FieldWritesAreUses:     true,
 		PostStatementsAreReads: false,
-		ExportedIsUsed:         true,
 		ExportedFieldsAreUsed:  true,
 		ParametersAreUsed:      true,
 		LocalVariablesAreUsed:  true,
@@ -174,6 +177,15 @@ var defaultLintersSettings = LintersSettings{
 	UseStdlibVars: UseStdlibVarsSettings{
 		HTTPMethod:     true,
 		HTTPStatusCode: true,
+	},
+	UseTesting: UseTestingSettings{
+		ContextBackground: true,
+		ContextTodo:       true,
+		OSChdir:           true,
+		OSMkdirTemp:       true,
+		OSSetenv:          false,
+		OSTempDir:         false,
+		OSCreateTemp:      true,
 	},
 	Varnamelen: VarnamelenSettings{
 		MaxDistance:   5,
@@ -216,6 +228,7 @@ type LintersSettings struct {
 	Gci             GciSettings
 	GinkgoLinter    GinkgoLinterSettings
 	Gocognit        GocognitSettings
+	GoChecksumType  GoChecksumTypeSettings
 	Goconst         GoConstSettings
 	Gocritic        GoCriticSettings
 	Gocyclo         GoCycloSettings
@@ -225,7 +238,6 @@ type LintersSettings struct {
 	Gofumpt         GofumptSettings
 	Goheader        GoHeaderSettings
 	Goimports       GoImportsSettings
-	Gomnd           GoMndSettings
 	GoModDirectives GoModDirectivesSettings
 	Gomodguard      GoModGuardSettings
 	Gosec           GoSecSettings
@@ -233,6 +245,7 @@ type LintersSettings struct {
 	Gosmopolitan    GosmopolitanSettings
 	Govet           GovetSettings
 	Grouper         GrouperSettings
+	Iface           IfaceSettings
 	ImportAs        ImportAsSettings
 	Inamedparam     INamedParamSettings
 	InterfaceBloat  InterfaceBloatSettings
@@ -257,6 +270,7 @@ type LintersSettings struct {
 	Promlinter      PromlinterSettings
 	ProtoGetter     ProtoGetterSettings
 	Reassign        ReassignSettings
+	Recvcheck       RecvcheckSettings
 	Revive          ReviveSettings
 	RowsErrCheck    RowsErrCheckSettings
 	SlogLint        SlogLintSettings
@@ -273,6 +287,7 @@ type LintersSettings struct {
 	Unparam         UnparamSettings
 	Unused          UnusedSettings
 	UseStdlibVars   UseStdlibVarsSettings
+	UseTesting      UseTestingSettings
 	Varnamelen      VarnamelenSettings
 	Whitespace      WhitespaceSettings
 	Wrapcheck       WrapcheckSettings
@@ -314,8 +329,10 @@ type BiDiChkSettings struct {
 }
 
 type CopyLoopVarSettings struct {
-	IgnoreAlias bool `mapstructure:"ignore-alias"` // Deprecated: use CheckAlias
-	CheckAlias  bool `mapstructure:"check-alias"`
+	CheckAlias bool `mapstructure:"check-alias"`
+
+	// Deprecated: use CheckAlias
+	IgnoreAlias *bool `mapstructure:"ignore-alias"`
 }
 
 type Cyclop struct {
@@ -462,10 +479,12 @@ type FunlenSettings struct {
 }
 
 type GciSettings struct {
-	Sections      []string `mapstructure:"sections"`
-	SkipGenerated bool     `mapstructure:"skip-generated"`
-	CustomOrder   bool     `mapstructure:"custom-order"`
-	NoLexOrder    bool     `mapstructure:"no-lex-order"`
+	Sections         []string `mapstructure:"sections"`
+	NoInlineComments bool     `mapstructure:"no-inline-comments"`
+	NoPrefixComments bool     `mapstructure:"no-prefix-comments"`
+	SkipGenerated    bool     `mapstructure:"skip-generated"`
+	CustomOrder      bool     `mapstructure:"custom-order"`
+	NoLexOrder       bool     `mapstructure:"no-lex-order"`
 
 	// Deprecated: use Sections instead.
 	LocalPrefixes string `mapstructure:"local-prefixes"`
@@ -483,6 +502,12 @@ type GinkgoLinterSettings struct {
 	ForceExpectTo              bool `mapstructure:"force-expect-to"`
 	ValidateAsyncIntervals     bool `mapstructure:"validate-async-intervals"`
 	ForbidSpecPollution        bool `mapstructure:"forbid-spec-pollution"`
+	ForceSucceedForFuncs       bool `mapstructure:"force-succeed"`
+}
+
+type GoChecksumTypeSettings struct {
+	DefaultSignifiesExhaustive bool `mapstructure:"default-signifies-exhaustive"`
+	IncludeSharedInterfaces    bool `mapstructure:"include-shared-interfaces"`
 }
 
 type GocognitSettings struct {
@@ -525,7 +550,7 @@ type GodotSettings struct {
 	Period  bool     `mapstructure:"period"`
 
 	// Deprecated: use Scope instead
-	CheckAll bool `mapstructure:"check-all"`
+	CheckAll *bool `mapstructure:"check-all"`
 }
 
 type GodoxSettings struct {
@@ -560,19 +585,16 @@ type GoImportsSettings struct {
 	LocalPrefixes string `mapstructure:"local-prefixes"`
 }
 
-// Deprecated: use MndSettings.
-type GoMndSettings struct {
-	MndSettings `mapstructure:",squash"`
-
-	// Deprecated: use root level settings instead.
-	Settings map[string]map[string]any
-}
-
 type GoModDirectivesSettings struct {
 	ReplaceAllowList          []string `mapstructure:"replace-allow-list"`
 	ReplaceLocal              bool     `mapstructure:"replace-local"`
 	ExcludeForbidden          bool     `mapstructure:"exclude-forbidden"`
 	RetractAllowNoExplanation bool     `mapstructure:"retract-allow-no-explanation"`
+	ToolchainForbidden        bool     `mapstructure:"toolchain-forbidden"`
+	ToolchainPattern          string   `mapstructure:"toolchain-pattern"`
+	ToolForbidden             bool     `mapstructure:"tool-forbidden"`
+	GoDebugForbidden          bool     `mapstructure:"go-debug-forbidden"`
+	GoVersionPattern          string   `mapstructure:"go-version-pattern"`
 }
 
 type GoModGuardSettings struct {
@@ -621,7 +643,7 @@ type GovetSettings struct {
 	Settings map[string]map[string]any
 
 	// Deprecated: the linter should be enabled inside Enable.
-	CheckShadowing bool `mapstructure:"check-shadowing"`
+	CheckShadowing *bool `mapstructure:"check-shadowing"`
 }
 
 func (cfg *GovetSettings) Validate() error {
@@ -646,6 +668,11 @@ type GrouperSettings struct {
 	TypeRequireGrouping       bool `mapstructure:"type-require-grouping"`
 	VarRequireSingleVar       bool `mapstructure:"var-require-single-var"`
 	VarRequireGrouping        bool `mapstructure:"var-require-grouping"`
+}
+
+type IfaceSettings struct {
+	Enable   []string                  `mapstructure:"enable"`
+	Settings map[string]map[string]any `mapstructure:"settings"`
 }
 
 type ImportAsSettings struct {
@@ -681,6 +708,7 @@ type LoggerCheckSettings struct {
 	Kitlog           bool     `mapstructure:"kitlog"`
 	Klog             bool     `mapstructure:"klog"`
 	Logr             bool     `mapstructure:"logr"`
+	Slog             bool     `mapstructure:"slog"`
 	Zap              bool     `mapstructure:"zap"`
 	RequireStringKey bool     `mapstructure:"require-string-key"`
 	NoPrintfLike     bool     `mapstructure:"no-printf-like"`
@@ -725,7 +753,8 @@ type NestifSettings struct {
 }
 
 type NilNilSettings struct {
-	CheckedTypes []string `mapstructure:"checked-types"`
+	DetectOpposite bool     `mapstructure:"detect-opposite"`
+	CheckedTypes   []string `mapstructure:"checked-types"`
 }
 
 type NlreturnSettings struct {
@@ -791,6 +820,11 @@ type ReassignSettings struct {
 	Patterns []string `mapstructure:"patterns"`
 }
 
+type RecvcheckSettings struct {
+	DisableBuiltin bool     `mapstructure:"disable-builtin"`
+	Exclusions     []string `mapstructure:"exclusions"`
+}
+
 type ReviveSettings struct {
 	Go                    string `mapstructure:"-"`
 	MaxOpenFiles          int    `mapstructure:"max-open-files"`
@@ -830,7 +864,7 @@ type SlogLintSettings struct {
 	ArgsOnSepLines bool     `mapstructure:"args-on-sep-lines"`
 
 	// Deprecated: use Context instead.
-	ContextOnly bool `mapstructure:"context-only"`
+	ContextOnly *bool `mapstructure:"context-only"`
 }
 
 type SpancheckSettings struct {
@@ -861,10 +895,31 @@ type TagAlignSettings struct {
 }
 
 type TagliatelleSettings struct {
-	Case struct {
-		Rules        map[string]string
-		UseFieldName bool `mapstructure:"use-field-name"`
-	}
+	Case TagliatelleCase
+}
+
+type TagliatelleCase struct {
+	TagliatelleBase `mapstructure:",squash"`
+	Overrides       []TagliatelleOverrides
+}
+
+type TagliatelleOverrides struct {
+	TagliatelleBase `mapstructure:",squash"`
+	Package         string `mapstructure:"pkg"`
+	Ignore          bool   `mapstructure:"ignore"`
+}
+
+type TagliatelleBase struct {
+	Rules         map[string]string                  `mapstructure:"rules"`
+	ExtendedRules map[string]TagliatelleExtendedRule `mapstructure:"extended-rules"`
+	UseFieldName  bool                               `mapstructure:"use-field-name"`
+	IgnoredFields []string                           `mapstructure:"ignored-fields"`
+}
+
+type TagliatelleExtendedRule struct {
+	Case                string
+	ExtraInitialisms    bool
+	InitialismOverrides map[string]bool
 }
 
 type TestifylintSettings struct {
@@ -929,11 +984,24 @@ type UseStdlibVarsSettings struct {
 	TimeLayout         bool `mapstructure:"time-layout"`
 	CryptoHash         bool `mapstructure:"crypto-hash"`
 	DefaultRPCPath     bool `mapstructure:"default-rpc-path"`
-	OSDevNull          bool `mapstructure:"os-dev-null"` // Deprecated
 	SQLIsolationLevel  bool `mapstructure:"sql-isolation-level"`
 	TLSSignatureScheme bool `mapstructure:"tls-signature-scheme"`
 	ConstantKind       bool `mapstructure:"constant-kind"`
-	SyslogPriority     bool `mapstructure:"syslog-priority"` // Deprecated
+
+	// Deprecated
+	OSDevNull *bool `mapstructure:"os-dev-null"`
+	// Deprecated
+	SyslogPriority *bool `mapstructure:"syslog-priority"`
+}
+
+type UseTestingSettings struct {
+	ContextBackground bool `mapstructure:"context-background"`
+	ContextTodo       bool `mapstructure:"context-todo"`
+	OSChdir           bool `mapstructure:"os-chdir"`
+	OSMkdirTemp       bool `mapstructure:"os-mkdir-temp"`
+	OSSetenv          bool `mapstructure:"os-setenv"`
+	OSTempDir         bool `mapstructure:"os-temp-dir"`
+	OSCreateTemp      bool `mapstructure:"os-create-temp"`
 }
 
 type UnconvertSettings struct {
@@ -949,11 +1017,13 @@ type UnparamSettings struct {
 type UnusedSettings struct {
 	FieldWritesAreUses     bool `mapstructure:"field-writes-are-uses"`
 	PostStatementsAreReads bool `mapstructure:"post-statements-are-reads"`
-	ExportedIsUsed         bool `mapstructure:"exported-is-used"` // Deprecated
 	ExportedFieldsAreUsed  bool `mapstructure:"exported-fields-are-used"`
 	ParametersAreUsed      bool `mapstructure:"parameters-are-used"`
 	LocalVariablesAreUsed  bool `mapstructure:"local-variables-are-used"`
 	GeneratedIsUsed        bool `mapstructure:"generated-is-used"`
+
+	// Deprecated
+	ExportedIsUsed *bool `mapstructure:"exported-is-used"`
 }
 
 type VarnamelenSettings struct {
@@ -975,6 +1045,7 @@ type WhitespaceSettings struct {
 }
 
 type WrapcheckSettings struct {
+	ExtraIgnoreSigs []string `mapstructure:"extra-ignore-sigs"`
 	// TODO(ldez): v2 the options must be renamed to use hyphen.
 	IgnoreSigs             []string `mapstructure:"ignoreSigs"`
 	IgnoreSigRegexps       []string `mapstructure:"ignoreSigRegexps"`

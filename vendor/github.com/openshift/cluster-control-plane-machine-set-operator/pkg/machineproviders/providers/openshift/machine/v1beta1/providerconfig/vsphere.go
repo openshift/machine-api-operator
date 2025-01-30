@@ -24,10 +24,11 @@ import (
 
 	"github.com/go-logr/logr"
 	"github.com/go-test/deep"
+	"k8s.io/apimachinery/pkg/runtime"
+
 	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
-	"k8s.io/apimachinery/pkg/runtime"
 )
 
 // VSphereProviderConfig holds the provider spec of a VSphere Machine.
@@ -79,6 +80,14 @@ func (v VSphereProviderConfig) getWorkspaceFromFailureDomain(failureDomain *conf
 		workspace.Folder = topology.Folder
 	} else {
 		workspace.Folder = fmt.Sprintf("/%s/vm/%s", workspace.Datacenter, v.infrastructure.Status.InfrastructureName)
+	}
+
+	if failureDomain.ZoneAffinity != nil {
+		if failureDomain.ZoneAffinity.HostGroup != nil {
+			if len(failureDomain.ZoneAffinity.HostGroup.VMGroup) > 0 {
+				workspace.VMGroup = failureDomain.ZoneAffinity.HostGroup.VMGroup
+			}
+		}
 	}
 
 	return workspace
@@ -172,9 +181,20 @@ func (v VSphereProviderConfig) ExtractFailureDomain() machinev1.VSphereFailureDo
 
 	for _, failureDomain := range failureDomains {
 		topology := failureDomain.Topology
+		vmGroup := ""
+
+		if failureDomain.ZoneAffinity != nil {
+			if failureDomain.ZoneAffinity.HostGroup != nil {
+				if failureDomain.ZoneAffinity.HostGroup.VMGroup != "" {
+					vmGroup = failureDomain.ZoneAffinity.HostGroup.VMGroup
+				}
+			}
+		}
+
 		if workspace.Datacenter == topology.Datacenter &&
 			workspace.Datastore == topology.Datastore &&
 			workspace.Server == failureDomain.Server &&
+			workspace.VMGroup == vmGroup &&
 			path.Clean(workspace.ResourcePool) == path.Clean(topology.ResourcePool) {
 			return machinev1.VSphereFailureDomain{
 				Name: failureDomain.Name,

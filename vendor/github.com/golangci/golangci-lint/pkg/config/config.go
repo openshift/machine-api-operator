@@ -1,11 +1,16 @@
 package config
 
 import (
+	"cmp"
+	"fmt"
 	"os"
+	"path/filepath"
+	"slices"
 	"strings"
 
 	hcversion "github.com/hashicorp/go-version"
-	"github.com/ldez/gomoddirectives"
+	"github.com/ldez/grignotin/gomod"
+	"golang.org/x/mod/modfile"
 )
 
 // Config encapsulates the config data specified in the golangci-lint YAML config file.
@@ -75,16 +80,79 @@ func IsGoGreaterThanOrEqual(current, limit string) bool {
 }
 
 func detectGoVersion() string {
-	file, _ := gomoddirectives.GetModuleFile()
+	goVersion := detectGoVersionFromGoMod()
+	if goVersion != "" {
+		return goVersion
+	}
 
-	if file != nil && file.Go != nil && file.Go.Version != "" {
+	return cmp.Or(os.Getenv("GOVERSION"), "1.17")
+}
+
+// detectGoVersionFromGoMod tries to get Go version from go.mod.
+// It returns `toolchain` version if present,
+// else it returns `go` version if present,
+// else it returns empty.
+func detectGoVersionFromGoMod() string {
+	modPath, err := gomod.GetGoModPath()
+	if err != nil {
+		modPath = detectGoModFallback()
+		if modPath == "" {
+			return ""
+		}
+	}
+
+	file, err := parseGoMod(modPath)
+	if err != nil {
+		return ""
+	}
+
+	// The toolchain exists only if 'toolchain' version > 'go' version.
+	// If 'toolchain' version <= 'go' version, `go mod tidy` will remove 'toolchain' version from go.mod.
+	if file.Toolchain != nil && file.Toolchain.Name != "" {
+		return strings.TrimPrefix(file.Toolchain.Name, "go")
+	}
+
+	if file.Go != nil && file.Go.Version != "" {
 		return file.Go.Version
 	}
 
-	v := os.Getenv("GOVERSION")
-	if v != "" {
-		return v
+	return ""
+}
+
+func parseGoMod(goMod string) (*modfile.File, error) {
+	raw, err := os.ReadFile(filepath.Clean(goMod))
+	if err != nil {
+		return nil, fmt.Errorf("reading go.mod file: %w", err)
 	}
 
-	return "1.17"
+	return modfile.Parse("go.mod", raw, nil)
+}
+
+func detectGoModFallback() string {
+	info, err := gomod.GetModuleInfo()
+	if err != nil {
+		return ""
+	}
+
+	wd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+
+	slices.SortFunc(info, func(a, b gomod.ModInfo) int {
+		return cmp.Compare(len(b.Path), len(a.Path))
+	})
+
+	goMod := info[0]
+	for _, m := range info {
+		if !strings.HasPrefix(wd, m.Dir) {
+			continue
+		}
+
+		goMod = m
+
+		break
+	}
+
+	return goMod.GoMod
 }
