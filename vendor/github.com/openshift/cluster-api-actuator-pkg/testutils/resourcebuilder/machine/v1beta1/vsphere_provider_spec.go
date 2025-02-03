@@ -20,12 +20,13 @@ import (
 	"encoding/json"
 	"fmt"
 
-	configv1 "github.com/openshift/api/config/v1"
-	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
-	configv1resourcebuilder "github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/config/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+
+	configv1 "github.com/openshift/api/config/v1"
+	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
+	configv1resourcebuilder "github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/config/v1"
 )
 
 // VSphereProviderSpec creates a new VSphere machine config builder.
@@ -79,26 +80,29 @@ func (v VSphereProviderSpecBuilder) Build() *machinev1beta1.VSphereMachineProvid
 
 	template := v.template
 
-	if len(failureDomains) > 0 {
-		if v.cpmsProviderSpec {
-			workspace = &machinev1beta1.Workspace{}
-			networkDevices = nil
-			template = ""
-		} else {
-			for _, vSphereFailureDomain := range failureDomains {
-				if vSphereFailureDomain.Name == v.failureDomainName {
-					workspace = &machinev1beta1.Workspace{
-						Server:     vSphereFailureDomain.Server,
-						Datacenter: vSphereFailureDomain.Topology.Datacenter,
-						Datastore:  vSphereFailureDomain.Topology.Datastore,
-						ResourcePool: fmt.Sprintf("%s/Resources",
-							vSphereFailureDomain.Topology.ComputeCluster),
-					}
-					networkDevices[0].NetworkName = vSphereFailureDomain.Topology.Networks[0]
-					template = v.template
-
-					break
+	switch {
+	case v.cpmsProviderSpec && len(failureDomains) != 0:
+		workspace = &machinev1beta1.Workspace{}
+		networkDevices = nil
+		template = ""
+	case !v.cpmsProviderSpec && len(failureDomains) != 0:
+		for _, vSphereFailureDomain := range failureDomains {
+			if vSphereFailureDomain.Name == v.failureDomainName {
+				workspace = &machinev1beta1.Workspace{
+					Server:     vSphereFailureDomain.Server,
+					Datacenter: vSphereFailureDomain.Topology.Datacenter,
+					Datastore:  vSphereFailureDomain.Topology.Datastore,
+					ResourcePool: fmt.Sprintf("%s/Resources",
+						vSphereFailureDomain.Topology.ComputeCluster),
 				}
+				networkDevices[0].NetworkName = vSphereFailureDomain.Topology.Networks[0]
+				template = v.template
+
+				if vSphereFailureDomain.ZoneAffinity != nil && vSphereFailureDomain.ZoneAffinity.HostGroup != nil {
+					workspace.VMGroup = vSphereFailureDomain.ZoneAffinity.HostGroup.VMGroup
+				}
+
+				break
 			}
 		}
 	}

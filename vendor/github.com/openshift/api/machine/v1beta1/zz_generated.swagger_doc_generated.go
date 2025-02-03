@@ -786,7 +786,7 @@ func (NetworkSpec) SwaggerDoc() map[string]string {
 var map_VSphereDisk = map[string]string{
 	"":        "VSphereDisk describes additional disks for vSphere.",
 	"name":    "name is used to identify the disk definition. name is required needs to be unique so that it can be used to clearly identify purpose of the disk. It must be at most 80 characters in length and must consist only of alphanumeric characters, hyphens and underscores, and must start and end with an alphanumeric character.",
-	"sizeGiB": "sizeGiB is the size of the disk in GiB. The maximum supported size is 57742 GiB.",
+	"sizeGiB": "sizeGiB is the size of the disk in GiB. The maximum supported size 16384 GiB.",
 }
 
 func (VSphereDisk) SwaggerDoc() map[string]string {

@@ -51,6 +51,7 @@ type MachineSetBuilder struct {
 	minReadySeconds            int32
 	name                       string
 	namespace                  string
+	ownerReferences            []metav1.OwnerReference
 	providerSpec               *machinev1beta1.ProviderSpec
 	providerSpecBuilder        *resourcebuilder.RawExtensionBuilder
 	replicas                   *int32
@@ -80,6 +81,7 @@ func (m MachineSetBuilder) Build() *machinev1beta1.MachineSet {
 			Labels:            m.labels,
 			Name:              m.name,
 			Namespace:         m.namespace,
+			OwnerReferences:   m.ownerReferences,
 		},
 		Spec: machinev1beta1.MachineSetSpec{
 			AuthoritativeAPI: m.authoritativeAPI,
@@ -251,6 +253,12 @@ func (m MachineSetBuilder) WithName(name string) MachineSetBuilder {
 // WithNamespace sets the namespace for the machineSet builder.
 func (m MachineSetBuilder) WithNamespace(namespace string) MachineSetBuilder {
 	m.namespace = namespace
+	return m
+}
+
+// WithOwnerReferences sets the OwnerReferences for the machineSet builder.
+func (m MachineSetBuilder) WithOwnerReferences(ownerRefs []metav1.OwnerReference) MachineSetBuilder {
+	m.ownerReferences = ownerRefs
 	return m
 }
 

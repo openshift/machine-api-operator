@@ -17,9 +17,13 @@ limitations under the License.
 package v1
 
 import (
-	configv1 "github.com/openshift/api/config/v1"
+	"fmt"
+	"path"
+
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/utils/ptr"
+
+	configv1 "github.com/openshift/api/config/v1"
 )
 
 // Infrastructure creates a new infrastructure builder.
@@ -348,9 +352,75 @@ func (i InfrastructureBuilder) AsVSphereWithFailureDomains(name string, failureD
 	return i
 }
 
+func (i InfrastructureBuilder) WithVSphereVMHostZonal() InfrastructureBuilder {
+	infraBuilder := i
+
+	for n := range infraBuilder.spec.PlatformSpec.VSphere.FailureDomains {
+		datacenter := "test-dc1"
+		cluster := "test-cluster-1"
+		datastore := "test-datastore-1"
+
+		fdName := infraBuilder.spec.PlatformSpec.VSphere.FailureDomains[n].Name
+
+		infraBuilder.spec.PlatformSpec.VSphere.FailureDomains[n].Topology.Datacenter = datacenter
+		infraBuilder.spec.PlatformSpec.VSphere.FailureDomains[n].Topology.ComputeCluster = path.Join("/", datacenter, "host", cluster)
+		infraBuilder.spec.PlatformSpec.VSphere.FailureDomains[n].Topology.Datastore = path.Join("/", datacenter, "datastore", datastore)
+		infraBuilder.spec.PlatformSpec.VSphere.FailureDomains[n].Topology.ResourcePool = path.Join("/", datacenter, "host", cluster, "Resources")
+
+		infraBuilder.spec.PlatformSpec.VSphere.FailureDomains[n].ZoneAffinity = &configv1.VSphereFailureDomainZoneAffinity{
+			Type: configv1.HostGroupFailureDomainZone,
+			HostGroup: &configv1.VSphereFailureDomainHostGroup{
+				VMGroup:    fmt.Sprintf("%s-vm-group", fdName),
+				HostGroup:  fmt.Sprintf("%s-host-group", fdName),
+				VMHostRule: fmt.Sprintf("%s-vm-host-rule", fdName),
+			},
+		}
+
+		infraBuilder.spec.PlatformSpec.VSphere.FailureDomains[n].RegionAffinity = &configv1.VSphereFailureDomainRegionAffinity{Type: configv1.ComputeClusterFailureDomainRegion}
+	}
+
+	i.spec = infraBuilder.spec
+
+	return i
+}
+
+// AsPowerVS sets the Status for the infrastructure builder.
+func (i InfrastructureBuilder) AsPowerVS(name string) InfrastructureBuilder {
+	i.spec = &configv1.InfrastructureSpec{
+		PlatformSpec: configv1.PlatformSpec{
+			Type:    configv1.PowerVSPlatformType,
+			PowerVS: &configv1.PowerVSPlatformSpec{},
+		},
+	}
+	i.status = &configv1.InfrastructureStatus{
+		InfrastructureName: name,
+		PlatformStatus: &configv1.PlatformStatus{
+			Type:    configv1.PowerVSPlatformType,
+			PowerVS: &configv1.PowerVSPlatformStatus{},
+		},
+		APIServerURL:           "https://api.test-cluster.test-domain:6443",
+		APIServerInternalURL:   "https://api-int.test-cluster.test-domain:6443",
+		ControlPlaneTopology:   configv1.HighlyAvailableTopologyMode,
+		InfrastructureTopology: configv1.HighlyAvailableTopologyMode,
+	}
+
+	return i
+}
+
 // WithGenerateName sets the generateName for the infrastructure builder.
 func (i InfrastructureBuilder) WithGenerateName(generateName string) InfrastructureBuilder {
 	i.generateName = generateName
+	return i
+}
+
+// WithInfrastructureName sets the infrastructureName in the status for the infrastructure builder.
+func (i InfrastructureBuilder) WithInfrastructureName(infraName string) InfrastructureBuilder {
+	if i.status == nil {
+		i.status = &configv1.InfrastructureStatus{}
+	}
+
+	i.status.InfrastructureName = infraName
+
 	return i
 }
 
@@ -380,5 +450,22 @@ func (i InfrastructureBuilder) WithName(name string) InfrastructureBuilder {
 // WithNamespace sets the namespace for the infrastructure builder.
 func (i InfrastructureBuilder) WithNamespace(namespace string) InfrastructureBuilder {
 	i.namespace = namespace
+	return i
+}
+
+// WithPlatformStatus sets the platformStatus for the infrastructure builder.
+func (i InfrastructureBuilder) WithPlatformStatus(ps configv1.PlatformStatus) InfrastructureBuilder {
+	if i.status == nil {
+		i.status = &configv1.InfrastructureStatus{}
+	}
+
+	i.status.PlatformStatus = &ps
+
+	return i
+}
+
+// WithStatus sets the status for the infrastructure builder.
+func (i InfrastructureBuilder) WithStatus(status configv1.InfrastructureStatus) InfrastructureBuilder {
+	i.status = &status
 	return i
 }

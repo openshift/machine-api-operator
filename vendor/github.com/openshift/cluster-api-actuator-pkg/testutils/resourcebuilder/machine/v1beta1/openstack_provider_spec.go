@@ -28,39 +28,10 @@ import (
 // OpenStackProviderSpec creates a new OpenStack machine config builder.
 func OpenStackProviderSpec() OpenStackProviderSpecBuilder {
 	return OpenStackProviderSpecBuilder{
-		flavor:                 "m1.large",
-		availabilityZone:       "",
-		rootVolume:             nil,
-		serverGroupName:        "master",
 		additionalBlockDevices: nil,
-	}
-}
-
-// OpenStackProviderSpecBuilder is used to build a OpenStack machine config object.
-type OpenStackProviderSpecBuilder struct {
-	flavor                 string
-	availabilityZone       string
-	rootVolume             *machinev1alpha1.RootVolume
-	serverGroupName        string
-	additionalBlockDevices []machinev1alpha1.AdditionalBlockDevice
-}
-
-// Build builds a new OpenStack machine config based on the configuration provided.
-func (m OpenStackProviderSpecBuilder) Build() *machinev1alpha1.OpenstackProviderSpec {
-	return &machinev1alpha1.OpenstackProviderSpec{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "machine.openshift.io/v1alpha1",
-			Kind:       "OpenstackProviderSpec",
-		},
-		AvailabilityZone: m.availabilityZone,
-		CloudsSecret: &v1.SecretReference{
-			Name:      "openstack-cloud-credentials",
-			Namespace: "openshift-machine-api",
-		},
-		CloudName: "openstack",
-		Flavor:    m.flavor,
-		Image:     "rhcos",
-		Networks: []machinev1alpha1.NetworkParam{
+		availabilityZone:       "",
+		flavor:                 "m1.large",
+		networks: []machinev1alpha1.NetworkParam{
 			{
 				Subnets: []machinev1alpha1.SubnetParam{
 					{
@@ -72,14 +43,52 @@ func (m OpenStackProviderSpecBuilder) Build() *machinev1alpha1.OpenstackProvider
 				UUID: "d06af90b-1677-4b35-a7fb-3ae023dc8f62",
 			},
 		},
-		PrimarySubnet: "810c3d97-98c2-4cf3-b0f6-8977b6e0b4b2",
-		SecurityGroups: []machinev1alpha1.SecurityGroupParam{
+		ports:      nil,
+		rootVolume: nil,
+		securityGroups: []machinev1alpha1.SecurityGroupParam{
 			{
 				Filter: machinev1alpha1.SecurityGroupFilter{
 					Name: "test-cluster-worker",
 				},
 			},
 		},
+		serverGroupName: "master",
+	}
+}
+
+// OpenStackProviderSpecBuilder is used to build a OpenStack machine config object.
+type OpenStackProviderSpecBuilder struct {
+	additionalBlockDevices []machinev1alpha1.AdditionalBlockDevice
+	availabilityZone       string
+	flavor                 string
+	networks               []machinev1alpha1.NetworkParam
+	ports                  []machinev1alpha1.PortOpts
+	rootVolume             *machinev1alpha1.RootVolume
+	serverGroupName        string
+	securityGroups         []machinev1alpha1.SecurityGroupParam
+}
+
+// Build builds a new OpenStack machine config based on the configuration provided.
+func (m OpenStackProviderSpecBuilder) Build() *machinev1alpha1.OpenstackProviderSpec {
+	return &machinev1alpha1.OpenstackProviderSpec{
+		TypeMeta: metav1.TypeMeta{
+			APIVersion: "machine.openshift.io/v1alpha1",
+			Kind:       "OpenstackProviderSpec",
+		},
+		AdditionalBlockDevices: m.additionalBlockDevices,
+		AvailabilityZone:       m.availabilityZone,
+		CloudsSecret: &v1.SecretReference{
+			Name:      "openstack-cloud-credentials",
+			Namespace: "openshift-machine-api",
+		},
+		CloudName:       "openstack",
+		Flavor:          m.flavor,
+		Image:           "rhcos",
+		Networks:        m.networks,
+		Ports:           m.ports,
+		PrimarySubnet:   "810c3d97-98c2-4cf3-b0f6-8977b6e0b4b2",
+		RootVolume:      m.rootVolume,
+		SecurityGroups:  m.securityGroups,
 		ServerGroupName: m.serverGroupName,
 		ServerMetadata: map[string]string{
 			"Name":               "test-cluster-worker",
@@ -92,8 +101,6 @@ func (m OpenStackProviderSpecBuilder) Build() *machinev1alpha1.OpenstackProvider
 		UserDataSecret: &v1.SecretReference{
 			Name: "worker-user-data",
 		},
-		RootVolume:             m.rootVolume,
-		AdditionalBlockDevices: m.additionalBlockDevices,
 	}
 }
 
@@ -112,15 +119,15 @@ func (m OpenStackProviderSpecBuilder) BuildRawExtension() *runtime.RawExtension 
 	}
 }
 
-// WithZone sets the availabilityZone for the OpenStack machine config builder.
-func (m OpenStackProviderSpecBuilder) WithZone(az string) OpenStackProviderSpecBuilder {
-	m.availabilityZone = az
+// WithAdditionalBlockDevices sets the additional block devices for the OpenStack machine config builder.
+func (m OpenStackProviderSpecBuilder) WithAdditionalBlockDevices(additionalBlockDevices []machinev1alpha1.AdditionalBlockDevice) OpenStackProviderSpecBuilder {
+	m.additionalBlockDevices = additionalBlockDevices
 	return m
 }
 
-// WithRootVolume sets the rootVolume for the OpenStack machine config builder.
-func (m OpenStackProviderSpecBuilder) WithRootVolume(rootVolume *machinev1alpha1.RootVolume) OpenStackProviderSpecBuilder {
-	m.rootVolume = rootVolume
+// WithZone sets the availabilityZone for the OpenStack machine config builder.
+func (m OpenStackProviderSpecBuilder) WithZone(az string) OpenStackProviderSpecBuilder {
+	m.availabilityZone = az
 	return m
 }
 
@@ -130,14 +137,32 @@ func (m OpenStackProviderSpecBuilder) WithFlavor(flavor string) OpenStackProvide
 	return m
 }
 
+// WithNetworks sets the networks for the OpenStack machine config builder.
+func (m OpenStackProviderSpecBuilder) WithNetworks(networks []machinev1alpha1.NetworkParam) OpenStackProviderSpecBuilder {
+	m.networks = networks
+	return m
+}
+
+// WithPorts sets the ports for the OpenStack machine config builder.
+func (m OpenStackProviderSpecBuilder) WithPorts(ports []machinev1alpha1.PortOpts) OpenStackProviderSpecBuilder {
+	m.ports = ports
+	return m
+}
+
+// WithRootVolume sets the rootVolume for the OpenStack machine config builder.
+func (m OpenStackProviderSpecBuilder) WithRootVolume(rootVolume *machinev1alpha1.RootVolume) OpenStackProviderSpecBuilder {
+	m.rootVolume = rootVolume
+	return m
+}
+
 // WithServerGroupName sets the server group name for the OpenStack machine config builder.
 func (m OpenStackProviderSpecBuilder) WithServerGroupName(name string) OpenStackProviderSpecBuilder {
 	m.serverGroupName = name
 	return m
 }
 
-// WithAdditionalBlockDevices sets the additional block devices for the OpenStack machine config builder.
-func (m OpenStackProviderSpecBuilder) WithAdditionalBlockDevices(additionalBlockDevices []machinev1alpha1.AdditionalBlockDevice) OpenStackProviderSpecBuilder {
-	m.additionalBlockDevices = additionalBlockDevices
+// WithSecurityGroups sets the security groups for the OpenStack machine config builder.
+func (m OpenStackProviderSpecBuilder) WithSecurityGroups(securityGroups []machinev1alpha1.SecurityGroupParam) OpenStackProviderSpecBuilder {
+	m.securityGroups = securityGroups
 	return m
 }
