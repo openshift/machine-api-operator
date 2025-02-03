@@ -218,6 +218,7 @@ const (
 // reference: https://cloud.google.com/compute/confidential-vm/docs/os-and-machine-type#machine-type
 var gcpConfidentialTypeMachineSeriesSupportingSEV = []string{"n2d", "c2d", "c3d"}
 var gcpConfidentialTypeMachineSeriesSupportingSEVSNP = []string{"n2d"}
+var gcpConfidentialTypeMachineSeriesSupportingTDX = []string{"c3"}
 
 // defaultInstanceTypeForCloudProvider returns the default instance type for the given cloud provider and architecture.
 // If the cloud provider is not supported, an empty string is returned.
@@ -1330,6 +1331,13 @@ func validateGCPConfidentialComputing(providerSpec *machinev1beta1.GCPMachinePro
 				errs = append(errs, field.Invalid(field.NewPath("providerSpec", "machineType"),
 					providerSpec.MachineType,
 					fmt.Sprintf("ConfidentialCompute require machine type in the following series: %s", strings.Join(gcpConfidentialTypeMachineSeriesSupportingSEVSNP, `,`))),
+				)
+			}
+		case machinev1beta1.ConfidentialVMTechTDX:
+			if !slices.Contains(gcpConfidentialTypeMachineSeriesSupportingTDX, machineSeries) {
+				errs = append(errs, field.Invalid(field.NewPath("providerSpec", "machineType"),
+					providerSpec.MachineType,
+					fmt.Sprintf("ConfidentialCompute require machine type in the following series: %s", strings.Join(gcpConfidentialTypeMachineSeriesSupportingTDX, `,`))),
 				)
 			}
 		default:
