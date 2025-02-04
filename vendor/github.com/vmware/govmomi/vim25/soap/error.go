@@ -1,11 +1,11 @@
 /*
-Copyright (c) 2014-2024 VMware, Inc. All Rights Reserved.
+Copyright (c) 2014 VMware, Inc. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
 You may obtain a copy of the License at
 
-http://www.apache.org/licenses/LICENSE-2.0
+    http://www.apache.org/licenses/LICENSE-2.0
 
 Unless required by applicable law or agreed to in writing, software
 distributed under the License is distributed on an "AS IS" BASIS,
@@ -26,6 +26,14 @@ import (
 
 	"github.com/vmware/govmomi/vim25/types"
 )
+
+type regularError struct {
+	err error
+}
+
+func (r regularError) Error() string {
+	return r.err.Error()
+}
 
 type soapFaultError struct {
 	fault *Fault
@@ -91,6 +99,32 @@ func (v vimFaultError) Fault() types.BaseMethodFault {
 	return v.fault
 }
 
+func Wrap(err error) error {
+	switch err.(type) {
+	case regularError:
+		return err
+	case soapFaultError:
+		return err
+	case vimFaultError:
+		return err
+	}
+
+	return WrapRegularError(err)
+}
+
+func WrapRegularError(err error) error {
+	return regularError{err}
+}
+
+func IsRegularError(err error) bool {
+	_, ok := err.(regularError)
+	return ok
+}
+
+func ToRegularError(err error) error {
+	return err.(regularError).err
+}
+
 func WrapSoapFault(f *Fault) error {
 	return soapFaultError{f}
 }
@@ -121,11 +155,15 @@ func IsCertificateUntrusted(err error) bool {
 	// golang 1.20 introduce a new type to wrap 509 errors. So instead of
 	// casting the type, now we check the error chain contains the
 	// x509 error or not.
-	if errors.As(err, &x509.UnknownAuthorityError{}) {
+	x509UnknownAuthorityErr := &x509.UnknownAuthorityError{}
+	ok := errors.As(err, x509UnknownAuthorityErr)
+	if ok {
 		return true
 	}
 
-	if errors.As(err, &x509.HostnameError{}) {
+	x509HostNameErr := &x509.HostnameError{}
+	ok = errors.As(err, x509HostNameErr)
+	if ok {
 		return true
 	}
 

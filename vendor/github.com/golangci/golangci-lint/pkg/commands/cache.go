@@ -62,7 +62,6 @@ func (*cacheCommand) executeClean(_ *cobra.Command, _ []string) error {
 
 func (*cacheCommand) executeStatus(_ *cobra.Command, _ []string) {
 	cacheDir := cache.DefaultDir()
-
 	_, _ = fmt.Fprintf(logutils.StdOut, "Dir: %s\n", cacheDir)
 
 	cacheSizeBytes, err := dirSizeBytes(cacheDir)

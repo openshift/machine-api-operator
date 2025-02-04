@@ -306,7 +306,7 @@ func ConfigureServer(s *http.Server, conf *Server) error {
 	if s.TLSNextProto == nil {
 		s.TLSNextProto = map[string]func(*http.Server, *tls.Conn, http.Handler){}
 	}
-	protoHandler := func(hs *http.Server, c net.Conn, h http.Handler, sawClientPreface bool) {
+	protoHandler := func(hs *http.Server, c *tls.Conn, h http.Handler) {
 		if testHookOnConn != nil {
 			testHookOnConn()
 		}
@@ -323,31 +323,12 @@ func ConfigureServer(s *http.Server, conf *Server) error {
 			ctx = bc.BaseContext()
 		}
 		conf.ServeConn(c, &ServeConnOpts{
-			Context:          ctx,
-			Handler:          h,
-			BaseConfig:       hs,
-			SawClientPreface: sawClientPreface,
+			Context:    ctx,
+			Handler:    h,
+			BaseConfig: hs,
 		})
 	}
-	s.TLSNextProto[NextProtoTLS] = func(hs *http.Server, c *tls.Conn, h http.Handler) {
-		protoHandler(hs, c, h, false)
-	}
-	// The "unencrypted_http2" TLSNextProto key is used to pass off non-TLS HTTP/2 conns.
-	//
-	// A connection passed in this method has already had the HTTP/2 preface read from it.
-	s.TLSNextProto[nextProtoUnencryptedHTTP2] = func(hs *http.Server, c *tls.Conn, h http.Handler) {
-		nc, err := unencryptedNetConnFromTLSConn(c)
-		if err != nil {
-			if lg := hs.ErrorLog; lg != nil {
-				lg.Print(err)
-			} else {
-				log.Print(err)
-			}
-			go c.Close()
-			return
-		}
-		protoHandler(hs, nc, h, true)
-	}
+	s.TLSNextProto[NextProtoTLS] = protoHandler
 	return nil
 }
 
@@ -932,18 +913,14 @@ func (sc *serverConn) serve(conf http2Config) {
 		sc.vlogf("http2: server connection from %v on %p", sc.conn.RemoteAddr(), sc.hs)
 	}
 
-	settings := writeSettings{
-		{SettingMaxFrameSize, conf.MaxReadFrameSize},
-		{SettingMaxConcurrentStreams, sc.advMaxStreams},
-		{SettingMaxHeaderListSize, sc.maxHeaderListSize()},
-		{SettingHeaderTableSize, conf.MaxDecoderHeaderTableSize},
-		{SettingInitialWindowSize, uint32(sc.initialStreamRecvWindowSize)},
-	}
-	if !disableExtendedConnectProtocol {
-		settings = append(settings, Setting{SettingEnableConnectProtocol, 1})
-	}
 	sc.writeFrame(FrameWriteRequest{
-		write: settings,
+		write: writeSettings{
+			{SettingMaxFrameSize, conf.MaxReadFrameSize},
+			{SettingMaxConcurrentStreams, sc.advMaxStreams},
+			{SettingMaxHeaderListSize, sc.maxHeaderListSize()},
+			{SettingHeaderTableSize, conf.MaxDecoderHeaderTableSize},
+			{SettingInitialWindowSize, uint32(sc.initialStreamRecvWindowSize)},
+		},
 	})
 	sc.unackedSettings++
 
@@ -1805,9 +1782,6 @@ func (sc *serverConn) processSetting(s Setting) error {
 		sc.maxFrameSize = int32(s.Val) // the maximum valid s.Val is < 2^31
 	case SettingMaxHeaderListSize:
 		sc.peerMaxHeaderListSize = s.Val
-	case SettingEnableConnectProtocol:
-		// Receipt of this parameter by a server does not
-		// have any impact
 	default:
 		// Unknown setting: "An endpoint that receives a SETTINGS
 		// frame with any unknown or unsupported identifier MUST
@@ -2238,17 +2212,11 @@ func (sc *serverConn) newWriterAndRequest(st *stream, f *MetaHeadersFrame) (*res
 		scheme:    f.PseudoValue("scheme"),
 		authority: f.PseudoValue("authority"),
 		path:      f.PseudoValue("path"),
-		protocol:  f.PseudoValue("protocol"),
-	}
-
-	// extended connect is disabled, so we should not see :protocol
-	if disableExtendedConnectProtocol && rp.protocol != "" {
-		return nil, nil, sc.countError("bad_connect", streamError(f.StreamID, ErrCodeProtocol))
 	}
 
 	isConnect := rp.method == "CONNECT"
 	if isConnect {
-		if rp.protocol == "" && (rp.path != "" || rp.scheme != "" || rp.authority == "") {
+		if rp.path != "" || rp.scheme != "" || rp.authority == "" {
 			return nil, nil, sc.countError("bad_connect", streamError(f.StreamID, ErrCodeProtocol))
 		}
 	} else if rp.method == "" || rp.path == "" || (rp.scheme != "https" && rp.scheme != "http") {
@@ -2271,9 +2239,6 @@ func (sc *serverConn) newWriterAndRequest(st *stream, f *MetaHeadersFrame) (*res
 	}
 	if rp.authority == "" {
 		rp.authority = rp.header.Get("Host")
-	}
-	if rp.protocol != "" {
-		rp.header.Set(":protocol", rp.protocol)
 	}
 
 	rw, req, err := sc.newWriterAndRequestNoBody(st, rp)
@@ -2301,7 +2266,6 @@ func (sc *serverConn) newWriterAndRequest(st *stream, f *MetaHeadersFrame) (*res
 type requestParam struct {
 	method                  string
 	scheme, authority, path string
-	protocol                string
 	header                  http.Header
 }
 
@@ -2343,7 +2307,7 @@ func (sc *serverConn) newWriterAndRequestNoBody(st *stream, rp requestParam) (*r
 
 	var url_ *url.URL
 	var requestURI string
-	if rp.method == "CONNECT" && rp.protocol == "" {
+	if rp.method == "CONNECT" {
 		url_ = &url.URL{Host: rp.authority}
 		requestURI = rp.authority // mimic HTTP/1 server behavior
 	} else {
@@ -2913,11 +2877,6 @@ func (w *responseWriter) SetWriteDeadline(deadline time.Time) error {
 			st.writeDeadline.Reset(deadline.Sub(sc.srv.now()))
 		}
 	})
-	return nil
-}
-
-func (w *responseWriter) EnableFullDuplex() error {
-	// We always support full duplex responses, so this is a no-op.
 	return nil
 }
 

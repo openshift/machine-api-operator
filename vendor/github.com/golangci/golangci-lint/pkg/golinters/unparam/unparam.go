@@ -1,6 +1,8 @@
 package unparam
 
 import (
+	"sync"
+
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/packages"
@@ -9,20 +11,32 @@ import (
 	"github.com/golangci/golangci-lint/pkg/config"
 	"github.com/golangci/golangci-lint/pkg/goanalysis"
 	"github.com/golangci/golangci-lint/pkg/lint/linter"
+	"github.com/golangci/golangci-lint/pkg/result"
 )
 
 const linterName = "unparam"
 
 func New(settings *config.UnparamSettings) *goanalysis.Linter {
+	var mu sync.Mutex
+	var resIssues []goanalysis.Issue
+
 	analyzer := &analysis.Analyzer{
 		Name:     linterName,
 		Doc:      goanalysis.TheOnlyanalyzerDoc,
 		Requires: []*analysis.Analyzer{buildssa.Analyzer},
 		Run: func(pass *analysis.Pass) (any, error) {
-			err := runUnparam(pass, settings)
+			issues, err := runUnparam(pass, settings)
 			if err != nil {
 				return nil, err
 			}
+
+			if len(issues) == 0 {
+				return nil, nil
+			}
+
+			mu.Lock()
+			resIssues = append(resIssues, issues...)
+			mu.Unlock()
 
 			return nil, nil
 		},
@@ -37,10 +51,12 @@ func New(settings *config.UnparamSettings) *goanalysis.Linter {
 		if settings.Algo != "cha" {
 			lintCtx.Log.Warnf("`linters-settings.unparam.algo` isn't supported by the newest `unparam`")
 		}
+	}).WithIssuesReporter(func(*linter.Context) []goanalysis.Issue {
+		return resIssues
 	}).WithLoadMode(goanalysis.LoadModeTypesInfo)
 }
 
-func runUnparam(pass *analysis.Pass, settings *config.UnparamSettings) error {
+func runUnparam(pass *analysis.Pass, settings *config.UnparamSettings) ([]goanalysis.Issue, error) {
 	ssa := pass.ResultOf[buildssa.Analyzer].(*buildssa.SSA)
 	ssaPkg := ssa.Pkg
 
@@ -58,15 +74,17 @@ func runUnparam(pass *analysis.Pass, settings *config.UnparamSettings) error {
 
 	unparamIssues, err := c.Check()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	var issues []goanalysis.Issue
 	for _, i := range unparamIssues {
-		pass.Report(analysis.Diagnostic{
-			Pos:     i.Pos(),
-			Message: i.Message(),
-		})
+		issues = append(issues, goanalysis.NewIssue(&result.Issue{
+			Pos:        pass.Fset.Position(i.Pos()),
+			Text:       i.Message(),
+			FromLinter: linterName,
+		}, pass))
 	}
 
-	return nil
+	return issues, nil
 }

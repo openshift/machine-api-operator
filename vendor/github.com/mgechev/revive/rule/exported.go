@@ -13,91 +13,33 @@ import (
 	"github.com/mgechev/revive/lint"
 )
 
-// disabledChecks store ignored warnings types
-type disabledChecks struct {
-	Const            bool
-	Function         bool
-	Method           bool
-	PrivateReceivers bool
-	PublicInterfaces bool
-	Stuttering       bool
-	Type             bool
-	Var              bool
-}
-
-const checkNamePrivateReceivers = "privateReceivers"
-const checkNamePublicInterfaces = "publicInterfaces"
-const checkNameStuttering = "stuttering"
-
-// isDisabled returns true if the given check is disabled, false otherwise
-func (dc *disabledChecks) isDisabled(checkName string) bool {
-	switch checkName {
-	case "var":
-		return dc.Var
-	case "const":
-		return dc.Const
-	case "function":
-		return dc.Function
-	case "method":
-		return dc.Method
-	case checkNamePrivateReceivers:
-		return dc.PrivateReceivers
-	case checkNamePublicInterfaces:
-		return dc.PublicInterfaces
-	case checkNameStuttering:
-		return dc.Stuttering
-	case "type":
-		return dc.Type
-	default:
-		return false
-	}
-}
-
 // ExportedRule lints given else constructs.
 type ExportedRule struct {
-	stuttersMsg    string
-	disabledChecks disabledChecks
-
-	configureOnce sync.Once
+	configured             bool
+	checkPrivateReceivers  bool
+	disableStutteringCheck bool
+	stuttersMsg            string
+	sync.Mutex
 }
 
 func (r *ExportedRule) configure(arguments lint.Arguments) {
-	r.disabledChecks = disabledChecks{PrivateReceivers: true, PublicInterfaces: true}
-	r.stuttersMsg = "stutters"
-	for _, flag := range arguments {
-		switch flag := flag.(type) {
-		case string:
-			switch flag {
-			case "checkPrivateReceivers":
-				r.disabledChecks.PrivateReceivers = false
-			case "disableStutteringCheck":
-				r.disabledChecks.Stuttering = true
-			case "sayRepetitiveInsteadOfStutters":
-				r.stuttersMsg = "is repetitive"
-			case "checkPublicInterface":
-				r.disabledChecks.PublicInterfaces = false
-			case "disableChecksOnConstants":
-				r.disabledChecks.Const = true
-			case "disableChecksOnFunctions":
-				r.disabledChecks.Function = true
-			case "disableChecksOnMethods":
-				r.disabledChecks.Method = true
-			case "disableChecksOnTypes":
-				r.disabledChecks.Type = true
-			case "disableChecksOnVariables":
-				r.disabledChecks.Var = true
-			default:
-				panic(fmt.Sprintf("Unknown configuration flag %s for %s rule", flag, r.Name()))
-			}
-		default:
-			panic(fmt.Sprintf("Invalid argument for the %s rule: expecting a string, got %T", r.Name(), flag))
+	r.Lock()
+	if !r.configured {
+		var sayRepetitiveInsteadOfStutters bool
+		r.checkPrivateReceivers, r.disableStutteringCheck, sayRepetitiveInsteadOfStutters = r.getConf(arguments)
+		r.stuttersMsg = "stutters"
+		if sayRepetitiveInsteadOfStutters {
+			r.stuttersMsg = "is repetitive"
 		}
+
+		r.configured = true
 	}
+	r.Unlock()
 }
 
 // Apply applies the rule to given file.
 func (r *ExportedRule) Apply(file *lint.File, args lint.Arguments) []lint.Failure {
-	r.configureOnce.Do(func() { r.configure(args) })
+	r.configure(args)
 
 	var failures []lint.Failure
 	if file.IsTest() {
@@ -113,8 +55,9 @@ func (r *ExportedRule) Apply(file *lint.File, args lint.Arguments) []lint.Failur
 			failures = append(failures, failure)
 		},
 		genDeclMissingComments: make(map[*ast.GenDecl]bool),
+		checkPrivateReceivers:  r.checkPrivateReceivers,
+		disableStutteringCheck: r.disableStutteringCheck,
 		stuttersMsg:            r.stuttersMsg,
-		disabledChecks:         r.disabledChecks,
 	}
 
 	ast.Walk(&walker, fileAst)
@@ -127,36 +70,61 @@ func (*ExportedRule) Name() string {
 	return "exported"
 }
 
+func (r *ExportedRule) getConf(args lint.Arguments) (checkPrivateReceivers, disableStutteringCheck, sayRepetitiveInsteadOfStutters bool) {
+	// if any, we expect a slice of strings as configuration
+	if len(args) < 1 {
+		return
+	}
+	for _, flag := range args {
+		flagStr, ok := flag.(string)
+		if !ok {
+			panic(fmt.Sprintf("Invalid argument for the %s rule: expecting a string, got %T", r.Name(), flag))
+		}
+
+		switch flagStr {
+		case "checkPrivateReceivers":
+			checkPrivateReceivers = true
+		case "disableStutteringCheck":
+			disableStutteringCheck = true
+		case "sayRepetitiveInsteadOfStutters":
+			sayRepetitiveInsteadOfStutters = true
+		default:
+			panic(fmt.Sprintf("Unknown configuration flag %s for %s rule", flagStr, r.Name()))
+		}
+	}
+
+	return
+}
+
 type lintExported struct {
 	file                   *lint.File
 	fileAst                *ast.File
 	lastGen                *ast.GenDecl
 	genDeclMissingComments map[*ast.GenDecl]bool
 	onFailure              func(lint.Failure)
+	checkPrivateReceivers  bool
+	disableStutteringCheck bool
 	stuttersMsg            string
-	disabledChecks         disabledChecks
 }
 
 func (w *lintExported) lintFuncDoc(fn *ast.FuncDecl) {
 	if !ast.IsExported(fn.Name.Name) {
-		return // func is unexported, nothing to do
+		// func is unexported
+		return
 	}
-
 	kind := "function"
 	name := fn.Name.Name
-	isMethod := fn.Recv != nil && len(fn.Recv.List) > 0
-	if isMethod {
+	if fn.Recv != nil && len(fn.Recv.List) > 0 {
+		// method
 		kind = "method"
 		recv := typeparams.ReceiverType(fn)
-
-		if !ast.IsExported(recv) && w.disabledChecks.PrivateReceivers {
+		if !w.checkPrivateReceivers && !ast.IsExported(recv) {
+			// receiver is unexported
 			return
 		}
-
 		if commonMethods[name] {
 			return
 		}
-
 		switch name {
 		case "Len", "Less", "Swap":
 			sortables := w.file.Pkg.Sortable()
@@ -166,11 +134,6 @@ func (w *lintExported) lintFuncDoc(fn *ast.FuncDecl) {
 		}
 		name = recv + "." + name
 	}
-
-	if w.disabledChecks.isDisabled(kind) {
-		return
-	}
-
 	if fn.Doc == nil {
 		w.onFailure(lint.Failure{
 			Node:       fn,
@@ -180,7 +143,6 @@ func (w *lintExported) lintFuncDoc(fn *ast.FuncDecl) {
 		})
 		return
 	}
-
 	s := normalizeText(fn.Doc.Text())
 	prefix := fn.Name.Name + " "
 	if !strings.HasPrefix(s, prefix) {
@@ -194,7 +156,7 @@ func (w *lintExported) lintFuncDoc(fn *ast.FuncDecl) {
 }
 
 func (w *lintExported) checkStutter(id *ast.Ident, thing string) {
-	if w.disabledChecks.Stuttering {
+	if w.disableStutteringCheck {
 		return
 	}
 
@@ -228,14 +190,9 @@ func (w *lintExported) checkStutter(id *ast.Ident, thing string) {
 }
 
 func (w *lintExported) lintTypeDoc(t *ast.TypeSpec, doc *ast.CommentGroup) {
-	if w.disabledChecks.isDisabled("type") {
-		return
-	}
-
 	if !ast.IsExported(t.Name.Name) {
 		return
 	}
-
 	if doc == nil {
 		w.onFailure(lint.Failure{
 			Node:       t,
@@ -257,29 +214,20 @@ func (w *lintExported) lintTypeDoc(t *ast.TypeSpec, doc *ast.CommentGroup) {
 			break
 		}
 	}
-
-	// if comment starts with name of type and has some text after - it's ok
-	expectedPrefix := t.Name.Name + " "
-	if strings.HasPrefix(s, expectedPrefix) {
-		return
+	if !strings.HasPrefix(s, t.Name.Name+" ") {
+		w.onFailure(lint.Failure{
+			Node:       doc,
+			Confidence: 1,
+			Category:   "comments",
+			Failure:    fmt.Sprintf(`comment on exported type %v should be of the form "%v ..." (with optional leading article)`, t.Name, t.Name),
+		})
 	}
-
-	w.onFailure(lint.Failure{
-		Node:       doc,
-		Confidence: 1,
-		Category:   "comments",
-		Failure:    fmt.Sprintf(`comment on exported type %v should be of the form "%s..." (with optional leading article)`, t.Name, expectedPrefix),
-	})
 }
 
 func (w *lintExported) lintValueSpecDoc(vs *ast.ValueSpec, gd *ast.GenDecl, genDeclMissingComments map[*ast.GenDecl]bool) {
 	kind := "var"
 	if gd.Tok == token.CONST {
 		kind = "const"
-	}
-
-	if w.disabledChecks.isDisabled(kind) {
-		return
 	}
 
 	if len(vs.Names) > 1 {
@@ -303,7 +251,7 @@ func (w *lintExported) lintValueSpecDoc(vs *ast.ValueSpec, gd *ast.GenDecl, genD
 		return
 	}
 
-	if vs.Doc == nil && gd.Doc == nil {
+	if vs.Doc == nil && vs.Comment == nil && gd.Doc == nil {
 		if genDeclMissingComments[gd] {
 			return
 		}
@@ -353,7 +301,7 @@ func (w *lintExported) lintValueSpecDoc(vs *ast.ValueSpec, gd *ast.GenDecl, genD
 //
 // This function is needed because ast.CommentGroup.Text() does not handle //-style and /*-style comments uniformly
 func normalizeText(t string) string {
-	return strings.TrimSpace(t)
+	return strings.TrimPrefix(t, " ")
 }
 
 func (w *lintExported) Visit(n ast.Node) ast.Visitor {
@@ -382,54 +330,11 @@ func (w *lintExported) Visit(n ast.Node) ast.Visitor {
 		}
 		w.lintTypeDoc(v, doc)
 		w.checkStutter(v.Name, "type")
-
-		if !w.disabledChecks.PublicInterfaces {
-			if iface, ok := v.Type.(*ast.InterfaceType); ok {
-				if ast.IsExported(v.Name.Name) {
-					w.doCheckPublicInterface(v.Name.Name, iface)
-				}
-			}
-		}
-
+		// Don't proceed inside types.
 		return nil
 	case *ast.ValueSpec:
 		w.lintValueSpecDoc(v, w.lastGen, w.genDeclMissingComments)
 		return nil
 	}
 	return w
-}
-
-func (w *lintExported) doCheckPublicInterface(typeName string, iface *ast.InterfaceType) {
-	for _, m := range iface.Methods.List {
-		w.lintInterfaceMethod(typeName, m)
-	}
-}
-
-func (w *lintExported) lintInterfaceMethod(typeName string, m *ast.Field) {
-	if len(m.Names) == 0 {
-		return
-	}
-	if !ast.IsExported(m.Names[0].Name) {
-		return
-	}
-	name := m.Names[0].Name
-	if m.Doc == nil {
-		w.onFailure(lint.Failure{
-			Node:       m,
-			Confidence: 1,
-			Category:   "comments",
-			Failure:    fmt.Sprintf("public interface method %s.%s should be commented", typeName, name),
-		})
-		return
-	}
-	s := normalizeText(m.Doc.Text())
-	expectedPrefix := m.Names[0].Name + " "
-	if !strings.HasPrefix(s, expectedPrefix) {
-		w.onFailure(lint.Failure{
-			Node:       m.Doc,
-			Confidence: 0.8,
-			Category:   "comments",
-			Failure:    fmt.Sprintf(`comment on exported interface method %s.%s should be of the form "%s..."`, typeName, name, expectedPrefix),
-		})
-	}
 }

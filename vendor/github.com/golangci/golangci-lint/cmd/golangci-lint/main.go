@@ -1,7 +1,6 @@
 package main
 
 import (
-	"cmp"
 	"fmt"
 	"os"
 	"runtime/debug"
@@ -64,9 +63,17 @@ func createBuildInfo() commands.BuildInfo {
 		}
 	}
 
-	revision = cmp.Or(revision, "unknown")
-	modified = cmp.Or(modified, "?")
-	info.Date = cmp.Or(info.Date, "(unknown)")
+	if revision == "" {
+		revision = "unknown"
+	}
+
+	if modified == "" {
+		modified = "?"
+	}
+
+	if info.Date == "" {
+		info.Date = "(unknown)"
+	}
 
 	info.Commit = fmt.Sprintf("(%s, modified: %s, mod sum: %q)", revision, modified, buildInfo.Main.Sum)
 

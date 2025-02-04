@@ -5,7 +5,7 @@ HASH_FLAG := -X github.com/nunnatsa/ginkgolinter/version.gitHash=$(COMMIT_HASH)
 
 BUILD_ARGS := -ldflags "$(VERSION_FLAG) $(HASH_FLAG)"
 
-build: goimports
+build: unit-test
 	go build $(BUILD_ARGS) -o ginkgolinter ./cmd/ginkgolinter
 
 unit-test:
@@ -23,11 +23,5 @@ build-for-linux:
 
 build-all: build build-for-linux build-for-mac build-for-windows
 
-test-cli:
-	cd tests; go test -v ./
-
-test: unit-test test-cli
-
-goimports:
-	go install golang.org/x/tools/cmd/goimports@latest
-	goimports -w -local="github.com/nunnatsa/ginkgolinter" $(shell find . -type f -name '*.go' ! -path "*/vendor/*")
+test: build
+	./tests/e2e.sh

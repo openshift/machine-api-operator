@@ -13,15 +13,15 @@ type FakeMachineV1beta1 struct {
 }
 
 func (c *FakeMachineV1beta1) Machines(namespace string) v1beta1.MachineInterface {
-	return newFakeMachines(c, namespace)
+	return &FakeMachines{c, namespace}
 }
 
 func (c *FakeMachineV1beta1) MachineHealthChecks(namespace string) v1beta1.MachineHealthCheckInterface {
-	return newFakeMachineHealthChecks(c, namespace)
+	return &FakeMachineHealthChecks{c, namespace}
 }
 
 func (c *FakeMachineV1beta1) MachineSets(namespace string) v1beta1.MachineSetInterface {
-	return newFakeMachineSets(c, namespace)
+	return &FakeMachineSets{c, namespace}
 }
 
 // RESTClient returns a RESTClient that is used to communicate

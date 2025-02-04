@@ -518,7 +518,7 @@ func (rr *retrieveResult) selectSet(ctx *Context, obj reflect.Value, s []types.B
 	return nil
 }
 
-func collect(ctx *Context, r *types.RetrievePropertiesEx) (*types.RetrieveResult, types.BaseMethodFault) {
+func (pc *PropertyCollector) collect(ctx *Context, r *types.RetrievePropertiesEx) (*types.RetrieveResult, types.BaseMethodFault) {
 	var refs []types.ManagedObjectReference
 
 	rr := &retrieveResult{
@@ -574,8 +574,6 @@ func (pc *PropertyCollector) CreateFilter(ctx *Context, c *types.CreateFilter) s
 		Returnval: filter.Self,
 	}
 
-	ctx.Map.AddHandler(filter)
-
 	return body
 }
 
@@ -597,7 +595,8 @@ func (pc *PropertyCollector) DestroyPropertyCollector(ctx *Context, c *types.Des
 	body := &methods.DestroyPropertyCollectorBody{}
 
 	for _, ref := range pc.Filter {
-		ctx.Session.Remove(ctx, ref)
+		filter := ctx.Session.Get(ref).(*PropertyFilter)
+		filter.DestroyPropertyFilter(ctx, &types.DestroyPropertyFilter{This: ref})
 	}
 
 	ctx.Session.Remove(ctx, c.This)
@@ -667,7 +666,7 @@ func (pc *PropertyCollector) ContinueRetrievePropertiesEx(ctx *Context, r *types
 func (pc *PropertyCollector) RetrievePropertiesEx(ctx *Context, r *types.RetrievePropertiesEx) soap.HasFault {
 	body := &methods.RetrievePropertiesExBody{}
 
-	res, fault := collect(ctx, r)
+	res, fault := pc.collect(ctx, r)
 
 	if fault != nil {
 		switch fault.(type) {
@@ -763,7 +762,7 @@ func (pc *PropertyCollector) PutObject(o mo.Reference) {
 	})
 }
 
-func (pc *PropertyCollector) UpdateObject(_ *Context, o mo.Reference, changes []types.PropertyChange) {
+func (pc *PropertyCollector) UpdateObject(o mo.Reference, changes []types.PropertyChange) {
 	pc.update(types.ObjectUpdate{
 		Obj:       o.Reference(),
 		Kind:      types.ObjectUpdateKindModify,
@@ -781,12 +780,12 @@ func (pc *PropertyCollector) RemoveObject(_ *Context, ref types.ManagedObjectRef
 
 func (pc *PropertyCollector) apply(ctx *Context, update *types.UpdateSet) types.BaseMethodFault {
 	for _, ref := range pc.Filter {
-		filter, ok := ctx.Session.Get(ref).(*PropertyFilter)
-		if !ok {
-			continue
-		}
+		filter := ctx.Session.Get(ref).(*PropertyFilter)
 
-		res, fault := filter.collect(ctx)
+		r := &types.RetrievePropertiesEx{}
+		r.SpecSet = append(r.SpecSet, filter.Spec)
+
+		res, fault := pc.collect(ctx, r)
 		if fault != nil {
 			return fault
 		}
@@ -952,7 +951,6 @@ func (pc *PropertyCollector) WaitForUpdatesEx(ctx *Context, r *types.WaitForUpda
 
 			for _, f := range pc.Filter {
 				filter := ctx.Session.Get(f).(*PropertyFilter)
-				filter.update(ctx)
 				fu := types.PropertyFilterUpdate{Filter: f}
 
 				for _, update := range updates {

@@ -2,9 +2,9 @@ package misspell
 
 import (
 	"fmt"
-	"go/ast"
 	"go/token"
 	"strings"
+	"sync"
 	"unicode"
 
 	"github.com/golangci/misspell"
@@ -12,12 +12,17 @@ import (
 
 	"github.com/golangci/golangci-lint/pkg/config"
 	"github.com/golangci/golangci-lint/pkg/goanalysis"
+	"github.com/golangci/golangci-lint/pkg/golinters/internal"
 	"github.com/golangci/golangci-lint/pkg/lint/linter"
+	"github.com/golangci/golangci-lint/pkg/result"
 )
 
 const linterName = "misspell"
 
 func New(settings *config.MisspellSettings) *goanalysis.Linter {
+	var mu sync.Mutex
+	var resIssues []goanalysis.Issue
+
 	analyzer := &analysis.Analyzer{
 		Name: linterName,
 		Doc:  goanalysis.TheOnlyanalyzerDoc,
@@ -37,25 +42,42 @@ func New(settings *config.MisspellSettings) *goanalysis.Linter {
 				return nil, ruleErr
 			}
 
-			err := runMisspell(lintCtx, pass, replacer, settings.Mode)
+			issues, err := runMisspell(lintCtx, pass, replacer, settings.Mode)
 			if err != nil {
 				return nil, err
 			}
 
+			if len(issues) == 0 {
+				return nil, nil
+			}
+
+			mu.Lock()
+			resIssues = append(resIssues, issues...)
+			mu.Unlock()
+
 			return nil, nil
 		}
+	}).WithIssuesReporter(func(*linter.Context) []goanalysis.Issue {
+		return resIssues
 	}).WithLoadMode(goanalysis.LoadModeSyntax)
 }
 
-func runMisspell(lintCtx *linter.Context, pass *analysis.Pass, replacer *misspell.Replacer, mode string) error {
-	for _, file := range pass.Files {
-		err := runMisspellOnFile(lintCtx, pass, file, replacer, mode)
+func runMisspell(lintCtx *linter.Context, pass *analysis.Pass, replacer *misspell.Replacer, mode string) ([]goanalysis.Issue, error) {
+	fileNames := internal.GetFileNames(pass)
+
+	var issues []goanalysis.Issue
+	for _, filename := range fileNames {
+		lintIssues, err := runMisspellOnFile(lintCtx, filename, replacer, mode)
 		if err != nil {
-			return err
+			return nil, err
+		}
+
+		for i := range lintIssues {
+			issues = append(issues, goanalysis.NewIssue(&lintIssues[i], pass))
 		}
 	}
 
-	return nil
+	return issues, nil
 }
 
 func createMisspellReplacer(settings *config.MisspellSettings) (*misspell.Replacer, error) {
@@ -90,15 +112,10 @@ func createMisspellReplacer(settings *config.MisspellSettings) (*misspell.Replac
 	return replacer, nil
 }
 
-func runMisspellOnFile(lintCtx *linter.Context, pass *analysis.Pass, file *ast.File, replacer *misspell.Replacer, mode string) error {
-	position, isGoFile := goanalysis.GetGoFilePosition(pass, file)
-	if !isGoFile {
-		return nil
-	}
-
-	fileContent, err := lintCtx.FileCache.GetFileBytes(position.Filename)
+func runMisspellOnFile(lintCtx *linter.Context, filename string, replacer *misspell.Replacer, mode string) ([]result.Issue, error) {
+	fileContent, err := lintCtx.FileCache.GetFileBytes(filename)
 	if err != nil {
-		return fmt.Errorf("can't get file %s contents: %w", position.Filename, err)
+		return nil, fmt.Errorf("can't get file %s contents: %w", filename, err)
 	}
 
 	// `r.ReplaceGo` doesn't find issues inside strings: it searches only inside comments.
@@ -112,31 +129,36 @@ func runMisspellOnFile(lintCtx *linter.Context, pass *analysis.Pass, file *ast.F
 		replace = replacer.Replace
 	}
 
-	f := pass.Fset.File(file.Pos())
-
 	_, diffs := replace(string(fileContent))
+
+	var res []result.Issue
 
 	for _, diff := range diffs {
 		text := fmt.Sprintf("`%s` is a misspelling of `%s`", diff.Original, diff.Corrected)
 
-		start := f.LineStart(diff.Line) + token.Pos(diff.Column)
-		end := f.LineStart(diff.Line) + token.Pos(diff.Column+len(diff.Original))
+		pos := token.Position{
+			Filename: filename,
+			Line:     diff.Line,
+			Column:   diff.Column + 1,
+		}
 
-		pass.Report(analysis.Diagnostic{
-			Pos:     start,
-			End:     end,
-			Message: text,
-			SuggestedFixes: []analysis.SuggestedFix{{
-				TextEdits: []analysis.TextEdit{{
-					Pos:     start,
-					End:     end,
-					NewText: []byte(diff.Corrected),
-				}},
-			}},
+		replacement := &result.Replacement{
+			Inline: &result.InlineFix{
+				StartCol:  diff.Column,
+				Length:    len(diff.Original),
+				NewString: diff.Corrected,
+			},
+		}
+
+		res = append(res, result.Issue{
+			Pos:         pos,
+			Text:        text,
+			FromLinter:  linterName,
+			Replacement: replacement,
 		})
 	}
 
-	return nil
+	return res, nil
 }
 
 func appendExtraWords(replacer *misspell.Replacer, extraWords []config.MisspellExtraWords) error {

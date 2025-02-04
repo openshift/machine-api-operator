@@ -1,20 +1,18 @@
 package commands
 
 import (
-	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"time"
 
 	hcversion "github.com/hashicorp/go-version"
 	"github.com/pelletier/go-toml/v2"
-	"github.com/santhosh-tekuri/jsonschema/v6"
+	"github.com/santhosh-tekuri/jsonschema/v5"
+	"github.com/santhosh-tekuri/jsonschema/v5/httploader"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"gopkg.in/yaml.v3"
@@ -45,7 +43,9 @@ func (c *configCommand) executeVerify(cmd *cobra.Command, _ []string) error {
 			return fmt.Errorf("[%s] validate: %w", usedConfigFile, err)
 		}
 
-		printValidationDetail(cmd, v.DetailedOutput())
+		detail := v.DetailedOutput()
+
+		printValidationDetail(cmd, &detail)
 
 		return errors.New("the configuration contains invalid elements")
 	}
@@ -100,12 +100,10 @@ func createSchemaURL(flags *pflag.FlagSet, buildInfo BuildInfo) (string, error) 
 }
 
 func validateConfiguration(schemaPath, targetFile string) error {
+	httploader.Client = &http.Client{Timeout: 2 * time.Second}
+
 	compiler := jsonschema.NewCompiler()
-	compiler.UseLoader(jsonschema.SchemeURLLoader{
-		"file":  jsonschema.FileLoader{},
-		"https": newJSONSchemaHTTPLoader(),
-	})
-	compiler.DefaultDraft(jsonschema.Draft7)
+	compiler.Draft = jsonschema.Draft7
 
 	schema, err := compiler.Compile(schemaPath)
 	if err != nil {
@@ -135,13 +133,10 @@ func validateConfiguration(schemaPath, targetFile string) error {
 	return schema.Validate(m)
 }
 
-func printValidationDetail(cmd *cobra.Command, detail *jsonschema.OutputUnit) {
-	if detail.Error != nil {
-		data, _ := json.Marshal(detail.Error)
-		details, _ := strconv.Unquote(string(data))
-
+func printValidationDetail(cmd *cobra.Command, detail *jsonschema.Detailed) {
+	if detail.Error != "" {
 		cmd.PrintErrf("jsonschema: %q does not validate with %q: %s\n",
-			strings.ReplaceAll(strings.TrimPrefix(detail.InstanceLocation, "/"), "/", "."), detail.KeywordLocation, details)
+			strings.ReplaceAll(strings.TrimPrefix(detail.InstanceLocation, "/"), "/", "."), detail.KeywordLocation, detail.Error)
 	}
 
 	for _, d := range detail.Errors {
@@ -181,34 +176,4 @@ func decodeTomlFile(filename string) (any, error) {
 	}
 
 	return m, nil
-}
-
-type jsonschemaHTTPLoader struct {
-	*http.Client
-}
-
-func newJSONSchemaHTTPLoader() *jsonschemaHTTPLoader {
-	return &jsonschemaHTTPLoader{Client: &http.Client{
-		Timeout: 2 * time.Second,
-	}}
-}
-
-func (l jsonschemaHTTPLoader) Load(url string) (any, error) {
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, url, http.NoBody)
-	if err != nil {
-		return nil, err
-	}
-
-	resp, err := l.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("%s returned status code %d", url, resp.StatusCode)
-	}
-
-	return jsonschema.UnmarshalJSON(resp.Body)
 }

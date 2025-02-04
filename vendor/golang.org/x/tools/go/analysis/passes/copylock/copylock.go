@@ -16,9 +16,10 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/analysis/passes/internal/analysisutil"
+	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/ast/inspector"
+	"golang.org/x/tools/internal/aliases"
 	"golang.org/x/tools/internal/typeparams"
-	"golang.org/x/tools/internal/versions"
 )
 
 const Doc = `check for locks erroneously passed by value
@@ -39,25 +40,18 @@ var Analyzer = &analysis.Analyzer{
 func run(pass *analysis.Pass) (interface{}, error) {
 	inspect := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
 
-	var goversion string // effective file version ("" => unknown)
 	nodeFilter := []ast.Node{
 		(*ast.AssignStmt)(nil),
 		(*ast.CallExpr)(nil),
 		(*ast.CompositeLit)(nil),
-		(*ast.File)(nil),
 		(*ast.FuncDecl)(nil),
 		(*ast.FuncLit)(nil),
 		(*ast.GenDecl)(nil),
 		(*ast.RangeStmt)(nil),
 		(*ast.ReturnStmt)(nil),
 	}
-	inspect.WithStack(nodeFilter, func(node ast.Node, push bool, stack []ast.Node) bool {
-		if !push {
-			return false
-		}
+	inspect.Preorder(nodeFilter, func(node ast.Node) {
 		switch node := node.(type) {
-		case *ast.File:
-			goversion = versions.FileVersion(pass.TypesInfo, node)
 		case *ast.RangeStmt:
 			checkCopyLocksRange(pass, node)
 		case *ast.FuncDecl:
@@ -67,7 +61,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		case *ast.CallExpr:
 			checkCopyLocksCallExpr(pass, node)
 		case *ast.AssignStmt:
-			checkCopyLocksAssign(pass, node, goversion, parent(stack))
+			checkCopyLocksAssign(pass, node)
 		case *ast.GenDecl:
 			checkCopyLocksGenDecl(pass, node)
 		case *ast.CompositeLit:
@@ -75,36 +69,16 @@ func run(pass *analysis.Pass) (interface{}, error) {
 		case *ast.ReturnStmt:
 			checkCopyLocksReturnStmt(pass, node)
 		}
-		return true
 	})
 	return nil, nil
 }
 
 // checkCopyLocksAssign checks whether an assignment
 // copies a lock.
-func checkCopyLocksAssign(pass *analysis.Pass, assign *ast.AssignStmt, goversion string, parent ast.Node) {
-	lhs := assign.Lhs
-	for i, x := range assign.Rhs {
+func checkCopyLocksAssign(pass *analysis.Pass, as *ast.AssignStmt) {
+	for i, x := range as.Rhs {
 		if path := lockPathRhs(pass, x); path != nil {
-			pass.ReportRangef(x, "assignment copies lock value to %v: %v", analysisutil.Format(pass.Fset, assign.Lhs[i]), path)
-			lhs = nil // An lhs has been reported. We prefer the assignment warning and do not report twice.
-		}
-	}
-
-	// After GoVersion 1.22, loop variables are implicitly copied on each iteration.
-	// So a for statement may inadvertently copy a lock when any of the
-	// iteration variables contain locks.
-	if assign.Tok == token.DEFINE && versions.AtLeast(goversion, versions.Go1_22) {
-		if parent, _ := parent.(*ast.ForStmt); parent != nil && parent.Init == assign {
-			for _, l := range lhs {
-				if id, ok := l.(*ast.Ident); ok && id.Name != "_" {
-					if obj := pass.TypesInfo.Defs[id]; obj != nil && obj.Type() != nil {
-						if path := lockPath(pass.Pkg, obj.Type(), nil); path != nil {
-							pass.ReportRangef(l, "for loop iteration copies lock value to %v: %v", analysisutil.Format(pass.Fset, l), path)
-						}
-					}
-				}
-			}
+			pass.ReportRangef(x, "assignment copies lock value to %v: %v", analysisutil.Format(pass.Fset, as.Lhs[i]), path)
 		}
 	}
 }
@@ -251,7 +225,7 @@ func (path typePath) String() string {
 }
 
 func lockPathRhs(pass *analysis.Pass, x ast.Expr) typePath {
-	x = ast.Unparen(x) // ignore parens on rhs
+	x = astutil.Unparen(x) // ignore parens on rhs
 
 	if _, ok := x.(*ast.CompositeLit); ok {
 		return nil
@@ -261,7 +235,7 @@ func lockPathRhs(pass *analysis.Pass, x ast.Expr) typePath {
 		return nil
 	}
 	if star, ok := x.(*ast.StarExpr); ok {
-		if _, ok := ast.Unparen(star.X).(*ast.CallExpr); ok {
+		if _, ok := astutil.Unparen(star.X).(*ast.CallExpr); ok {
 			// A call may return a pointer to a zero value.
 			return nil
 		}
@@ -285,7 +259,7 @@ func lockPath(tpkg *types.Package, typ types.Type, seen map[types.Type]bool) typ
 	}
 	seen[typ] = true
 
-	if tpar, ok := types.Unalias(typ).(*types.TypeParam); ok {
+	if tpar, ok := aliases.Unalias(typ).(*types.TypeParam); ok {
 		terms, err := typeparams.StructuralTerms(tpar)
 		if err != nil {
 			return nil // invalid type
@@ -363,14 +337,6 @@ func lockPath(tpkg *types.Package, typ types.Type, seen map[types.Type]bool) typ
 		}
 	}
 
-	return nil
-}
-
-// parent returns the second from the last node on stack if it exists.
-func parent(stack []ast.Node) ast.Node {
-	if len(stack) >= 2 {
-		return stack[len(stack)-2]
-	}
 	return nil
 }
 

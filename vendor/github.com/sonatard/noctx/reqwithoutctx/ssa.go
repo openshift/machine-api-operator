@@ -5,6 +5,7 @@ import (
 	"go/types"
 
 	"github.com/gostaticanalysis/analysisutil"
+
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/ssa"
@@ -96,7 +97,7 @@ func (a *Analyzer) usedReqByCall(call *ssa.Call) []*ssa.Extract {
 	exts := make([]*ssa.Extract, 0, len(args))
 
 	// skip net/http.Request method call
-	if recv := call.Common().Signature().Recv(); recv != nil && types.Identical(recv.Type(), a.requestType) {
+	if call.Common().Signature().Recv() != nil && types.Identical(call.Value().Type(), a.requestType) {
 		return exts
 	}
 

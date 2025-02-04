@@ -14,6 +14,7 @@ import (
 	"golang.org/x/tools/go/analysis/passes/buildssa"
 	"golang.org/x/tools/go/analysis/passes/internal/analysisutil"
 	"golang.org/x/tools/go/ssa"
+	"golang.org/x/tools/internal/aliases"
 	"golang.org/x/tools/internal/typeparams"
 )
 
@@ -299,7 +300,7 @@ func nilnessOf(stack []fact, v ssa.Value) nilness {
 		}
 	case *ssa.MakeInterface:
 		// A MakeInterface is non-nil unless its operand is a type parameter.
-		tparam, ok := types.Unalias(v.X.Type()).(*types.TypeParam)
+		tparam, ok := aliases.Unalias(v.X.Type()).(*types.TypeParam)
 		if !ok {
 			return isnonnil
 		}

@@ -2,6 +2,7 @@ package goimports
 
 import (
 	"fmt"
+	"sync"
 
 	goimportsAPI "github.com/golangci/gofmt/goimports"
 	"golang.org/x/tools/go/analysis"
@@ -16,6 +17,9 @@ import (
 const linterName = "goimports"
 
 func New(settings *config.GoImportsSettings) *goanalysis.Linter {
+	var mu sync.Mutex
+	var resIssues []goanalysis.Issue
+
 	analyzer := &analysis.Analyzer{
 		Name: linterName,
 		Doc:  goanalysis.TheOnlyanalyzerDoc,
@@ -24,43 +28,67 @@ func New(settings *config.GoImportsSettings) *goanalysis.Linter {
 
 	return goanalysis.NewLinter(
 		linterName,
-		"Checks if the code and import statements are formatted according to the 'goimports' command.",
+		"Check import statements are formatted according to the 'goimport' command. "+
+			"Reformat imports in autofix mode.",
 		[]*analysis.Analyzer{analyzer},
 		nil,
 	).WithContextSetter(func(lintCtx *linter.Context) {
 		imports.LocalPrefix = settings.LocalPrefixes
 
 		analyzer.Run = func(pass *analysis.Pass) (any, error) {
-			err := runGoImports(lintCtx, pass)
+			issues, err := runGoImports(lintCtx, pass)
 			if err != nil {
 				return nil, err
 			}
 
+			if len(issues) == 0 {
+				return nil, nil
+			}
+
+			mu.Lock()
+			resIssues = append(resIssues, issues...)
+			mu.Unlock()
+
 			return nil, nil
 		}
+	}).WithIssuesReporter(func(*linter.Context) []goanalysis.Issue {
+		return resIssues
 	}).WithLoadMode(goanalysis.LoadModeSyntax)
 }
 
-func runGoImports(lintCtx *linter.Context, pass *analysis.Pass) error {
-	for _, file := range pass.Files {
-		position, isGoFile := goanalysis.GetGoFilePosition(pass, file)
-		if !isGoFile {
-			continue
-		}
+func runGoImports(lintCtx *linter.Context, pass *analysis.Pass) ([]goanalysis.Issue, error) {
+	fileNames := internal.GetFileNames(pass)
 
-		diff, err := goimportsAPI.Run(position.Filename)
+	var issues []goanalysis.Issue
+
+	for _, f := range fileNames {
+		diff, err := goimportsAPI.Run(f)
 		if err != nil { // TODO: skip
-			return err
+			return nil, err
 		}
 		if diff == nil {
 			continue
 		}
 
-		err = internal.ExtractDiagnosticFromPatch(pass, file, string(diff), lintCtx)
+		is, err := internal.ExtractIssuesFromPatch(string(diff), lintCtx, linterName, getIssuedTextGoImports)
 		if err != nil {
-			return fmt.Errorf("can't extract issues from goimports diff output %q: %w", string(diff), err)
+			return nil, fmt.Errorf("can't extract issues from gofmt diff output %q: %w", string(diff), err)
+		}
+
+		for i := range is {
+			issues = append(issues, goanalysis.NewIssue(&is[i], pass))
 		}
 	}
 
-	return nil
+	return issues, nil
+}
+
+func getIssuedTextGoImports(settings *config.LintersSettings) string {
+	text := "File is not `goimports`-ed"
+
+	if settings.Goimports.LocalPrefixes != "" {
+		text += " with -local " + settings.Goimports.LocalPrefixes
+	}
+
+	return text
 }

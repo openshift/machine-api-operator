@@ -42,7 +42,6 @@ type MachineBuilder struct {
 	machineSpecObjectMeta machinev1beta1.ObjectMeta
 	name                  string
 	namespace             string
-	ownerReferences       []metav1.OwnerReference
 	providerID            **string
 	providerSpecBuilder   *resourcebuilder.RawExtensionBuilder
 	providerSpec          *machinev1beta1.ProviderSpec
@@ -72,7 +71,6 @@ func (m MachineBuilder) Build() *machinev1beta1.Machine {
 			Labels:            m.labels,
 			Name:              m.name,
 			Namespace:         m.namespace,
-			OwnerReferences:   m.ownerReferences,
 		},
 		Spec: coalesceMachineSpec(m.machineSpec, machinev1beta1.MachineSpec{
 			AuthoritativeAPI: m.authoritativeAPI,
@@ -193,12 +191,6 @@ func (m MachineBuilder) WithName(name string) MachineBuilder {
 // WithNamespace sets the namespace for the machine builder.
 func (m MachineBuilder) WithNamespace(namespace string) MachineBuilder {
 	m.namespace = namespace
-	return m
-}
-
-// WithOwnerReferences sets the OwnerReferences for the machine builder.
-func (m MachineBuilder) WithOwnerReferences(ownerRefs []metav1.OwnerReference) MachineBuilder {
-	m.ownerReferences = ownerRefs
 	return m
 }
 

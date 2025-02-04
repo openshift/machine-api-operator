@@ -113,11 +113,11 @@ func newClient(config *rest.Config, options Options) (*client, error) {
 	}
 
 	if config.WarningHandler == nil {
-		// By default, we surface warnings.
+		// By default, we de-duplicate and surface warnings.
 		config.WarningHandler = log.NewKubeAPIWarningLogger(
 			log.Log.WithName("KubeAPIWarningLogger"),
 			log.KubeAPIWarningLoggerOptions{
-				Deduplicate: false,
+				Deduplicate: true,
 			},
 		)
 	}

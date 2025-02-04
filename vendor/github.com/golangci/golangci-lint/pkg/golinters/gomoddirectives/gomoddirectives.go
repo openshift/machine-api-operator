@@ -1,7 +1,6 @@
 package gomoddirectives
 
 import (
-	"regexp"
 	"sync"
 
 	"github.com/ldez/gomoddirectives"
@@ -9,7 +8,6 @@ import (
 
 	"github.com/golangci/golangci-lint/pkg/config"
 	"github.com/golangci/golangci-lint/pkg/goanalysis"
-	"github.com/golangci/golangci-lint/pkg/golinters/internal"
 	"github.com/golangci/golangci-lint/pkg/lint/linter"
 	"github.com/golangci/golangci-lint/pkg/result"
 )
@@ -26,27 +24,6 @@ func New(settings *config.GoModDirectivesSettings) *goanalysis.Linter {
 		opts.ReplaceAllowList = settings.ReplaceAllowList
 		opts.RetractAllowNoExplanation = settings.RetractAllowNoExplanation
 		opts.ExcludeForbidden = settings.ExcludeForbidden
-		opts.ToolchainForbidden = settings.ToolchainForbidden
-		opts.ToolForbidden = settings.ToolForbidden
-		opts.GoDebugForbidden = settings.GoDebugForbidden
-
-		if settings.ToolchainPattern != "" {
-			exp, err := regexp.Compile(settings.ToolchainPattern)
-			if err != nil {
-				internal.LinterLogger.Fatalf("%s: invalid toolchain pattern: %v", linterName, err)
-			} else {
-				opts.ToolchainPattern = exp
-			}
-		}
-
-		if settings.GoVersionPattern != "" {
-			exp, err := regexp.Compile(settings.GoVersionPattern)
-			if err != nil {
-				internal.LinterLogger.Fatalf("%s: invalid Go version pattern: %v", linterName, err)
-			} else {
-				opts.GoVersionPattern = exp
-			}
-		}
 	}
 
 	analyzer := &analysis.Analyzer{
@@ -63,7 +40,7 @@ func New(settings *config.GoModDirectivesSettings) *goanalysis.Linter {
 	).WithContextSetter(func(lintCtx *linter.Context) {
 		analyzer.Run = func(pass *analysis.Pass) (any, error) {
 			once.Do(func() {
-				results, err := gomoddirectives.AnalyzePass(pass, opts)
+				results, err := gomoddirectives.Analyze(opts)
 				if err != nil {
 					lintCtx.Log.Warnf("running %s failed: %s: "+
 						"if you are not using go modules it is suggested to disable this linter", linterName, err)

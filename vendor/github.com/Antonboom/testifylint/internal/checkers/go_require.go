@@ -142,11 +142,11 @@ func (checker GoRequire) Check(pass *analysis.Pass, inspector *inspector.Inspect
 		if testifyCall != nil {
 			switch checker.checkCall(testifyCall) {
 			case goRequireVerdictRequire:
-				d := newDiagnostic(checker.Name(), testifyCall, fmt.Sprintf(goRequireCallReportFormat, "require"))
+				d := newDiagnostic(checker.Name(), testifyCall, fmt.Sprintf(goRequireCallReportFormat, "require"), nil)
 				diagnostics = append(diagnostics, *d)
 
 			case goRequireVerdictAssertFailNow:
-				d := newDiagnostic(checker.Name(), testifyCall, fmt.Sprintf(goRequireCallReportFormat, testifyCall))
+				d := newDiagnostic(checker.Name(), testifyCall, fmt.Sprintf(goRequireCallReportFormat, testifyCall), nil)
 				diagnostics = append(diagnostics, *d)
 
 			case goRequireVerdictNoExit:
@@ -163,7 +163,7 @@ func (checker GoRequire) Check(pass *analysis.Pass, inspector *inspector.Inspect
 
 			if v := checker.checkFunc(pass, calledFd, testsDecls, processedFuncs); v != goRequireVerdictNoExit {
 				caller := analysisutil.NodeString(pass.Fset, ce.Fun)
-				d := newDiagnostic(checker.Name(), ce, fmt.Sprintf(goRequireFnReportFormat, caller))
+				d := newDiagnostic(checker.Name(), ce, fmt.Sprintf(goRequireFnReportFormat, caller), nil)
 				diagnostics = append(diagnostics, *d)
 			}
 		}
@@ -198,11 +198,11 @@ func (checker GoRequire) checkHTTPHandlers(pass *analysis.Pass, insp *inspector.
 
 		switch checker.checkCall(testifyCall) {
 		case goRequireVerdictRequire:
-			d := newDiagnostic(checker.Name(), testifyCall, fmt.Sprintf(goRequireHTTPHandlerReportFormat, "require"))
+			d := newDiagnostic(checker.Name(), testifyCall, fmt.Sprintf(goRequireHTTPHandlerReportFormat, "require"), nil)
 			diagnostics = append(diagnostics, *d)
 
 		case goRequireVerdictAssertFailNow:
-			d := newDiagnostic(checker.Name(), testifyCall, fmt.Sprintf(goRequireHTTPHandlerReportFormat, testifyCall))
+			d := newDiagnostic(checker.Name(), testifyCall, fmt.Sprintf(goRequireHTTPHandlerReportFormat, testifyCall), nil)
 			diagnostics = append(diagnostics, *d)
 
 		case goRequireVerdictNoExit:
