@@ -22,9 +22,6 @@ func New(settings *config.LoggerCheckSettings) *goanalysis.Linter {
 		if !settings.Logr {
 			disable = append(disable, "logr")
 		}
-		if !settings.Slog {
-			disable = append(disable, "slog")
-		}
 		if !settings.Zap {
 			disable = append(disable, "zap")
 		}

@@ -22,11 +22,10 @@ import (
 
 const pwd = "./"
 
-func NakedReturnAnalyzer(defaultLines uint, skipTestFiles bool) *analysis.Analyzer {
+func NakedReturnAnalyzer(defaultLines uint) *analysis.Analyzer {
 	nakedRet := &NakedReturnRunner{}
 	flags := flag.NewFlagSet("nakedret", flag.ExitOnError)
 	flags.UintVar(&nakedRet.MaxLength, "l", defaultLines, "maximum number of lines for a naked return function")
-	flags.BoolVar(&nakedRet.SkipTestFiles, "skip-test-files", skipTestFiles, "set to true to skip test files")
 	var analyzer = &analysis.Analyzer{
 		Name:     "nakedret",
 		Doc:      "Checks that functions with naked returns are not longer than a maximum size (can be zero).",
@@ -38,8 +37,7 @@ func NakedReturnAnalyzer(defaultLines uint, skipTestFiles bool) *analysis.Analyz
 }
 
 type NakedReturnRunner struct {
-	MaxLength     uint
-	SkipTestFiles bool
+	MaxLength uint
 }
 
 func (n *NakedReturnRunner) run(pass *analysis.Pass) (any, error) {
@@ -51,20 +49,18 @@ func (n *NakedReturnRunner) run(pass *analysis.Pass) (any, error) {
 		(*ast.ReturnStmt)(nil),
 	}
 	retVis := &returnsVisitor{
-		pass:          pass,
-		f:             pass.Fset,
-		maxLength:     n.MaxLength,
-		skipTestFiles: n.SkipTestFiles,
+		pass:      pass,
+		f:         pass.Fset,
+		maxLength: n.MaxLength,
 	}
 	inspector.Nodes(nodeFilter, retVis.NodesVisit)
 	return nil, nil
 }
 
 type returnsVisitor struct {
-	pass          *analysis.Pass
-	f             *token.FileSet
-	maxLength     uint
-	skipTestFiles bool
+	pass      *analysis.Pass
+	f         *token.FileSet
+	maxLength uint
 
 	// functions contains funcInfo for each nested function definition encountered while visiting the AST.
 	functions []funcInfo
@@ -78,7 +74,7 @@ type funcInfo struct {
 	reportNaked bool
 }
 
-func checkNakedReturns(args []string, maxLength *uint, skipTestFiles bool, setExitStatus bool) error {
+func checkNakedReturns(args []string, maxLength *uint, setExitStatus bool) error {
 
 	fset := token.NewFileSet()
 
@@ -91,7 +87,7 @@ func checkNakedReturns(args []string, maxLength *uint, skipTestFiles bool, setEx
 		return errors.New("max length nil")
 	}
 
-	analyzer := NakedReturnAnalyzer(*maxLength, skipTestFiles)
+	analyzer := NakedReturnAnalyzer(*maxLength)
 	pass := &analysis.Pass{
 		Analyzer: analyzer,
 		Fset:     fset,
@@ -296,9 +292,6 @@ func (v *returnsVisitor) NodesVisit(node ast.Node, push bool) bool {
 	if push && funcType != nil {
 		// Push function info to track returns for this function
 		file := v.f.File(node.Pos())
-		if v.skipTestFiles && strings.HasSuffix(file.Name(), "_test.go") {
-			return false
-		}
 		length := file.Position(node.End()).Line - file.Position(node.Pos()).Line
 		if length == 0 {
 			// consider functions that finish on the same line as they start as single line functions, not zero lines!

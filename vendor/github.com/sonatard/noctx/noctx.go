@@ -2,7 +2,6 @@ package noctx
 
 import (
 	"fmt"
-
 	"github.com/sonatard/noctx/ngfunc"
 	"github.com/sonatard/noctx/reqwithoutctx"
 	"golang.org/x/tools/go/analysis"

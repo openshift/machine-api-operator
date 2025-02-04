@@ -8,7 +8,6 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/packages"
 
-	"github.com/golangci/golangci-lint/pkg/config"
 	"github.com/golangci/golangci-lint/pkg/goanalysis"
 	"github.com/golangci/golangci-lint/pkg/lint/linter"
 	"github.com/golangci/golangci-lint/pkg/result"
@@ -16,7 +15,7 @@ import (
 
 const linterName = "gochecksumtype"
 
-func New(settings *config.GoChecksumTypeSettings) *goanalysis.Linter {
+func New() *goanalysis.Linter {
 	var mu sync.Mutex
 	var resIssues []goanalysis.Issue
 
@@ -24,7 +23,7 @@ func New(settings *config.GoChecksumTypeSettings) *goanalysis.Linter {
 		Name: linterName,
 		Doc:  goanalysis.TheOnlyanalyzerDoc,
 		Run: func(pass *analysis.Pass) (any, error) {
-			issues, err := runGoCheckSumType(pass, settings)
+			issues, err := runGoCheckSumType(pass)
 			if err != nil {
 				return nil, err
 			}
@@ -51,7 +50,7 @@ func New(settings *config.GoChecksumTypeSettings) *goanalysis.Linter {
 	}).WithLoadMode(goanalysis.LoadModeTypesInfo)
 }
 
-func runGoCheckSumType(pass *analysis.Pass, settings *config.GoChecksumTypeSettings) ([]goanalysis.Issue, error) {
+func runGoCheckSumType(pass *analysis.Pass) ([]goanalysis.Issue, error) {
 	var resIssues []goanalysis.Issue
 
 	pkg := &packages.Package{
@@ -61,13 +60,8 @@ func runGoCheckSumType(pass *analysis.Pass, settings *config.GoChecksumTypeSetti
 		TypesInfo: pass.TypesInfo,
 	}
 
-	cfg := gochecksumtype.Config{
-		DefaultSignifiesExhaustive: settings.DefaultSignifiesExhaustive,
-		IncludeSharedInterfaces:    settings.IncludeSharedInterfaces,
-	}
-
 	var unknownError error
-	errors := gochecksumtype.Run([]*packages.Package{pkg}, cfg)
+	errors := gochecksumtype.Run([]*packages.Package{pkg})
 	for _, err := range errors {
 		err, ok := err.(gochecksumtype.Error)
 		if !ok {

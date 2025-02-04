@@ -61,7 +61,7 @@ func EvalSymlinks(path string) (string, error) {
 	}
 
 	var er evalSymlinkRes
-	er.path, er.err = evalSymlinks(path)
+	er.path, er.err = filepath.EvalSymlinks(path)
 	evalSymlinkCache.Store(path, er)
 
 	return er.path, er.err

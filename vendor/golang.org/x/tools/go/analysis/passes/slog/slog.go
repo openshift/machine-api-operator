@@ -203,7 +203,7 @@ func kvFuncSkipArgs(fn *types.Func) (int, bool) {
 // order to get to the ones that match the ...any parameter.
 // The first key is the dereferenced receiver type name, or "" for a function.
 var kvFuncs = map[string]map[string]int{
-	"": {
+	"": map[string]int{
 		"Debug":        1,
 		"Info":         1,
 		"Warn":         1,
@@ -215,7 +215,7 @@ var kvFuncs = map[string]map[string]int{
 		"Log":          3,
 		"Group":        1,
 	},
-	"Logger": {
+	"Logger": map[string]int{
 		"Debug":        1,
 		"Info":         1,
 		"Warn":         1,
@@ -227,7 +227,7 @@ var kvFuncs = map[string]map[string]int{
 		"Log":          3,
 		"With":         0,
 	},
-	"Record": {
+	"Record": map[string]int{
 		"Add": 0,
 	},
 }

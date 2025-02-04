@@ -91,10 +91,7 @@ func (c *Manager) CreateCategory(ctx context.Context, category *Category) (strin
 	}
 	url := c.Resource(internal.CategoryPath)
 	var res string
-	if err := c.Do(ctx, url.Request(http.MethodPost, spec), &res); err != nil {
-		return "", err
-	}
-	return res, nil
+	return res, c.Do(ctx, url.Request(http.MethodPost, spec), &res)
 }
 
 // UpdateCategory updates one or more of the AssociableTypes, Cardinality,
@@ -137,20 +134,14 @@ func (c *Manager) GetCategory(ctx context.Context, id string) (*Category, error)
 	}
 	url := c.Resource(internal.CategoryPath).WithID(id)
 	var res Category
-	if err := c.Do(ctx, url.Request(http.MethodGet), &res); err != nil {
-		return nil, err
-	}
-	return &res, nil
+	return &res, c.Do(ctx, url.Request(http.MethodGet), &res)
 }
 
 // ListCategories returns all category IDs in the system.
 func (c *Manager) ListCategories(ctx context.Context) ([]string, error) {
 	url := c.Resource(internal.CategoryPath)
 	var res []string
-	if err := c.Do(ctx, url.Request(http.MethodGet), &res); err != nil {
-		return nil, err
-	}
-	return res, nil
+	return res, c.Do(ctx, url.Request(http.MethodGet), &res)
 }
 
 // GetCategories fetches a list of category information in the system.

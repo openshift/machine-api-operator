@@ -1,31 +1,9 @@
-linters:
-  enable-all: true
-  disable:
-    - exportloopref # deprecated
-    - sqlclosecheck # not relevant (SQL)
-    - rowserrcheck # not relevant (SQL)
-    - cyclop # duplicate of gocyclo
-    - lll
-    - dupl
-    - prealloc
-    - bodyclose
-    - wsl
-    - nlreturn
-    - mnd
-    - testpackage
-    - paralleltest
-    - tparallel
-    - err113
-    - wrapcheck
-    - exhaustive
-    - exhaustruct
-    - varnamelen
+run:
+  timeout: 2m
 
 linters-settings:
   govet:
     enable-all: true
-    disable:
-      - fieldalignment
   gocyclo:
     min-complexity: 12
   goconst:
@@ -71,6 +49,39 @@ linters-settings:
       rules:
         json: pascal
 
+linters:
+  enable-all: true
+  disable:
+    - deadcode # deprecated
+    - exhaustivestruct # deprecated
+    - golint # deprecated
+    - ifshort # deprecated
+    - interfacer # deprecated
+    - maligned # deprecated
+    - nosnakecase # deprecated
+    - scopelint # deprecated
+    - structcheck # deprecated
+    - varcheck # deprecated
+    - sqlclosecheck # not relevant (SQL)
+    - rowserrcheck # not relevant (SQL)
+    - execinquery # not relevant (SQL)
+    - cyclop # duplicate of gocyclo
+    - lll
+    - dupl
+    - prealloc
+    - bodyclose
+    - wsl
+    - nlreturn
+    - gomnd
+    - testpackage
+    - paralleltest
+    - tparallel
+    - goerr113
+    - wrapcheck
+    - exhaustive
+    - exhaustruct
+    - varnamelen
+
 issues:
   exclude-use-default: false
   max-issues-per-linter: 0
@@ -81,20 +92,11 @@ issues:
   exclude-rules:
     - path: "(.+)_test.go"
       linters:
-        - funlen
-        - goconst
-        - maintidx
+      - funlen
+      - goconst
     - path: cmd/gomoddirectives/gomoddirectives.go
-      linters:
-        - forbidigo
       text: 'use of `fmt.Println` forbidden'
 
 output:
   show-stats: true
   sort-results: true
-  sort-order:
-    - linter
-    - file
-
-run:
-  timeout: 2m

@@ -47,11 +47,10 @@ type InformersOpts struct {
 	Mapper                meta.RESTMapper
 	ResyncPeriod          time.Duration
 	Namespace             string
-	NewInformer           func(cache.ListerWatcher, runtime.Object, time.Duration, cache.Indexers) cache.SharedIndexInformer
+	NewInformer           *func(cache.ListerWatcher, runtime.Object, time.Duration, cache.Indexers) cache.SharedIndexInformer
 	Selector              Selector
 	Transform             cache.TransformFunc
 	UnsafeDisableDeepCopy bool
-	EnableWatchBookmarks  bool
 	WatchErrorHandler     cache.WatchErrorHandler
 }
 
@@ -59,7 +58,7 @@ type InformersOpts struct {
 func NewInformers(config *rest.Config, options *InformersOpts) *Informers {
 	newInformer := cache.NewSharedIndexInformer
 	if options.NewInformer != nil {
-		newInformer = options.NewInformer
+		newInformer = *options.NewInformer
 	}
 	return &Informers{
 		config:     config,
@@ -79,7 +78,6 @@ func NewInformers(config *rest.Config, options *InformersOpts) *Informers {
 		selector:              options.Selector,
 		transform:             options.Transform,
 		unsafeDisableDeepCopy: options.UnsafeDisableDeepCopy,
-		enableWatchBookmarks:  options.EnableWatchBookmarks,
 		newInformer:           newInformer,
 		watchErrorHandler:     options.WatchErrorHandler,
 	}
@@ -176,7 +174,6 @@ type Informers struct {
 	selector              Selector
 	transform             cache.TransformFunc
 	unsafeDisableDeepCopy bool
-	enableWatchBookmarks  bool
 
 	// NewInformer allows overriding of the shared index informer constructor for testing.
 	newInformer func(cache.ListerWatcher, runtime.Object, time.Duration, cache.Indexers) cache.SharedIndexInformer
@@ -364,10 +361,8 @@ func (ip *Informers) addInformerToMap(gvk schema.GroupVersionKind, obj runtime.O
 			return listWatcher.ListFunc(opts)
 		},
 		WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
-			opts.Watch = true // Watch needs to be set to true separately
-			opts.AllowWatchBookmarks = ip.enableWatchBookmarks
-
 			ip.selector.ApplyToList(&opts)
+			opts.Watch = true // Watch needs to be set to true separately
 			return listWatcher.WatchFunc(opts)
 		},
 	}, obj, calculateResyncPeriod(ip.resync), cache.Indexers{
@@ -449,9 +444,6 @@ func (ip *Informers) makeListWatcher(gvk schema.GroupVersionKind, obj runtime.Ob
 			},
 			// Setup the watch function
 			WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
-				opts.Watch = true // Watch needs to be set to true separately
-				opts.AllowWatchBookmarks = ip.enableWatchBookmarks
-
 				if namespace != "" {
 					return resources.Namespace(namespace).Watch(ip.ctx, opts)
 				}
@@ -494,9 +486,6 @@ func (ip *Informers) makeListWatcher(gvk schema.GroupVersionKind, obj runtime.Ob
 			},
 			// Setup the watch function
 			WatchFunc: func(opts metav1.ListOptions) (watcher watch.Interface, err error) {
-				opts.Watch = true // Watch needs to be set to true separately
-				opts.AllowWatchBookmarks = ip.enableWatchBookmarks
-
 				if namespace != "" {
 					watcher, err = resources.Namespace(namespace).Watch(ip.ctx, opts)
 				} else {
@@ -538,9 +527,6 @@ func (ip *Informers) makeListWatcher(gvk schema.GroupVersionKind, obj runtime.Ob
 			},
 			// Setup the watch function
 			WatchFunc: func(opts metav1.ListOptions) (watch.Interface, error) {
-				opts.Watch = true // Watch needs to be set to true separately
-				opts.AllowWatchBookmarks = ip.enableWatchBookmarks
-
 				// Build the request.
 				req := client.Get().Resource(mapping.Resource.Resource).VersionedParams(&opts, ip.paramCodec)
 				if namespace != "" {
@@ -585,7 +571,7 @@ func newGVKFixupWatcher(gvk schema.GroupVersionKind, watcher watch.Interface) wa
 // hammer the apiserver with list requests simultaneously.
 func calculateResyncPeriod(resync time.Duration) time.Duration {
 	// the factor will fall into [0.9, 1.1)
-	factor := rand.Float64()/5.0 + 0.9
+	factor := rand.Float64()/5.0 + 0.9 //nolint:gosec
 	return time.Duration(float64(resync.Nanoseconds()) * factor)
 }
 

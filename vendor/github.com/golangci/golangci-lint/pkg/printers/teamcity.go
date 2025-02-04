@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/golangci/golangci-lint/pkg/result"
 )
@@ -111,9 +112,11 @@ func (i InspectionInstance) Print(w io.Writer, replacer *strings.Replacer) (int,
 }
 
 func cutVal(s string, limit int) string {
-	runes := []rune(s)
-	if len(runes) > limit {
-		return string(runes[:limit])
+	var size, count int
+	for i := 0; i < limit && count < len(s); i++ {
+		_, size = utf8.DecodeRuneInString(s[count:])
+		count += size
 	}
-	return s
+
+	return s[:count]
 }

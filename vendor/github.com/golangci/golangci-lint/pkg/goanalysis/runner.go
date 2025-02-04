@@ -1,3 +1,8 @@
+// checker is a partial copy of https://github.com/golang/tools/blob/master/go/analysis/internal/checker
+// Copyright 2018 The Go Authors. All rights reserved.
+// Use of this source code is governed by a BSD-style
+// license that can be found in the LICENSE file.
+
 // Package goanalysis defines the implementation of the checker commands.
 // The same code drives the multi-analysis driver, the single-analysis
 // driver that is conventionally provided for convenience along with
@@ -16,8 +21,8 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/packages"
 
-	"github.com/golangci/golangci-lint/internal/cache"
 	"github.com/golangci/golangci-lint/internal/errorutil"
+	"github.com/golangci/golangci-lint/internal/pkgcache"
 	"github.com/golangci/golangci-lint/pkg/goanalysis/load"
 	"github.com/golangci/golangci-lint/pkg/logutils"
 	"github.com/golangci/golangci-lint/pkg/timeutils"
@@ -42,13 +47,12 @@ type Diagnostic struct {
 	Analyzer *analysis.Analyzer
 	Position token.Position
 	Pkg      *packages.Package
-	File     *token.File
 }
 
 type runner struct {
 	log            logutils.Log
 	prefix         string // ensure unique analyzer names
-	pkgCache       *cache.Cache
+	pkgCache       *pkgcache.Cache
 	loadGuard      *load.Guard
 	loadMode       LoadMode
 	passToPkg      map[*analysis.Pass]*packages.Package
@@ -56,7 +60,7 @@ type runner struct {
 	sw             *timeutils.Stopwatch
 }
 
-func newRunner(prefix string, logger logutils.Log, pkgCache *cache.Cache, loadGuard *load.Guard,
+func newRunner(prefix string, logger logutils.Log, pkgCache *pkgcache.Cache, loadGuard *load.Guard,
 	loadMode LoadMode, sw *timeutils.Stopwatch,
 ) *runner {
 	return &runner{
@@ -80,6 +84,7 @@ func (r *runner) run(analyzers []*analysis.Analyzer, initialPackages []*packages
 	[]error, map[*analysis.Pass]*packages.Package,
 ) {
 	debugf("Analyzing %d packages on load mode %s", len(initialPackages), r.loadMode)
+	defer r.pkgCache.Trim()
 
 	roots := r.analyze(initialPackages, analyzers)
 
@@ -122,9 +127,9 @@ func (r *runner) makeAction(a *analysis.Analyzer, pkg *packages.Package,
 	}
 
 	act = actAlloc.alloc()
-	act.Analyzer = a
-	act.Package = pkg
-	act.runner = r
+	act.a = a
+	act.pkg = pkg
+	act.r = r
 	act.isInitialPkg = initialPkgs[pkg]
 	act.needAnalyzeSource = initialPkgs[pkg]
 	act.analysisDoneCh = make(chan struct{})
@@ -133,11 +138,11 @@ func (r *runner) makeAction(a *analysis.Analyzer, pkg *packages.Package,
 	if len(a.FactTypes) > 0 {
 		depsCount += len(pkg.Imports)
 	}
-	act.Deps = make([]*action, 0, depsCount)
+	act.deps = make([]*action, 0, depsCount)
 
 	// Add a dependency on each required analyzers.
 	for _, req := range a.Requires {
-		act.Deps = append(act.Deps, r.makeAction(req, pkg, initialPkgs, actions, actAlloc))
+		act.deps = append(act.deps, r.makeAction(req, pkg, initialPkgs, actions, actAlloc))
 	}
 
 	r.buildActionFactDeps(act, a, pkg, initialPkgs, actions, actAlloc)
@@ -163,7 +168,7 @@ func (r *runner) buildActionFactDeps(act *action, a *analysis.Analyzer, pkg *pac
 	sort.Strings(paths) // for determinism
 	for _, path := range paths {
 		dep := r.makeAction(a, pkg.Imports[path], initialPkgs, actions, actAlloc)
-		act.Deps = append(act.Deps, dep)
+		act.deps = append(act.deps, dep)
 	}
 
 	// Need to register fact types for pkgcache proper gob encoding.
@@ -204,7 +209,7 @@ func (r *runner) prepareAnalysis(pkgs []*packages.Package,
 	for _, a := range analyzers {
 		for _, pkg := range pkgs {
 			root := r.makeAction(a, pkg, initialPkgs, actions, actAlloc)
-			root.IsRoot = true
+			root.isroot = true
 			roots = append(roots, root)
 		}
 	}
@@ -221,7 +226,7 @@ func (r *runner) analyze(pkgs []*packages.Package, analyzers []*analysis.Analyze
 
 	actionPerPkg := map[*packages.Package][]*action{}
 	for _, act := range actions {
-		actionPerPkg[act.Package] = append(actionPerPkg[act.Package], act)
+		actionPerPkg[act.pkg] = append(actionPerPkg[act.pkg], act)
 	}
 
 	// Fill Imports field.
@@ -251,7 +256,7 @@ func (r *runner) analyze(pkgs []*packages.Package, analyzers []*analysis.Analyze
 		}
 	}
 	for _, act := range actions {
-		dfs(act.Package)
+		dfs(act.pkg)
 	}
 
 	// Limit memory and IO usage.
@@ -283,7 +288,7 @@ func extractDiagnostics(roots []*action) (retDiags []Diagnostic, retErrors []err
 		for _, act := range actions {
 			if !extracted[act] {
 				extracted[act] = true
-				visitAll(act.Deps)
+				visitAll(act.deps)
 				extract(act)
 			}
 		}
@@ -300,34 +305,31 @@ func extractDiagnostics(roots []*action) (retDiags []Diagnostic, retErrors []err
 	seen := make(map[key]bool)
 
 	extract = func(act *action) {
-		if act.Err != nil {
-			if pe, ok := act.Err.(*errorutil.PanicError); ok {
+		if act.err != nil {
+			if pe, ok := act.err.(*errorutil.PanicError); ok {
 				panic(pe)
 			}
-			retErrors = append(retErrors, fmt.Errorf("%s: %w", act.Analyzer.Name, act.Err))
+			retErrors = append(retErrors, fmt.Errorf("%s: %w", act.a.Name, act.err))
 			return
 		}
 
-		if act.IsRoot {
-			for _, diag := range act.Diagnostics {
+		if act.isroot {
+			for _, diag := range act.diagnostics {
 				// We don't display a.Name/f.Category
 				// as most users don't care.
 
-				position := GetFilePositionFor(act.Package.Fset, diag.Pos)
-				file := act.Package.Fset.File(diag.Pos)
-
-				k := key{Position: position, Analyzer: act.Analyzer, message: diag.Message}
+				posn := act.pkg.Fset.Position(diag.Pos)
+				k := key{posn, act.a, diag.Message}
 				if seen[k] {
 					continue // duplicate
 				}
 				seen[k] = true
 
 				retDiag := Diagnostic{
-					File:       file,
 					Diagnostic: diag,
-					Analyzer:   act.Analyzer,
-					Position:   position,
-					Pkg:        act.Package,
+					Analyzer:   act.a,
+					Position:   posn,
+					Pkg:        act.pkg,
 				}
 				retDiags = append(retDiags, retDiag)
 			}

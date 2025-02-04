@@ -12,10 +12,9 @@ const defaultCodeClimateSeverity = "critical"
 // CodeClimateIssue is a subset of the Code Climate spec.
 // https://github.com/codeclimate/platform/blob/master/spec/analyzers/SPEC.md#data-types
 // It is just enough to support GitLab CI Code Quality.
-// https://docs.gitlab.com/ee/ci/testing/code_quality.html#code-quality-report-format
+// https://docs.gitlab.com/ee/user/project/merge_requests/code_quality.html
 type CodeClimateIssue struct {
 	Description string `json:"description"`
-	CheckName   string `json:"check_name"`
 	Severity    string `json:"severity,omitempty"`
 	Fingerprint string `json:"fingerprint"`
 	Location    struct {
@@ -36,13 +35,10 @@ func NewCodeClimate(w io.Writer) *CodeClimate {
 
 func (p CodeClimate) Print(issues []result.Issue) error {
 	codeClimateIssues := make([]CodeClimateIssue, 0, len(issues))
-
 	for i := range issues {
 		issue := &issues[i]
-
 		codeClimateIssue := CodeClimateIssue{}
 		codeClimateIssue.Description = issue.Description()
-		codeClimateIssue.CheckName = issue.FromLinter
 		codeClimateIssue.Location.Path = issue.Pos.Filename
 		codeClimateIssue.Location.Lines.Begin = issue.Pos.Line
 		codeClimateIssue.Fingerprint = issue.Fingerprint()
@@ -55,5 +51,9 @@ func (p CodeClimate) Print(issues []result.Issue) error {
 		codeClimateIssues = append(codeClimateIssues, codeClimateIssue)
 	}
 
-	return json.NewEncoder(p.w).Encode(codeClimateIssues)
+	err := json.NewEncoder(p.w).Encode(codeClimateIssues)
+	if err != nil {
+		return err
+	}
+	return nil
 }

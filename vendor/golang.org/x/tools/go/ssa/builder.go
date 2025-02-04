@@ -82,6 +82,7 @@ import (
 	"runtime"
 	"sync"
 
+	"golang.org/x/tools/internal/aliases"
 	"golang.org/x/tools/internal/typeparams"
 	"golang.org/x/tools/internal/versions"
 )
@@ -853,7 +854,7 @@ func (b *builder) expr0(fn *Function, e ast.Expr, tv types.TypeAndValue) Value {
 			if types.IsInterface(rt) {
 				// If v may be an interface type I (after instantiating),
 				// we must emit a check that v is non-nil.
-				if recv, ok := types.Unalias(sel.recv).(*types.TypeParam); ok {
+				if recv, ok := aliases.Unalias(sel.recv).(*types.TypeParam); ok {
 					// Emit a nil check if any possible instantiation of the
 					// type parameter is an interface type.
 					if typeSetOf(recv).Len() > 0 {
@@ -2507,7 +2508,7 @@ func (b *builder) rangeFunc(fn *Function, x Value, tk, tv types.Type, rng *ast.R
 		name:           fmt.Sprintf("%s$%d", fn.Name(), anonIdx+1),
 		Signature:      ysig,
 		Synthetic:      "range-over-func yield",
-		pos:            rng.Range,
+		pos:            rangePosition(rng),
 		parent:         fn,
 		anonIdx:        int32(len(fn.AnonFuncs)),
 		Pkg:            fn.Pkg,
@@ -2565,8 +2566,6 @@ func (b *builder) rangeFunc(fn *Function, x Value, tk, tv types.Type, rng *ast.R
 
 	emitJump(fn, done)
 	fn.currentBlock = done
-	// pop the stack for the range-over-func
-	fn.targets = fn.targets.tail
 }
 
 // buildYieldResume emits to fn code for how to resume execution once a call to
@@ -2968,7 +2967,7 @@ func (b *builder) buildFromSyntax(fn *Function) {
 func (b *builder) buildYieldFunc(fn *Function) {
 	// See builder.rangeFunc for detailed documentation on how fn is set up.
 	//
-	// In pseudo-Go this roughly builds:
+	// In psuedo-Go this roughly builds:
 	// func yield(_k tk, _v tv) bool {
 	// 	   if jump != READY { panic("yield function called after range loop exit") }
 	//     jump = BUSY
@@ -2999,7 +2998,6 @@ func (b *builder) buildYieldFunc(fn *Function) {
 		}
 	}
 	fn.targets = &targets{
-		tail:      fn.targets,
 		_continue: ycont,
 		// `break` statement targets fn.parent.targets._break.
 	}
@@ -3077,8 +3075,6 @@ func (b *builder) buildYieldFunc(fn *Function) {
 		// unreachable.
 		emitJump(fn, ycont)
 	}
-	// pop the stack for the yield function
-	fn.targets = fn.targets.tail
 
 	// Clean up exits and promote any unresolved exits to fn.parent.
 	for _, e := range fn.exits {
@@ -3108,17 +3104,17 @@ func (b *builder) buildYieldFunc(fn *Function) {
 	fn.finishBody()
 }
 
-// addMakeInterfaceType records non-interface type t as the type of
-// the operand a MakeInterface operation, for [Program.RuntimeTypes].
+// addRuntimeType records t as a runtime type,
+// along with all types derivable from it using reflection.
 //
-// Acquires prog.makeInterfaceTypesMu.
-func addMakeInterfaceType(prog *Program, t types.Type) {
-	prog.makeInterfaceTypesMu.Lock()
-	defer prog.makeInterfaceTypesMu.Unlock()
-	if prog.makeInterfaceTypes == nil {
-		prog.makeInterfaceTypes = make(map[types.Type]unit)
-	}
-	prog.makeInterfaceTypes[t] = unit{}
+// Acquires prog.runtimeTypesMu.
+func addRuntimeType(prog *Program, t types.Type) {
+	prog.runtimeTypesMu.Lock()
+	defer prog.runtimeTypesMu.Unlock()
+	forEachReachable(&prog.MethodSets, t, func(t types.Type) bool {
+		prev, _ := prog.runtimeTypes.Set(t, true).(bool)
+		return !prev // already seen?
+	})
 }
 
 // Build calls Package.Build for each package in prog.

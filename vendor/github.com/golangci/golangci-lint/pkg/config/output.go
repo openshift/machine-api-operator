@@ -43,6 +43,7 @@ type Output struct {
 	Formats         OutputFormats `mapstructure:"formats"`
 	PrintIssuedLine bool          `mapstructure:"print-issued-lines"`
 	PrintLinterName bool          `mapstructure:"print-linter-name"`
+	UniqByLine      bool          `mapstructure:"uniq-by-line"`
 	SortResults     bool          `mapstructure:"sort-results"`
 	SortOrder       []string      `mapstructure:"sort-order"`
 	PathPrefix      string        `mapstructure:"path-prefix"`
@@ -50,9 +51,6 @@ type Output struct {
 
 	// Deprecated: use Formats instead.
 	Format string `mapstructure:"format"`
-
-	// Deprecated: use [Issues.UniqByLine] instead.
-	UniqByLine *bool `mapstructure:"uniq-by-line"`
 }
 
 func (o *Output) Validate() error {
