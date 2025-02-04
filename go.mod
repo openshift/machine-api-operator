@@ -284,3 +284,6 @@ require (
 	sigs.k8s.io/kustomize/kyaml v0.18.1 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.2 // indirect
 )
+
+// github.com/vr4manta/api@vsphere_multi_disk_provisioning
+replace github.com/openshift/api => github.com/vr4manta/api v0.0.0-20250204201705-a2460ae48a64
