@@ -186,6 +186,8 @@ const (
 	maxVSphereDataDiskNameLength = 80
 	// Max size of any data disk in vSphere is 62 TiB.  We are currently limiting to 16TiB (16384 GiB) as a starting point.
 	maxVSphereDataDiskSize = 16384
+	// Max number of networks allowed per machine
+	maxVSphereNetworkCount = 10
 
 	// Nutanix Defaults
 	// Minimum Nutanix values taken from Nutanix reconciler
@@ -1609,6 +1611,11 @@ func validateVSphereWorkspace(workspace *machinev1beta1.Workspace, config *admis
 func validateVSphereNetwork(network machinev1beta1.NetworkSpec, parentPath *field.Path) field.ErrorList {
 	if len(network.Devices) == 0 {
 		return field.ErrorList{field.Required(parentPath.Child("devices"), "at least 1 network device must be provided")}
+	}
+
+	// We currently only support a max of 10 adapters in vSphere based on vSphere limitations
+	if len(network.Devices) > maxVSphereNetworkCount {
+		return field.ErrorList{field.TooMany(parentPath.Child("devices"), len(network.Devices), maxVSphereNetworkCount)}
 	}
 
 	var errs field.ErrorList
