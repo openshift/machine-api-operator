@@ -131,6 +131,13 @@ var (
 
 	// vSphereDataDiskNamePattern is used to validate the name of a data disk
 	vSphereDataDiskNamePattern = regexp.MustCompile(`^[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?$`)
+
+	// validProvisioningModes lists all valid data disk provisioning modes
+	validProvisioningModes = []machinev1beta1.ProvisioningMode{
+		machinev1beta1.ProvisioningModeThin,
+		machinev1beta1.ProvisioningModeThick,
+		machinev1beta1.ProvisioningModeEagerlyZeroed,
+	}
 )
 
 const (
@@ -1568,6 +1575,17 @@ func validateVSphereDataDisks(dataDisks []machinev1beta1.VSphereDisk) field.Erro
 
 		if disk.SizeGiB > maxVSphereDataDiskSize {
 			errs = append(errs, field.Invalid(diskPath.Child("sizeGiB"), disk.SizeGiB, fmt.Sprintf("data disk size (GiB) must not exceed %d", maxVSphereDataDiskSize)))
+		}
+
+		// Validate provisioning modes
+		if len(disk.ProvisioningMode) > 0 {
+			validModesSet := sets.NewString()
+			for _, m := range validProvisioningModes {
+				validModesSet.Insert(string(m))
+			}
+			if !validModesSet.Has(string(disk.ProvisioningMode)) {
+				errs = append(errs, field.NotSupported(diskPath, disk.ProvisioningMode, validModesSet.List()))
+			}
 		}
 	}
 
