@@ -1891,6 +1891,58 @@ func TestMachineUpdate(t *testing.T) {
 			expectedError: "providerSpec.network.devices: Required value: at least 1 network device must be provided",
 		},
 		{
+			name:         "with an VSphere ProviderSpec, having more than 10 network devices",
+			platformType: osconfigv1.VSpherePlatformType,
+			clusterID:    vsphereClusterID,
+			baseProviderSpecValue: &kruntime.RawExtension{
+				Object: defaultVSphereProviderSpec.DeepCopy(),
+			},
+			updatedProviderSpecValue: func() *kruntime.RawExtension {
+				object := defaultVSphereProviderSpec.DeepCopy()
+				object.Network = machinev1beta1.NetworkSpec{
+					Devices: []machinev1beta1.NetworkDeviceSpec{
+						{
+							NetworkName: "networkName1",
+						},
+						{
+							NetworkName: "networkName2",
+						},
+						{
+							NetworkName: "networkName3",
+						},
+						{
+							NetworkName: "networkName4",
+						},
+						{
+							NetworkName: "networkName5",
+						},
+						{
+							NetworkName: "networkName6",
+						},
+						{
+							NetworkName: "networkName7",
+						},
+						{
+							NetworkName: "networkName8",
+						},
+						{
+							NetworkName: "networkName9",
+						},
+						{
+							NetworkName: "networkName10",
+						},
+						{
+							NetworkName: "networkName11",
+						},
+					},
+				}
+				return &kruntime.RawExtension{
+					Object: object,
+				}
+			},
+			expectedError: "providerSpec.network.devices: Too many: 11: must have at most 10 items",
+		},
+		{
 			name:         "when adding a lifecycle hook",
 			platformType: osconfigv1.AWSPlatformType,
 			clusterID:    awsClusterID,
