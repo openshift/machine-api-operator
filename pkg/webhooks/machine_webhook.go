@@ -782,6 +782,12 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 		}
 	}
 
+	if providerSpec.MarketType != "" {
+		if err := validateAWSInstanceMarketType(providerSpec); err != nil {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "marketType"), providerSpec.MarketType, err.Error()))
+		}
+	}
+
 	// TODO(alberto): Validate providerSpec.BlockDevices.
 	// https://github.com/openshift/cluster-api-provider-aws/pull/299#discussion_r433920532
 
@@ -2409,6 +2415,19 @@ func validateAwsCapacityReservationId(capacityReservationId string) error {
 	re := regexp.MustCompile(`^cr-[0-9a-f]{17}$`)
 	if !re.MatchString(capacityReservationId) {
 		return fmt.Errorf("invalid value for capacityReservationId: %q, it must start with 'cr-' and be exactly 20 characters long with 17 hexadecimal characters", capacityReservationId)
+	}
+	return nil
+}
+
+func validateAWSInstanceMarketType(providerSpec *machinev1beta1.AWSMachineProviderConfig) error {
+	if providerSpec.MarketType == machinev1beta1.MarketTypeCapacityBlock && providerSpec.SpotMarketOptions != nil {
+		return errors.New("invalid marketType: marketType set to CapacityBlock and spotMarketOptions cannot be used together")
+	}
+	if providerSpec.MarketType == machinev1beta1.MarketTypeOnDemand && providerSpec.SpotMarketOptions != nil {
+		return errors.New("invalid marketType: setting marketType to OnDemand and spotMarketOptions cannot be used together")
+	}
+	if providerSpec.MarketType == machinev1beta1.MarketTypeCapacityBlock && len(providerSpec.CapacityReservationID) == 0 {
+		return errors.New("capacityReservationID is required when CapacityBlock is provided")
 	}
 	return nil
 }
