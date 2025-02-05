@@ -71,6 +71,7 @@ verify-scripts:
 	bash -x hack/verify-prerelease-lifecycle-gen.sh
 	hack/verify-payload-crds.sh
 	hack/verify-payload-featuregates.sh
+	hack/verify-promoted-features-pass-tests.sh
 
 .PHONY: verify
 verify: verify-scripts lint verify-crd-schema verify-codegen-crds
@@ -82,10 +83,6 @@ verify-codegen-crds:
 .PHONY: verify-crd-schema
 verify-crd-schema:
 	bash -x hack/verify-crd-schema-checker.sh
-
-.PHONY: verify-feature-promotion
-verify-feature-promotion:
-	hack/verify-promoted-features-pass-tests.sh
 
 .PHONY: verify-%
 verify-%:

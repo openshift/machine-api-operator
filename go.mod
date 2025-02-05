@@ -284,3 +284,5 @@ require (
 	sigs.k8s.io/kustomize/kyaml v0.18.1 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.2 // indirect
 )
+
+replace github.com/openshift/api => github.com/athiruma/api v0.0.0-20250204190011-4ff8991db8f9
