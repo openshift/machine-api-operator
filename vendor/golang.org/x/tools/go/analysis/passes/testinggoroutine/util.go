@@ -8,6 +8,7 @@ import (
 	"go/ast"
 	"go/types"
 
+	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/internal/typeparams"
 )
 
@@ -55,7 +56,7 @@ func isMethodNamed(f *types.Func, pkgPath string, names ...string) bool {
 }
 
 func funcIdent(fun ast.Expr) *ast.Ident {
-	switch fun := ast.Unparen(fun).(type) {
+	switch fun := astutil.Unparen(fun).(type) {
 	case *ast.IndexExpr, *ast.IndexListExpr:
 		x, _, _, _ := typeparams.UnpackIndexExpr(fun) // necessary?
 		id, _ := x.(*ast.Ident)

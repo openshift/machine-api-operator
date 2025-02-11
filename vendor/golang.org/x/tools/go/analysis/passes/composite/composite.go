@@ -15,6 +15,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/analysis/passes/inspect"
 	"golang.org/x/tools/go/ast/inspector"
+	"golang.org/x/tools/internal/aliases"
 	"golang.org/x/tools/internal/typeparams"
 )
 
@@ -71,7 +72,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			return
 		}
 		var structuralTypes []types.Type
-		switch typ := types.Unalias(typ).(type) {
+		switch typ := aliases.Unalias(typ).(type) {
 		case *types.TypeParam:
 			terms, err := typeparams.StructuralTerms(typ)
 			if err != nil {
@@ -145,7 +146,7 @@ func run(pass *analysis.Pass) (interface{}, error) {
 // isLocalType reports whether typ belongs to the same package as pass.
 // TODO(adonovan): local means "internal to a function"; rename to isSamePackageType.
 func isLocalType(pass *analysis.Pass, typ types.Type) bool {
-	switch x := types.Unalias(typ).(type) {
+	switch x := aliases.Unalias(typ).(type) {
 	case *types.Struct:
 		// struct literals are local types
 		return true

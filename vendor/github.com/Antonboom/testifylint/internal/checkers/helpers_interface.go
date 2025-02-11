@@ -15,11 +15,8 @@ func isEmptyInterface(pass *analysis.Pass, expr ast.Expr) bool {
 	if !ok {
 		return false
 	}
-	return isEmptyInterfaceType(t.Type)
-}
 
-func isEmptyInterfaceType(t types.Type) bool {
-	iface, ok := t.Underlying().(*types.Interface)
+	iface, ok := t.Type.Underlying().(*types.Interface)
 	return ok && iface.NumMethods() == 0
 }
 

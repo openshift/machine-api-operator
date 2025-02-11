@@ -8,17 +8,17 @@ import (
 	"github.com/golangci/golangci-lint/pkg/goanalysis"
 )
 
-func New(settings *config.ErrChkJSONSettings) *goanalysis.Linter {
+func New(cfg *config.ErrChkJSONSettings) *goanalysis.Linter {
 	a := errchkjson.NewAnalyzer()
 
-	cfg := map[string]map[string]any{}
-	cfg[a.Name] = map[string]any{
+	cfgMap := map[string]map[string]any{}
+	cfgMap[a.Name] = map[string]any{
 		"omit-safe": true,
 	}
-	if settings != nil {
-		cfg[a.Name] = map[string]any{
-			"omit-safe":          !settings.CheckErrorFreeEncoding,
-			"report-no-exported": settings.ReportNoExported,
+	if cfg != nil {
+		cfgMap[a.Name] = map[string]any{
+			"omit-safe":          !cfg.CheckErrorFreeEncoding,
+			"report-no-exported": cfg.ReportNoExported,
 		}
 	}
 
@@ -26,6 +26,6 @@ func New(settings *config.ErrChkJSONSettings) *goanalysis.Linter {
 		a.Name,
 		a.Doc,
 		[]*analysis.Analyzer{a},
-		cfg,
+		cfgMap,
 	).WithLoadMode(goanalysis.LoadModeTypesInfo)
 }

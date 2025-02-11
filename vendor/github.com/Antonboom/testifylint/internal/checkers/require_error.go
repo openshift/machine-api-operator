@@ -134,7 +134,7 @@ func (checker RequireError) Check(pass *analysis.Pass, inspector *inspector.Insp
 			}
 
 			diagnostics = append(diagnostics,
-				*newDiagnostic(checker.Name(), c.testifyCall, requireErrorReport))
+				*newDiagnostic(checker.Name(), c.testifyCall, requireErrorReport, nil))
 		}
 	}
 
@@ -197,10 +197,11 @@ func findRootIf(stack []ast.Node) *ast.IfStmt {
 	nearestIf, i := findNearestNodeWithIdx[*ast.IfStmt](stack)
 	for ; i > 0; i-- {
 		parent, ok := stack[i-1].(*ast.IfStmt)
-		if !ok {
+		if ok {
+			nearestIf = parent
+		} else {
 			break
 		}
-		nearestIf = parent
 	}
 	return nearestIf
 }

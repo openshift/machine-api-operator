@@ -33,13 +33,12 @@ const (
 	// Cluster API Cluster controller after being created.
 	ClusterPhasePending = ClusterPhase("Pending")
 
-	// ClusterPhaseProvisioning is the state when the Cluster has a infrastructure
-	// object or a control plane object that can start provisioning the control plane endpoint.
+	// ClusterPhaseProvisioning is the state when the Cluster has a provider infrastructure
+	// object associated and can start provisioning.
 	ClusterPhaseProvisioning = ClusterPhase("Provisioning")
 
-	// ClusterPhaseProvisioned is the state when its control plane endpoint has been created and configured
-	// and the infrastructure object is ready (if defined).
-	// Note: When a cluster reaches this phase parts of the control plane or worker machines might be still provisioning.
+	// ClusterPhaseProvisioned is the state when its
+	// infrastructure has been created and configured.
 	ClusterPhaseProvisioned = ClusterPhase("Provisioned")
 
 	// ClusterPhaseDeleting is the Cluster state when a delete

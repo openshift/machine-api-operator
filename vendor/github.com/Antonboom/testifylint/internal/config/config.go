@@ -133,7 +133,7 @@ func BindToFlags(cfg *Config, fs *flag.FlagSet) {
 		"to enable go vet's printf checks")
 	fs.BoolVar(&cfg.Formatter.RequireFFuncs,
 		"formatter.require-f-funcs", false,
-		"to require f-assertions (e.g. assert.Equalf) if format string is used, even if there are no variable-length variables.")
+		"to require f-assertions if format string is used")
 
 	fs.BoolVar(&cfg.GoRequire.IgnoreHTTPHandlers,
 		"go-require.ignore-http-handlers", false,

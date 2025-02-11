@@ -2,7 +2,6 @@ package revive
 
 import (
 	"bytes"
-	"cmp"
 	"encoding/json"
 	"fmt"
 	"go/token"
@@ -115,7 +114,7 @@ func newWrapper(settings *config.ReviveSettings) (*wrapper, error) {
 }
 
 func (w *wrapper) run(lintCtx *linter.Context, pass *analysis.Pass) ([]goanalysis.Issue, error) {
-	packages := [][]string{internal.GetGoFileNames(pass)}
+	packages := [][]string{internal.GetFileNames(pass)}
 
 	failures, err := w.revive.Lint(packages, w.lintingRules, *w.conf)
 	if err != nil {
@@ -165,7 +164,7 @@ func toIssue(pass *analysis.Pass, object *jsonObject) goanalysis.Issue {
 		lineRangeTo = object.Position.Start.Line
 	}
 
-	issue := &result.Issue{
+	return goanalysis.NewIssue(&result.Issue{
 		Severity: string(object.Severity),
 		Text:     fmt.Sprintf("%s: %s", object.RuleName, object.Failure.Failure),
 		Pos: token.Position{
@@ -179,31 +178,14 @@ func toIssue(pass *analysis.Pass, object *jsonObject) goanalysis.Issue {
 			To:   lineRangeTo,
 		},
 		FromLinter: linterName,
-	}
-
-	if object.ReplacementLine != "" {
-		f := pass.Fset.File(token.Pos(object.Position.Start.Offset))
-
-		// Skip cgo files because the positions are wrong.
-		if object.GetFilename() == f.Name() {
-			issue.SuggestedFixes = []analysis.SuggestedFix{{
-				TextEdits: []analysis.TextEdit{{
-					Pos:     f.LineStart(object.Position.Start.Line),
-					End:     goanalysis.EndOfLinePos(f, object.Position.End.Line),
-					NewText: []byte(object.ReplacementLine),
-				}},
-			}}
-		}
-	}
-
-	return goanalysis.NewIssue(issue, pass)
+	}, pass)
 }
 
 // This function mimics the GetConfig function of revive.
 // This allows to get default values and right types.
 // https://github.com/golangci/golangci-lint/issues/1745
-// https://github.com/mgechev/revive/blob/v1.5.0/config/config.go#L220
-// https://github.com/mgechev/revive/blob/v1.5.0/config/config.go#L172-L178
+// https://github.com/mgechev/revive/blob/v1.3.7/config/config.go#L217
+// https://github.com/mgechev/revive/blob/v1.3.7/config/config.go#L169-L174
 func getConfig(cfg *config.ReviveSettings) (*lint.Config, error) {
 	conf := defaultConfig()
 
@@ -302,7 +284,7 @@ func safeTomlSlice(r []any) []any {
 }
 
 // This element is not exported by revive, so we need copy the code.
-// Extracted from https://github.com/mgechev/revive/blob/v1.5.0/config/config.go#L16
+// Extracted from https://github.com/mgechev/revive/blob/v1.3.9/config/config.go#L15
 var defaultRules = []lint.Rule{
 	&rule.VarDeclarationsRule{},
 	&rule.PackageCommentsRule{},
@@ -386,19 +368,21 @@ var allRules = append([]lint.Rule{
 	&rule.EnforceSliceStyleRule{},
 	&rule.MaxControlNestingRule{},
 	&rule.CommentsDensityRule{},
-	&rule.FileLengthLimitRule{},
-	&rule.FilenameFormatRule{},
 }, defaultRules...)
 
 const defaultConfidence = 0.8
 
 // This element is not exported by revive, so we need copy the code.
-// Extracted from https://github.com/mgechev/revive/blob/v1.5.0/config/config.go#L183
+// Extracted from https://github.com/mgechev/revive/blob/v1.1.4/config/config.go#L145
 func normalizeConfig(cfg *lint.Config) {
 	// NOTE(ldez): this custom section for golangci-lint should be kept.
 	// ---
-	cfg.Confidence = cmp.Or(cfg.Confidence, defaultConfidence)
-	cfg.Severity = cmp.Or(cfg.Severity, lint.SeverityWarning)
+	if cfg.Confidence == 0 {
+		cfg.Confidence = defaultConfidence
+	}
+	if cfg.Severity == "" {
+		cfg.Severity = lint.SeverityWarning
+	}
 	// ---
 
 	if len(cfg.Rules) == 0 {
@@ -435,7 +419,7 @@ func normalizeConfig(cfg *lint.Config) {
 }
 
 // This element is not exported by revive, so we need copy the code.
-// Extracted from https://github.com/mgechev/revive/blob/v1.5.0/config/config.go#L252
+// Extracted from https://github.com/mgechev/revive/blob/v1.1.4/config/config.go#L214
 func defaultConfig() *lint.Config {
 	defaultConfig := lint.Config{
 		Confidence: defaultConfidence,

@@ -67,11 +67,12 @@ func (checker ErrorIsAs) Check(pass *analysis.Pass, call *CallMeta) *analysis.Di
 		}
 		if proposed != "" {
 			return newUseFunctionDiagnostic(checker.Name(), call, proposed,
-				analysis.TextEdit{
+				newSuggestedFuncReplacement(call, proposed, analysis.TextEdit{
 					Pos:     ce.Pos(),
 					End:     ce.End(),
 					NewText: formatAsCallArgs(pass, ce.Args[0], ce.Args[1]),
-				})
+				}),
+			)
 		}
 
 	case "False":
@@ -90,11 +91,12 @@ func (checker ErrorIsAs) Check(pass *analysis.Pass, call *CallMeta) *analysis.Di
 		if isErrorsIsCall(pass, ce) {
 			const proposed = "NotErrorIs"
 			return newUseFunctionDiagnostic(checker.Name(), call, proposed,
-				analysis.TextEdit{
+				newSuggestedFuncReplacement(call, proposed, analysis.TextEdit{
 					Pos:     ce.Pos(),
 					End:     ce.End(),
 					NewText: formatAsCallArgs(pass, ce.Args[0], ce.Args[1]),
-				})
+				}),
+			)
 		}
 
 	case "ErrorAs":
@@ -125,15 +127,15 @@ func (checker ErrorIsAs) Check(pass *analysis.Pass, call *CallMeta) *analysis.Di
 
 		pt, ok := tv.Type.Underlying().(*types.Pointer)
 		if !ok {
-			return newDiagnostic(checker.Name(), call, defaultReport)
+			return newDiagnostic(checker.Name(), call, defaultReport, nil)
 		}
 		if pt.Elem() == errorType {
-			return newDiagnostic(checker.Name(), call, errorPtrReport)
+			return newDiagnostic(checker.Name(), call, errorPtrReport, nil)
 		}
 
 		_, isInterface := pt.Elem().Underlying().(*types.Interface)
 		if !isInterface && !types.Implements(pt.Elem(), errorIface) {
-			return newDiagnostic(checker.Name(), call, defaultReport)
+			return newDiagnostic(checker.Name(), call, defaultReport, nil)
 		}
 	}
 	return nil

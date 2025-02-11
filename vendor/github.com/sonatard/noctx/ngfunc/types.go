@@ -1,7 +1,7 @@
 package ngfunc
 
 import (
-	"errors"
+	"fmt"
 	"go/types"
 	"strings"
 
@@ -9,7 +9,7 @@ import (
 	"golang.org/x/tools/go/analysis"
 )
 
-var errNotFound = errors.New("function not found")
+var errNotFound = fmt.Errorf("function not found")
 
 func typeFuncs(pass *analysis.Pass, funcs []string) []*types.Func {
 	fs := make([]*types.Func, 0, len(funcs))

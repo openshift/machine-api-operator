@@ -389,7 +389,6 @@ func New(config *rest.Config, options Options) (Manager, error) {
 			LeaderElectionResourceLock: options.LeaderElectionResourceLock,
 			LeaderElectionID:           options.LeaderElectionID,
 			LeaderElectionNamespace:    options.LeaderElectionNamespace,
-			RenewDeadline:              *options.RenewDeadline,
 		})
 		if err != nil {
 			return nil, err

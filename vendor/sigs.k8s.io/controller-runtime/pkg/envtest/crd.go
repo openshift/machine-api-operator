@@ -229,6 +229,7 @@ func UninstallCRDs(config *rest.Config, options CRDInstallOptions) error {
 
 	// Uninstall each CRD
 	for _, crd := range options.CRDs {
+		crd := crd
 		log.V(1).Info("uninstalling CRD", "crd", crd.GetName())
 		if err := cs.Delete(context.TODO(), crd); err != nil {
 			// If CRD is not found, we can consider success
@@ -250,6 +251,7 @@ func CreateCRDs(config *rest.Config, crds []*apiextensionsv1.CustomResourceDefin
 
 	// Create each CRD
 	for _, crd := range crds {
+		crd := crd
 		log.V(1).Info("installing CRD", "crd", crd.GetName())
 		existingCrd := crd.DeepCopy()
 		err := cs.Get(context.TODO(), client.ObjectKey{Name: crd.GetName()}, existingCrd)

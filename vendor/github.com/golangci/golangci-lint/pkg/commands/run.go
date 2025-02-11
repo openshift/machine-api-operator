@@ -28,6 +28,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/golangci/golangci-lint/internal/cache"
+	"github.com/golangci/golangci-lint/internal/pkgcache"
 	"github.com/golangci/golangci-lint/pkg/config"
 	"github.com/golangci/golangci-lint/pkg/exitcodes"
 	"github.com/golangci/golangci-lint/pkg/fsutils"
@@ -208,7 +209,7 @@ func (c *runCommand) preRunE(_ *cobra.Command, args []string) error {
 
 	sw := timeutils.NewStopwatch("pkgcache", c.log.Child(logutils.DebugKeyStopwatch))
 
-	pkgCache, err := cache.NewCache(sw, c.log.Child(logutils.DebugKeyPkgCache))
+	pkgCache, err := pkgcache.NewCache(sw, c.log.Child(logutils.DebugKeyPkgCache))
 	if err != nil {
 		return fmt.Errorf("failed to build packages cache: %w", err)
 	}
@@ -238,21 +239,14 @@ func (c *runCommand) execute(_ *cobra.Command, args []string) {
 	needTrackResources := logutils.IsVerbose() || c.opts.PrintResourcesUsage
 
 	trackResourcesEndCh := make(chan struct{})
-
-	// Note: this defer must be before ctx.cancel defer
-	defer func() {
-		// wait until resource tracking finished to print properly
-		if needTrackResources {
+	defer func() { // XXX: this defer must be before ctx.cancel defer
+		if needTrackResources { // wait until resource tracking finished to print properly
 			<-trackResourcesEndCh
 		}
 	}()
 
-	ctx := context.Background()
-	if c.cfg.Run.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, c.cfg.Run.Timeout)
-		defer cancel()
-	}
+	ctx, cancel := context.WithTimeout(context.Background(), c.cfg.Run.Timeout)
+	defer cancel()
 
 	if needTrackResources {
 		go watchResources(ctx, trackResourcesEndCh, c.log, c.debugf)
@@ -646,7 +640,7 @@ func initHashSalt(version string, cfg *config.Config) error {
 
 	b := bytes.NewBuffer(binSalt)
 	b.Write(configSalt)
-	cache.SetSalt(b)
+	cache.SetSalt(b.Bytes())
 	return nil
 }
 

@@ -7,6 +7,8 @@ import (
 	"go/types"
 	"io"
 	"strings"
+
+	"github.com/timonwong/loggercheck/internal/bytebufferpool"
 )
 
 var ErrInvalidRule = errors.New("invalid rule format")
@@ -42,7 +44,8 @@ func (rs *Ruleset) Match(fn *types.Func) bool {
 }
 
 func receiverTypeOf(recvType types.Type) string {
-	buf := &strings.Builder{}
+	buf := bytebufferpool.Get()
+	defer bytebufferpool.Put(buf)
 
 	var recvNamed *types.Named
 	switch recvType := recvType.(type) {

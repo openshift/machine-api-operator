@@ -28,7 +28,6 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/restmapper"
-	"k8s.io/utils/ptr"
 )
 
 // NewDynamicRESTMapper returns a dynamic RESTMapper for cfg. The dynamic
@@ -42,7 +41,6 @@ func NewDynamicRESTMapper(cfg *rest.Config, httpClient *http.Client) (meta.RESTM
 	if err != nil {
 		return nil, err
 	}
-
 	return &mapper{
 		mapper:      restmapper.NewDiscoveryRESTMapper([]*restmapper.APIGroupResources{}),
 		client:      client,
@@ -55,15 +53,11 @@ func NewDynamicRESTMapper(cfg *rest.Config, httpClient *http.Client) (meta.RESTM
 // client for discovery information to do REST mappings.
 type mapper struct {
 	mapper      meta.RESTMapper
-	client      discovery.AggregatedDiscoveryInterface
+	client      discovery.DiscoveryInterface
 	knownGroups map[string]*restmapper.APIGroupResources
 	apiGroups   map[string]*metav1.APIGroup
 
-	initialDiscoveryDone bool
-
 	// mutex to provide thread-safe mapper reloading.
-	// It protects all fields in the mapper as well as methods
-	// that have the `Locked` suffix.
 	mu sync.RWMutex
 }
 
@@ -165,42 +159,28 @@ func (m *mapper) addKnownGroupAndReload(groupName string, versions ...string) er
 		versions = nil
 	}
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
 	// If no specific versions are set by user, we will scan all available ones for the API group.
 	// This operation requires 2 requests: /api and /apis, but only once. For all subsequent calls
 	// this data will be taken from cache.
-	//
-	// We always run this once, because if the server supports aggregated discovery, this will
-	// load everything with two api calls which we assume is overall cheaper.
-	if len(versions) == 0 || !m.initialDiscoveryDone {
-		apiGroup, didAggregatedDiscovery, err := m.findAPIGroupByNameAndMaybeAggregatedDiscoveryLocked(groupName)
+	if len(versions) == 0 {
+		apiGroup, err := m.findAPIGroupByName(groupName)
 		if err != nil {
 			return err
 		}
-		if apiGroup != nil && len(versions) == 0 {
+		if apiGroup != nil {
 			for _, version := range apiGroup.Versions {
 				versions = append(versions, version.Version)
 			}
 		}
+	}
 
-		// No need to do anything further if aggregatedDiscovery is supported and we did a lookup
-		if didAggregatedDiscovery {
-			failedGroups := make(map[schema.GroupVersion]error)
-			for _, version := range versions {
-				if m.knownGroups[groupName] == nil || m.knownGroups[groupName].VersionedResources[version] == nil {
-					failedGroups[schema.GroupVersion{Group: groupName, Version: version}] = &meta.NoResourceMatchError{
-						PartialResource: schema.GroupVersionResource{
-							Group:   groupName,
-							Version: version,
-						}}
-				}
-			}
-			if len(failedGroups) > 0 {
-				return ptr.To(ErrResourceDiscoveryFailed(failedGroups))
-			}
-			return nil
-		}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Create or fetch group resources from cache.
+	groupResources := &restmapper.APIGroupResources{
+		Group:              metav1.APIGroup{Name: groupName},
+		VersionedResources: make(map[string][]metav1.APIResource),
 	}
 
 	// Update information for group resources about versioned resources.
@@ -214,26 +194,13 @@ func (m *mapper) addKnownGroupAndReload(groupName string, versions ...string) er
 		return fmt.Errorf("failed to get API group resources: %w", err)
 	}
 
-	m.addGroupVersionResourcesToCacheAndReloadLocked(groupVersionResources)
-	return nil
-}
+	if _, ok := m.knownGroups[groupName]; ok {
+		groupResources = m.knownGroups[groupName]
+	}
 
-// addGroupVersionResourcesToCacheAndReloadLocked does what the name suggests. The mutex must be held when
-// calling it.
-func (m *mapper) addGroupVersionResourcesToCacheAndReloadLocked(gvr map[schema.GroupVersion]*metav1.APIResourceList) {
 	// Update information for group resources about the API group by adding new versions.
-	// Ignore the versions that are already registered
-	for groupVersion, resources := range gvr {
-		var groupResources *restmapper.APIGroupResources
-		if _, ok := m.knownGroups[groupVersion.Group]; ok {
-			groupResources = m.knownGroups[groupVersion.Group]
-		} else {
-			groupResources = &restmapper.APIGroupResources{
-				Group:              metav1.APIGroup{Name: groupVersion.Group},
-				VersionedResources: make(map[string][]metav1.APIResource),
-			}
-		}
-
+	// Ignore the versions that are already registered.
+	for groupVersion, resources := range groupVersionResources {
 		version := groupVersion.Version
 
 		groupResources.VersionedResources[version] = resources.APIResources
@@ -247,56 +214,60 @@ func (m *mapper) addGroupVersionResourcesToCacheAndReloadLocked(gvr map[schema.G
 
 		if !found {
 			groupResources.Group.Versions = append(groupResources.Group.Versions, metav1.GroupVersionForDiscovery{
-				GroupVersion: metav1.GroupVersion{Group: groupVersion.Group, Version: version}.String(),
+				GroupVersion: metav1.GroupVersion{Group: groupName, Version: version}.String(),
 				Version:      version,
 			})
 		}
-
-		// Update data in the cache.
-		m.knownGroups[groupVersion.Group] = groupResources
 	}
 
-	// Finally, reload the mapper.
+	// Update data in the cache.
+	m.knownGroups[groupName] = groupResources
+
+	// Finally, update the group with received information and regenerate the mapper.
 	updatedGroupResources := make([]*restmapper.APIGroupResources, 0, len(m.knownGroups))
 	for _, agr := range m.knownGroups {
 		updatedGroupResources = append(updatedGroupResources, agr)
 	}
 
 	m.mapper = restmapper.NewDiscoveryRESTMapper(updatedGroupResources)
+	return nil
 }
 
-// findAPIGroupByNameAndMaybeAggregatedDiscoveryLocked tries to find the passed apiGroup.
-// If the server supports aggregated discovery, it will always perform that.
-func (m *mapper) findAPIGroupByNameAndMaybeAggregatedDiscoveryLocked(groupName string) (_ *metav1.APIGroup, didAggregatedDiscovery bool, _ error) {
-	// Looking in the cache first
-	group, ok := m.apiGroups[groupName]
-	if ok {
-		return group, false, nil
+// findAPIGroupByNameLocked returns API group by its name.
+func (m *mapper) findAPIGroupByName(groupName string) (*metav1.APIGroup, error) {
+	// Looking in the cache first.
+	{
+		m.mu.RLock()
+		group, ok := m.apiGroups[groupName]
+		m.mu.RUnlock()
+		if ok {
+			return group, nil
+		}
 	}
 
 	// Update the cache if nothing was found.
-	apiGroups, maybeResources, _, err := m.client.GroupsAndMaybeResources()
+	apiGroups, err := m.client.ServerGroups()
 	if err != nil {
-		return nil, false, fmt.Errorf("failed to get server groups: %w", err)
+		return nil, fmt.Errorf("failed to get server groups: %w", err)
 	}
 	if len(apiGroups.Groups) == 0 {
-		return nil, false, fmt.Errorf("received an empty API groups list")
+		return nil, fmt.Errorf("received an empty API groups list")
 	}
 
-	m.initialDiscoveryDone = true
-	if len(maybeResources) > 0 {
-		didAggregatedDiscovery = true
-		m.addGroupVersionResourcesToCacheAndReloadLocked(maybeResources)
-	}
+	m.mu.Lock()
 	for i := range apiGroups.Groups {
 		group := &apiGroups.Groups[i]
 		m.apiGroups[group.Name] = group
 	}
+	m.mu.Unlock()
 
 	// Looking in the cache again.
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
 	// Don't return an error here if the API group is not present.
 	// The reloaded RESTMapper will take care of returning a NoMatchError.
-	return m.apiGroups[groupName], didAggregatedDiscovery, nil
+	return m.apiGroups[groupName], nil
 }
 
 // fetchGroupVersionResourcesLocked fetches the resources for the specified group and its versions.
@@ -312,10 +283,10 @@ func (m *mapper) fetchGroupVersionResourcesLocked(groupName string, versions ...
 		if apierrors.IsNotFound(err) {
 			// If the version is not found, we remove the group from the cache
 			// so it gets refreshed on the next call.
-			if m.isAPIGroupCachedLocked(groupVersion) {
+			if m.isAPIGroupCached(groupVersion) {
 				delete(m.apiGroups, groupName)
 			}
-			if m.isGroupVersionCachedLocked(groupVersion) {
+			if m.isGroupVersionCached(groupVersion) {
 				delete(m.knownGroups, groupName)
 			}
 			continue
@@ -337,8 +308,8 @@ func (m *mapper) fetchGroupVersionResourcesLocked(groupName string, versions ...
 	return groupVersionResources, nil
 }
 
-// isGroupVersionCachedLocked checks if a version for a group is cached in the known groups cache.
-func (m *mapper) isGroupVersionCachedLocked(gv schema.GroupVersion) bool {
+// isGroupVersionCached checks if a version for a group is cached in the known groups cache.
+func (m *mapper) isGroupVersionCached(gv schema.GroupVersion) bool {
 	if cachedGroup, ok := m.knownGroups[gv.Group]; ok {
 		_, cached := cachedGroup.VersionedResources[gv.Version]
 		return cached
@@ -347,8 +318,8 @@ func (m *mapper) isGroupVersionCachedLocked(gv schema.GroupVersion) bool {
 	return false
 }
 
-// isAPIGroupCachedLocked checks if a version for a group is cached in the api groups cache.
-func (m *mapper) isAPIGroupCachedLocked(gv schema.GroupVersion) bool {
+// isAPIGroupCached checks if a version for a group is cached in the api groups cache.
+func (m *mapper) isAPIGroupCached(gv schema.GroupVersion) bool {
 	cachedGroup, ok := m.apiGroups[gv.Group]
 	if !ok {
 		return false

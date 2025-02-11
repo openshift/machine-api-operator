@@ -10,42 +10,42 @@ import (
 	"github.com/golangci/golangci-lint/pkg/goanalysis"
 )
 
-func New(settings *config.BiDiChkSettings) *goanalysis.Linter {
+func New(cfg *config.BiDiChkSettings) *goanalysis.Linter {
 	a := bidichk.NewAnalyzer()
 
-	cfg := map[string]map[string]any{}
-	if settings != nil {
+	cfgMap := map[string]map[string]any{}
+	if cfg != nil {
 		var opts []string
 
-		if settings.LeftToRightEmbedding {
+		if cfg.LeftToRightEmbedding {
 			opts = append(opts, "LEFT-TO-RIGHT-EMBEDDING")
 		}
-		if settings.RightToLeftEmbedding {
+		if cfg.RightToLeftEmbedding {
 			opts = append(opts, "RIGHT-TO-LEFT-EMBEDDING")
 		}
-		if settings.PopDirectionalFormatting {
+		if cfg.PopDirectionalFormatting {
 			opts = append(opts, "POP-DIRECTIONAL-FORMATTING")
 		}
-		if settings.LeftToRightOverride {
+		if cfg.LeftToRightOverride {
 			opts = append(opts, "LEFT-TO-RIGHT-OVERRIDE")
 		}
-		if settings.RightToLeftOverride {
+		if cfg.RightToLeftOverride {
 			opts = append(opts, "RIGHT-TO-LEFT-OVERRIDE")
 		}
-		if settings.LeftToRightIsolate {
+		if cfg.LeftToRightIsolate {
 			opts = append(opts, "LEFT-TO-RIGHT-ISOLATE")
 		}
-		if settings.RightToLeftIsolate {
+		if cfg.RightToLeftIsolate {
 			opts = append(opts, "RIGHT-TO-LEFT-ISOLATE")
 		}
-		if settings.FirstStrongIsolate {
+		if cfg.FirstStrongIsolate {
 			opts = append(opts, "FIRST-STRONG-ISOLATE")
 		}
-		if settings.PopDirectionalIsolate {
+		if cfg.PopDirectionalIsolate {
 			opts = append(opts, "POP-DIRECTIONAL-ISOLATE")
 		}
 
-		cfg[a.Name] = map[string]any{
+		cfgMap[a.Name] = map[string]any{
 			"disallowed-runes": strings.Join(opts, ","),
 		}
 	}
@@ -54,6 +54,6 @@ func New(settings *config.BiDiChkSettings) *goanalysis.Linter {
 		a.Name,
 		"Checks for dangerous unicode character sequences",
 		[]*analysis.Analyzer{a},
-		cfg,
+		cfgMap,
 	).WithLoadMode(goanalysis.LoadModeSyntax)
 }

@@ -30,8 +30,8 @@ func New(settings *config.Cyclop) *goanalysis.Linter {
 
 	return goanalysis.NewLinter(
 		a.Name,
-		a.Doc,
+		"checks function and package cyclomatic complexity",
 		[]*analysis.Analyzer{a},
 		cfg,
-	).WithLoadMode(goanalysis.LoadModeSyntax)
+	).WithLoadMode(goanalysis.LoadModeTypesInfo)
 }

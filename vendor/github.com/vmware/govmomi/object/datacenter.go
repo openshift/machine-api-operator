@@ -20,7 +20,6 @@ import (
 	"context"
 	"path"
 
-	"github.com/vmware/govmomi/fault"
 	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/methods"
 	"github.com/vmware/govmomi/vim25/mo"
@@ -122,8 +121,10 @@ func (d Datacenter) PowerOnVM(ctx context.Context, vm []types.ManagedObjectRefer
 		err = task.Wait(ctx)
 		if err != nil {
 			// Ignore any InvalidPowerState fault, as it indicates the VM is already powered on
-			if !fault.Is(err, &types.InvalidPowerState{}) {
-				return nil, err
+			if f, ok := err.(types.HasFault); ok {
+				if _, ok = f.Fault().(*types.InvalidPowerState); !ok {
+					return nil, err
+				}
 			}
 		}
 	}
