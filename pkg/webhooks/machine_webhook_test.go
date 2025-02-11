@@ -199,6 +199,66 @@ func TestMachineCreation(t *testing.T) {
 			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: providerSpec.capacityReservationId: Invalid value: \"cr-123\": invalid value for capacityReservationId: \"cr-123\", it must start with 'cr-' and be exactly 20 characters long with 17 hexadecimal characters",
 		},
 		{
+			name:         "with MarketType set to MarketTypeCapacityBlock and spotMarketOptions are specified",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					CapacityReservationID: "cr-12345678901234567",
+					MarketType:            machinev1beta1.MarketTypeCapacityBlock,
+					SpotMarketOptions:     &machinev1beta1.SpotMarketOptions{},
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: providerSpec.marketType: Invalid value: \"CapacityBlock\": invalid marketType: marketType set to CapacityBlock and spotMarketOptions cannot be used together",
+		},
+		{
+			name:         "with MarketType set to MarketTypeOnDemand and spotMarketOptions are specified",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					MarketType:        machinev1beta1.MarketTypeOnDemand,
+					SpotMarketOptions: &machinev1beta1.SpotMarketOptions{},
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: providerSpec.marketType: Invalid value: \"OnDemand\": invalid marketType: setting marketType to OnDemand and spotMarketOptions cannot be used together",
+		},
+		{
+			name:         "with MarketType set to MarketTypeCapacityBlock is specified and CapacityReservationId is not provided",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					MarketType: machinev1beta1.MarketTypeCapacityBlock,
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: providerSpec.marketType: Invalid value: \"CapacityBlock\": capacityReservationID is required when CapacityBlock is provided",
+		},
+		{
+			name:         "with MarketType set to MarketTypeCapacityBlock and CapacityReservationId are provided",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					CapacityReservationID: "cr-12345678901234567",
+					MarketType:            machinev1beta1.MarketTypeCapacityBlock,
+				},
+			},
+			expectedError: "",
+		},
+		{
 			name:              "with Azure and a nil provider spec value",
 			platformType:      osconfigv1.AzurePlatformType,
 			clusterID:         "azure-cluster",
