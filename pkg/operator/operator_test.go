@@ -171,10 +171,6 @@ func TestOperatorSync_NoOp(t *testing.T) {
 			expectedNoop: false,
 		},
 		{
-			platform:     openshiftv1.OvirtPlatformType,
-			expectedNoop: false,
-		},
-		{
 			platform:     openshiftv1.PowerVSPlatformType,
 			expectedNoop: false,
 		},
@@ -635,40 +631,6 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					KubeRBACProxy:      images.KubeRBACProxy,
 				},
 				PlatformType: openshiftv1.VSpherePlatformType,
-				Features:     enabledFeatureMap,
-			},
-		},
-		{
-			name:     string(openshiftv1.OvirtPlatformType),
-			platform: openshiftv1.OvirtPlatformType,
-			infra:    infra,
-			featureGate: &openshiftv1.FeatureGate{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "cluster",
-				},
-				Status: openshiftv1.FeatureGateStatus{
-					FeatureGates: []openshiftv1.FeatureGateDetails{
-						{
-							Version:  "",
-							Enabled:  enabledFeatureGates,
-							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
-						},
-					},
-				},
-			},
-			proxy: proxy,
-			expectedConfig: &OperatorConfig{
-				TargetNamespace: targetNamespace,
-				Proxy:           proxy,
-				Controllers: Controllers{
-					Provider:           images.ClusterAPIControllerOvirt,
-					MachineSet:         images.MachineAPIOperator,
-					NodeLink:           images.MachineAPIOperator,
-					MachineHealthCheck: images.MachineAPIOperator,
-					TerminationHandler: clusterAPIControllerNoOp,
-					KubeRBACProxy:      images.KubeRBACProxy,
-				},
-				PlatformType: openshiftv1.OvirtPlatformType,
 				Features:     enabledFeatureMap,
 			},
 		},
