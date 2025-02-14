@@ -46,10 +46,6 @@ spec:
     from:
       kind: DockerImage
       name: quay.io/openshift/origin-kube-rbac-proxy
-  - name: ovirt-machine-controllers
-    from:
-      kind: DockerImage
-      name: quay.io/openshift/origin-ovirt-machine-controllers
   - name: alibaba-machine-controllers
     from:
       kind: DockerImage
