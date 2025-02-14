@@ -23,7 +23,6 @@ data:
       "clusterAPIControllerGCP": "quay.io/openshift/origin-gcp-machine-controllers",
       "clusterAPIControllerIBMCloud": "quay.io/openshift/origin-ibmcloud-machine-controllers",
       "clusterAPIControllerNutanix": "quay.io/openshift/origin-nutanix-machine-controllers",
-      "clusterAPIControllerOvirt": "quay.io/openshift/origin-ovirt-machine-controllers",
       "clusterAPIControllerPowerVS": "quay.io/openshift/origin-powervs-machine-controllers",
       "clusterAPIControllerVSphere": "quay.io/openshift/origin-machine-api-operator"
     }
