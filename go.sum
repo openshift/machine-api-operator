@@ -357,10 +357,6 @@ github.com/onsi/ginkgo/v2 v2.22.2 h1:/3X8Panh8/WwhU/3Ssa6rCKqPLuAkVY2I0RoyDLySlU
 github.com/onsi/ginkgo/v2 v2.22.2/go.mod h1:oeMosUL+8LtarXBHu/c0bx2D/K9zyQ6uX3cTyztHwsk=
 github.com/onsi/gomega v1.36.2 h1:koNYke6TVk6ZmnyHrCXba/T/MoLBXFjeC1PtvYgw0A8=
 github.com/onsi/gomega v1.36.2/go.mod h1:DdwyADRjrc825LhMEkD76cHR5+pUnjhUN8GlHlRPHzY=
-github.com/openshift/api v0.0.0-20250130171037-7bb8a0201a56 h1:fWNA66LNXugnaxTaRVHZLdW+vbwyk5vwTT9/x2YYiG8=
-github.com/openshift/api v0.0.0-20250130171037-7bb8a0201a56/go.mod h1:yk60tHAmHhtVpJQo3TwVYq2zpuP70iJIFDCmeKMIzPw=
-github.com/openshift/client-go v0.0.0-20250125113824-8e1f0b8fa9a7 h1:4iliLcvr1P9EUMZgIaSNEKNQQzBn+L6PSequlFOuB6Q=
-github.com/openshift/client-go v0.0.0-20250125113824-8e1f0b8fa9a7/go.mod h1:2tcufBE4Cu6RNgDCxcUJepa530kGo5GFVfR9BSnndhI=
 github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20250122171707-86066d47a264 h1:KoJiId8Ynajf/ZFodvmayFkDODIL7Vow3LmgR5+oVRg=
 github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20250122171707-86066d47a264/go.mod h1:d6xqfLy/cKEGUKfounNsWdAhWAcUYfZyuDgHBCQyfeM=
 github.com/openshift/cluster-control-plane-machine-set-operator v0.0.0-20250128131205-c7b3d7b57a8e h1:fr2ilTXem4bUGpkGpICyabti3eHr9jfgCphG7meaiJw=
@@ -418,6 +414,10 @@ github.com/rogpeppe/go-internal v1.13.1 h1:KvO1DLK/DRN07sQ1LQKScxyZJuNnedQ5/wKSR
 github.com/rogpeppe/go-internal v1.13.1/go.mod h1:uMEvuHeurkdAXX61udpOXGD/AzZDWNMNyH2VO9fmH0o=
 github.com/russross/blackfriday/v2 v2.1.0 h1:JIOH55/0cWyOuilr9/qlrm0BSXldqnqwMsf35Ld67mk=
 github.com/russross/blackfriday/v2 v2.1.0/go.mod h1:+Rmxgy9KzJVeS9/2gXHxylqXiyQDYRxCVz55jmeOWTM=
+github.com/rvanderp3/api v0.0.0-20250217155916-ff9d1455081c h1:Hcl1/BG5CoIeHdGUU5xK6WGqKxlO2xrJc6g+qRqGuk4=
+github.com/rvanderp3/api v0.0.0-20250217155916-ff9d1455081c/go.mod h1:yk60tHAmHhtVpJQo3TwVYq2zpuP70iJIFDCmeKMIzPw=
+github.com/rvanderp3/client-go v0.0.0-20250217184124-a712059f33ed h1:oMr02nypoXZjZb0luqcJ3kFqcUc+T3HCw9N6h1WlknE=
+github.com/rvanderp3/client-go v0.0.0-20250217184124-a712059f33ed/go.mod h1:Et9MZ2F5UsiZ8XUU0x7YzD3kt3hhooJRI3Nq/OcqfJA=
 github.com/ryancurrah/gomodguard v1.3.5 h1:cShyguSwUEeC0jS7ylOiG/idnd1TpJ1LfHGpV3oJmPU=
 github.com/ryancurrah/gomodguard v1.3.5/go.mod h1:MXlEPQRxgfPQa62O8wzK3Ozbkv9Rkqr+wKjSxTdsNJE=
 github.com/ryanrolds/sqlclosecheck v0.5.1 h1:dibWW826u0P8jNLsLN+En7+RqWWTYrjCB9fJfSfdyCU=

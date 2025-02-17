@@ -284,3 +284,7 @@ require (
 	sigs.k8s.io/kustomize/kyaml v0.18.1 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.4.2 // indirect
 )
+
+replace github.com/openshift/api => github.com/rvanderp3/api v0.0.0-20250217155916-ff9d1455081c
+
+replace github.com/openshift/client-go => github.com/rvanderp3/client-go v0.0.0-20250217184124-a712059f33ed
