@@ -4484,6 +4484,43 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 			}(),
 			expectedError: "providerSpec.disks[0].name: Invalid value: \"Bad #Name\": data disk name must consist only of alphanumeric characters, hyphens and underscores, and must start and end with an alphanumeric character.",
 		},
+		{
+			testCase: "with data disk configured with provisioning mode",
+			modifySpec: func(p *machinev1beta1.VSphereMachineProviderSpec) {
+				p.DataDisks = []machinev1beta1.VSphereDisk{
+					{
+						Name:             "Disk1",
+						SizeGiB:          10,
+						ProvisioningMode: machinev1beta1.ProvisioningModeThin,
+					},
+				}
+			},
+			expectedOk: true,
+			featureGatesEnabled: func() map[string]bool {
+				fg := make(map[string]bool)
+				fg[string(features.FeatureGateVSphereMultiDisk)] = true
+				return fg
+			}(),
+		},
+		{
+			testCase: "with data disk configured with invalid provisioning mode",
+			modifySpec: func(p *machinev1beta1.VSphereMachineProviderSpec) {
+				p.DataDisks = []machinev1beta1.VSphereDisk{
+					{
+						Name:             "Disk1",
+						SizeGiB:          10,
+						ProvisioningMode: "Fat",
+					},
+				}
+			},
+			expectedOk: false,
+			featureGatesEnabled: func() map[string]bool {
+				fg := make(map[string]bool)
+				fg[string(features.FeatureGateVSphereMultiDisk)] = true
+				return fg
+			}(),
+			expectedError: "providerSpec.disks[0]: Unsupported value: \"Fat\": supported values: \"EagerlyZeroed\", \"Thick\", \"Thin\"",
+		},
 	}
 
 	secret := &corev1.Secret{

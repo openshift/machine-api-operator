@@ -1245,18 +1245,34 @@ func createDataDisks(s *machineScope, devices object.VirtualDeviceList) ([]types
 	for i, dataDisk := range s.providerSpec.DataDisks {
 		klog.V(2).InfoS("Adding disk", "name", dataDisk.Name, "spec", dataDisk)
 
+		backing := &types.VirtualDiskFlatVer2BackingInfo{
+			DiskMode: string(types.VirtualDiskModePersistent),
+			VirtualDeviceFileBackingInfo: types.VirtualDeviceFileBackingInfo{
+				FileName: "",
+			},
+		}
+
+		// Set provisioning type for the new data disk.
+		// Currently, if ThinProvisioned is not set, GOVC will set default to false.  We may want to change this behavior
+		// to match what template image OS disk has configured to make them match if not set.
+		switch dataDisk.ProvisioningMode {
+		case machinev1.ProvisioningModeThin:
+			backing.ThinProvisioned = types.NewBool(true)
+		case machinev1.ProvisioningModeThick:
+			backing.ThinProvisioned = types.NewBool(false)
+		case machinev1.ProvisioningModeEagerlyZeroed:
+			backing.ThinProvisioned = types.NewBool(false)
+			backing.EagerlyScrub = types.NewBool(true)
+		default:
+			klog.V(2).Infof("No provisioning type detected.  Leaving configuration empty.")
+		}
+
 		dev := &types.VirtualDisk{
 			VirtualDevice: types.VirtualDevice{
 				// Key needs to be unique and cannot match another new disk being added.  So we'll use the index as an
 				// input to NewKey.  NewKey() will always return same value since our new devices are not part of devices yet.
-				Key: devices.NewKey() - int32(i),
-				Backing: &types.VirtualDiskFlatVer2BackingInfo{
-					DiskMode:        string(types.VirtualDiskModePersistent),
-					ThinProvisioned: types.NewBool(true),
-					VirtualDeviceFileBackingInfo: types.VirtualDeviceFileBackingInfo{
-						FileName: "",
-					},
-				},
+				Key:           devices.NewKey() - int32(i),
+				Backing:       backing,
 				ControllerKey: controller.GetVirtualController().Key,
 			},
 			CapacityInKB: int64(dataDisk.SizeGiB) * 1024 * 1024,
