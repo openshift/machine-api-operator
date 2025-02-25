@@ -53,7 +53,6 @@ Providers which currently works with MAO, are:
 - [vSphere](https://github.com/openshift/machine-api-operator/tree/master/pkg/controller/vsphere)
 - [Azure](https://github.com/openshift/cluster-api-provider-azure)
 - [BareMetal](https://github.com/openshift/cluster-api-provider-baremetal/)
-- [OVirt](https://github.com/openshift/cluster-api-provider-ovirt)
 
 ## Works closely, but not directly responsible for
 
