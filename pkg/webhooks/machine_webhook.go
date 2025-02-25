@@ -227,6 +227,7 @@ const (
 // reference: https://cloud.google.com/compute/confidential-vm/docs/os-and-machine-type#machine-type
 var gcpConfidentialTypeMachineSeriesSupportingSEV = []string{"n2d", "c2d", "c3d"}
 var gcpConfidentialTypeMachineSeriesSupportingSEVSNP = []string{"n2d"}
+var gcpConfidentialTypeMachineSeriesSupportingTDX = []string{"c3"}
 
 // defaultInstanceTypeForCloudProvider returns the default instance type for the given cloud provider and architecture.
 // If the cloud provider is not supported, an empty string is returned.
@@ -1339,10 +1340,17 @@ func validateGCPConfidentialComputing(providerSpec *machinev1beta1.GCPMachinePro
 					fmt.Sprintf("ConfidentialCompute %s requires a machine type in the following series: %s", providerSpec.ConfidentialCompute, strings.Join(gcpConfidentialTypeMachineSeriesSupportingSEVSNP, `,`))),
 				)
 			}
+		case machinev1beta1.ConfidentialComputePolicyTDX:
+			if !slices.Contains(gcpConfidentialTypeMachineSeriesSupportingTDX, machineSeries) {
+				errs = append(errs, field.Invalid(field.NewPath("providerSpec", "machineType"),
+					providerSpec.MachineType,
+					fmt.Sprintf("ConfidentialCompute %s requires a machine type in the following series: %s", providerSpec.ConfidentialCompute, strings.Join(gcpConfidentialTypeMachineSeriesSupportingTDX, `,`))),
+				)
+			}
 		default:
 			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "confidentialCompute"),
 				providerSpec.ConfidentialCompute,
-				fmt.Sprintf("ConfidentialCompute must be %s, %s, %s, or %s", machinev1beta1.ConfidentialComputePolicyEnabled, machinev1beta1.ConfidentialComputePolicyDisabled, machinev1beta1.ConfidentialComputePolicySEV, machinev1beta1.ConfidentialComputePolicySEVSNP)),
+				fmt.Sprintf("ConfidentialCompute must be %s, %s, %s, %s, or %s", machinev1beta1.ConfidentialComputePolicyEnabled, machinev1beta1.ConfidentialComputePolicyDisabled, machinev1beta1.ConfidentialComputePolicySEV, machinev1beta1.ConfidentialComputePolicySEVSNP, machinev1beta1.ConfidentialComputePolicyTDX)),
 			)
 		}
 	}

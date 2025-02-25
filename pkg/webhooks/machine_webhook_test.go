@@ -3805,7 +3805,7 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 				p.OnHostMaintenance = machinev1beta1.TerminateHostMaintenanceType
 			},
 			expectedOk:    false,
-			expectedError: "providerSpec.confidentialCompute: Invalid value: \"invalid-value\": ConfidentialCompute must be Enabled, Disabled, AMDEncryptedVirtualization, or AMDEncryptedVirtualizationNestedPaging",
+			expectedError: "providerSpec.confidentialCompute: Invalid value: \"invalid-value\": ConfidentialCompute must be Enabled, Disabled, AMDEncryptedVirtualization, AMDEncryptedVirtualizationNestedPaging, or IntelTrustedDomainExtensions",
 		},
 		{
 			testCase: "with ConfidentialCompute enabled while onHostMaintenance is set to Migrate",
@@ -3889,6 +3889,37 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 			},
 			expectedOk:    false,
 			expectedError: "providerSpec.onHostMaintenance: Invalid value: \"Migrate\": ConfidentialCompute AMDEncryptedVirtualizationNestedPaging requires OnHostMaintenance to be set to Terminate, the current value is: Migrate",
+		},
+		{
+			testCase: "with ConfidentialCompute IntelTrustedDomainExtensions and an unsupported machine",
+			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
+				p.ConfidentialCompute = machinev1beta1.ConfidentialComputePolicyTDX
+				p.OnHostMaintenance = machinev1beta1.TerminateHostMaintenanceType
+				p.MachineType = "c3d-standard-4"
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.machineType: Invalid value: \"c3d-standard-4\": ConfidentialCompute IntelTrustedDomainExtensions requires a machine type in the following series: c3",
+		},
+		{
+			testCase: "with ConfidentialCompute IntelTrustedDomainExtensions and a supported machine",
+			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
+				p.ConfidentialCompute = machinev1beta1.ConfidentialComputePolicyTDX
+				p.OnHostMaintenance = machinev1beta1.TerminateHostMaintenanceType
+				p.MachineType = "c3-standard-4"
+			},
+			expectedOk:    true,
+			expectedError: "",
+		},
+		{
+			testCase: "with ConfidentialCompute IntelTrustedDomainExtensions and onHostMaintenance set to Migrate",
+			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
+				p.ConfidentialCompute = machinev1beta1.ConfidentialComputePolicyTDX
+				p.OnHostMaintenance = machinev1beta1.MigrateHostMaintenanceType
+				p.MachineType = "c3-standard-4"
+				p.GPUs = []machinev1beta1.GCPGPUConfig{}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.onHostMaintenance: Invalid value: \"Migrate\": ConfidentialCompute IntelTrustedDomainExtensions requires OnHostMaintenance to be set to Terminate, the current value is: Migrate",
 		},
 		{
 			testCase: "with GPUs and Migrate onHostMaintenance",
