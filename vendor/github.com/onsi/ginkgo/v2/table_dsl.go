@@ -95,7 +95,7 @@ For example:
 			})
 
 			It("should return the expected message", func() {
-				body, err := io.ReadAll(resp.Body)
+				body, err := ioutil.ReadAll(resp.Body)
 				Expect(err).NotTo(HaveOccurred())
 				Expect(string(body)).To(Equal(message))
 			})
