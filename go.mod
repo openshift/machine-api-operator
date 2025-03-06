@@ -11,7 +11,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/onsi/ginkgo/v2 v2.22.2
 	github.com/onsi/gomega v1.36.2
-	github.com/openshift/api v0.0.0-20250218131406-8b82294c5e3a
+	github.com/openshift/api v0.0.0-20250305122440-3e04d3af8c3e
 	github.com/openshift/client-go v0.0.0-20250125113824-8e1f0b8fa9a7
 	github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20250122171707-86066d47a264
 	github.com/openshift/cluster-control-plane-machine-set-operator v0.0.0-20250128131205-c7b3d7b57a8e

@@ -225,7 +225,9 @@ const (
 
 // GCP Confidential VM supports Compute Engine machine types in the following series:
 // reference: https://cloud.google.com/compute/confidential-vm/docs/os-and-machine-type#machine-type
-var gcpConfidentialComputeSupportedMachineSeries = []string{"n2d", "c2d"}
+var gcpConfidentialTypeMachineSeriesSupportingSEV = []string{"n2d", "c2d", "c3d"}
+var gcpConfidentialTypeMachineSeriesSupportingSEVSNP = []string{"n2d"}
+var gcpConfidentialTypeMachineSeriesSupportingTDX = []string{"c3"}
 
 // defaultInstanceTypeForCloudProvider returns the default instance type for the given cloud provider and architecture.
 // If the cloud provider is not supported, an empty string is returned.
@@ -1320,30 +1322,44 @@ func validateShieldedInstanceConfig(providerSpec *machinev1beta1.GCPMachineProvi
 
 func validateGCPConfidentialComputing(providerSpec *machinev1beta1.GCPMachineProviderSpec) field.ErrorList {
 	var errs field.ErrorList
-
-	switch providerSpec.ConfidentialCompute {
-	case machinev1beta1.ConfidentialComputePolicyEnabled:
+	if providerSpec.ConfidentialCompute != "" && providerSpec.ConfidentialCompute != machinev1beta1.ConfidentialComputePolicyDisabled {
 		// Check on host maintenance
 		if providerSpec.OnHostMaintenance != machinev1beta1.TerminateHostMaintenanceType {
 			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "onHostMaintenance"),
 				providerSpec.OnHostMaintenance,
-				fmt.Sprintf("ConfidentialCompute require OnHostMaintenance to be set to %s, the current value is: %s", machinev1beta1.TerminateHostMaintenanceType, providerSpec.OnHostMaintenance)))
+				fmt.Sprintf("ConfidentialCompute %s requires OnHostMaintenance to be set to %s, the current value is: %s", providerSpec.ConfidentialCompute, machinev1beta1.TerminateHostMaintenanceType, providerSpec.OnHostMaintenance)))
 		}
 		// Check machine series supports confidential computing
 		machineSeries := strings.Split(providerSpec.MachineType, "-")[0]
-		if !slices.Contains(gcpConfidentialComputeSupportedMachineSeries, machineSeries) {
-			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "machineType"),
-				providerSpec.MachineType,
-				fmt.Sprintf("ConfidentialCompute require machine type in the following series: %s", strings.Join(gcpConfidentialComputeSupportedMachineSeries, `,`))),
+		switch providerSpec.ConfidentialCompute {
+		case machinev1beta1.ConfidentialComputePolicyEnabled, machinev1beta1.ConfidentialComputePolicySEV:
+			if !slices.Contains(gcpConfidentialTypeMachineSeriesSupportingSEV, machineSeries) {
+				errs = append(errs, field.Invalid(field.NewPath("providerSpec", "machineType"),
+					providerSpec.MachineType,
+					fmt.Sprintf("ConfidentialCompute %s requires a machine type in the following series: %s", providerSpec.ConfidentialCompute, strings.Join(gcpConfidentialTypeMachineSeriesSupportingSEV, `,`))),
+				)
+			}
+		case machinev1beta1.ConfidentialComputePolicySEVSNP:
+			if !slices.Contains(gcpConfidentialTypeMachineSeriesSupportingSEVSNP, machineSeries) {
+				errs = append(errs, field.Invalid(field.NewPath("providerSpec", "machineType"),
+					providerSpec.MachineType,
+					fmt.Sprintf("ConfidentialCompute %s requires a machine type in the following series: %s", providerSpec.ConfidentialCompute, strings.Join(gcpConfidentialTypeMachineSeriesSupportingSEVSNP, `,`))),
+				)
+			}
+		case machinev1beta1.ConfidentialComputePolicyTDX:
+			if !slices.Contains(gcpConfidentialTypeMachineSeriesSupportingTDX, machineSeries) {
+				errs = append(errs, field.Invalid(field.NewPath("providerSpec", "machineType"),
+					providerSpec.MachineType,
+					fmt.Sprintf("ConfidentialCompute %s requires a machine type in the following series: %s", providerSpec.ConfidentialCompute, strings.Join(gcpConfidentialTypeMachineSeriesSupportingTDX, `,`))),
+				)
+			}
+		default:
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "confidentialCompute"),
+				providerSpec.ConfidentialCompute,
+				fmt.Sprintf("ConfidentialCompute must be %s, %s, %s, %s, or %s", machinev1beta1.ConfidentialComputePolicyEnabled, machinev1beta1.ConfidentialComputePolicyDisabled, machinev1beta1.ConfidentialComputePolicySEV, machinev1beta1.ConfidentialComputePolicySEVSNP, machinev1beta1.ConfidentialComputePolicyTDX)),
 			)
 		}
-	case machinev1beta1.ConfidentialComputePolicyDisabled, "":
-	default:
-		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "confidentialCompute"),
-			providerSpec.ConfidentialCompute,
-			fmt.Sprintf("ConfidentialCompute must be either %s or %s.", machinev1beta1.ConfidentialComputePolicyEnabled, machinev1beta1.ConfidentialComputePolicyDisabled)))
 	}
-
 	return errs
 }
 
