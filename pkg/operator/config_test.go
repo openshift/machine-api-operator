@@ -21,7 +21,6 @@ const (
 	expectedGCPImage       = "quay.io/openshift/origin-gcp-machine-controllers"
 	expectedLibvirtImage   = "quay.io/openshift/origin-libvirt-machine-controllers"
 	expectedOpenstackImage = "quay.io/openshift/origin-openstack-machine-api-provider"
-	expectedOvirtImage     = "quay.io/openshift/origin-ovirt-machine-controllers"
 	expectedPowerVSImage   = "quay.io/openshift/origin-powervs-machine-controllers"
 	expectedVSphereImage   = "quay.io/openshift/origin-machine-api-operator"
 	expectedNutanixImage   = "quay.io/openshift/origin-nutanix-machine-controllers"
@@ -178,22 +177,6 @@ func TestGetProviderFromInfrastructure(t *testing.T) {
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
 				PlatformStatus: &configv1.PlatformStatus{
-					Type: configv1.OvirtPlatformType,
-				},
-			},
-		},
-		expected: configv1.OvirtPlatformType,
-	}, {
-		infra: &configv1.Infrastructure{
-			Status: configv1.InfrastructureStatus{
-				Platform: configv1.OvirtPlatformType,
-			},
-		},
-		expected: "",
-	}, {
-		infra: &configv1.Infrastructure{
-			Status: configv1.InfrastructureStatus{
-				PlatformStatus: &configv1.PlatformStatus{
 					Type: configv1.PowerVSPlatformType,
 				},
 			},
@@ -255,9 +238,6 @@ func TestGetImagesFromJSONFile(t *testing.T) {
 	if img.ClusterAPIControllerGCP != expectedGCPImage {
 		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedGCPImage, img.ClusterAPIControllerGCP)
 	}
-	if img.ClusterAPIControllerOvirt != expectedOvirtImage {
-		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedOvirtImage, img.ClusterAPIControllerOvirt)
-	}
 	if img.ClusterAPIControllerVSphere != expectedVSphereImage {
 		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedVSphereImage, img.ClusterAPIControllerVSphere)
 	}
@@ -315,10 +295,6 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 		{
 			provider:      configv1.NonePlatformType,
 			expectedImage: clusterAPIControllerNoOp,
-		},
-		{
-			provider:      configv1.OvirtPlatformType,
-			expectedImage: expectedOvirtImage,
 		},
 		{
 			provider:      configv1.PowerVSPlatformType,
@@ -403,10 +379,6 @@ func TestGetTerminationHandlerFromImages(t *testing.T) {
 		},
 		{
 			provider:      configv1.NonePlatformType,
-			expectedImage: clusterAPIControllerNoOp,
-		},
-		{
-			provider:      configv1.OvirtPlatformType,
 			expectedImage: clusterAPIControllerNoOp,
 		},
 		{

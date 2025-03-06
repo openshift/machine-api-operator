@@ -45,7 +45,6 @@ type Images struct {
 	ClusterAPIControllerBareMetal string `json:"clusterAPIControllerBareMetal"`
 	ClusterAPIControllerAzure     string `json:"clusterAPIControllerAzure"`
 	ClusterAPIControllerGCP       string `json:"clusterAPIControllerGCP"`
-	ClusterAPIControllerOvirt     string `json:"clusterAPIControllerOvirt"`
 	ClusterAPIControllerVSphere   string `json:"clusterAPIControllerVSphere"`
 	ClusterAPIControllerIBMCloud  string `json:"clusterAPIControllerIBMCloud"`
 	ClusterAPIControllerPowerVS   string `json:"clusterAPIControllerPowerVS"`
@@ -91,8 +90,6 @@ func getProviderControllerFromImages(platform configv1.PlatformType, images Imag
 		return images.ClusterAPIControllerGCP, nil
 	case configv1.BareMetalPlatformType:
 		return images.ClusterAPIControllerBareMetal, nil
-	case configv1.OvirtPlatformType:
-		return images.ClusterAPIControllerOvirt, nil
 	case configv1.VSpherePlatformType:
 		return images.ClusterAPIControllerVSphere, nil
 	case configv1.IBMCloudPlatformType:
