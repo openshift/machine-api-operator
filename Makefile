@@ -65,7 +65,7 @@ vendor:
 check: verify-crds-sync lint fmt vet test ## Run code validations
 
 .PHONY: build
-build: machine-api-operator nodelink-controller machine-healthcheck machineset vsphere ## Build binaries
+build: machine-api-operator nodelink-controller machine-healthcheck machineset vsphere machine-api-tests-ext ## Build binaries
 
 .PHONY: machine-api-operator
 machine-api-operator:
@@ -86,6 +86,10 @@ vsphere:
 .PHONY: machineset
 machineset:
 	$(DOCKER_CMD) ./hack/go-build.sh machineset
+
+.PHONY: machine-api-tests-ext
+machine-api-tests-ext:
+	$(DOCKER_CMD) ./hack/go-build.sh machine-api-tests-ext
 
 .PHONY: test-e2e
 test-e2e: ## Run openshift specific e2e tests
