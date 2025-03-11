@@ -3,6 +3,7 @@ package operator
 import (
 	"context"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -22,6 +23,7 @@ import (
 
 	v1 "github.com/openshift/api/config/v1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
+	securityv1 "github.com/openshift/api/security/v1"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 	"github.com/openshift/library-go/pkg/operator/resource/resourcehash"
@@ -447,8 +449,7 @@ func newDeployment(config *OperatorConfig, features map[string]bool) *appsv1.Dep
 			Name:      "machine-api-controllers",
 			Namespace: config.TargetNamespace,
 			Annotations: map[string]string{
-				maoOwnedAnnotation:          "",
-				"openshift.io/required-scc": "restricted-v2",
+				maoOwnedAnnotation: "",
 			},
 			Labels: map[string]string{
 				"api":     "clusterapi",
@@ -594,9 +595,15 @@ func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev
 	}
 	volumes = append(volumes, newRBACConfigVolumes()...)
 
+	annotations := map[string]string{
+		securityv1.RequiredSCCAnnotation: "restricted-v2",
+	}
+
+	maps.Insert(annotations, maps.All(commonPodTemplateAnnotations))
+
 	return &corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
-			Annotations: commonPodTemplateAnnotations,
+			Annotations: annotations,
 			Labels: map[string]string{
 				"api":     "clusterapi",
 				"k8s-app": "controller",
