@@ -96,10 +96,6 @@ func (r *Reconciler) create() error {
 	}
 
 	if ipam.HasStaticIPConfiguration(r.providerSpec) {
-		if !r.featureGates.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereStaticIPs)) {
-			return fmt.Errorf("%v: static IP/IPAM configuration is only available with the VSphereStaticIPs feature gate", r.machine.GetName())
-		}
-
 		outstandingClaims, err := ipam.HasOutstandingIPAddressClaims(
 			r.Context,
 			r.client,
@@ -417,13 +413,13 @@ func (r *Reconciler) delete() error {
 			return err
 		}
 		klog.Infof("%v: vm does not exist", r.machine.GetName())
-		if r.featureGates.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereStaticIPs)) {
-			// remove any finalizers for IPAddressClaims which may be associated with the machine
-			err = ipam.RemoveFinalizersForIPAddressClaims(r.Context, r.client, *r.machine)
-			if err != nil {
-				return fmt.Errorf("unable to remove finalizer for IP address claims: %w", err)
-			}
+
+		// remove any finalizers for IPAddressClaims which may be associated with the machine
+		err = ipam.RemoveFinalizersForIPAddressClaims(r.Context, r.client, *r.machine)
+		if err != nil {
+			return fmt.Errorf("unable to remove finalizer for IP address claims: %w", err)
 		}
+
 		return nil
 	}
 
@@ -1031,18 +1027,16 @@ func clone(s *machineScope) (string, error) {
 		Value: "TRUE",
 	})
 
-	if s.featureGates.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereStaticIPs)) {
-		if ipam.HasStaticIPConfiguration(s.providerSpec) {
-			networkKargs, err := constructKargsFromNetworkConfig(s)
-			if err != nil {
-				return "", err
-			}
-			if len(networkKargs) > 0 {
-				extraConfig = append(extraConfig, &types.OptionValue{
-					Key:   GuestInfoNetworkKargs,
-					Value: networkKargs,
-				})
-			}
+	if ipam.HasStaticIPConfiguration(s.providerSpec) {
+		networkKargs, err := constructKargsFromNetworkConfig(s)
+		if err != nil {
+			return "", err
+		}
+		if len(networkKargs) > 0 {
+			extraConfig = append(extraConfig, &types.OptionValue{
+				Key:   GuestInfoNetworkKargs,
+				Value: networkKargs,
+			})
 		}
 	}
 
