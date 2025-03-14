@@ -2755,33 +2755,7 @@ func TestCreate(t *testing.T) {
 			expectedError: errors.New("could not update VM Group membership: *types.InvalidArgument"),
 		},
 		{
-			name:        "Fail to create machine with static IP when tech preview not enabled",
-			machineName: "test-2",
-			providerSpec: machinev1.VSphereMachineProviderSpec{
-				Template: vmName,
-				Workspace: &machinev1.Workspace{
-					Server: host,
-				},
-				CredentialsSecret: &corev1.LocalObjectReference{
-					Name: "test",
-				},
-				DiskGiB: 10,
-				UserDataSecret: &corev1.LocalObjectReference{
-					Name: userDataSecretName,
-				},
-				Network: machinev1.NetworkSpec{
-					Devices: staticIpAddressClaim,
-				},
-			},
-			featureGatesEnabled: func() map[string]bool {
-				fg := make(map[string]bool)
-				fg[string(features.FeatureGateVSphereStaticIPs)] = false
-				return fg
-			}(),
-			expectedError: errors.New("test-2: static IP/IPAM configuration is only available with the VSphereStaticIPs feature gate"),
-		},
-		{
-			name:        "Successfully create machine with static IP address claims when tech preview enabled",
+			name:        "Successfully create machine with static IP address claims",
 			machineName: "test-3",
 			providerSpec: machinev1.VSphereMachineProviderSpec{
 				Template: vmName,
@@ -2803,7 +2777,7 @@ func TestCreate(t *testing.T) {
 			ipAddress:      ipAddress,
 		},
 		{
-			name:        "Successfully create machine with static IP addresses when tech preview enabled",
+			name:        "Successfully create machine with static IP addresses",
 			machineName: "test-4",
 			providerSpec: machinev1.VSphereMachineProviderSpec{
 				Template: vmName,
@@ -2823,7 +2797,7 @@ func TestCreate(t *testing.T) {
 			},
 		},
 		{
-			name:        "Failed to create machine with static IP address claim when tech preview enabled due to waiting for IP",
+			name:        "Failed to create machine with static IP address claim due to waiting for IP",
 			machineName: "test-5",
 			providerSpec: machinev1.VSphereMachineProviderSpec{
 				Template: vmName,
