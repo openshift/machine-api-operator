@@ -2,12 +2,15 @@ package e2e
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net"
 	"time"
 
 	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/api/machine/v1beta1"
+	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	configclient "github.com/openshift/client-go/config/clientset/versioned"
 	machinesetclient "github.com/openshift/client-go/machine/clientset/versioned/typed/machine/v1beta1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -229,4 +232,33 @@ func CreateMachineSet(ctx context.Context, cfg *rest.Config, mc *machinesetclien
 	}
 
 	return mc.MachineSets(MachineAPINamespace).Create(ctx, machineset, metav1.CreateOptions{})
+}
+
+func getMachines(ctx context.Context, dc *dynamic.DynamicClient) (*machinev1beta1.MachineList, error) {
+	machineClient := dc.Resource(schema.GroupVersionResource{Group: "machine.openshift.io", Resource: "machines", Version: "v1beta1"})
+	machineObjxList, err := machineClient.List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("Unable to check for machines: %v", err)
+	}
+
+	machineObjxListBytes, err := machineObjxList.MarshalJSON()
+	if err != nil {
+		return nil, fmt.Errorf("unable to marshal JSON: %v", err)
+	}
+	var machineList machinev1beta1.MachineList
+
+	if err = json.Unmarshal(machineObjxListBytes, &machineList); err != nil {
+		return nil, fmt.Errorf("unable to marshal JSON: %v", err)
+	}
+	return &machineList, nil
+}
+
+func isIpInCidrRange(ip string, cidr string) (bool, error) {
+	parsed := net.ParseIP(ip)
+	_, ipnet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return false, fmt.Errorf("unable to parse address: %v", err)
+	}
+
+	return ipnet.Contains(parsed), nil
 }
