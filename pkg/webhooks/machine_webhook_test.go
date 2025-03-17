@@ -199,6 +199,64 @@ func TestMachineCreation(t *testing.T) {
 			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: providerSpec.capacityReservationId: Invalid value: \"cr-123\": invalid value for capacityReservationId: \"cr-123\", it must start with 'cr-' and be exactly 20 characters long with 17 hexadecimal characters",
 		},
 		{
+			name:         "with invalid MarketType provided",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					MarketType: "invalid",
+				},
+			},
+			expectedError: fmt.Sprintf("invalid marketType: invalid valid values are: %s, %s, %s and omitted", machinev1beta1.MarketTypeOnDemand, machinev1beta1.MarketTypeSpot, machinev1beta1.MarketTypeCapacityBlock),
+		},
+		{
+			name:         "with MarketType empty value provided",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					MarketType: "",
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "with MarketType Spot and  CapacityReservationID value provided",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					MarketType:            machinev1beta1.MarketTypeSpot,
+					CapacityReservationID: "cr-12345678901234567",
+				},
+			},
+			expectedError: "invalid marketType: marketType set to Spot and capacityReservationID may not be used together",
+		},
+		{
+			name:         "with CapacityReservationID and SpotMarketOptions are provided",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					SpotMarketOptions:     &machinev1beta1.SpotMarketOptions{},
+					CapacityReservationID: "cr-12345678901234567",
+				},
+			},
+			expectedError: "spotMarketOptions and capacityReservationID may not be used together",
+		},
+		{
 			name:         "with MarketType set to MarketTypeCapacityBlock and spotMarketOptions are specified",
 			platformType: osconfigv1.AWSPlatformType,
 			clusterID:    "aws-cluster",
