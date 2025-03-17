@@ -9,7 +9,9 @@ import (
 	"strconv"
 	"time"
 
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/api/machine/v1beta1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
@@ -45,6 +47,9 @@ func getNodesInFailureDomain(vsphereInfraSpec *configv1.VSpherePlatformSpec,
 	if len(vsphereInfraSpec.FailureDomains) < 2 {
 		return nodes.Items, nil
 	}
+
+	By("getting nodes in failure domain")
+
 	var nodesInFd []corev1.Node
 	region := fd.Region
 	zone := fd.Zone
@@ -75,6 +80,9 @@ func getNodesInFailureDomain(vsphereInfraSpec *configv1.VSpherePlatformSpec,
 func getMachinesInFailureDomain(vsphereInfraSpec *configv1.VSpherePlatformSpec,
 	fd configv1.VSpherePlatformFailureDomainSpec,
 	machines *machinev1beta1.MachineList) ([]machinev1beta1.Machine, error) {
+
+	By("getting machines in failure domain")
+
 	if len(vsphereInfraSpec.FailureDomains) < 2 {
 		return machines.Items, nil
 	}
@@ -106,6 +114,9 @@ func getMachinesInFailureDomain(vsphereInfraSpec *configv1.VSpherePlatformSpec,
 }
 
 func getProviderFromMachineSet(cfg *rest.Config) *v1beta1.VSphereMachineProviderSpec {
+
+	By("getting provider from machineset")
+
 	workerMachineSets, err := util.GetMachineSets(cfg)
 	Expect(err).NotTo(HaveOccurred())
 	Expect(len(workerMachineSets.Items)).NotTo(Equal(0), "cluster should have at least 1 worker machine set created by installer")

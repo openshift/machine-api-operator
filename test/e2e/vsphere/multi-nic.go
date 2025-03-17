@@ -24,6 +24,9 @@ import (
 )
 
 func failIfNodeNotInMachineNetwork(nodes corev1.NodeList, machineNetworks []string) {
+
+	By("checking if nodes are in the machine network")
+
 	for _, node := range nodes.Items {
 		for _, address := range node.Status.Addresses {
 			if address.Type != "InternalIP" && address.Type != "ExternalIP" {
@@ -41,6 +44,9 @@ func failIfIncorrectPortgroupsAttachedToVMs(
 	infra configv1.PlatformSpec,
 	nodeList *corev1.NodeList,
 	vsphereCreds *corev1.Secret) {
+
+	By("checking if VMs have the correct portgroups attached")
+
 	for _, failureDomain := range infra.VSphere.FailureDomains {
 		nodes, err := getNodesInFailureDomain(infra.VSphere, failureDomain, nodeList)
 		fmt.Printf("nodes: %d", len(nodes))
@@ -87,6 +93,9 @@ func failIfNodeNetworkingInconsistentWithMachineNetwork(infra configv1.PlatformS
 }
 
 func failIfMachinesDoNotHaveAllPortgroups(platformSpec configv1.PlatformSpec, machines *machinev1beta1.MachineList) {
+
+	By("checking to see if machines have all portgroups")
+
 	for _, failureDomain := range platformSpec.VSphere.FailureDomains {
 		machinesInFailureDomain, err := getMachinesInFailureDomain(platformSpec.VSphere, failureDomain, machines)
 		Expect(err).NotTo(HaveOccurred())
@@ -98,6 +107,9 @@ func failIfMachinesDoNotHaveAllPortgroups(platformSpec configv1.PlatformSpec, ma
 }
 
 func failIfMachineDoesNotHaveAllPortgroups(machine machinev1beta1.Machine, failureDomain configv1.VSpherePlatformFailureDomainSpec) {
+
+	By("checking to see if machine has all portgroups")
+
 	spec, err := vsphere.ProviderSpecFromRawExtension(machine.Spec.ProviderSpec.Value)
 	Expect(err).NotTo(HaveOccurred())
 
@@ -204,6 +216,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiNetworks][p
 		machineSet := machineSets.Items[0]
 
 		// scale up new machine and wait for scale up to complete
+		By("scaling up a new machineset which should have multiple NICs")
 		err = e2eutil.ScaleMachineSet(cfg, machineSet.Name, int(*machineSet.Spec.Replicas)+1)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -213,6 +226,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiNetworks][p
 		machines, err = mc.Machines("openshift-machine-api").List(ctx, v1.ListOptions{})
 		Expect(err).NotTo(HaveOccurred())
 
+		By("determining common port groups among machines")
 		portGroups := make(map[string]any)
 		for _, machine := range machines.Items {
 			providerSpec, err := vsphere.ProviderSpecFromRawExtension(machine.Spec.ProviderSpec.Value)
@@ -232,5 +246,4 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiNetworks][p
 		failIfMachinesDoNotHaveAllPortgroups(infra.Spec.PlatformSpec, machines)
 		failIfIncorrectPortgroupsAttachedToVMs(ctx, infra.Spec.PlatformSpec, nodes, vsphereCreds)
 	})
-
 })
