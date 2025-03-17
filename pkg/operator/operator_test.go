@@ -42,7 +42,6 @@ const (
 var (
 	enabledFeatureGates = []openshiftv1.FeatureGateAttributes{
 		{Name: apifeatures.FeatureGateMachineAPIMigration},
-		{Name: apifeatures.FeatureGateVSphereStaticIPs},
 		{Name: apifeatures.FeatureGateGCPLabelsTags},
 		{Name: apifeatures.FeatureGateAzureWorkloadIdentity},
 		{Name: apifeatures.FeatureGateVSphereMultiDisk},
@@ -53,7 +52,6 @@ var (
 		"MachineAPIMigration":     true,
 		"GCPLabelsTags":           true,
 		"AzureWorkloadIdentity":   true,
-		"VSphereStaticIPs":        true,
 		"VSphereMultiDisk":        true,
 		"VSphereHostVMGroupZonal": true,
 	}
