@@ -790,6 +790,10 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 		}
 	}
 
+	if providerSpec.MarketType == "" && providerSpec.SpotMarketOptions != nil && providerSpec.CapacityReservationID != "" {
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "capacityReservationId"), providerSpec.CapacityReservationID, "spotMarketOptions and capacityReservationID may not be used together"))
+	}
+
 	// TODO(alberto): Validate providerSpec.BlockDevices.
 	// https://github.com/openshift/cluster-api-provider-aws/pull/299#discussion_r433920532
 
@@ -2444,6 +2448,14 @@ func validateAWSInstanceMarketType(providerSpec *machinev1beta1.AWSMachineProvid
 	}
 	if providerSpec.MarketType == machinev1beta1.MarketTypeCapacityBlock && len(providerSpec.CapacityReservationID) == 0 {
 		return errors.New("capacityReservationID is required when CapacityBlock is provided")
+	}
+	if providerSpec.MarketType == machinev1beta1.MarketTypeSpot && providerSpec.CapacityReservationID != "" {
+		return errors.New("invalid marketType: marketType set to Spot and capacityReservationID may not be used together")
+	}
+	switch providerSpec.MarketType {
+	case "", machinev1beta1.MarketTypeOnDemand, machinev1beta1.MarketTypeSpot, machinev1beta1.MarketTypeCapacityBlock:
+	default:
+		return fmt.Errorf("invalid marketType: %s valid values are: %s, %s, %s and omitted", providerSpec.MarketType, machinev1beta1.MarketTypeOnDemand, machinev1beta1.MarketTypeSpot, machinev1beta1.MarketTypeCapacityBlock)
 	}
 	return nil
 }
