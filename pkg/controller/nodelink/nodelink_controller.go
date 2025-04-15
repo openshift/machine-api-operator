@@ -259,6 +259,7 @@ func (r *ReconcileNodeLink) Reconcile(ctx context.Context, request reconcile.Req
 // updateNodeRef set the given node as nodeRef in the machine status
 func (r *ReconcileNodeLink) updateNodeRef(machine *machinev1.Machine, node *corev1.Node) error {
 	now := metav1.Now()
+	machineCopy := machine.DeepCopy()
 	machine.Status.LastUpdated = &now
 
 	if !node.DeletionTimestamp.IsZero() {
@@ -280,7 +281,7 @@ func (r *ReconcileNodeLink) updateNodeRef(machine *machinev1.Machine, node *core
 		Name: node.GetName(),
 		UID:  node.GetUID(),
 	}
-	if err := r.client.Status().Update(context.Background(), machine); err != nil {
+	if err := r.client.Status().Patch(context.Background(), machine, client.MergeFrom(machineCopy)); err != nil {
 		return fmt.Errorf("error updating machine %q: %v", machine.GetName(), err)
 	}
 	r.nodeReadinessCache[node.GetName()] = nodeReady
