@@ -190,24 +190,24 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiNetworks][p
 		}
 	})
 
-	It("node addresses should be correlated with the machine network [Suite:openshift/conformance/parallel]", func() {
+	It("node addresses should be correlated with the machine network", func() {
 		By("checking for correlation between node internal/external IPs and the machine network")
 		failIfNodeNotInMachineNetwork(*nodes, machineNetworks)
 	})
 
-	It("machine network should be correlated with node networking [Suite:openshift/conformance/parallel]", func() {
+	It("machine network should be correlated with node networking", func() {
 		failIfNodeNetworkingInconsistentWithMachineNetwork(infra.Spec.PlatformSpec, machineNetworks)
 	})
 
-	It("machines should have all specified portgroup associated with their failure domain [Suite:openshift/conformance/parallel]", func() {
+	It("machines should have all specified portgroup associated with their failure domain", func() {
 		failIfMachinesDoNotHaveAllPortgroups(infra.Spec.PlatformSpec, machines)
 	})
 
-	It("node VMs should have all specified portgroups attached which are associated with their failure domain [Suite:openshift/conformance/parallel]", func() {
+	It("node VMs should have all specified portgroups attached which are associated with their failure domain", func() {
 		failIfIncorrectPortgroupsAttachedToVMs(ctx, infra.Spec.PlatformSpec, nodes, vsphereCreds)
 	})
 
-	It("new machines should pass multi network tests [Suite:openshift/conformance/parallel]", func() {
+	It("new machines should pass multi network tests", func() {
 		machineSets, err := e2eutil.GetMachineSets(cfg)
 		Expect(err).NotTo(HaveOccurred())
 
