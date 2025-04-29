@@ -190,7 +190,7 @@ func (r *ReconcileMachineSet) Reconcile(ctx context.Context, request reconcile.R
 
 			machineSet, err := updateMachineSetStatus(r.Client, machineSet, machineSetCopy.Status)
 			if err != nil {
-				klog.Errorf("%v: error updating status: %v", machineSet.Name, err)
+				klog.Errorf("%v: error updating status: %v", machineSetCopy.Name, err)
 			}
 
 			klog.Infof("%v: machine set is paused, taking no further action", machineSet.Name)
@@ -214,7 +214,7 @@ func (r *ReconcileMachineSet) Reconcile(ctx context.Context, request reconcile.R
 		))
 		machineSet, err := updateMachineSetStatus(r.Client, machineSet, machineSetCopy.Status)
 		if err != nil {
-			klog.Errorf("%v: error updating status: %v", machineSet.Name, err)
+			klog.Errorf("%v: error updating status: %v", machineSetCopy.Name, err)
 		}
 		klog.Infof("%v: setting paused to false and continuing reconcile", machineSet.Name)
 	}
