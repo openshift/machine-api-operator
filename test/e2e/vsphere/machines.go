@@ -151,6 +151,16 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiDisk][platf
 		err = util.ScaleMachineSet(cfg, ddMachineSet.Name, 0)
 		Expect(err).NotTo(HaveOccurred())
 
+		// Verify / wait for machine is removed
+		By("verifying machine is destroyed")
+		Eventually(func() (int32, error) {
+			ms, err := mc.MachineSets(util.MachineAPINamespace).Get(ctx, ddMachineSet.Name, metav1.GetOptions{})
+			if err != nil {
+				return -1, err
+			}
+			return ms.Status.ReadyReplicas, nil
+		}, machineReadyTimeout).Should(BeEquivalentTo(0))
+
 		// Delete machineset
 		By("deleting the machineset")
 		err = mc.MachineSets(util.MachineAPINamespace).Delete(ctx, ddMachineSet.Name, metav1.DeleteOptions{})
