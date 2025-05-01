@@ -23,7 +23,7 @@ const (
 	machineReadyTimeout = time.Minute * 6
 )
 
-var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiDisk][platform:vsphere] Managed cluster should", func() {
+var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiDisk][platform:vsphere] Managed cluster should", Label("Conformance"), func() {
 	defer GinkgoRecover()
 	ctx := context.Background()
 
@@ -46,7 +46,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiDisk][platf
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	It("create machines with data disks [apigroup:machine.openshift.io]", func() {
+	It("create machines with data disks [apigroup:machine.openshift.io][Suite:openshift/conformance/parallel]", func() {
 		machineName := "machine-multi-test"
 		dataDisks := []v1beta1.VSphereDisk{
 			{
@@ -151,33 +151,43 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiDisk][platf
 		err = util.ScaleMachineSet(cfg, ddMachineSet.Name, 0)
 		Expect(err).NotTo(HaveOccurred())
 
+		// Verify / wait for machine is removed
+		By("verifying machine is destroyed")
+		Eventually(func() (int32, error) {
+			ms, err := mc.MachineSets(util.MachineAPINamespace).Get(ctx, ddMachineSet.Name, metav1.GetOptions{})
+			if err != nil {
+				return -1, err
+			}
+			return ms.Status.ReadyReplicas, nil
+		}, machineReadyTimeout).Should(BeEquivalentTo(0))
+
 		// Delete machineset
 		By("deleting the machineset")
 		err = mc.MachineSets(util.MachineAPINamespace).Delete(ctx, ddMachineSet.Name, metav1.DeleteOptions{})
 		Expect(err).NotTo(HaveOccurred())
 	},
-		Entry("with thin data disk [apigroup:machine.openshift.io]", "ms-thin-test", []v1beta1.VSphereDisk{
+		Entry("with thin data disk [apigroup:machine.openshift.io][Suite:openshift/conformance/parallel]", "ms-thin-test", []v1beta1.VSphereDisk{
 			{
 				Name:             "thickDataDisk",
 				SizeGiB:          1,
 				ProvisioningMode: v1beta1.ProvisioningModeThick,
 			},
 		}),
-		Entry("with thick data disk [apigroup:machine.openshift.io]", "ms-thick-test", []v1beta1.VSphereDisk{
+		Entry("with thick data disk [apigroup:machine.openshift.io][Suite:openshift/conformance/parallel]", "ms-thick-test", []v1beta1.VSphereDisk{
 			{
 				Name:             "thickDataDisk",
 				SizeGiB:          1,
 				ProvisioningMode: v1beta1.ProvisioningModeThick,
 			},
 		}),
-		Entry("with eagerly zeroed data disk [apigroup:machine.openshift.io]", "ms-zeroed-test", []v1beta1.VSphereDisk{
+		Entry("with eagerly zeroed data disk [apigroup:machine.openshift.io][Suite:openshift/conformance/parallel]", "ms-zeroed-test", []v1beta1.VSphereDisk{
 			{
 				Name:             "zeroedDataDisk",
 				SizeGiB:          1,
 				ProvisioningMode: v1beta1.ProvisioningModeEagerlyZeroed,
 			},
 		}),
-		Entry("with a data disk using each provisioning mode [apigroup:machine.openshift.io]", "ms-multi-test", []v1beta1.VSphereDisk{
+		Entry("with a data disk using each provisioning mode [apigroup:machine.openshift.io][Suite:openshift/conformance/parallel]", "ms-multi-test", []v1beta1.VSphereDisk{
 			{
 				Name:             "thinDataDisk",
 				SizeGiB:          1,
