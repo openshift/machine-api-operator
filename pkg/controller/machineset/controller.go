@@ -174,6 +174,7 @@ func (r *ReconcileMachineSet) Reconcile(ctx context.Context, request reconcile.R
 	}
 
 	if r.gate.Enabled(featuregate.Feature(openshiftfeatures.FeatureGateMachineAPIMigration)) {
+		machineSetName := machineSet.GetName()
 		machineSetCopy := machineSet.DeepCopy()
 		// Check Status.AuthoritativeAPI. If it's not set to MachineAPI. Set the
 		// paused condition true and return early.
@@ -188,12 +189,15 @@ func (r *ReconcileMachineSet) Reconcile(ctx context.Context, request reconcile.R
 				"The AuthoritativeAPI is set to %s", string(machineSet.Status.AuthoritativeAPI),
 			))
 
-			machineSet, err := updateMachineSetStatus(r.Client, machineSet, machineSetCopy.Status)
-			if err != nil {
-				klog.Errorf("%v: error updating status: %v", machineSetCopy.Name, err)
+			_, err := updateMachineSetStatus(r.Client, machineSet, machineSetCopy.Status)
+			if err != nil && !apierrors.IsNotFound(err) {
+				klog.Errorf("%v: error updating status: %v", machineSetName, err)
+				return reconcile.Result{}, fmt.Errorf("error updating status: %w", err)
+			} else if apierrors.IsNotFound(err) {
+				return reconcile.Result{}, nil
 			}
 
-			klog.Infof("%v: machine set is paused, taking no further action", machineSet.Name)
+			klog.Infof("%v: machine set is paused, taking no further action", machineSetName)
 			return reconcile.Result{}, nil
 		}
 
@@ -212,11 +216,17 @@ func (r *ReconcileMachineSet) Reconcile(ctx context.Context, request reconcile.R
 			"%s",
 			pausedFalseReason,
 		))
-		machineSet, err := updateMachineSetStatus(r.Client, machineSet, machineSetCopy.Status)
-		if err != nil {
-			klog.Errorf("%v: error updating status: %v", machineSetCopy.Name, err)
+
+		var err error
+		machineSet, err = updateMachineSetStatus(r.Client, machineSet, machineSetCopy.Status)
+		if err != nil && !apierrors.IsNotFound(err) {
+			klog.Errorf("%v: error updating status: %v", machineSetName, err)
+			return reconcile.Result{}, fmt.Errorf("error updating status: %w", err)
+		} else if apierrors.IsNotFound(err) {
+			return reconcile.Result{}, nil
 		}
-		klog.Infof("%v: setting paused to false and continuing reconcile", machineSet.Name)
+
+		klog.Infof("%v: setting paused to false and continuing reconcile", machineSetName)
 	}
 
 	result, err := r.reconcile(ctx, machineSet)
