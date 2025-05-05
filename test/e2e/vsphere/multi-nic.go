@@ -82,13 +82,21 @@ func failIfIncorrectPortgroupsAttachedToVMs(
 }
 
 func failIfNodeNetworkingInconsistentWithMachineNetwork(infra configv1.PlatformSpec, machineNetworks []string) {
+	// This can happen in scenarios where multinetwork is not enabled.
+	if len(infra.VSphere.NodeNetworking.External.NetworkSubnetCIDR) == 0 ||
+		len(infra.VSphere.NodeNetworking.Internal.NetworkSubnetCIDR) == 0 {
+		Skip("skipping test due to incomplete config")
+	}
+
 	internalNodeNetworking := infra.VSphere.NodeNetworking.Internal
 	externalNodeNetworking := infra.VSphere.NodeNetworking.External
 
+	// machineNetworks contain the VIPs now so we'll need to check each network to see if we find one that matches internal/external.
 	By("comparing nodeNetworking slices to the machine network")
 	for _, nodeNetworkingSpec := range []configv1.VSpherePlatformNodeNetworkingSpec{internalNodeNetworking, externalNodeNetworking} {
-		slices.Sort(nodeNetworkingSpec.NetworkSubnetCIDR)
-		Expect(slices.Equal(nodeNetworkingSpec.NetworkSubnetCIDR, machineNetworks)).To(BeTrue())
+		for _, network := range nodeNetworkingSpec.NetworkSubnetCIDR {
+			Expect(slices.Contains(machineNetworks, network)).To(BeTrue())
+		}
 	}
 }
 
@@ -126,7 +134,7 @@ func failIfMachineDoesNotHaveAllPortgroups(machine machinev1beta1.Machine, failu
 	Expect(slices.Equal(expectedPortgroups, portgroups)).To(BeTrue())
 }
 
-var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiNetworks][platform:vsphere] Managed cluster should", func() {
+var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiNetworks][platform:vsphere] Managed cluster should", Label("Conformance"), func() {
 	defer GinkgoRecover()
 	ctx := context.Background()
 
@@ -190,24 +198,24 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiNetworks][p
 		}
 	})
 
-	It("node addresses should be correlated with the machine network", func() {
+	It("node addresses should be correlated with the machine network [apigroup:machine.openshift.io][Suite:openshift/conformance/parallel]", func() {
 		By("checking for correlation between node internal/external IPs and the machine network")
 		failIfNodeNotInMachineNetwork(*nodes, machineNetworks)
 	})
 
-	It("machine network should be correlated with node networking", func() {
+	It("machine network should be correlated with node networking [apigroup:machine.openshift.io][Suite:openshift/conformance/parallel]", func() {
 		failIfNodeNetworkingInconsistentWithMachineNetwork(infra.Spec.PlatformSpec, machineNetworks)
 	})
 
-	It("machines should have all specified portgroup associated with their failure domain", func() {
+	It("machines should have all specified portgroup associated with their failure domain [apigroup:machine.openshift.io][Suite:openshift/conformance/parallel]", func() {
 		failIfMachinesDoNotHaveAllPortgroups(infra.Spec.PlatformSpec, machines)
 	})
 
-	It("node VMs should have all specified portgroups attached which are associated with their failure domain", func() {
+	It("node VMs should have all specified portgroups attached which are associated with their failure domain [apigroup:machine.openshift.io][Suite:openshift/conformance/parallel]", func() {
 		failIfIncorrectPortgroupsAttachedToVMs(ctx, infra.Spec.PlatformSpec, nodes, vsphereCreds)
 	})
 
-	It("new machines should pass multi network tests", func() {
+	It("new machines should pass multi network tests [apigroup:machine.openshift.io][Suite:openshift/conformance/parallel]", func() {
 		machineSets, err := e2eutil.GetMachineSets(cfg)
 		Expect(err).NotTo(HaveOccurred())
 
