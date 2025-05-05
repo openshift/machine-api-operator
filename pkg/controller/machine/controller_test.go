@@ -756,6 +756,7 @@ func TestUpdateStatus(t *testing.T) {
 					t.Fatalf("error deleting machine: %v", err)
 				}
 			}()
+			machineCopy := machine.DeepCopy()
 
 			if tc.existingProviderStatus != "" {
 				machine.Status.ProviderStatus = &runtime.RawExtension{
@@ -763,7 +764,7 @@ func TestUpdateStatus(t *testing.T) {
 				}
 			}
 
-			gs.Expect(k8sClient.Status().Update(ctx, machine)).To(Succeed())
+			gs.Expect(k8sClient.Status().Patch(ctx, machine, client.MergeFrom(machineCopy))).To(Succeed())
 
 			namespacedName := types.NamespacedName{
 				Namespace: machine.Namespace,
