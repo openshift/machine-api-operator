@@ -41,18 +41,19 @@ func failIfNodeNotInMachineNetwork(nodes corev1.NodeList, machineNetworks []stri
 
 func failIfIncorrectPortgroupsAttachedToVMs(
 	ctx context.Context,
-	infra configv1.PlatformSpec,
+	infra *configv1.Infrastructure,
 	nodeList *corev1.NodeList,
 	vsphereCreds *corev1.Secret) {
 
 	By("checking if VMs have the correct portgroups attached")
 
-	for _, failureDomain := range infra.VSphere.FailureDomains {
-		nodes, err := getNodesInFailureDomain(infra.VSphere, failureDomain, nodeList)
+	providerSpec := infra.Spec.PlatformSpec
+	for _, failureDomain := range providerSpec.VSphere.FailureDomains {
+		nodes, err := getNodesInFailureDomain(providerSpec.VSphere, failureDomain, nodeList)
 		fmt.Printf("nodes: %d", len(nodes))
 		Expect(err).NotTo(HaveOccurred())
 
-		vmPortgroupMap, err := GetPortGroupsAttachedToVMsInFailureDomain(ctx, failureDomain, vsphereCreds, infra.VSphere.VCenters)
+		vmPortgroupMap, err := GetPortGroupsAttachedToVMsInFailureDomain(ctx, infra.Status.InfrastructureName, failureDomain, vsphereCreds, providerSpec.VSphere.VCenters)
 		if err != nil {
 			Expect(err).NotTo(HaveOccurred())
 		}
@@ -212,7 +213,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiNetworks][p
 	})
 
 	It("node VMs should have all specified portgroups attached which are associated with their failure domain [apigroup:machine.openshift.io][Suite:openshift/conformance/parallel]", func() {
-		failIfIncorrectPortgroupsAttachedToVMs(ctx, infra.Spec.PlatformSpec, nodes, vsphereCreds)
+		failIfIncorrectPortgroupsAttachedToVMs(ctx, infra, nodes, vsphereCreds)
 	})
 
 	It("new machines should pass multi network tests [apigroup:machine.openshift.io][Suite:openshift/conformance/serial]", Label("Serial"), func() {
@@ -252,6 +253,6 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiNetworks][p
 		failIfNodeNotInMachineNetwork(*nodes, machineNetworks)
 		failIfNodeNetworkingInconsistentWithMachineNetwork(infra.Spec.PlatformSpec, machineNetworks)
 		failIfMachinesDoNotHaveAllPortgroups(infra.Spec.PlatformSpec, machines)
-		failIfIncorrectPortgroupsAttachedToVMs(ctx, infra.Spec.PlatformSpec, nodes, vsphereCreds)
+		failIfIncorrectPortgroupsAttachedToVMs(ctx, infra, nodes, vsphereCreds)
 	})
 })

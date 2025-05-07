@@ -6,21 +6,21 @@ import (
 	"net"
 	"net/url"
 	"path"
+	"slices"
 	"strconv"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
 	configv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/api/machine/v1beta1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
-	util "github.com/openshift/machine-api-operator/test/e2e"
 	"github.com/pkg/errors"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
 	vapirest "github.com/vmware/govmomi/vapi/rest"
+	"github.com/vmware/govmomi/vapi/tags"
 	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/soap"
@@ -29,6 +29,7 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere"
+	util "github.com/openshift/machine-api-operator/test/e2e"
 )
 
 func isIpInCidrRange(ip string, cidr string) (bool, error) {
@@ -255,6 +256,7 @@ func getCredentialsForVCenter(ctx context.Context, vsphereCreds *corev1.Secret, 
 
 func GetPortGroupsAttachedToVMsInFailureDomain(
 	ctx context.Context,
+	clusterID string,
 	failureDomain configv1.VSpherePlatformFailureDomainSpec,
 	vsphereCreds *corev1.Secret,
 	vCenters []configv1.VSpherePlatformVCenterSpec) (map[string][]string, error) {
@@ -281,7 +283,7 @@ func GetPortGroupsAttachedToVMsInFailureDomain(
 
 	portGroupMap := make(map[string][]string)
 
-	client, _, logout, err := CreateVSphereClients(ctx, vcenterUrl, user, pass)
+	client, rClient, logout, err := CreateVSphereClients(ctx, vcenterUrl, user, pass)
 	defer logout()
 
 	if err != nil {
@@ -290,17 +292,31 @@ func GetPortGroupsAttachedToVMsInFailureDomain(
 
 	finder := NewFinder(client)
 
+	// Get tagged objects and then grab VMs
+	tm := tags.NewManager(rClient)
+	refs, err := tm.ListAttachedObjects(ctx, clusterID)
+	var vmList []types.ManagedObjectReference
+	for _, ref := range refs {
+		if ref.Reference().Type == "VirtualMachine" {
+			vmList = append(vmList, ref.Reference())
+		}
+	}
+
 	vms, err := finder.VirtualMachineList(ctx, fmt.Sprintf("/%s/vm/...", failureDomain.Topology.Datacenter))
 	if err != nil {
 		return nil, fmt.Errorf("unable to get VMs in %s. %v", failureDomain.Topology.ComputeCluster, err)
 	}
 
 	for _, vm := range vms {
+		// Make sure vm has the cluster id tag.  Note: template will be included.
+		if !slices.Contains(vmList, vm.Reference()) {
+			continue
+		}
+
 		vm, err := finder.VirtualMachine(ctx, vm.InventoryPath)
 		if err != nil {
 			return nil, fmt.Errorf("unable to get VMs in %s. %v", failureDomain.Topology.ComputeCluster, err)
 		}
-		fmt.Printf("UUID: %s\n", vm.UUID(ctx))
 		virtualDevices, err := vm.Device(ctx)
 
 		var portGroups []string
