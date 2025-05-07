@@ -215,7 +215,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiNetworks][p
 		failIfIncorrectPortgroupsAttachedToVMs(ctx, infra.Spec.PlatformSpec, nodes, vsphereCreds)
 	})
 
-	It("new machines should pass multi network tests [apigroup:machine.openshift.io][Suite:openshift/conformance/parallel]", func() {
+	It("new machines should pass multi network tests [apigroup:machine.openshift.io][Suite:openshift/conformance/serial]", Label("Serial"), func() {
 		machineSets, err := e2eutil.GetMachineSets(cfg)
 		Expect(err).NotTo(HaveOccurred())
 
