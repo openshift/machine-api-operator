@@ -11,11 +11,6 @@ import (
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-
-	configv1 "github.com/openshift/api/config/v1"
-	"github.com/openshift/api/machine/v1beta1"
-	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
-	util "github.com/openshift/machine-api-operator/test/e2e"
 	"github.com/pkg/errors"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
@@ -27,6 +22,11 @@ import (
 	"github.com/vmware/govmomi/vim25/types"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/rest"
+
+	configv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/api/machine/v1beta1"
+	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
+	util "github.com/openshift/machine-api-operator/test/e2e"
 
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere"
 )
