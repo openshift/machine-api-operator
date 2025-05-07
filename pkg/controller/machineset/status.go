@@ -72,6 +72,7 @@ func (c *ReconcileMachineSet) calculateStatus(ms *machinev1.MachineSet, filtered
 
 // updateMachineSetStatus attempts to update the Status.Replicas of the given MachineSet, with a single GET/PUT retry.
 func updateMachineSetStatus(c client.Client, ms *machinev1.MachineSet, newStatus machinev1.MachineSetStatus) (*machinev1.MachineSet, error) {
+	machineSetCopy := ms.DeepCopy()
 	// This is the steady state. It happens when the MachineSet doesn't have any expectations, since
 	// we do a periodic relist every 30s. If the generations differ but the replicas are
 	// the same, a caller might've resized to the same replica count.
@@ -90,7 +91,7 @@ func updateMachineSetStatus(c client.Client, ms *machinev1.MachineSet, newStatus
 	// same status.
 	newStatus.ObservedGeneration = ms.Generation
 
-	var getErr, updateErr error
+	var getErr, patchErr error
 	for i := 0; ; i++ {
 		var replicas int32
 		if ms.Spec.Replicas != nil {
@@ -105,8 +106,8 @@ func updateMachineSetStatus(c client.Client, ms *machinev1.MachineSet, newStatus
 			fmt.Sprintf("conditions: %v->%v", ms.Status.Conditions, newStatus.Conditions))
 
 		ms.Status = newStatus
-		updateErr = c.Status().Update(context.Background(), ms)
-		if updateErr == nil {
+		patchErr = c.Status().Patch(context.Background(), ms, client.MergeFrom(machineSetCopy))
+		if patchErr == nil {
 			return ms, nil
 		}
 		// Stop retrying if we exceed statusUpdateRetries - the machineSet will be requeued with a rate limit.
@@ -121,7 +122,7 @@ func updateMachineSetStatus(c client.Client, ms *machinev1.MachineSet, newStatus
 		}
 	}
 
-	return nil, updateErr
+	return nil, patchErr
 }
 
 func (c *ReconcileMachineSet) getMachineNode(machine *machinev1.Machine) (*corev1.Node, error) {
