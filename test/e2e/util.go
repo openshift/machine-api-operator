@@ -10,6 +10,7 @@ import (
 	"github.com/openshift/api/machine/v1beta1"
 	configclient "github.com/openshift/client-go/config/clientset/versioned"
 	machinesetclient "github.com/openshift/client-go/machine/clientset/versioned/typed/machine/v1beta1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -176,6 +177,13 @@ func CreateMachine(ctx context.Context, cfg *rest.Config, mc *machinesetclient.M
 			ProviderSpec: v1beta1.ProviderSpec{
 				Value: provider,
 			},
+			Taints: []v1.Taint{
+				{
+					Effect: v1.TaintEffectNoSchedule,
+					Key:    "mapi-e2e",
+					Value:  "yes",
+				},
+			},
 		},
 	}
 
@@ -222,6 +230,13 @@ func CreateMachineSet(ctx context.Context, cfg *rest.Config, mc *machinesetclien
 					ObjectMeta:     v1beta1.ObjectMeta{},
 					ProviderSpec: v1beta1.ProviderSpec{
 						Value: provider,
+					},
+					Taints: []v1.Taint{
+						{
+							Effect: v1.TaintEffectNoSchedule,
+							Key:    "mapi-e2e",
+							Value:  "yes",
+						},
 					},
 				},
 			},
