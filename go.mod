@@ -12,7 +12,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.22.2
 	github.com/onsi/gomega v1.36.2
 	github.com/openshift-eng/openshift-tests-extension v0.0.0-20250401163437-6cbf1d70a450
-	github.com/openshift/api v0.0.0-20250426060331-e577b4d83475
+	github.com/openshift/api v0.0.0-20250528100135-a463917701ab
 	github.com/openshift/client-go v0.0.0-20250131180035-f7ec47e2d87a
 	github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20250122171707-86066d47a264
 	github.com/openshift/cluster-control-plane-machine-set-operator v0.0.0-20250128131205-c7b3d7b57a8e
