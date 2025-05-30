@@ -6,6 +6,10 @@ import (
 	"time"
 
 	. "github.com/onsi/gomega"
+	configv1 "github.com/openshift/api/config/v1"
+	"github.com/openshift/api/machine/v1beta1"
+	configclient "github.com/openshift/client-go/config/clientset/versioned"
+	machinesetclient "github.com/openshift/client-go/machine/clientset/versioned/typed/machine/v1beta1"
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -20,11 +24,6 @@ import (
 	"k8s.io/client-go/scale"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 	e2eskipper "k8s.io/kubernetes/test/e2e/framework/skipper"
-
-	configv1 "github.com/openshift/api/config/v1"
-	"github.com/openshift/api/machine/v1beta1"
-	configclient "github.com/openshift/client-go/config/clientset/versioned"
-	machinesetclient "github.com/openshift/client-go/machine/clientset/versioned/typed/machine/v1beta1"
 )
 
 const (
