@@ -169,13 +169,13 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiNetworks][p
 		vsphereCreds, err = c.CoreV1().Secrets("kube-system").Get(ctx, "vsphere-creds", v1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(len(infra.Spec.PlatformSpec.VSphere.FailureDomains) >= 1)
+		Expect(len(infra.Spec.PlatformSpec.VSphere.FailureDomains)).ShouldNot(Equal(0))
 
 		for _, machineNetwork := range infra.Spec.PlatformSpec.VSphere.MachineNetworks {
 			machineNetworks = append(machineNetworks, string(machineNetwork))
 		}
 
-		Expect(len(machineNetworks) >= 1)
+		Expect(len(machineNetworks)).ShouldNot(Equal(0))
 		slices.Sort(machineNetworks)
 
 		nodes, err = c.CoreV1().Nodes().List(ctx, v1.ListOptions{})
@@ -183,6 +183,11 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiNetworks][p
 
 		machines, err = mc.Machines("openshift-machine-api").List(ctx, v1.ListOptions{})
 		Expect(err).NotTo(HaveOccurred())
+
+		// If we have no machines, this normally means UPI install.  Normally IPI would have machines for at least the control plane.
+		if len(machines.Items) == 0 {
+			Skip("skipping due to lack of machines / UPI cluster")
+		}
 
 		portGroups := make(map[string]any)
 		for _, machine := range machines.Items {
@@ -220,7 +225,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiNetworks][p
 		machineSets, err := e2eutil.GetMachineSets(cfg)
 		Expect(err).NotTo(HaveOccurred())
 
-		Expect(len(machineSets.Items) >= 1)
+		Expect(len(machineSets.Items)).ShouldNot(Equal(0))
 
 		machineSet := machineSets.Items[0]
 
