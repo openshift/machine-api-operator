@@ -32,9 +32,19 @@ func failIfNodeNotInMachineNetwork(nodes corev1.NodeList, machineNetworks []stri
 			if address.Type != "InternalIP" && address.Type != "ExternalIP" {
 				continue
 			}
-			inRange, err := isIpInCidrRange(address.Address, machineNetworks[0])
-			Expect(err).NotTo(HaveOccurred())
-			Expect(inRange).To(BeTrue())
+
+			cidrFound := false
+			for _, machineNetwork := range machineNetworks {
+				inRange, err := isIpInCidrRange(address.Address, machineNetwork)
+				Expect(err).NotTo(HaveOccurred())
+
+				if inRange {
+					cidrFound = true
+					break
+				}
+			}
+
+			Expect(cidrFound).To(BeTrue(), "machine IP must be in one of the machine network CIDR ranges")
 		}
 	}
 }
@@ -61,8 +71,11 @@ func failIfIncorrectPortgroupsAttachedToVMs(
 		var nodeProviderIds []string
 		for _, node := range nodes {
 			providerId := node.Spec.ProviderID
-			Expect(len(providerId)).ShouldNot(BeZero())
 
+			if !strings.HasPrefix(providerId, "vsphere://") {
+				// Node is not a vsphere node.  This could be a BM node in a hybrid scenario or maybe even a nutanix node.
+				continue
+			}
 			parts := strings.Split(providerId, "vsphere://")
 			Expect(len(parts)).Should(BeIdenticalTo(2))
 
