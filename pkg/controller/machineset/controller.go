@@ -176,17 +176,15 @@ func (r *ReconcileMachineSet) Reconcile(ctx context.Context, request reconcile.R
 	if r.gate.Enabled(featuregate.Feature(openshiftfeatures.FeatureGateMachineAPIMigration)) {
 		machineSetName := machineSet.GetName()
 		machineSetCopy := machineSet.DeepCopy()
-		// Check Status.AuthoritativeAPI. If it's not set to MachineAPI. Set the
-		// paused condition true and return early.
-		//
-		// Once we have a webhook, we want to remove the check that the AuthoritativeAPI
-		// field is populated.
+
+		// Check Status.AuthoritativeAPI, if not set to MachineAPI,
+		// set the paused condition true and return early.
 		if machineSet.Status.AuthoritativeAPI != "" &&
 			machineSet.Status.AuthoritativeAPI != machinev1.MachineAuthorityMachineAPI {
 			conditions.Set(machineSetCopy, conditions.TrueConditionWithReason(
 				machine.PausedCondition,
 				machine.PausedConditionReason,
-				"The AuthoritativeAPI is set to %s", string(machineSet.Status.AuthoritativeAPI),
+				"The AuthoritativeAPI is set to '%s'", string(machineSet.Status.AuthoritativeAPI),
 			))
 
 			_, err := updateMachineSetStatus(r.Client, machineSet, machineSetCopy.Status)
@@ -201,20 +199,13 @@ func (r *ReconcileMachineSet) Reconcile(ctx context.Context, request reconcile.R
 			return reconcile.Result{}, nil
 		}
 
-		var pausedFalseReason string
-		if machineSet.Status.AuthoritativeAPI != "" {
-			pausedFalseReason = fmt.Sprintf("The AuthoritativeAPI is set to %s", string(machineSet.Status.AuthoritativeAPI))
-		} else {
-			pausedFalseReason = "The AuthoritativeAPI is not set"
-		}
-
-		// Set the paused condition to false, continue reconciliation
+		// Set the paused condition to false, continue reconciliation.
 		conditions.Set(machineSetCopy, conditions.FalseCondition(
 			machine.PausedCondition,
 			machine.NotPausedConditionReason,
 			machinev1.ConditionSeverityInfo,
 			"%s",
-			pausedFalseReason,
+			fmt.Sprintf("The AuthoritativeAPI is set to '%s'", string(machineSet.Status.AuthoritativeAPI)),
 		))
 
 		var err error
@@ -226,7 +217,14 @@ func (r *ReconcileMachineSet) Reconcile(ctx context.Context, request reconcile.R
 			return reconcile.Result{}, nil
 		}
 
-		klog.Infof("%v: setting paused to false and continuing reconcile", machineSetName)
+		klog.Infof("%v: setting machine set paused condition to false", machineSetName)
+
+		// Here we want to check again the .status.AuthoritativeAPI is set to MachineAPI
+		// as the above updateMachineSetStatus does a get of the latest machine set and the value could be anything again at that point.
+		if machineSet.Status.AuthoritativeAPI != machinev1.MachineAuthorityMachineAPI {
+			klog.Infof("%v: machine set .status.authoritativeAPI is set to '%s', taking no further action", machineSetName, machineSet.Status.AuthoritativeAPI)
+			return reconcile.Result{}, nil
+		}
 	}
 
 	result, err := r.reconcile(ctx, machineSet)

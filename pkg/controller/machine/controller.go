@@ -177,43 +177,46 @@ func (r *ReconcileMachine) Reconcile(ctx context.Context, request reconcile.Requ
 	originalConditions := conditions.DeepCopyConditions(m.Status.Conditions)
 
 	if r.gate.Enabled(featuregate.Feature(openshiftfeatures.FeatureGateMachineAPIMigration)) {
-		// Check Status.AuthoritativeAPI
-		// If not MachineAPI. Set the paused condition true and return early.
-		//
-		// Once we have a webhook, we want to remove the check that the AuthoritativeAPI
-		// field is populated.
 		if m.Status.AuthoritativeAPI != "" &&
 			m.Status.AuthoritativeAPI != machinev1.MachineAuthorityMachineAPI {
 			conditions.Set(m, conditions.TrueConditionWithReason(
 				PausedCondition,
 				PausedConditionReason,
-				"The AuthoritativeAPI is set to %s", string(m.Status.AuthoritativeAPI),
+				"The AuthoritativeAPI is set to '%s'", string(m.Status.AuthoritativeAPI),
 			))
-			if patchErr := r.updateStatus(ctx, m, ptr.Deref(m.Status.Phase, ""), nil, originalConditions); patchErr != nil {
+			if patchErr := r.updateStatus(ctx, m, ptr.Deref(m.Status.Phase, ""), nil, originalConditions); patchErr != nil && !apierrors.IsNotFound(patchErr) {
 				klog.Errorf("%v: error patching status: %v", machineName, patchErr)
+				return reconcile.Result{}, fmt.Errorf("error patching status: %w", patchErr)
+			} else if apierrors.IsNotFound(patchErr) {
+				return reconcile.Result{}, nil
 			}
 
 			klog.Infof("%v: machine is paused, taking no further action", machineName)
 			return reconcile.Result{}, nil
 		}
 
-		var pausedFalseReason string
-		if m.Status.AuthoritativeAPI != "" {
-			pausedFalseReason = fmt.Sprintf("The AuthoritativeAPI is set to %s", string(m.Status.AuthoritativeAPI))
-		} else {
-			pausedFalseReason = "The AuthoritativeAPI is not set"
-		}
-
-		// Set the paused condition to false, continue reconciliation
+		// Set the paused condition to false, continue reconciliation.
 		conditions.Set(m, conditions.FalseCondition(
 			PausedCondition,
 			NotPausedConditionReason,
 			machinev1.ConditionSeverityInfo,
 			"%s",
-			pausedFalseReason,
+			fmt.Sprintf("The AuthoritativeAPI is set to '%s'", string(m.Status.AuthoritativeAPI)),
 		))
-		if patchErr := r.updateStatus(ctx, m, ptr.Deref(m.Status.Phase, ""), nil, originalConditions); patchErr != nil {
+		if patchErr := r.updateStatus(ctx, m, ptr.Deref(m.Status.Phase, ""), nil, originalConditions); patchErr != nil && !apierrors.IsNotFound(patchErr) {
 			klog.Errorf("%v: error patching status: %v", machineName, patchErr)
+			return reconcile.Result{}, fmt.Errorf("error patching status: %w", patchErr)
+		} else if apierrors.IsNotFound(patchErr) {
+			return reconcile.Result{}, nil
+		}
+
+		klog.Infof("%v: setting machine paused condition to false", machineName)
+
+		// Here we want to check again the .status.AuthoritativeAPI is set to MachineAPI
+		// as the above updateStatus does a get of the latest machine and the value could be anything again at that point.
+		if m.Status.AuthoritativeAPI != machinev1.MachineAuthorityMachineAPI {
+			klog.Infof("%v: machine .status.authoritativeAPI is set to '%s', taking no further action", machineName, m.Status.AuthoritativeAPI)
+			return reconcile.Result{}, nil
 		}
 	}
 
