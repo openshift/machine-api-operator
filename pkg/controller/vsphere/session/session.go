@@ -20,7 +20,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -28,6 +31,7 @@ import (
 	"github.com/vmware/govmomi/vapi/tags"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
+	"github.com/vmware/govmomi/vim25/xml"
 
 	"github.com/google/uuid"
 	"github.com/vmware/govmomi"
@@ -57,6 +61,88 @@ type Session struct {
 	sessionKey string
 }
 
+// #### Start: This section was added by cursor
+
+// SOAPResponse represents the structure of SOAP responses
+type SOAPResponse struct {
+	XMLName xml.Name `xml:"Envelope"`
+	Body    struct {
+		XMLName xml.Name `xml:"Body"`
+		Fault   *struct {
+			XMLName xml.Name `xml:"Fault"`
+			Code    struct {
+				XMLName xml.Name `xml:"faultcode"`
+				Value   string   `xml:",chardata"`
+			} `xml:"faultcode"`
+			Reason struct {
+				XMLName xml.Name `xml:"faultstring"`
+				Value   string   `xml:",chardata"`
+			} `xml:"faultstring"`
+			Detail struct {
+				XMLName xml.Name `xml:"detail"`
+				Content string   `xml:",chardata"`
+			} `xml:"detail"`
+		} `xml:"Fault,omitempty"`
+	} `xml:"Body"`
+}
+
+// CustomTransport wraps the default transport to intercept SOAP responses
+type CustomTransport struct {
+	http.RoundTripper
+}
+
+func (t *CustomTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Call the original transport
+	resp, err := t.RoundTripper.RoundTrip(req)
+	if err != nil {
+		return resp, err
+	}
+
+	// Read the response body
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return resp, err
+	}
+	resp.Body.Close()
+
+	// Check if it's a SOAP response
+	if strings.Contains(string(body), "<?xml") && strings.Contains(string(body), "Envelope") {
+		// Parse SOAP response for privilege errors
+		var soapResp SOAPResponse
+		if err := xml.Unmarshal(body, &soapResp); err == nil {
+			if soapResp.Body.Fault != nil {
+				klog.Error("=== PRIVILEGE ERROR DETECTED ===")
+				klog.Errorf("Fault Code: %s\n", soapResp.Body.Fault.Code.Value)
+				klog.Errorf("Fault Reason: %s\n", soapResp.Body.Fault.Reason.Value)
+				klog.Errorf("Fault Detail: %s\n", soapResp.Body.Fault.Detail.Content)
+				klog.Error("================================\n")
+			}
+		}
+
+		// Check for privilege-related error messages in the response
+		bodyStr := string(body)
+		privilegeKeywords := []string{
+			"privilege", "permission", "access denied", "unauthorized", "forbidden",
+			"NoPermission", "InvalidLogin", "InvalidPrivilege",
+		}
+		for _, keyword := range privilegeKeywords {
+			if strings.Contains(strings.ToLower(bodyStr), strings.ToLower(keyword)) {
+				klog.Errorf("=== POTENTIAL PRIVILEGE ISSUE DETECTED (keyword: %s) ===\n", keyword)
+				klog.Error("Response contains privilege-related content\n")
+				klog.Error("==================================================")
+				break
+			}
+		}
+		fmt.Println("=== End SOAP Response ===\n")
+	}
+
+	// Create a new response with the body
+	resp.Body = io.NopCloser(strings.NewReader(string(body)))
+	return resp, nil
+}
+
+// #### End: This section was added by cursor
+
 func newClientWithTimeout(ctx context.Context, u *url.URL, insecure bool, timeout time.Duration) (*govmomi.Client, error) {
 	clientCreateCtx, clientCreateCtxCancel := context.WithTimeout(ctx, timeout)
 	defer clientCreateCtxCancel()
@@ -65,6 +151,14 @@ func newClientWithTimeout(ctx context.Context, u *url.URL, insecure bool, timeou
 	if err != nil {
 		return nil, err
 	}
+
+	customTransport := &CustomTransport{
+		RoundTripper: http.DefaultTransport,
+	}
+
+	// Create SOAP client with custom transport
+	client.Transport = customTransport
+
 	client.Timeout = timeout
 	return client, nil
 }
