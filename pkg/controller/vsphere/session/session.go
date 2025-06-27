@@ -21,14 +21,17 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/vmware/govmomi/session"
 	"github.com/vmware/govmomi/vapi/rest"
 	"github.com/vmware/govmomi/vapi/tags"
+	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
 	"github.com/vmware/govmomi/vim25/xml"
@@ -147,17 +150,42 @@ func newClientWithTimeout(ctx context.Context, u *url.URL, insecure bool, timeou
 	clientCreateCtx, clientCreateCtxCancel := context.WithTimeout(ctx, timeout)
 	defer clientCreateCtxCancel()
 	// It makes call to vcenter during new client creation, so pass context with timeout there.
-	client, err := govmomi.NewClient(clientCreateCtx, u, insecure)
-	if err != nil {
-		return nil, err
-	}
+	/*
+		client, err := govmomi.NewClient(clientCreateCtx, u, insecure)
+		if err != nil {
+			return nil, err
+		}
+
+	*/
 
 	customTransport := &CustomTransport{
 		RoundTripper: http.DefaultTransport,
 	}
 
+	soapClient := soap.NewClient(u, insecure)
+	soapClient.Transport = customTransport
+
+	// Create vim25 client
+	vimClient, err := vim25.NewClient(clientCreateCtx, soapClient)
+	if err != nil {
+		log.Fatalf("Failed to create vim25 client: %v", err)
+	}
+
+	// Create govmomi client
+	client := &govmomi.Client{
+		Client:         vimClient,
+		SessionManager: session.NewManager(vimClient),
+	}
+
+	// Login to vSphere
+	err = client.Login(ctx, u.User)
+	if err != nil {
+		log.Fatalf("Failed to login to vSphere: %v", err)
+	}
+	defer client.Logout(clientCreateCtx)
+
 	// Create SOAP client with custom transport
-	client.Transport = customTransport
+	//client.Transport = customTransport
 
 	client.Timeout = timeout
 	return client, nil
