@@ -110,10 +110,10 @@ var _ = Describe("MachineSet Reconciler", func() {
 	It("Should reconcile a MachineSet", func() {
 		instance := machineSetBuilder.Build()
 
-		By("Creating the MachineSet (empty status.authoritativeAPI)")
+		By("Creating the MachineSet")
 		Expect(k8sClient.Create(ctx, instance)).To(Succeed())
 
-		By("Setting status.authoritativeAPI to MachineAPI")
+		By("Setting the AuthoritativeAPI to MachineAPI")
 		Eventually(k.UpdateStatus(instance, func() {
 			instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityMachineAPI
 		})).Should(Succeed())
@@ -157,20 +157,19 @@ var _ = Describe("MachineSet Reconciler", func() {
 		})
 		It("Should set the Paused condition appropriately", func() {
 
-			By("Creating the MachineSet (empty status.authoritativeAPI)")
+			By("Creating the MachineSet")
 			Expect(k8sClient.Create(ctx, instance)).To(Succeed())
 
-			By("Setting status.authoritativeAPI to ClusterAPI")
+			By("Setting the AuthoritativeAPI to ClusterAPI")
 			Eventually(k.UpdateStatus(instance, func() {
 				instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityClusterAPI
 			})).Should(Succeed())
 
-			By("Verifying the paused condition is appropriately set to true")
+			By("Verifying the paused condition is approproately set to true")
 			Eventually(k.Object(instance), timeout).Should(SatisfyAll(
 				HaveField("Status.Conditions", ContainElement(SatisfyAll(
 					HaveField("Type", Equal(machine.PausedCondition)),
 					HaveField("Status", Equal(corev1.ConditionTrue)),
-					HaveField("Message", Equal("The AuthoritativeAPI status is set to 'ClusterAPI'")),
 				))),
 				HaveField("Status.AuthoritativeAPI", Equal(machinev1.MachineAuthorityClusterAPI)),
 			))
@@ -201,7 +200,7 @@ var _ = Describe("MachineSet Reconciler", func() {
 					},
 					// Condition / until function: until we observe the MachineAuthority being MAPI
 					func(_ context.Context, g framework.GomegaAssertions) bool {
-						By("Checking that status.authoritativeAPI is not MachineAPI")
+						By("Checking that the AuthoritativeAPI is not MachineAPI")
 
 						localInstance := instanceCopy.DeepCopy()
 						if err := k8sClient.Get(ctx, client.ObjectKeyFromObject(localInstance), localInstance); err != nil {
@@ -212,50 +211,36 @@ var _ = Describe("MachineSet Reconciler", func() {
 					})
 			}()
 
-			By("Changing status.authoritativeAPI from ClusterAPI to Migrating")
+			By("Transitioning the AuthoritativeAPI though Migrating")
 			Eventually(k.UpdateStatus(instance, func() {
 				instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityMigrating
 			})).Should(Succeed())
 
-			By("Verifying the paused condition is appropriately set to true")
-			Eventually(k.Object(instance), timeout).Should(SatisfyAll(
-				HaveField("Status.Conditions", ContainElement(SatisfyAll(
-					HaveField("Type", Equal(machine.PausedCondition)),
-					HaveField("Status", Equal(corev1.ConditionTrue)),
-					HaveField("Message", Equal("The AuthoritativeAPI status is set to 'Migrating'")),
-				))),
-				HaveField("Status.AuthoritativeAPI", Equal(machinev1.MachineAuthorityMigrating)),
-			))
-
-			By("Changing status.authoritativeAPI from Migrating to MachineAPI")
+			By("Updating the AuthoritativeAPI from Migrating to MachineAPI")
 			Eventually(k.UpdateStatus(instance, func() {
 				instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityMachineAPI
 			})).Should(Succeed())
 
-			By("Verifying the paused condition is appropriately set to false")
+			By("Verifying the paused condition is approproately set to false")
 			Eventually(k.Object(instance), timeout).Should(SatisfyAll(
 				HaveField("Status.Conditions", ContainElement(SatisfyAll(
 					HaveField("Type", Equal(machine.PausedCondition)),
 					HaveField("Status", Equal(corev1.ConditionFalse)),
-					HaveField("Message", Equal("The AuthoritativeAPI status is set to 'MachineAPI'")),
 				))),
 				HaveField("Status.AuthoritativeAPI", Equal(machinev1.MachineAuthorityMachineAPI)),
 			))
 
-			By("Changing status.authoritativeAPI from MachineAPI to empty")
+			By("Unsetting the AuthoritativeAPI field in the status")
 			Eventually(k.UpdateStatus(instance, func() {
 				instance.Status.AuthoritativeAPI = ""
 			})).Should(Succeed())
 
-			By("Verifying the paused condition is still appropriately set to true when empty status.authoritativeAPI")
-			Eventually(k.Object(instance), timeout).Should(SatisfyAll(
-				HaveField("Status.Conditions", ContainElement(SatisfyAll(
-					HaveField("Type", Equal(machine.PausedCondition)),
-					HaveField("Status", Equal(corev1.ConditionTrue)),
-					HaveField("Message", Equal("The AuthoritativeAPI status is not yet set")),
-				))),
-				HaveField("Status.AuthoritativeAPI", BeEquivalentTo("")),
-			))
+			By("Verifying the paused condition is still approproately set to false")
+			Eventually(k.Object(instance), timeout).Should(HaveField("Status.Conditions", ContainElement(SatisfyAll(
+				HaveField("Type", Equal(machine.PausedCondition)),
+				HaveField("Status", Equal(corev1.ConditionFalse)),
+				HaveField("Message", Equal("The AuthoritativeAPI is not set")),
+			))))
 		})
 	})
 })
