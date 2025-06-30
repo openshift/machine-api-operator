@@ -212,7 +212,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiNetworks][p
 			}
 		}
 
-		for k, _ := range portGroups {
+		for k := range portGroups {
 			machinePortgroups = append(machinePortgroups, k)
 		}
 	})
@@ -264,7 +264,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiNetworks][p
 			}
 		}
 
-		for k, _ := range portGroups {
+		for k := range portGroups {
 			machinePortgroups = append(machinePortgroups, k)
 		}
 
