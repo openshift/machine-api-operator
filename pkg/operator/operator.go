@@ -475,7 +475,6 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 	// as args)
 	features := map[string]bool{
 		string(apifeatures.FeatureGateMachineAPIMigration):     featureGates.Enabled(apifeatures.FeatureGateMachineAPIMigration),
-		string(apifeatures.FeatureGateGCPLabelsTags):           featureGates.Enabled(apifeatures.FeatureGateGCPLabelsTags),
 		string(apifeatures.FeatureGateAzureWorkloadIdentity):   featureGates.Enabled(apifeatures.FeatureGateAzureWorkloadIdentity),
 		string(apifeatures.FeatureGateVSphereMultiDisk):        featureGates.Enabled(apifeatures.FeatureGateVSphereMultiDisk),
 		string(apifeatures.FeatureGateVSphereHostVMGroupZonal): featureGates.Enabled(apifeatures.FeatureGateVSphereHostVMGroupZonal),
