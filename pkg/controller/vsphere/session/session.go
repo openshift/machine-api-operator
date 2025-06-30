@@ -18,6 +18,7 @@ package session
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"fmt"
 	"io"
@@ -114,24 +115,48 @@ func (t *CustomTransport) RoundTrip(req *http.Request) (*http.Response, error) {
 		var soapResp SOAPResponse
 		if err := xml.Unmarshal(body, &soapResp); err == nil {
 			if soapResp.Body.Fault != nil {
-				klog.Error("=== PRIVILEGE ERROR DETECTED ===")
-				klog.Errorf("Fault Code: %s\n", soapResp.Body.Fault.Code.Value)
-				klog.Errorf("Fault Reason: %s\n", soapResp.Body.Fault.Reason.Value)
-				klog.Errorf("Fault Detail: %s\n", soapResp.Body.Fault.Detail.Content)
-				klog.Error("================================\n")
+				klog.Error("=== SOAP FAULT DETECTED ===")
+				klog.Errorf("Fault Code: %s", soapResp.Body.Fault.Code.Value)
+				klog.Errorf("Fault Reason: %s", soapResp.Body.Fault.Reason.Value)
+				klog.Errorf("Fault Detail: %s", soapResp.Body.Fault.Detail.Content)
+
+				// Check if this is an authentication error
+				if strings.Contains(strings.ToLower(soapResp.Body.Fault.Reason.Value), "incorrect user name or password") ||
+					strings.Contains(strings.ToLower(soapResp.Body.Fault.Reason.Value), "cannot complete login") {
+					klog.Error("=== AUTHENTICATION ERROR DETECTED ===")
+					klog.Error("Please verify your vSphere username and password credentials")
+					klog.Error("================================================")
+				}
+				klog.Error("================================")
+			}
+		}
+
+		// Check for authentication-related error messages in the response
+		bodyStr := string(body)
+		authKeywords := []string{
+			"incorrect user name or password", "cannot complete login", "invalidlogin",
+			"authentication failed", "login failed", "invalid credentials",
+		}
+		for _, keyword := range authKeywords {
+			if strings.Contains(strings.ToLower(bodyStr), strings.ToLower(keyword)) {
+				klog.Errorf("=== AUTHENTICATION ISSUE DETECTED (keyword: %s) ===", keyword)
+				klog.Error("Response contains authentication-related content")
+				klog.Error("Please verify your vSphere username and password")
+				klog.Error("================================================")
+				break
 			}
 		}
 
 		// Check for privilege-related error messages in the response
-		bodyStr := string(body)
 		privilegeKeywords := []string{
 			"privilege", "permission", "access denied", "unauthorized", "forbidden",
-			"NoPermission", "InvalidLogin", "InvalidPrivilege",
+			"NoPermission", "InvalidPrivilege", "insufficient privileges",
 		}
 		for _, keyword := range privilegeKeywords {
 			if strings.Contains(strings.ToLower(bodyStr), strings.ToLower(keyword)) {
-				klog.Errorf("=== POTENTIAL PRIVILEGE ISSUE DETECTED (keyword: %s) ===\n", keyword)
-				klog.Error("Response contains privilege-related content\n")
+				klog.Errorf("=== POTENTIAL PRIVILEGE ISSUE DETECTED (keyword: %s) ===", keyword)
+				klog.Error("Response contains privilege-related content")
+				klog.Error("Please verify user has sufficient vSphere permissions")
 				klog.Error("==================================================")
 				break
 			}
@@ -159,7 +184,7 @@ func newClientWithTimeout(ctx context.Context, u *url.URL, insecure bool, timeou
 	*/
 
 	customTransport := &CustomTransport{
-		RoundTripper: http.DefaultTransport,
+		RoundTripper: createTransport(insecure),
 	}
 
 	soapClient := soap.NewClient(u, insecure)
@@ -177,12 +202,8 @@ func newClientWithTimeout(ctx context.Context, u *url.URL, insecure bool, timeou
 		SessionManager: session.NewManager(vimClient),
 	}
 
-	// Login to vSphere
-	err = client.Login(ctx, u.User)
-	if err != nil {
-		log.Fatalf("Failed to login to vSphere: %v", err)
-	}
-	defer client.Logout(clientCreateCtx)
+	// Note: We don't login here because u.User is nil
+	// The actual login happens later in GetOrCreate with proper credentials
 
 	// Create SOAP client with custom transport
 	//client.Transport = customTransport
@@ -210,7 +231,7 @@ func GetOrCreate(
 			return &session, nil
 		}
 	}
-	klog.Infof("No existing vCenter session found, creating new session")
+	klog.Infof("No existing vCenter session found, creating new session for server: %s, datacenter: %s, username: %s", server, datacenter, username)
 
 	soapURL, err := soap.ParseURL(server)
 	if err != nil {
@@ -230,6 +251,12 @@ func GetOrCreate(
 	// Set up user agent before login for being able to track mapi component in vcenter sessions list
 	client.UserAgent = "machineAPIvSphereProvider"
 	if err := client.Login(ctx, url.UserPassword(username, password)); err != nil {
+		// Check if it's a credential-related error
+		if strings.Contains(err.Error(), "incorrect user name or password") ||
+			strings.Contains(err.Error(), "Cannot complete login") ||
+			strings.Contains(err.Error(), "InvalidLogin") {
+			return nil, fmt.Errorf("vSphere authentication failed - please verify username and password: %w", err)
+		}
 		return nil, fmt.Errorf("unable to login to vCenter: %w", err)
 	}
 
@@ -362,4 +389,19 @@ func (s *Session) WithCachingTagsManager(ctx context.Context, f func(m *CachingT
 	m := newTagsCachingClient(tags.NewManager(c), s.sessionKey)
 
 	return f(m)
+}
+
+// createTransport creates a transport that respects the insecure flag
+func createTransport(insecure bool) http.RoundTripper {
+	if insecure {
+		// Create a transport that skips TLS verification
+		transport := &http.Transport{
+			TLSClientConfig: &tls.Config{
+				InsecureSkipVerify: true,
+			},
+		}
+		return transport
+	}
+	// Use default transport for secure connections
+	return http.DefaultTransport
 }
