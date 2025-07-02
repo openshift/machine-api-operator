@@ -104,20 +104,15 @@ var _ = Describe("Machine Reconciler", func() {
 		testutils.CleanupResources(Default, ctx, cfg, k8sClient, namespace.GetName(),
 			&machinev1.Machine{},
 		)
-
 	})
 
 	It("Should reconcile a Machine", func() {
-		instance := machineBuilder.Build()
+		instance := machineBuilder.WithAuthoritativeAPI(machinev1.MachineAuthorityMachineAPI).Build()
 
 		By("Creating the Machine")
 		Expect(k8sClient.Create(ctx, instance)).To(Succeed())
 
-		By("Setting the AuthoritativeAPI to MachineAPI")
-		Eventually(k.UpdateStatus(instance, func() {
-			instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityMachineAPI
-		})).Should(Succeed())
-
+		By("Verying the Machine has been reconciled (status set)")
 		Eventually(k.Object(instance), timeout).Should(HaveField("Status", Not(Equal(machinev1.MachineStatus{}))))
 
 		// // Expect platform status is not empty. This (check) means we've called the
@@ -127,23 +122,17 @@ var _ = Describe("Machine Reconciler", func() {
 
 	})
 
-	Describe("Paused condition", func() {
+	Describe("Paused Condition", func() {
 		var instance *machinev1.Machine
 		BeforeEach(func() {
-			instance = machineBuilder.Build()
+			instance = machineBuilder.WithAuthoritativeAPI(machinev1.MachineAuthorityClusterAPI).Build()
 		})
 
 		It("Should set the Paused condition appropriately", func() {
-
-			By("Creating the Machine (empty status.authoritativeAPI)")
+			By("Creating the Machine (spec.authoritativeAPI=ClusterAPI)")
 			Expect(k8sClient.Create(ctx, instance)).To(Succeed())
 
-			By("Setting the AuthoritativeAPI to ClusterAPI")
-			Eventually(k.UpdateStatus(instance, func() {
-				instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityClusterAPI
-			})).Should(Succeed())
-
-			By("Verifying the paused condition is appropriately set to true")
+			By("Verifying the status.authoritativeAPI has been set to ClusterAPI and the paused condition is appropriately set to true")
 			Eventually(k.Object(instance), timeout).Should(SatisfyAll(
 				HaveField("Status.Conditions", ContainElement(SatisfyAll(
 					HaveField("Type", Equal(PausedCondition)),
@@ -195,7 +184,7 @@ var _ = Describe("Machine Reconciler", func() {
 				instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityMigrating
 			})).Should(Succeed())
 
-			By("Verifying the paused condition is appropriately set to true")
+			By("Verifying the paused condition is appropriately set to true while in Migrating")
 			Eventually(k.Object(instance), timeout).Should(SatisfyAll(
 				HaveField("Status.Conditions", ContainElement(SatisfyAll(
 					HaveField("Type", Equal(PausedCondition)),
@@ -210,7 +199,7 @@ var _ = Describe("Machine Reconciler", func() {
 				instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityMachineAPI
 			})).Should(Succeed())
 
-			By("Verifying the paused condition is appropriately set to false")
+			By("Verifying the paused condition is appropriately set to false when in MachineAPI")
 			Eventually(k.Object(instance), timeout).Should(SatisfyAll(
 				HaveField("Status.Conditions", ContainElement(SatisfyAll(
 					HaveField("Type", Equal(PausedCondition)),
@@ -218,21 +207,6 @@ var _ = Describe("Machine Reconciler", func() {
 					HaveField("Message", Equal("The AuthoritativeAPI status is set to 'MachineAPI'")),
 				))),
 				HaveField("Status.AuthoritativeAPI", Equal(machinev1.MachineAuthorityMachineAPI)),
-			))
-
-			By("Changing status.authoritativeAPI from MachineAPI to empty")
-			Eventually(k.UpdateStatus(instance, func() {
-				instance.Status.AuthoritativeAPI = ""
-			})).Should(Succeed())
-
-			By("Verifying the paused condition is still appropriately set to true when empty status.authoritativeAPI")
-			Eventually(k.Object(instance), timeout).Should(SatisfyAll(
-				HaveField("Status.Conditions", ContainElement(SatisfyAll(
-					HaveField("Type", Equal(PausedCondition)),
-					HaveField("Status", Equal(corev1.ConditionTrue)),
-					HaveField("Message", Equal("The AuthoritativeAPI status is not yet set")),
-				))),
-				HaveField("Status.AuthoritativeAPI", BeEquivalentTo("")),
 			))
 		})
 	})

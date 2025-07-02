@@ -176,20 +176,21 @@ func (r *ReconcileMachineSet) Reconcile(ctx context.Context, request reconcile.R
 	if r.gate.Enabled(featuregate.Feature(openshiftfeatures.FeatureGateMachineAPIMigration)) {
 		switch machineSet.Status.AuthoritativeAPI {
 		case "":
-			// An empty .status.authoritativeAPI normally means the resource has not yet been reconciled
-			// by the migration controller, which has the responsibility for propagating .spec.authoritativeAPI to the status.
-			// Pause the resource and take no further action but return until that field is populated.
-			desiredCondition := conditions.TrueConditionWithReason(
-				machine.PausedCondition, machine.PausedConditionReason,
-				"The AuthoritativeAPI status is not yet set",
-			)
+			// An empty .status.authoritativeAPI normally means the resource has not yet been reconciled.
+			// and that the value in .spec.authoritativeAPI has not been propagated to .status.authoritativeAPI yet.
+			// This value can be set by two separate controllers, depending which one of them is running at that time,
+			// or in case they are both running, which one gets to set it first (the operation is idempotent so there is no harm in racing).
+			// - the cluster-capi-operator machine-api-migration's migration controller
+			// - this controller
 
-			if _, err := r.ensureUpdatedPausedCondition(machineSet, desiredCondition,
-				fmt.Sprintf("%v: machine set .status.authoritativeAPI is not yet set, ensuring machine set is paused", machineSet.Name)); err != nil {
-				return reconcile.Result{}, fmt.Errorf("failed to ensure paused condition: %w", err)
+			klog.Infof("%v: machine set .status.authoritativeAPI is not yet set, setting it to .spec.authoritativeAPI", machineSet.Name)
+
+			if err := r.patchStatusAuthoritativeAPI(ctx, machineSet, machineSet.Spec.AuthoritativeAPI); err != nil {
+				klog.Errorf("%v: error patching status to set .status.authoritativeAPI for machine set: %v", machineSet.Name, err)
+				return reconcile.Result{}, fmt.Errorf("error patching status to set .status.authoritativeAPI for machine set %s: %w", machineSet.Name, err)
 			}
-			klog.Infof("%v: machine set is paused, taking no further action", machineSet.Name)
 
+			// Return to give a chance to the changes to get propagated.
 			return reconcile.Result{}, nil
 
 		case machinev1.MachineAuthorityClusterAPI, machinev1.MachineAuthorityMigrating:
@@ -515,6 +516,17 @@ func (r *ReconcileMachineSet) waitForMachineDeletion(machineList []*machinev1.Ma
 			return fmt.Errorf("failed waiting for machine object to be deleted: %w", pollErr)
 		}
 	}
+	return nil
+}
+
+func (r *ReconcileMachineSet) patchStatusAuthoritativeAPI(ctx context.Context, machineSet *machinev1.MachineSet, authoritativeAPI machinev1.MachineAuthority) error {
+	baseToPatch := client.MergeFrom(machineSet.DeepCopy())
+	machineSet.Status.AuthoritativeAPI = authoritativeAPI
+
+	if err := r.Client.Status().Patch(ctx, machineSet, baseToPatch); err != nil {
+		return fmt.Errorf("error patching machine set status: %w", err)
+	}
+
 	return nil
 }
 

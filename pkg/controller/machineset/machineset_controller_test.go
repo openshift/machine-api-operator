@@ -108,15 +108,13 @@ var _ = Describe("MachineSet Reconciler", func() {
 	})
 
 	It("Should reconcile a MachineSet", func() {
-		instance := machineSetBuilder.Build()
+		instance := machineSetBuilder.WithAuthoritativeAPI(machinev1.MachineAuthorityMachineAPI).Build()
 
-		By("Creating the MachineSet (empty status.authoritativeAPI)")
+		By("Creating the MachineSet")
 		Expect(k8sClient.Create(ctx, instance)).To(Succeed())
 
-		By("Setting status.authoritativeAPI to MachineAPI")
-		Eventually(k.UpdateStatus(instance, func() {
-			instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityMachineAPI
-		})).Should(Succeed())
+		By("Verying the MachineSet has been reconciled (status set)")
+		Eventually(k.Object(instance), timeout).Should(HaveField("Status", Not(Equal(machinev1.MachineStatus{}))))
 
 		machines := &machinev1.MachineList{}
 		By("Verifying that we have 2 replicas")
@@ -153,19 +151,14 @@ var _ = Describe("MachineSet Reconciler", func() {
 			instance = machineSetBuilder.
 				WithGenerateName("baz-").
 				WithMachineTemplateLabels(map[string]string{"baz": "bar"}).
+				WithAuthoritativeAPI(machinev1.MachineAuthorityClusterAPI).
 				Build()
 		})
 		It("Should set the Paused condition appropriately", func() {
-
-			By("Creating the MachineSet (empty status.authoritativeAPI)")
+			By("Creating the MachineSet (spec.authoritativeAPI=ClusterAPI)")
 			Expect(k8sClient.Create(ctx, instance)).To(Succeed())
 
-			By("Setting status.authoritativeAPI to ClusterAPI")
-			Eventually(k.UpdateStatus(instance, func() {
-				instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityClusterAPI
-			})).Should(Succeed())
-
-			By("Verifying the paused condition is appropriately set to true")
+			By("Verifying the status.authoritativeAPI has been set to ClusterAPI and paused condition is appropriately set to true")
 			Eventually(k.Object(instance), timeout).Should(SatisfyAll(
 				HaveField("Status.Conditions", ContainElement(SatisfyAll(
 					HaveField("Type", Equal(machine.PausedCondition)),
@@ -217,7 +210,7 @@ var _ = Describe("MachineSet Reconciler", func() {
 				instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityMigrating
 			})).Should(Succeed())
 
-			By("Verifying the paused condition is appropriately set to true")
+			By("Verifying the paused condition is appropriately set to true while in Migrating")
 			Eventually(k.Object(instance), timeout).Should(SatisfyAll(
 				HaveField("Status.Conditions", ContainElement(SatisfyAll(
 					HaveField("Type", Equal(machine.PausedCondition)),
@@ -232,7 +225,7 @@ var _ = Describe("MachineSet Reconciler", func() {
 				instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityMachineAPI
 			})).Should(Succeed())
 
-			By("Verifying the paused condition is appropriately set to false")
+			By("Verifying the paused condition is appropriately set to false when in MachineAPI")
 			Eventually(k.Object(instance), timeout).Should(SatisfyAll(
 				HaveField("Status.Conditions", ContainElement(SatisfyAll(
 					HaveField("Type", Equal(machine.PausedCondition)),
@@ -240,21 +233,6 @@ var _ = Describe("MachineSet Reconciler", func() {
 					HaveField("Message", Equal("The AuthoritativeAPI status is set to 'MachineAPI'")),
 				))),
 				HaveField("Status.AuthoritativeAPI", Equal(machinev1.MachineAuthorityMachineAPI)),
-			))
-
-			By("Changing status.authoritativeAPI from MachineAPI to empty")
-			Eventually(k.UpdateStatus(instance, func() {
-				instance.Status.AuthoritativeAPI = ""
-			})).Should(Succeed())
-
-			By("Verifying the paused condition is still appropriately set to true when empty status.authoritativeAPI")
-			Eventually(k.Object(instance), timeout).Should(SatisfyAll(
-				HaveField("Status.Conditions", ContainElement(SatisfyAll(
-					HaveField("Type", Equal(machine.PausedCondition)),
-					HaveField("Status", Equal(corev1.ConditionTrue)),
-					HaveField("Message", Equal("The AuthoritativeAPI status is not yet set")),
-				))),
-				HaveField("Status.AuthoritativeAPI", BeEquivalentTo("")),
 			))
 		})
 	})
