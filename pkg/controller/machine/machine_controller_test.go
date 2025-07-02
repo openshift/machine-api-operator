@@ -135,7 +135,7 @@ var _ = Describe("Machine Reconciler", func() {
 
 		It("Should set the Paused condition appropriately", func() {
 
-			By("Creating the Machine")
+			By("Creating the Machine (empty status.authoritativeAPI)")
 			Expect(k8sClient.Create(ctx, instance)).To(Succeed())
 
 			By("Setting the AuthoritativeAPI to ClusterAPI")
@@ -143,11 +143,12 @@ var _ = Describe("Machine Reconciler", func() {
 				instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityClusterAPI
 			})).Should(Succeed())
 
-			By("Verifying the paused condition is approproately set to true")
+			By("Verifying the paused condition is appropriately set to true")
 			Eventually(k.Object(instance), timeout).Should(SatisfyAll(
 				HaveField("Status.Conditions", ContainElement(SatisfyAll(
 					HaveField("Type", Equal(PausedCondition)),
 					HaveField("Status", Equal(corev1.ConditionTrue)),
+					HaveField("Message", Equal("The AuthoritativeAPI status is set to 'ClusterAPI'")),
 				))),
 				HaveField("Status.AuthoritativeAPI", Equal(machinev1.MachineAuthorityClusterAPI)),
 			))
@@ -189,36 +190,50 @@ var _ = Describe("Machine Reconciler", func() {
 					})
 			}()
 
-			By("Transitioning the AuthoritativeAPI though 'Migrating' to MachineAPI")
+			By("Changing status.authoritativeAPI from ClusterAPI to Migrating")
 			Eventually(k.UpdateStatus(instance, func() {
 				instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityMigrating
 			})).Should(Succeed())
 
-			By("Updating the AuthoritativeAPI from Migrating to MachineAPI")
+			By("Verifying the paused condition is appropriately set to true")
+			Eventually(k.Object(instance), timeout).Should(SatisfyAll(
+				HaveField("Status.Conditions", ContainElement(SatisfyAll(
+					HaveField("Type", Equal(PausedCondition)),
+					HaveField("Status", Equal(corev1.ConditionTrue)),
+					HaveField("Message", Equal("The AuthoritativeAPI status is set to 'Migrating'")),
+				))),
+				HaveField("Status.AuthoritativeAPI", Equal(machinev1.MachineAuthorityMigrating)),
+			))
+
+			By("Changing status.authoritativeAPI from Migrating to MachineAPI")
 			Eventually(k.UpdateStatus(instance, func() {
 				instance.Status.AuthoritativeAPI = machinev1.MachineAuthorityMachineAPI
 			})).Should(Succeed())
 
-			By("Verifying the paused condition is approproately set to false")
+			By("Verifying the paused condition is appropriately set to false")
 			Eventually(k.Object(instance), timeout).Should(SatisfyAll(
 				HaveField("Status.Conditions", ContainElement(SatisfyAll(
 					HaveField("Type", Equal(PausedCondition)),
 					HaveField("Status", Equal(corev1.ConditionFalse)),
+					HaveField("Message", Equal("The AuthoritativeAPI status is set to 'MachineAPI'")),
 				))),
 				HaveField("Status.AuthoritativeAPI", Equal(machinev1.MachineAuthorityMachineAPI)),
 			))
 
-			By("Unsetting the AuthoritativeAPI field in the status")
+			By("Changing status.authoritativeAPI from MachineAPI to empty")
 			Eventually(k.UpdateStatus(instance, func() {
 				instance.Status.AuthoritativeAPI = ""
 			})).Should(Succeed())
 
-			By("Verifying the paused condition is still approproately set to false")
-			Eventually(k.Object(instance), timeout).Should(HaveField("Status.Conditions", ContainElement(SatisfyAll(
-				HaveField("Type", Equal(PausedCondition)),
-				HaveField("Status", Equal(corev1.ConditionFalse)),
-				HaveField("Message", Equal("The AuthoritativeAPI is not set")),
-			))))
+			By("Verifying the paused condition is still appropriately set to true when empty status.authoritativeAPI")
+			Eventually(k.Object(instance), timeout).Should(SatisfyAll(
+				HaveField("Status.Conditions", ContainElement(SatisfyAll(
+					HaveField("Type", Equal(PausedCondition)),
+					HaveField("Status", Equal(corev1.ConditionTrue)),
+					HaveField("Message", Equal("The AuthoritativeAPI status is not yet set")),
+				))),
+				HaveField("Status.AuthoritativeAPI", BeEquivalentTo("")),
+			))
 		})
 	})
 })
