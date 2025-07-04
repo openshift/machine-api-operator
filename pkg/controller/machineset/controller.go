@@ -174,59 +174,61 @@ func (r *ReconcileMachineSet) Reconcile(ctx context.Context, request reconcile.R
 	}
 
 	if r.gate.Enabled(featuregate.Feature(openshiftfeatures.FeatureGateMachineAPIMigration)) {
-		machineSetName := machineSet.GetName()
-		machineSetCopy := machineSet.DeepCopy()
-		// Check Status.AuthoritativeAPI. If it's not set to MachineAPI. Set the
-		// paused condition true and return early.
-		//
-		// Once we have a webhook, we want to remove the check that the AuthoritativeAPI
-		// field is populated.
-		if machineSet.Status.AuthoritativeAPI != "" &&
-			machineSet.Status.AuthoritativeAPI != machinev1.MachineAuthorityMachineAPI {
-			conditions.Set(machineSetCopy, conditions.TrueConditionWithReason(
-				machine.PausedCondition,
-				machine.PausedConditionReason,
-				"The AuthoritativeAPI is set to %s", string(machineSet.Status.AuthoritativeAPI),
-			))
+		switch machineSet.Status.AuthoritativeAPI {
+		case "":
+			// An empty .status.authoritativeAPI normally means the resource has not yet been reconciled.
+			// and that the value in .spec.authoritativeAPI has not been propagated to .status.authoritativeAPI yet.
+			// This value can be set by two separate controllers, depending which one of them is running at that time,
+			// or in case they are both running, which one gets to set it first (the operation is idempotent so there is no harm in racing).
+			// - the cluster-capi-operator machine-api-migration's migration controller
+			// - this controller
 
-			_, err := updateMachineSetStatus(r.Client, machineSet, machineSetCopy.Status)
-			if err != nil && !apierrors.IsNotFound(err) {
-				klog.Errorf("%v: error updating status: %v", machineSetName, err)
-				return reconcile.Result{}, fmt.Errorf("error updating status: %w", err)
-			} else if apierrors.IsNotFound(err) {
-				return reconcile.Result{}, nil
+			klog.Infof("%v: machine set .status.authoritativeAPI is not yet set, setting it to .spec.authoritativeAPI", machineSet.Name)
+
+			if err := r.patchStatusAuthoritativeAPI(ctx, machineSet, machineSet.Spec.AuthoritativeAPI); err != nil {
+				klog.Errorf("%v: error patching status to set .status.authoritativeAPI for machine set: %v", machineSet.Name, err)
+				return reconcile.Result{}, fmt.Errorf("error patching status to set .status.authoritativeAPI for machine set %s: %w", machineSet.Name, err)
 			}
 
-			klog.Infof("%v: machine set is paused, taking no further action", machineSetName)
+			// Return to give a chance to the changes to get propagated.
 			return reconcile.Result{}, nil
-		}
 
-		var pausedFalseReason string
-		if machineSet.Status.AuthoritativeAPI != "" {
-			pausedFalseReason = fmt.Sprintf("The AuthoritativeAPI is set to %s", string(machineSet.Status.AuthoritativeAPI))
-		} else {
-			pausedFalseReason = "The AuthoritativeAPI is not set"
-		}
+		case machinev1.MachineAuthorityClusterAPI, machinev1.MachineAuthorityMigrating:
+			// In case .status.authoritativeAPI is set to machinev1.MachineAuthorityClusterAPI, machinev1.MachineAuthorityMigrating
+			// the resource should be paused and not reconciled further.
+			desiredCondition := conditions.TrueConditionWithReason(
+				machine.PausedCondition, machine.PausedConditionReason,
+				"The AuthoritativeAPI status is set to '%s'", string(machineSet.Status.AuthoritativeAPI),
+			)
 
-		// Set the paused condition to false, continue reconciliation
-		conditions.Set(machineSetCopy, conditions.FalseCondition(
-			machine.PausedCondition,
-			machine.NotPausedConditionReason,
-			machinev1.ConditionSeverityInfo,
-			"%s",
-			pausedFalseReason,
-		))
+			if _, err := r.ensureUpdatedPausedCondition(machineSet, desiredCondition,
+				fmt.Sprintf("%v: machine set .status.authoritativeAPI is set to '%s', ensuring machine set is paused", machineSet.Name, machineSet.Status.AuthoritativeAPI)); err != nil {
+				return reconcile.Result{}, fmt.Errorf("failed to ensure paused condition: %w", err)
+			}
 
-		var err error
-		machineSet, err = updateMachineSetStatus(r.Client, machineSet, machineSetCopy.Status)
-		if err != nil && !apierrors.IsNotFound(err) {
-			klog.Errorf("%v: error updating status: %v", machineSetName, err)
-			return reconcile.Result{}, fmt.Errorf("error updating status: %w", err)
-		} else if apierrors.IsNotFound(err) {
+			klog.Infof("%v: machine set is paused, taking no further action", machineSet.Name)
+
 			return reconcile.Result{}, nil
-		}
 
-		klog.Infof("%v: setting paused to false and continuing reconcile", machineSetName)
+		case machinev1.MachineAuthorityMachineAPI:
+			// The authority is MachineAPI and the resource should not be paused.
+			desiredCondition := conditions.FalseCondition(
+				machine.PausedCondition, machine.NotPausedConditionReason, machinev1.ConditionSeverityInfo, "%s",
+				fmt.Sprintf("The AuthoritativeAPI status is set to '%s'", string(machineSet.Status.AuthoritativeAPI)),
+			)
+
+			if updated, err := r.ensureUpdatedPausedCondition(machineSet, desiredCondition,
+				fmt.Sprintf("%v: machine set .status.authoritativeAPI is set to '%s', unpausing machine set", machineSet.Name, machineSet.Status.AuthoritativeAPI)); err != nil {
+				return reconcile.Result{}, fmt.Errorf("failed to ensure paused condition: %w", err)
+			} else if updated {
+				klog.Infof("%v: setting machine set paused condition to false", machineSet.Name)
+			}
+
+			// Fallthrough and continue reconciliation.
+		default:
+			klog.Errorf("%v: invalid .status.authoritativeAPI '%s'", machineSet.Name, machineSet.Status.AuthoritativeAPI)
+			return reconcile.Result{}, nil // Do not return an error to avoid immediate requeue.
+		}
 	}
 
 	result, err := r.reconcile(ctx, machineSet)
@@ -327,6 +329,23 @@ func (r *ReconcileMachineSet) reconcile(ctx context.Context, machineSet *machine
 	}
 
 	return reconcile.Result{}, nil
+}
+
+// ensureUpdatedPausedCondition updates the paused condition if needed.
+func (r *ReconcileMachineSet) ensureUpdatedPausedCondition(ms *machinev1.MachineSet, desiredCondition *machinev1.Condition, logMessage string) (bool, error) {
+	newMs := ms.DeepCopy()
+	if !conditions.IsEquivalentTo(conditions.Get(ms, machine.PausedCondition), desiredCondition) {
+		klog.Info(logMessage)
+		conditions.Set(newMs, desiredCondition)
+		if _, err := updateMachineSetStatus(r.Client, ms, newMs.Status); err != nil {
+			klog.Errorf("%v: error updating status: %v", newMs.Name, err)
+			return false, fmt.Errorf("error updating status for machine set %s: %w", newMs.Name, err)
+		}
+
+		return true, nil
+	}
+
+	return false, nil
 }
 
 // syncReplicas essentially scales machine resources up and down.
@@ -497,6 +516,17 @@ func (r *ReconcileMachineSet) waitForMachineDeletion(machineList []*machinev1.Ma
 			return fmt.Errorf("failed waiting for machine object to be deleted: %w", pollErr)
 		}
 	}
+	return nil
+}
+
+func (r *ReconcileMachineSet) patchStatusAuthoritativeAPI(ctx context.Context, machineSet *machinev1.MachineSet, authoritativeAPI machinev1.MachineAuthority) error {
+	baseToPatch := client.MergeFrom(machineSet.DeepCopy())
+	machineSet.Status.AuthoritativeAPI = authoritativeAPI
+
+	if err := r.Client.Status().Patch(ctx, machineSet, baseToPatch); err != nil {
+		return fmt.Errorf("error patching machine set status: %w", err)
+	}
+
 	return nil
 }
 
