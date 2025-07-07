@@ -241,11 +241,22 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiNetworks][p
 		Expect(len(machineSets.Items)).ShouldNot(Equal(0))
 
 		machineSet := machineSets.Items[0]
+		origReplicas := int(*machineSet.Spec.Replicas)
 
 		// scale up new machine and wait for scale up to complete
 		By("scaling up a new machineset which should have multiple NICs")
-		err = e2eutil.ScaleMachineSet(cfg, machineSet.Name, int(*machineSet.Spec.Replicas)+1)
+		err = e2eutil.ScaleMachineSet(cfg, machineSet.Name, origReplicas+1)
 		Expect(err).NotTo(HaveOccurred())
+
+		// Verify / wait for machine is ready
+		By("verifying machine became ready")
+		Eventually(func() (int32, error) {
+			ms, err := mc.MachineSets(e2eutil.MachineAPINamespace).Get(ctx, machineSet.Name, metav1.GetOptions{})
+			if err != nil {
+				return -1, err
+			}
+			return ms.Status.ReadyReplicas, nil
+		}, machineReadyTimeout).Should(BeEquivalentTo(origReplicas + 1))
 
 		nodes, err = c.CoreV1().Nodes().List(ctx, v1.ListOptions{})
 		Expect(err).NotTo(HaveOccurred())
@@ -272,5 +283,20 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiNetworks][p
 		failIfNodeNetworkingInconsistentWithMachineNetwork(infra.Spec.PlatformSpec, machineNetworks)
 		failIfMachinesDoNotHaveAllPortgroups(infra.Spec.PlatformSpec, machines)
 		failIfIncorrectPortgroupsAttachedToVMs(ctx, infra, nodes, vsphereCreds)
+
+		// Scale down machineset
+		By("scaling down the machineset")
+		err = e2eutil.ScaleMachineSet(cfg, machineSet.Name, origReplicas)
+		Expect(err).NotTo(HaveOccurred())
+
+		// Verify / wait for machine is removed
+		By("verifying machine is destroyed")
+		Eventually(func() (int32, error) {
+			ms, err := mc.MachineSets(e2eutil.MachineAPINamespace).Get(ctx, machineSet.Name, metav1.GetOptions{})
+			if err != nil {
+				return -1, err
+			}
+			return ms.Status.ReadyReplicas, nil
+		}, machineReadyTimeout).Should(BeEquivalentTo(origReplicas))
 	})
 })
