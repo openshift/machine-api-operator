@@ -1,7 +1,6 @@
 package main
 
 import (
-	"flag"
 	"os"
 	"regexp"
 	"strings"
@@ -14,7 +13,6 @@ import (
 	"github.com/spf13/pflag"
 	utilflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/logs"
-	"k8s.io/kubernetes/test/e2e/framework"
 
 	// If using ginkgo, import your tests here
 	_ "github.com/openshift/machine-api-operator/test/e2e/vsphere"
@@ -24,11 +22,6 @@ func main() {
 	logs.InitLogs()
 	defer logs.FlushLogs()
 	pflag.CommandLine.SetNormalizeFunc(utilflag.WordSepNormalizeFunc)
-
-	// These flags are used to pull in the default values to test context - required
-	// so tests run correctly, even if the underlying flags aren't used.
-	framework.RegisterCommonFlags(flag.CommandLine)
-	framework.RegisterClusterFlags(flag.CommandLine)
 
 	// Create our registry of openshift-tests extensions
 	extensionRegistry := e.NewRegistry()
