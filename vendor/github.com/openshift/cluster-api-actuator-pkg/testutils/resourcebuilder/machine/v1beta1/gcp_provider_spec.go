@@ -28,7 +28,17 @@ import (
 // GCPProviderSpec creates a new GCP machine config builder.
 func GCPProviderSpec() GCPProviderSpecBuilder {
 	return GCPProviderSpecBuilder{
+		disks: []*machinev1beta1.GCPDisk{
+			{
+				AutoDelete: true,
+				Boot:       true,
+				Image:      "projects/rhcos-cloud/global/images/rhcos-411-85-202205101201-0-gcp-x86-64",
+				SizeGB:     128,
+				Type:       "pd-ssd",
+			},
+		},
 		machineType: "n1-standard-4",
+		projectID:   "openshift-cpms-unit-tests",
 		targetPools: []string{"target-pool-1", "target-pool-2"},
 		zone:        "us-central1-a",
 	}
@@ -36,7 +46,9 @@ func GCPProviderSpec() GCPProviderSpecBuilder {
 
 // GCPProviderSpecBuilder is used to build a GCP machine config object.
 type GCPProviderSpecBuilder struct {
+	disks       []*machinev1beta1.GCPDisk
 	machineType string
+	projectID   string
 	targetPools []string
 	zone        string
 }
@@ -63,17 +75,9 @@ func (m GCPProviderSpecBuilder) Build() *machinev1beta1.GCPMachineProviderSpec {
 		},
 		Zone:         m.zone,
 		CanIPForward: false,
-		ProjectID:    "openshift-cpms-unit-tests",
+		ProjectID:    m.projectID,
 		Region:       "us-central1",
-		Disks: []*machinev1beta1.GCPDisk{
-			{
-				AutoDelete: true,
-				Boot:       true,
-				Image:      "projects/rhcos-cloud/global/images/rhcos-411-85-202205101201-0-gcp-x86-64",
-				SizeGB:     128,
-				Type:       "pd-ssd",
-			},
-		},
+		Disks:        m.disks,
 		Tags: []string{
 			"gcp-tag-12345678",
 		},
@@ -103,9 +107,21 @@ func (m GCPProviderSpecBuilder) BuildRawExtension() *runtime.RawExtension {
 	}
 }
 
+// WithDisks sets the disks for a machine config builder.
+func (m GCPProviderSpecBuilder) WithDisks(disks []*machinev1beta1.GCPDisk) GCPProviderSpecBuilder {
+	m.disks = disks
+	return m
+}
+
 // WithMachineType sets the machine type for the GCP machine config builder.
 func (m GCPProviderSpecBuilder) WithMachineType(machineType string) GCPProviderSpecBuilder {
 	m.machineType = machineType
+	return m
+}
+
+// WithProjectID sets the project ID for the gcp machine config builder.
+func (m GCPProviderSpecBuilder) WithProjectID(project string) GCPProviderSpecBuilder {
+	m.projectID = project
 	return m
 }
 

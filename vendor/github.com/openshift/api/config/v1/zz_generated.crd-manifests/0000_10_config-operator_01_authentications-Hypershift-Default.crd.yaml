@@ -79,7 +79,7 @@ spec:
                   properties:
                     claimMappings:
                       description: |-
-                        claimMappings is an optional field that configures the rules to be used by
+                        claimMappings is a required field that configures the rules to be used by
                         the Kubernetes API server for translating claims in a JWT token, issued
                         by the identity provider, to a cluster identity.
                       properties:
@@ -115,7 +115,7 @@ spec:
                           type: object
                         username:
                           description: |-
-                            username is an optional field that configures how the username of a cluster identity
+                            username is a required field that configures how the username of a cluster identity
                             should be constructed from the claims in a JWT token issued by the identity provider.
                           properties:
                             claim:
@@ -123,6 +123,10 @@ spec:
                                 claim is a required field that configures the JWT token
                                 claim whose value is assigned to the cluster identity
                                 field associated with this mapping.
+
+                                claim must not be an empty string ("") and must not exceed 256 characters.
+                              maxLength: 256
+                              minLength: 1
                               type: string
                             prefix:
                               description: |-
@@ -181,6 +185,8 @@ spec:
                             rule: 'has(self.prefixPolicy) && self.prefixPolicy ==
                               ''Prefix'' ? (has(self.prefix) && size(self.prefix.prefixString)
                               > 0) : !has(self.prefix)'
+                      required:
+                      - username
                       type: object
                     claimValidationRules:
                       description: |-
@@ -391,6 +397,7 @@ spec:
                       - componentName
                       x-kubernetes-list-type: map
                   required:
+                  - claimMappings
                   - issuer
                   - name
                   type: object

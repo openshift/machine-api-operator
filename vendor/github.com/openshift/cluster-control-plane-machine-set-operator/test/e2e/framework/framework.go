@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
@@ -58,9 +57,6 @@ var (
 	// This means that even though the format is correct, we haven't implemented the logic to increase
 	// this instance size.
 	errInstanceTypeNotSupported = errors.New("instance type is not supported")
-
-	// errMissingInstanceSize is returned when the instance size is missing.
-	errMissingInstanceSize = errors.New("instance size is missing")
 )
 
 // Framework is an interface for getting clients and information
@@ -89,13 +85,12 @@ type Framework interface {
 	// just the name and namespace set.
 	NewEmptyControlPlaneMachineSet() *machinev1.ControlPlaneMachineSet
 
-	// IncreaseProviderSpecInstanceSize increases the instance size of the
-	// providerSpec passed. This is used to trigger updates to the Machines
-	// managed by the control plane machine set.
-	IncreaseProviderSpecInstanceSize(providerSpec *runtime.RawExtension) error
-
-	// TagInstanceInProviderSpec tags the instance in the provider spec.
-	TagInstanceInProviderSpec(providerSpec *runtime.RawExtension) error
+	// ModifyProviderSpecToTriggerRollout alters the provider spec in a way
+	// which will trigger updates to the Machines managed by the control plane
+	// machine set.  An example would be changing the instance size. This method
+	// may be called multiple times. Every invocation should modify the provider
+	// spec in a way which will cause a new rollout.
+	ModifyProviderSpecToTriggerRollout(providerSpec *runtime.RawExtension) error
 
 	// ConvertToControlPlaneMachineSetProviderSpec converts a control plane machine provider spec
 	// to a control plane machine set suitable provider spec.
@@ -132,6 +127,8 @@ type framework struct {
 	scheme       *runtime.Scheme
 	namespace    string
 }
+
+var _ Framework = &framework{}
 
 // NewFramework initialises a new test framework for the E2E suite.
 func NewFramework() (Framework, error) {
@@ -220,9 +217,12 @@ func (f *framework) NewEmptyControlPlaneMachineSet() *machinev1.ControlPlaneMach
 	}
 }
 
-// IncreaseProviderSpecInstanceSize increases the instance size of the instance on the providerSpec
-// that is passed.
-func (f *framework) IncreaseProviderSpecInstanceSize(rawProviderSpec *runtime.RawExtension) error {
+// ModifyProviderSpecToTriggerRollout alters the provider spec in a way which
+// will trigger updates to the Machines managed by the control plane machine
+// set. An example would be changing the instance size. This method may be
+// called multiple times. Every invocation should modify the provider spec in a
+// way which will cause a new rollout.
+func (f *framework) ModifyProviderSpecToTriggerRollout(rawProviderSpec *runtime.RawExtension) error {
 	providerConfig, err := providerconfig.NewProviderConfigFromMachineSpec(f.logger, machinev1beta1.MachineSpec{
 		ProviderSpec: machinev1beta1.ProviderSpec{
 			Value: rawProviderSpec,
@@ -242,28 +242,11 @@ func (f *framework) IncreaseProviderSpecInstanceSize(rawProviderSpec *runtime.Ra
 	case configv1.NutanixPlatformType:
 		return increaseNutanixInstanceSize(rawProviderSpec, providerConfig)
 	case configv1.OpenStackPlatformType:
-		return increaseOpenStackInstanceSize(rawProviderSpec, providerConfig)
+		// OpenStack flavor names are not predictable. We add a new, random tag
+		// on each invocation instead.
+		return tagOpenStackProviderSpec(rawProviderSpec, providerConfig)
 	case configv1.VSpherePlatformType:
 		return increaseVSphereInstanceSize(rawProviderSpec, providerConfig)
-	default:
-		return fmt.Errorf("%w: %s", errUnsupportedPlatform, f.platform)
-	}
-}
-
-// TagInstanceInProviderSpec tags the instance in the providerSpec.
-func (f *framework) TagInstanceInProviderSpec(rawProviderSpec *runtime.RawExtension) error {
-	providerConfig, err := providerconfig.NewProviderConfigFromMachineSpec(f.logger, machinev1beta1.MachineSpec{
-		ProviderSpec: machinev1beta1.ProviderSpec{
-			Value: rawProviderSpec,
-		},
-	}, nil)
-	if err != nil {
-		return fmt.Errorf("failed to get provider config: %w", err)
-	}
-
-	switch f.platform {
-	case configv1.OpenStackPlatformType:
-		return tagOpenStackProviderSpec(rawProviderSpec, providerConfig)
 	default:
 		return fmt.Errorf("%w: %s", errUnsupportedPlatform, f.platform)
 	}
@@ -739,23 +722,6 @@ func increaseNutanixInstanceSize(rawProviderSpec *runtime.RawExtension, provider
 func increaseVSphereInstanceSize(rawProviderSpec *runtime.RawExtension, providerConfig providerconfig.ProviderConfig) error {
 	cfg := providerConfig.VSphere().Config()
 	cfg.NumCPUs *= 2
-
-	if err := setProviderSpecValue(rawProviderSpec, cfg); err != nil {
-		return fmt.Errorf("failed to set provider spec value: %w", err)
-	}
-
-	return nil
-}
-
-// increase OpenStackInstanceSize increases the instance size of the instance on the providerSpec for an OpenStack providerSpec.
-func increaseOpenStackInstanceSize(rawProviderSpec *runtime.RawExtension, providerConfig providerconfig.ProviderConfig) error {
-	cfg := providerConfig.OpenStack().Config()
-
-	if os.Getenv("OPENSTACK_CONTROLPLANE_FLAVOR_ALTERNATE") == "" {
-		return fmt.Errorf("OPENSTACK_CONTROLPLANE_FLAVOR_ALTERNATE environment variable not set: %w", errMissingInstanceSize)
-	} else {
-		cfg.Flavor = os.Getenv("OPENSTACK_CONTROLPLANE_FLAVOR_ALTERNATE")
-	}
 
 	if err := setProviderSpecValue(rawProviderSpec, cfg); err != nil {
 		return fmt.Errorf("failed to set provider spec value: %w", err)

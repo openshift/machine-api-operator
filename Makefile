@@ -3,9 +3,9 @@ DBG         ?= 0
 VERSION     ?= $(shell git describe --always --abbrev=7)
 MUTABLE_TAG ?= latest
 IMAGE        = $(REGISTRY)machine-api-operator
-BUILD_IMAGE ?= registry.ci.openshift.org/openshift/release:golang-1.23
+BUILD_IMAGE ?= registry.ci.openshift.org/openshift/release:golang-1.24
 GOLANGCI_LINT = go run ./vendor/github.com/golangci/golangci-lint/cmd/golangci-lint
-ENVTEST_K8S_VERSION = 1.32.1
+ENVTEST_K8S_VERSION = 1.33.2
 
 # Enable go modules and vendoring
 # https://github.com/golang/go/wiki/Modules#how-to-install-and-activate-module-support
