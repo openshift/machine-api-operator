@@ -381,16 +381,18 @@ func (specs ExtensionTestSpecs) FilterByEnvironment(envFlags flags.Environmental
 
 	env, err := cel.NewEnv(
 		cel.Declarations(
-			decls.NewVar("platform", decls.String),
-			decls.NewVar("network", decls.String),
-			decls.NewVar("networkStack", decls.String),
-			decls.NewVar("upgrade", decls.String),
-			decls.NewVar("topology", decls.String),
+			decls.NewVar("apiGroups", decls.NewListType(decls.String)),
 			decls.NewVar("architecture", decls.String),
 			decls.NewVar("externalConnectivity", decls.String),
-			decls.NewVar("optionalCapabilities", decls.NewListType(decls.String)),
-			decls.NewVar("facts", decls.NewMapType(decls.String, decls.String)),
 			decls.NewVar("fact_keys", decls.NewListType(decls.String)),
+			decls.NewVar("facts", decls.NewMapType(decls.String, decls.String)),
+			decls.NewVar("featureGates", decls.NewListType(decls.String)),
+			decls.NewVar("network", decls.String),
+			decls.NewVar("networkStack", decls.String),
+			decls.NewVar("optionalCapabilities", decls.NewListType(decls.String)),
+			decls.NewVar("platform", decls.String),
+			decls.NewVar("topology", decls.String),
+			decls.NewVar("upgrade", decls.String),
 			decls.NewVar("version", decls.String),
 		),
 	)
@@ -402,16 +404,18 @@ func (specs ExtensionTestSpecs) FilterByEnvironment(envFlags flags.Environmental
 		factKeys = append(factKeys, k)
 	}
 	vars := map[string]interface{}{
-		"platform":             envFlags.Platform,
-		"network":              envFlags.Network,
-		"networkStack":         envFlags.NetworkStack,
-		"upgrade":              envFlags.Upgrade,
-		"topology":             envFlags.Topology,
+		"apiGroups":            envFlags.APIGroups,
 		"architecture":         envFlags.Architecture,
 		"externalConnectivity": envFlags.ExternalConnectivity,
-		"optionalCapabilities": envFlags.OptionalCapabilities,
-		"facts":                envFlags.Facts,
 		"fact_keys":            factKeys,
+		"facts":                envFlags.Facts,
+		"featureGates":         envFlags.FeatureGates,
+		"network":              envFlags.Network,
+		"networkStack":         envFlags.NetworkStack,
+		"optionalCapabilities": envFlags.OptionalCapabilities,
+		"platform":             envFlags.Platform,
+		"topology":             envFlags.Topology,
+		"upgrade":              envFlags.Upgrade,
 		"version":              envFlags.Version,
 	}
 
