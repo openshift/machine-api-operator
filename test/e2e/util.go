@@ -3,6 +3,7 @@ package e2e
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	. "github.com/onsi/gomega"
@@ -85,6 +86,9 @@ func SkipUnlessMachineAPIOperator(dc dynamic.Interface, c coreclient.NamespaceIn
 	Expect(err).NotTo(HaveOccurred())
 }
 
+// LoadInfra retrieves the cluster infrastructure configuration from the API server.
+// It returns the Infrastructure object containing cluster-specific information such as
+// the infrastructure name and platform type.
 func LoadInfra(cfg *rest.Config) *configv1.Infrastructure {
 	configClient, err := configclient.NewForConfig(cfg)
 	Expect(err).NotTo(HaveOccurred())
@@ -95,6 +99,8 @@ func LoadInfra(cfg *rest.Config) *configv1.Infrastructure {
 	return infra
 }
 
+// GetMachineSets retrieves all MachineSets from the machine API namespace.
+// It returns a list of MachineSets and any error encountered during the operation.
 func GetMachineSets(cfg *rest.Config) (*v1beta1.MachineSetList, error) {
 	ctx := context.Background()
 	client, err := machinesetclient.NewForConfig(cfg)
@@ -107,7 +113,15 @@ func GetMachineSets(cfg *rest.Config) (*v1beta1.MachineSetList, error) {
 }
 
 // ScaleMachineSet scales a machineSet with a given name to the given number of replicas.
-// This was borrowed from origin.  Ideally we should make this a sharable method if possible.
+// It uses the scale client to update the replica count and retries the operation if needed.
+// This was borrowed from origin. Ideally we should make this a sharable method if possible.
+//
+// Parameters:
+//   - cfg: REST configuration for the Kubernetes client
+//   - name: Name of the MachineSet to scale
+//   - replicas: Target number of replicas
+//
+// Returns an error if the scaling operation fails.
 func ScaleMachineSet(cfg *rest.Config, name string, replicas int) error {
 	scaleClient, err := GetScaleClient(cfg)
 	if err != nil {
@@ -133,6 +147,11 @@ func ScaleMachineSet(cfg *rest.Config, name string, replicas int) error {
 	return nil
 }
 
+// GetScaleClient creates and returns a scale client for managing resource scaling operations.
+// It sets up the necessary discovery client, REST mapper, and scale kind resolver to enable
+// scaling operations on Kubernetes resources.
+//
+// Returns a ScalesGetter interface and any error encountered during client creation.
 func GetScaleClient(cfg *rest.Config) (scale.ScalesGetter, error) {
 	discoveryClient, err := discovery.NewDiscoveryClientForConfig(cfg)
 	if err != nil {
@@ -153,9 +172,27 @@ func GetScaleClient(cfg *rest.Config) (scale.ScalesGetter, error) {
 	return scaleClient, nil
 }
 
+// CreateMachine creates a new Machine resource in the machine API namespace.
+// It automatically prefixes the machine name with the cluster infrastructure name if not already present
+// and sets up the machine with appropriate labels, taints, and provider-specific configuration.
+//
+// Parameters:
+//   - ctx: Context for the operation
+//   - cfg: REST configuration for the Kubernetes client
+//   - mc: Machine client for API operations
+//   - machineName: Name for the new machine (will be prefixed with cluster name if needed)
+//   - role: Role label for the machine (e.g., "worker", "master")
+//   - provider: Provider-specific configuration as RawExtension
+//
+// Returns the created Machine object and any error encountered.
 func CreateMachine(ctx context.Context, cfg *rest.Config, mc *machinesetclient.MachineV1beta1Client, machineName, role string, provider *runtime.RawExtension) (*v1beta1.Machine, error) {
 	// Get infra for configs
 	infra := LoadInfra(cfg)
+
+	// Added cluster name as prefix if missing
+	if !strings.HasPrefix(machineName, infra.Status.InfrastructureName) {
+		machineName = infra.Status.InfrastructureName + machineName
+	}
 
 	machine := &v1beta1.Machine{
 		TypeMeta: metav1.TypeMeta{
@@ -190,11 +227,31 @@ func CreateMachine(ctx context.Context, cfg *rest.Config, mc *machinesetclient.M
 	return mc.Machines(MachineAPINamespace).Create(ctx, machine, metav1.CreateOptions{})
 }
 
+// CreateMachineSet creates a new MachineSet resource in the machine API namespace.
+// It automatically prefixes the MachineSet name with the cluster infrastructure name if not already present
+// and creates the MachineSet with 0 replicas initially. The MachineSet includes appropriate labels,
+// selectors, and a machine template with the provided configuration.
+//
+// Parameters:
+//   - ctx: Context for the operation
+//   - cfg: REST configuration for the Kubernetes client
+//   - mc: Machine client for API operations
+//   - name: Name for the new MachineSet (will be prefixed with cluster name if needed)
+//   - role: Role label for machines created by this set (e.g., "worker", "master")
+//   - provider: Provider-specific configuration as RawExtension for the machine template
+//
+// Returns the created MachineSet object and any error encountered.
 func CreateMachineSet(ctx context.Context, cfg *rest.Config, mc *machinesetclient.MachineV1beta1Client, name, role string, provider *runtime.RawExtension) (*v1beta1.MachineSet, error) {
 	replicas := int32(0)
+	testName := name
 
 	// Get infra for configs
 	infra := LoadInfra(cfg)
+
+	// Added cluster name as prefix if missing
+	if !strings.HasPrefix(name, infra.Status.InfrastructureName) {
+		name = infra.Status.InfrastructureName + name
+	}
 
 	machineset := &v1beta1.MachineSet{
 		TypeMeta: metav1.TypeMeta{
@@ -205,7 +262,7 @@ func CreateMachineSet(ctx context.Context, cfg *rest.Config, mc *machinesetclien
 			Name:      name,
 			Namespace: MachineAPINamespace,
 			Labels: map[string]string{
-				"machine.openshift.io/test": name,
+				"machine.openshift.io/test": testName,
 			},
 		},
 		Spec: v1beta1.MachineSetSpec{
