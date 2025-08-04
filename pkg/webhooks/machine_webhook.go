@@ -615,6 +615,8 @@ func (a awsDefaulter) defaultAWS(m *machinev1beta1.Machine, config *admissionCon
 
 	if providerSpec.UserDataSecret == nil {
 		providerSpec.UserDataSecret = &corev1.LocalObjectReference{Name: defaultUserDataSecret}
+	} else if providerSpec.UserDataSecret.Name == "" {
+		providerSpec.UserDataSecret.Name = defaultUserDataSecret
 	}
 
 	if providerSpec.CredentialsSecret == nil {
@@ -724,13 +726,9 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 	}
 
 	if providerSpec.UserDataSecret == nil {
-		errs = append(
-			errs,
-			field.Required(
-				field.NewPath("providerSpec", "userDataSecret"),
-				"expected providerSpec.userDataSecret to be populated",
-			),
-		)
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret"), "userDataSecret must be provided"))
+	} else if providerSpec.UserDataSecret.Name == "" {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret", "name"), "name must be provided"))
 	}
 
 	if providerSpec.CredentialsSecret == nil {
