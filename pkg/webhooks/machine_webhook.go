@@ -725,10 +725,10 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 		)
 	}
 
-	if providerSpec.UserDataSecret == nil {
-		errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret"), "userDataSecret must be provided"))
-	} else if providerSpec.UserDataSecret.Name == "" {
-		errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret", "name"), "name must be provided"))
+	if providerSpec.UserDataSecret != nil {
+		if providerSpec.UserDataSecret.Name == "" {
+			errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret", "name"), "name must be provided"))
+		}
 	}
 
 	if providerSpec.CredentialsSecret == nil {
