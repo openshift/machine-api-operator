@@ -1941,15 +1941,16 @@ func validateNutanixDataDisks(disks []machinev1.NutanixVMDisk) (fldErrs []*field
 
 func validateNutanixResourceIdentifier(resource string, identifier machinev1.NutanixResourceIdentifier) *field.Error {
 	parentPath := field.NewPath("providerSpec")
-	if identifier.Type == machinev1.NutanixIdentifierName {
+	switch identifier.Type {
+	case machinev1.NutanixIdentifierName:
 		if identifier.Name == nil || *identifier.Name == "" {
 			return field.Required(parentPath.Child(resource).Child("name"), fmt.Sprintf("%s name must be provided", resource))
 		}
-	} else if identifier.Type == machinev1.NutanixIdentifierUUID {
+	case machinev1.NutanixIdentifierUUID:
 		if identifier.UUID == nil || *identifier.UUID == "" {
 			return field.Required(parentPath.Child(resource).Child("uuid"), fmt.Sprintf("%s UUID must be provided", resource))
 		}
-	} else {
+	default:
 		return field.Invalid(parentPath.Child(resource).Child("type"), identifier.Type, fmt.Sprintf("%s type must be one of %s or %s", resource, machinev1.NutanixIdentifierName, machinev1.NutanixIdentifierUUID))
 	}
 
