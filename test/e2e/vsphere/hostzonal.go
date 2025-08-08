@@ -223,9 +223,10 @@ func failIfMachineIsNotInCorrectRegionZone(ctx context.Context,
 					}
 				}
 
-				if !foundRegion || !foundZone {
-					Expect(fmt.Errorf("node %s missing expected region '%s' or zone '%s' tags", n.Name, fd.Region, fd.Zone)).NotTo(HaveOccurred())
-				}
+				By(fmt.Sprintf("Node %s (VM: %s) - Region: %s (found: %t), Zone: %s (found: %t)",
+					n.Name, vm.Name(), fd.Region, foundRegion, fd.Zone, foundZone))
+
+				Expect(foundRegion && foundZone).To(BeTrue(), "expected vm to be in the correct region and zone")
 			}
 		}
 	}
@@ -293,9 +294,8 @@ func failIfMachineIsNotInCorrectVMGroup(ctx context.Context,
 		}
 
 		for moRef, v := range foundMoRef {
-			if !v {
-				Expect(fmt.Errorf("virtual machine id %s was not in vm group %s", moRef, fd.ZoneAffinity.HostGroup.VMGroup)).NotTo(HaveOccurred())
-			}
+			By(fmt.Sprintf("managed object reference %s, vm group %s", moRef, fd.ZoneAffinity.HostGroup.VMGroup))
+			Expect(v).To(BeTrue(), "expected to find node in vm group")
 		}
 	}
 }
