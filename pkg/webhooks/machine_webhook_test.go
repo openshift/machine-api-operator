@@ -2388,7 +2388,7 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 				p.UserDataSecret.Name = ""
 			},
 			expectedOk:    false,
-			expectedError: "providerSpec.userDataSecret.name: Required value: expected providerSpec.userDataSecret.name name must be provided",
+			expectedError: "providerSpec.userDataSecret.name: Required value: expected providerSpec.userDataSecret.name to be provided",
 		},
 		{
 			testCase: "with no credentials secret it fails",
