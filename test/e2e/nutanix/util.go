@@ -6,11 +6,8 @@ import (
 	"net"
 	"time"
 
-	configv1 "github.com/openshift/api/config/v1"
-	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
-
 	machinev1 "github.com/openshift/api/machine/v1"
-	corev1 "k8s.io/api/core/v1"
+	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/klog/v2"
 )
@@ -29,38 +26,6 @@ func isIpInCidrRange(ip string, cidr string) (bool, error) {
 	return ipnet.Contains(parsed), nil
 }
 
-func getNodesInFailureDomainNutanix(fd configv1.NutanixFailureDomain, nodeList *corev1.NodeList) ([]corev1.Node, error) {
-	const labelKey = "topology.kubernetes.io/zone" // or e.g. "failure-domain.nutanix.openshift.io/name"
-	var result []corev1.Node
-	for _, node := range nodeList.Items {
-		if zone, ok := node.Labels[labelKey]; ok && zone == fd.Name {
-			result = append(result, node)
-		}
-	}
-	if len(result) == 0 {
-		return nil, fmt.Errorf("no node in failure domain: %v", fd.Name)
-	}
-	return result, nil
-}
-
-func getNodeNutanixSubnet(node corev1.Node) string {
-	return node.Spec.PodCIDR
-}
-
-func getMachinesInFailureDomainNutanix(fd configv1.NutanixFailureDomain, machines *machinev1beta1.MachineList) (*machinev1beta1.MachineList, error) {
-	const labelKey = "topology.kubernetes.io/zone"
-	mach := &machinev1beta1.MachineList{}
-	for _, machine := range machines.Items {
-		if zone, ok := machine.Labels[labelKey]; ok && zone == fd.Name {
-			mach.Items = append(mach.Items, machine)
-		}
-	}
-	if len(mach.Items) == 0 {
-		return nil, fmt.Errorf("no machines in failure domain: %v", fd.Name)
-	}
-	return mach, nil
-}
-
 func ProviderSpecFromRawExtension(rawExtension *runtime.RawExtension) (*machinev1.NutanixMachineProviderConfig, error) {
 	if rawExtension == nil {
 		return &machinev1.NutanixMachineProviderConfig{}, nil
@@ -73,4 +38,18 @@ func ProviderSpecFromRawExtension(rawExtension *runtime.RawExtension) (*machinev
 
 	klog.V(5).Infof("Got provider spec from raw extension: %+v", spec)
 	return spec, nil
+}
+
+func getMachinesInFailureDomain(machines *machinev1beta1.MachineList, failureDomainName string) ([]machinev1beta1.Machine, error) {
+	failureDomainMachines := []machinev1beta1.Machine{}
+	for _, machine := range machines.Items {
+		spec, err := ProviderSpecFromRawExtension(machine.Spec.ProviderSpec.Value)
+		if err != nil {
+			return nil, fmt.Errorf("error unmarshalling providerSpec: %v", err)
+		}
+		if spec.FailureDomain.Name == failureDomainName {
+			_ = append(failureDomainMachines, machine)
+		}
+	}
+	return failureDomainMachines, nil
 }
