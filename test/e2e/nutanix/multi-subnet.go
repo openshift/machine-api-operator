@@ -4,7 +4,6 @@ import (
 	"context"
 	_ "embed"
 	"encoding/json"
-	"log"
 	"slices"
 	"sort"
 
@@ -49,7 +48,7 @@ func failIfNodeNotInMachineNetwork(nodes *corev1.NodeList) {
 			cidrsJSON := node.Annotations["k8s.ovn.org/host-cidrs"]
 			var cidrs []string
 			if err := json.Unmarshal([]byte(cidrsJSON), &cidrs); err != nil {
-				log.Fatalf("failed to parse host-cidrs annotation: %v", err)
+				Expect(err).NotTo(HaveOccurred())
 			}
 			for _, cidr := range cidrs {
 				inRange, err := isIpInCidrRange(address.Address, cidr)
@@ -70,7 +69,7 @@ func failIfMachinesDoesNotContainAllSubnet(machines *machinev1beta1.MachineList,
 	failureDomainSubnets := make(map[string][]string)
 	for _, domain := range machineNetworks {
 		for _, subnet := range domain.Subnets {
-			_ = append(failureDomainSubnets[domain.Name], *subnet.UUID)
+			failureDomainSubnets[domain.Name] = append(failureDomainSubnets[domain.Name], *subnet.UUID)
 		}
 		sort.Strings(failureDomainSubnets[domain.Name])
 		failureDomainMachines, err := getMachinesInFailureDomain(machines, domain.Name)

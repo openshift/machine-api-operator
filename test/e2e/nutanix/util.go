@@ -48,7 +48,7 @@ func getMachinesInFailureDomain(machines *machinev1beta1.MachineList, failureDom
 			return nil, fmt.Errorf("error unmarshalling providerSpec: %v", err)
 		}
 		if spec.FailureDomain.Name == failureDomainName {
-			_ = append(failureDomainMachines, machine)
+			failureDomainMachines = append(failureDomainMachines, machine)
 		}
 	}
 	return failureDomainMachines, nil
