@@ -28,11 +28,23 @@ import (
 	_ "k8s.io/kubernetes/test/e2e/lifecycle"
 )
 
+func newProvider() (framework.ProviderInterface, error) {
+	return &Provider{}, nil
+}
+
+// Structure to handle nutanix for e2e testing
+type Provider struct {
+	framework.NullProvider
+}
+
 // copied directly from github.com/openshift/kubernetes/openshift-hack/cmd/k8s-tests-ext/provider.go
 // I attempted to use the clusterdiscovery.InitializeTestFramework in origin but it has too many additional parameters
 // that as an test-ext, I felt we shouldn't have to load all that.  Hopefully origin's test-ext frameworks gets enhanced
 // to have a simple way to initialize all this w/o having to copy/pasta like the openshift/kubernetes project did.
 func initializeTestFramework(provider string) error {
+	if provider == `{"type":"nutanix"}` {
+		framework.RegisterProvider("nutanix", newProvider)
+	}
 	providerInfo := &ClusterConfiguration{}
 	if err := json.Unmarshal([]byte(provider), &providerInfo); err != nil {
 		return fmt.Errorf("provider must be a JSON object with the 'type' key at a minimum: %v", err)
