@@ -2383,6 +2383,14 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			expectedError: "providerSpec.userDataSecret: Required value: expected providerSpec.userDataSecret to be populated",
 		},
 		{
+			testCase: "with no user data secret name it fails",
+			modifySpec: func(p *machinev1beta1.AWSMachineProviderConfig) {
+				p.UserDataSecret.Name = ""
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.userDataSecret.name: Required value: expected providerSpec.userDataSecret.name to be provided",
+		},
+		{
 			testCase: "with no credentials secret it fails",
 			modifySpec: func(p *machinev1beta1.AWSMachineProviderConfig) {
 				p.CredentialsSecret = nil
