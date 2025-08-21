@@ -46,7 +46,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiDisk][platf
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	It("create machines with data disks [apigroup:machine.openshift.io][Suite:openshift/conformance/serial]", func() {
+	It("create machines with data disks [apigroup:machine.openshift.io][Serial][Suite:openshift/conformance/serial]", func() {
 		machineName := "machine-multi-test"
 		dataDisks := []v1beta1.VSphereDisk{
 			{
@@ -166,28 +166,28 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiDisk][platf
 		err = mc.MachineSets(util.MachineAPINamespace).Delete(ctx, ddMachineSet.Name, metav1.DeleteOptions{})
 		Expect(err).NotTo(HaveOccurred())
 	},
-		Entry("with thin data disk [apigroup:machine.openshift.io][Suite:openshift/conformance/serial]", "ms-thin-test", []v1beta1.VSphereDisk{
+		Entry("with thin data disk [apigroup:machine.openshift.io][Serial][Suite:openshift/conformance/serial]", "ms-thin-test", []v1beta1.VSphereDisk{
 			{
 				Name:             "thickDataDisk",
 				SizeGiB:          1,
 				ProvisioningMode: v1beta1.ProvisioningModeThick,
 			},
 		}),
-		Entry("with thick data disk [apigroup:machine.openshift.io][Suite:openshift/conformance/serial]", "ms-thick-test", []v1beta1.VSphereDisk{
+		Entry("with thick data disk [apigroup:machine.openshift.io][Serial][Suite:openshift/conformance/serial]", "ms-thick-test", []v1beta1.VSphereDisk{
 			{
 				Name:             "thickDataDisk",
 				SizeGiB:          1,
 				ProvisioningMode: v1beta1.ProvisioningModeThick,
 			},
 		}),
-		Entry("with eagerly zeroed data disk [apigroup:machine.openshift.io][Suite:openshift/conformance/serial]", "ms-zeroed-test", []v1beta1.VSphereDisk{
+		Entry("with eagerly zeroed data disk [apigroup:machine.openshift.io][Serial][Suite:openshift/conformance/serial]", "ms-zeroed-test", []v1beta1.VSphereDisk{
 			{
 				Name:             "zeroedDataDisk",
 				SizeGiB:          1,
 				ProvisioningMode: v1beta1.ProvisioningModeEagerlyZeroed,
 			},
 		}),
-		Entry("with a data disk using each provisioning mode [apigroup:machine.openshift.io][Suite:openshift/conformance/serial]", "ms-multi-test", []v1beta1.VSphereDisk{
+		Entry("with a data disk using each provisioning mode [apigroup:machine.openshift.io][Serial][Suite:openshift/conformance/serial]", "ms-multi-test", []v1beta1.VSphereDisk{
 			{
 				Name:             "thinDataDisk",
 				SizeGiB:          1,

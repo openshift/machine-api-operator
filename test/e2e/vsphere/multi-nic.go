@@ -20,6 +20,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/kubernetes/test/e2e/framework"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 )
 
@@ -129,8 +130,7 @@ func failIfMachinesDoNotHaveAllPortgroups(platformSpec configv1.PlatformSpec, ma
 }
 
 func failIfMachineDoesNotHaveAllPortgroups(machine machinev1beta1.Machine, failureDomain configv1.VSpherePlatformFailureDomainSpec) {
-
-	By("checking to see if machine has all portgroups")
+	framework.Logf("checking to see if machine %s has all portgroups", machine.Name)
 
 	spec, err := vsphere.ProviderSpecFromRawExtension(machine.Spec.ProviderSpec.Value)
 	Expect(err).NotTo(HaveOccurred())
@@ -234,7 +234,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiNetworks][p
 		failIfIncorrectPortgroupsAttachedToVMs(ctx, infra, nodes, vsphereCreds)
 	})
 
-	It("new machines should pass multi network tests [apigroup:machine.openshift.io][Suite:openshift/conformance/serial]", Label("Serial"), func() {
+	It("new machines should pass multi network tests [Serial][apigroup:machine.openshift.io][Suite:openshift/conformance/serial]", Label("Serial"), func() {
 		machineSets, err := e2eutil.GetMachineSets(cfg)
 		Expect(err).NotTo(HaveOccurred())
 
