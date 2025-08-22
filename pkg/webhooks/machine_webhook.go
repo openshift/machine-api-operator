@@ -229,6 +229,10 @@ var gcpConfidentialTypeMachineSeriesSupportingSEV = []string{"n2d", "c2d", "c3d"
 var gcpConfidentialTypeMachineSeriesSupportingSEVSNP = []string{"n2d"}
 var gcpConfidentialTypeMachineSeriesSupportingTDX = []string{"c3"}
 
+// GCP onHostMaintenance Migrate with Confidential Compute is supported only on certain series:
+// reference: https://cloud.google.com/confidential-computing/confidential-vm/docs/troubleshoot-live-migration
+var gcpConfidentialTypeMachineSeriesSupportingOnHostMaintenanceMigrate = []string{"n2d"}
+
 // defaultInstanceTypeForCloudProvider returns the default instance type for the given cloud provider and architecture.
 // If the cloud provider is not supported, an empty string is returned.
 // If the architecture is not supported, the default instance type for AMD64 is returned as a fallback.
@@ -1325,14 +1329,15 @@ func validateShieldedInstanceConfig(providerSpec *machinev1beta1.GCPMachineProvi
 func validateGCPConfidentialComputing(providerSpec *machinev1beta1.GCPMachineProviderSpec) field.ErrorList {
 	var errs field.ErrorList
 	if providerSpec.ConfidentialCompute != "" && providerSpec.ConfidentialCompute != machinev1beta1.ConfidentialComputePolicyDisabled {
+		// Get machine series
+		machineSeries := strings.Split(providerSpec.MachineType, "-")[0]
 		// Check on host maintenance
-		if providerSpec.OnHostMaintenance != machinev1beta1.TerminateHostMaintenanceType {
+		if providerSpec.OnHostMaintenance != machinev1beta1.TerminateHostMaintenanceType && !slices.Contains(gcpConfidentialTypeMachineSeriesSupportingOnHostMaintenanceMigrate, machineSeries) {
 			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "onHostMaintenance"),
 				providerSpec.OnHostMaintenance,
 				fmt.Sprintf("ConfidentialCompute %s requires OnHostMaintenance to be set to %s, the current value is: %s", providerSpec.ConfidentialCompute, machinev1beta1.TerminateHostMaintenanceType, providerSpec.OnHostMaintenance)))
 		}
 		// Check machine series supports confidential computing
-		machineSeries := strings.Split(providerSpec.MachineType, "-")[0]
 		switch providerSpec.ConfidentialCompute {
 		case machinev1beta1.ConfidentialComputePolicyEnabled, machinev1beta1.ConfidentialComputePolicySEV:
 			if !slices.Contains(gcpConfidentialTypeMachineSeriesSupportingSEV, machineSeries) {
