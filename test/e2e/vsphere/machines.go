@@ -8,6 +8,7 @@ import (
 	. "github.com/onsi/gomega"
 	"github.com/openshift/api/machine/v1beta1"
 	machinesetclient "github.com/openshift/client-go/machine/clientset/versioned/typed/machine/v1beta1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
@@ -106,8 +107,21 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiDisk][platf
 
 		// Remove machine
 		By("delete the machine")
-		err = mc.Machines(util.MachineAPINamespace).Delete(ctx, machine.Name, metav1.DeleteOptions{})
+		policy := metav1.DeletePropagationForeground
+		err = mc.Machines(util.MachineAPINamespace).Delete(ctx, machine.Name, metav1.DeleteOptions{PropagationPolicy: &policy})
 		Expect(err).NotTo(HaveOccurred())
+
+		// Verify / wait for machine is removed
+		By("verifying machine is destroyed")
+		Eventually(func() error {
+			if _, err := mc.Machines(util.MachineAPINamespace).Get(ctx, machine.Name, metav1.GetOptions{}); err != nil {
+				if apierrors.IsNotFound(err) {
+					return nil
+				}
+				return err
+			}
+			return nil
+		}, machineReadyTimeout).Should(Succeed())
 	})
 
 	DescribeTable("create machinesets", func(msName string, dataDisks []v1beta1.VSphereDisk) {
@@ -163,8 +177,21 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiDisk][platf
 
 		// Delete machineset
 		By("deleting the machineset")
-		err = mc.MachineSets(util.MachineAPINamespace).Delete(ctx, ddMachineSet.Name, metav1.DeleteOptions{})
+		policy := metav1.DeletePropagationForeground
+		err = mc.MachineSets(util.MachineAPINamespace).Delete(ctx, ddMachineSet.Name, metav1.DeleteOptions{PropagationPolicy: &policy})
 		Expect(err).NotTo(HaveOccurred())
+
+		// Verify / wait for machineset is removed
+		By("verifying machine is destroyed")
+		Eventually(func() error {
+			if _, err := mc.MachineSets(util.MachineAPINamespace).Get(ctx, ddMachineSet.Name, metav1.GetOptions{}); err != nil {
+				if apierrors.IsNotFound(err) {
+					return nil
+				}
+				return err
+			}
+			return nil
+		}, machineReadyTimeout).Should(Succeed())
 	},
 		Entry("with thin data disk [apigroup:machine.openshift.io][Serial][Suite:openshift/conformance/serial]", "ms-thin-test", []v1beta1.VSphereDisk{
 			{
