@@ -4,18 +4,19 @@ aliases:
   machine-api-approvers:
   - JoelSpeed
   - RadekManak
+  - chrischdi
   - damdo
-  - elmiko
-  - nrb
-  - theobarberbany
-  machine-api-reviewers:
-  - JoelSpeed
-  - RadekManak
-  - damdo
-  - elmiko
+  - mdbooth
   - nrb
   - racheljpg
-  - sub-mod
+  - theobarberbany
+  machine-api-reviewers:
+  - RadekManak
+  - chrischdi
+  - damdo
+  - mdbooth
+  - nrb
+  - racheljpg
   - theobarberbany
   machine-health-check-approvers:
   - slintes
