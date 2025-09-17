@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -235,6 +236,14 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiNetworks][p
 	})
 
 	It("new machines should pass multi network tests [Serial][apigroup:machine.openshift.io][Suite:openshift/conformance/serial]", Label("Serial"), func() {
+
+		By("checking initial cluster size")
+		nodeList, err := c.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
+		Expect(err).NotTo(HaveOccurred())
+
+		initialNumberOfNodes := len(nodeList.Items)
+		By(fmt.Sprintf("initial cluster size is %v", initialNumberOfNodes))
+
 		machineSets, err := e2eutil.GetMachineSets(cfg)
 		Expect(err).NotTo(HaveOccurred())
 
@@ -298,5 +307,19 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiNetworks][p
 			}
 			return ms.Status.ReadyReplicas, nil
 		}, machineReadyTimeout).Should(BeEquivalentTo(origReplicas))
+
+		// By this point, the node object should be deleted, but seems it may linger momentarily causing issue with other tests that grab current
+		// nodes to perform tests against.
+		By(fmt.Sprintf("waiting for cluster to get back to original size. Final size should be %d worker nodes", initialNumberOfNodes))
+		Eventually(func() bool {
+			nodeList, err := c.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			By(fmt.Sprintf("got %v nodes, expecting %v", len(nodeList.Items), initialNumberOfNodes))
+			if len(nodeList.Items) != initialNumberOfNodes {
+				return false
+			}
+
+			return true
+		}, 10*time.Minute, 5*time.Second).Should(BeTrue(), "number of nodes should be the same as it was before test started")
 	})
 })
