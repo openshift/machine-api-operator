@@ -2,6 +2,7 @@ package vsphere
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	. "github.com/onsi/ginkgo/v2"
@@ -75,6 +76,13 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiDisk][platf
 		// skip if operator is not running
 		util.SkipUnlessMachineAPIOperator(dc, c.CoreV1().Namespaces())
 
+		By("checking initial cluster size")
+		nodeList, err := c.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
+		Expect(err).NotTo(HaveOccurred())
+
+		initialNumberOfNodes := len(nodeList.Items)
+		By(fmt.Sprintf("initial cluster size is %v", initialNumberOfNodes))
+
 		// get provider for simple definition vs generating one from scratch
 		By("generating provider for tests")
 		provider := getProviderFromMachineSet(cfg)
@@ -108,6 +116,20 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiDisk][platf
 		By("delete the machine")
 		err = mc.Machines(util.MachineAPINamespace).Delete(ctx, machine.Name, metav1.DeleteOptions{})
 		Expect(err).NotTo(HaveOccurred())
+
+		// By this point, the node object should be deleted, but seems it may linger momentarily causing issue with other tests that grab current
+		// nodes to perform tests against.
+		By(fmt.Sprintf("waiting for cluster to get back to original size. Final size should be %d worker nodes", initialNumberOfNodes))
+		Eventually(func() bool {
+			nodeList, err := c.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			By(fmt.Sprintf("got %v nodes, expecting %v", len(nodeList.Items), initialNumberOfNodes))
+			if len(nodeList.Items) != initialNumberOfNodes {
+				return false
+			}
+
+			return true
+		}, 10*time.Minute, 5*time.Second).Should(BeTrue(), "number of nodes should be the same as it was before test started")
 	})
 
 	DescribeTable("create machinesets", func(msName string, dataDisks []v1beta1.VSphereDisk) {
@@ -115,6 +137,13 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiDisk][platf
 
 		// skip if operator is not running
 		util.SkipUnlessMachineAPIOperator(dc, c.CoreV1().Namespaces())
+
+		By("checking initial cluster size")
+		nodeList, err := c.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
+		Expect(err).NotTo(HaveOccurred())
+
+		initialNumberOfNodes := len(nodeList.Items)
+		By(fmt.Sprintf("initial cluster size is %v", initialNumberOfNodes))
 
 		// get provider for simple definition vs generating one from scratch
 		By("generating provider for tests")
@@ -144,7 +173,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiDisk][platf
 				return -1, err
 			}
 			return ms.Status.ReadyReplicas, nil
-		}, machineReadyTimeout).Should(BeEquivalentTo(1))
+		}, machineReadyTimeout).Should(BeEquivalentTo(1), "machine ReadyReplicas should be 1 when all machines are ready")
 
 		// Scale down machineset
 		By("scaling down the machineset")
@@ -159,12 +188,27 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiDisk][platf
 				return -1, err
 			}
 			return ms.Status.ReadyReplicas, nil
-		}, machineReadyTimeout).Should(BeEquivalentTo(0))
+		}, machineReadyTimeout).Should(BeEquivalentTo(0), "machine ReadyReplicas should be zero when all machines are destroyed")
 
 		// Delete machineset
 		By("deleting the machineset")
 		err = mc.MachineSets(util.MachineAPINamespace).Delete(ctx, ddMachineSet.Name, metav1.DeleteOptions{})
 		Expect(err).NotTo(HaveOccurred())
+
+		// By this point, the node object should be deleted, but seems it may linger momentarily causing issue with other tests that grab current
+		// nodes to perform tests against.
+		By(fmt.Sprintf("waiting for cluster to get back to original size. Final size should be %d worker nodes", initialNumberOfNodes))
+		Eventually(func() bool {
+			nodeList, err := c.CoreV1().Nodes().List(context.Background(), metav1.ListOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			By(fmt.Sprintf("got %v nodes, expecting %v", len(nodeList.Items), initialNumberOfNodes))
+			if len(nodeList.Items) != initialNumberOfNodes {
+				return false
+			}
+
+			return true
+		}, 10*time.Minute, 5*time.Second).Should(BeTrue(), "number of nodes should be the same as it was before test started")
+
 	},
 		Entry("with thin data disk [apigroup:machine.openshift.io][Serial][Suite:openshift/conformance/serial]", "ms-thin-test", []v1beta1.VSphereDisk{
 			{
