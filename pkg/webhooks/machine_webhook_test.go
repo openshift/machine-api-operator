@@ -317,6 +317,108 @@ func TestMachineCreation(t *testing.T) {
 			expectedError: "",
 		},
 		{
+			name:         "configure host affinity with Host ID",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					InstanceType: "test",
+					HostAffinity: ptr.To("default"),
+					HostID:       ptr.To("h-09dcf61cb388b0149"),
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "configure host affinity with invalid affinity",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					InstanceType: "test",
+					HostAffinity: ptr.To("invalid"),
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.hostID: Required value: hostID must be set when hostAffinity is configured", // true
+		},
+		{
+			name:         "configure host affinity without Host ID",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					InstanceType: "test",
+					HostAffinity: ptr.To("default"),
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.hostID: Required value: hostID must be set when hostAffinity is configured", // true
+		},
+		{
+			name:         "hostID and dynamicHostAllocation are mutually exclusive",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					InstanceType: "test",
+					HostID:       ptr.To("h-1234567890abcdef0"),
+					DynamicHostAllocation: &machinev1beta1.DynamicHostAllocationSpec{
+						Release: machinev1beta1.DedicatedHostReleaseStrategyOnMachineDeletion,
+						Tags: map[string]string{
+							"Environment": "test",
+						},
+					},
+				},
+			},
+			expectedError: "validation.machine.machine.openshift.io\" denied the request: [spec.hostID: Forbidden: hostID and dynamicHostAllocation are mutually exclusive, spec.dynamicHostAllocation: Forbidden: hostID and dynamicHostAllocation are mutually exclusive]",
+		},
+		{
+			name:         "hostID alone is valid",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					InstanceType: "test",
+					HostID:       ptr.To("h-1234567890abcdef0"),
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "dynamicHostAllocation alone is valid",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					InstanceType: "test",
+					DynamicHostAllocation: &machinev1beta1.DynamicHostAllocationSpec{
+						Release: machinev1beta1.DedicatedHostReleaseStrategyOnMachineDeletion,
+						Tags: map[string]string{
+							"Environment": "test",
+						},
+					},
+				},
+			},
+			expectedError: "",
+		},
+		{
 			name:              "with Azure and a nil provider spec value",
 			platformType:      osconfigv1.AzurePlatformType,
 			clusterID:         "azure-cluster",
