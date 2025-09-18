@@ -369,3 +369,6 @@ require (
 	sigs.k8s.io/randfill v1.0.0 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.6.0 // indirect
 )
+
+// go get github.com/vr4manta/api@SPLAT-2206
+replace github.com/openshift/api => github.com/vr4manta/api v0.0.0-20250918161809-165b8e86e744

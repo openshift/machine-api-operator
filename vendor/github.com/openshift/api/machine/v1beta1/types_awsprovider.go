@@ -107,6 +107,23 @@ type AWSMachineProviderConfig struct {
 	// If this value is selected, capacityReservationID must be specified to identify the target reservation.
 	// +optional
 	MarketType MarketType `json:"marketType,omitempty"`
+
+	// HostID specifies the Dedicated Host on which the instance must be started.
+	// This field is mutually exclusive with DynamicHostAllocation.
+	// +kubebuilder:validation:Pattern=`^h-[0-9a-f]{17}$`
+	// +openshift:enable:FeatureGate=AWSDedicatedHosts
+	// +optional
+	HostID *string `json:"hostID,omitempty"`
+
+	// HostAffinity specifies the dedicated host affinity setting for the instance.
+	// When HostAffinity is set to host, an instance started onto a specific host always restarts on the same host if stopped.
+	// When HostAffinity is set to default, and you stop and restart the instance, it can be restarted on any available host.
+	// When HostAffinity is defined, HostID is required.
+	// +openshift:enable:FeatureGate=AWSDedicatedHosts
+	// +optional
+	// +kubebuilder:validation:Enum:=default;host
+	// +kubebuilder:default=default
+	HostAffinity *string `json:"hostAffinity,omitempty"`
 }
 
 // BlockDeviceMappingSpec describes a block device mapping
