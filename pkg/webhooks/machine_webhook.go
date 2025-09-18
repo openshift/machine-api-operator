@@ -868,6 +868,13 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 		)
 	}
 
+	// Check if host affinity is set.  If so, we expect a Host ID to be set
+	if providerSpec.HostAffinity != nil {
+		if providerSpec.HostID == nil || len(*providerSpec.HostID) == 0 {
+			errs = append(errs, field.Required(field.NewPath("spec.hostID"), "hostID must be set when hostAffinity is configured"))
+		}
+	}
+
 	if len(errs) > 0 {
 		return false, warnings, errs
 	}

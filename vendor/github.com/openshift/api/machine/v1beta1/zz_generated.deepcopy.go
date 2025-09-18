@@ -80,6 +80,16 @@ func (in *AWSMachineProviderConfig) DeepCopyInto(out *AWSMachineProviderConfig) 
 		*out = new(int32)
 		**out = **in
 	}
+	if in.HostID != nil {
+		in, out := &in.HostID, &out.HostID
+		*out = new(string)
+		**out = **in
+	}
+	if in.HostAffinity != nil {
+		in, out := &in.HostAffinity, &out.HostAffinity
+		*out = new(string)
+		**out = **in
+	}
 	return
 }
 
