@@ -1353,6 +1353,12 @@ func validateGCPConfidentialComputing(providerSpec *machinev1beta1.GCPMachinePro
 					fmt.Sprintf("ConfidentialCompute %s requires a machine type in the following series: %s", providerSpec.ConfidentialCompute, strings.Join(gcpConfidentialTypeMachineSeriesSupportingSEVSNP, `,`))),
 				)
 			}
+			// Check on host maintenance for ConfidentialComputePolicySEVSNP
+			if providerSpec.OnHostMaintenance != machinev1beta1.TerminateHostMaintenanceType {
+				errs = append(errs, field.Invalid(field.NewPath("providerSpec", "onHostMaintenance"),
+					providerSpec.OnHostMaintenance,
+					fmt.Sprintf("ConfidentialCompute %s requires OnHostMaintenance to be set to %s, the current value is: %s", providerSpec.ConfidentialCompute, machinev1beta1.TerminateHostMaintenanceType, providerSpec.OnHostMaintenance)))
+			}
 		case machinev1beta1.ConfidentialComputePolicyTDX:
 			if !slices.Contains(gcpConfidentialTypeMachineSeriesSupportingTDX, machineSeries) {
 				errs = append(errs, field.Invalid(field.NewPath("providerSpec", "machineType"),

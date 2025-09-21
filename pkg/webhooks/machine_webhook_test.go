@@ -4023,7 +4023,8 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 				p.MachineType = "n2d-standard-4"
 				p.GPUs = []machinev1beta1.GCPGPUConfig{}
 			},
-			expectedOk: true,
+			expectedOk:    false,
+			expectedError: "providerSpec.onHostMaintenance: Invalid value: \"Migrate\": ConfidentialCompute AMDEncryptedVirtualizationNestedPaging requires OnHostMaintenance to be set to Terminate, the current value is: Migrate",
 		},
 		{
 			testCase: "with ConfidentialCompute IntelTrustedDomainExtensions and an unsupported machine",
