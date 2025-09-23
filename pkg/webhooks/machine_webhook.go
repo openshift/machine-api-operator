@@ -868,6 +868,35 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 		)
 	}
 
+	if providerSpec.CPUOptions != nil {
+		if *providerSpec.CPUOptions == (machinev1beta1.CPUOptions{}) {
+			errs = append(
+				errs,
+				field.Invalid(
+					field.NewPath("providerSpec", "CPUOptions"),
+					"{}",
+					"At least one field must be set if cpuOptions is provided",
+				),
+			)
+		}
+
+		if providerSpec.CPUOptions.ConfidentialCompute != nil {
+			switch *providerSpec.CPUOptions.ConfidentialCompute {
+			case machinev1beta1.AWSConfidentialComputePolicyDisabled, machinev1beta1.AWSConfidentialComputePolicySEVSNP:
+				// Valid values
+			default:
+				errs = append(
+					errs,
+					field.Invalid(
+						field.NewPath("providerSpec", "CPUOptions", "ConfidentialCompute"),
+						providerSpec.CPUOptions.ConfidentialCompute,
+						fmt.Sprintf("Allowed values are %s, %s and omitted", machinev1beta1.AWSConfidentialComputePolicyDisabled, machinev1beta1.AWSConfidentialComputePolicySEVSNP),
+					),
+				)
+			}
+		}
+	}
+
 	if len(errs) > 0 {
 		return false, warnings, errs
 	}

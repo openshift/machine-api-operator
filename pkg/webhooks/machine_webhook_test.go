@@ -2611,6 +2611,52 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 			expectedError: "providerSpec.metadataServiceOptions.authentication: Invalid value: \"Boom\": Allowed values are either 'Optional' or 'Required'",
 		},
 		{
+			testCase: "with cpuOptions empty",
+			modifySpec: func(p *machinev1beta1.AWSMachineProviderConfig) {
+				p.CPUOptions = &machinev1beta1.CPUOptions{}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.CPUOptions: Invalid value: \"{}\": At least one field must be set if cpuOptions is provided",
+		},
+		{
+			testCase: "with confidentialCompute set to AMD SEV-SNP",
+			modifySpec: func(p *machinev1beta1.AWSMachineProviderConfig) {
+				p.CPUOptions = &machinev1beta1.CPUOptions{
+					ConfidentialCompute: ptr.To(machinev1beta1.AWSConfidentialComputePolicySEVSNP),
+				}
+			},
+			expectedOk: true,
+		},
+		{
+			testCase: "with confidentialCompute disabled",
+			modifySpec: func(p *machinev1beta1.AWSMachineProviderConfig) {
+				p.CPUOptions = &machinev1beta1.CPUOptions{
+					ConfidentialCompute: ptr.To(machinev1beta1.AWSConfidentialComputePolicyDisabled),
+				}
+			},
+			expectedOk: true,
+		},
+		{
+			testCase: "with confidentialCompute set to invalid value",
+			modifySpec: func(p *machinev1beta1.AWSMachineProviderConfig) {
+				p.CPUOptions = &machinev1beta1.CPUOptions{
+					ConfidentialCompute: ptr.To(machinev1beta1.AWSConfidentialComputePolicy("invalid")),
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.CPUOptions.ConfidentialCompute: Invalid value: \"invalid\": Allowed values are Disabled, AMDEncryptedVirtualizationNestedPaging and omitted",
+		},
+		{
+			testCase: "with confidentialCompute empty",
+			modifySpec: func(p *machinev1beta1.AWSMachineProviderConfig) {
+				p.CPUOptions = &machinev1beta1.CPUOptions{
+					ConfidentialCompute: ptr.To(machinev1beta1.AWSConfidentialComputePolicy("")),
+				}
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.CPUOptions.ConfidentialCompute: Invalid value: \"\": Allowed values are Disabled, AMDEncryptedVirtualizationNestedPaging and omitted",
+		},
+		{
 			testCase: "with invalid GroupVersionKind",
 			modifySpec: func(p *machinev1beta1.AWSMachineProviderConfig) {
 				p.Kind = "INVALID"
