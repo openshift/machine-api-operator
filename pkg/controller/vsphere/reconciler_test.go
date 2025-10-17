@@ -1419,6 +1419,10 @@ func TestCreateDataDisks(t *testing.T) {
 	}
 }
 
+func TestGetVMFirmware(t *testing.T) {
+	// TODO
+}
+
 func TestGetVirtualTPMDevices(t *testing.T) {
 	model, session, server := initSimulator(t)
 	t.Cleanup(model.Remove)
@@ -1460,12 +1464,12 @@ func TestGetVirtualTPMDevices(t *testing.T) {
 		{
 			name:                "No existing TPM devices",
 			devices:             deviceList,
-			expectedDeviceCount: 0, // Currently disabled by default
+			expectedDeviceCount: 1, // TPM is enabled by default now
 		},
 		{
 			name:                "Empty device list",
 			devices:             object.VirtualDeviceList{},
-			expectedDeviceCount: 0,
+			expectedDeviceCount: 1, // TPM is enabled by default now
 		},
 	}
 
@@ -1490,9 +1494,12 @@ func TestGetVirtualTPMDevices(t *testing.T) {
 				t.Fatalf("Unexpected error: %v", err)
 			}
 
-			// Check device count
-			if tc.expectedDeviceCount != 1 {
-				t.Fatalf("Expected %d TPM devices, got %d", tc.expectedDeviceCount, 1)
+			// Check device count - if we expect a device, tpmDeviceSpec should not be nil
+			if tc.expectedDeviceCount > 0 && tpmDeviceSpec == nil {
+				t.Fatalf("Expected %d TPM devices, got nil device spec", tc.expectedDeviceCount)
+			}
+			if tc.expectedDeviceCount == 0 && tpmDeviceSpec != nil {
+				t.Fatalf("Expected %d TPM devices, got non-nil device spec", tc.expectedDeviceCount)
 			}
 
 			// If devices were created, validate their structure
@@ -1501,10 +1508,15 @@ func TestGetVirtualTPMDevices(t *testing.T) {
 				if spec.Operation != types.VirtualDeviceConfigSpecOperationAdd {
 					t.Fatalf("Expected operation to be Add, got %v", spec.Operation)
 				}
-			}
 
-			if tpmDeviceSpec == nil && tc.expectedDeviceCount != 0 {
-				t.Fatalf("Expected %d TPM devices, got %d", tc.expectedDeviceCount, 0)
+				tpmDevice, ok := spec.Device.(*types.VirtualTPM)
+				if !ok {
+					t.Fatalf("Expected device to be VirtualTPM, got %T", spec.Device)
+				}
+
+				if tpmDevice.Key == 0 {
+					t.Fatalf("Expected TPM device to have a non-zero key")
+				}
 			}
 		})
 	}
