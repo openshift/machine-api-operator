@@ -1016,11 +1016,11 @@ func clone(s *machineScope) (string, error) {
 	deviceSpecs = append(deviceSpecs, networkDevices...)
 
 	// Add VirtualTPM device if needed (TODO: placeholder for future provider spec field)
-	tpmDevices, err := getVirtualTPMDevices(s, devices)
+	tpmDeviceSpec, err := addVirtualTPMDevice(s, devices)
 	if err != nil {
 		return "", fmt.Errorf("error getting VirtualTPM specs: %w", err)
 	}
-	deviceSpecs = append(deviceSpecs, tpmDevices...)
+	deviceSpecs = append(deviceSpecs, tpmDeviceSpec)
 
 	extraConfig := []types.BaseOptionValue{}
 
@@ -1424,17 +1424,16 @@ func getNetworkDevices(s *machineScope, resourcepool *object.ResourcePool, devic
 	return networkDevices, nil
 }
 
-// getVirtualTPMDevices creates VirtualTPM device specifications for the VM.
+// addVirtualTPMDevice creates VirtualTPM device specifications for the VM.
 // This function is prepared for future integration with a VirtualTPM field in VSphereMachineProviderSpec.
-func getVirtualTPMDevices(s *machineScope, devices object.VirtualDeviceList) ([]types.BaseVirtualDeviceConfigSpec, error) {
-	var tpmDevices []types.BaseVirtualDeviceConfigSpec
+func addVirtualTPMDevice(s *machineScope, devices object.VirtualDeviceList) (types.BaseVirtualDeviceConfigSpec, error) {
+	var baseVirtualDeviceConfigSpec types.BaseVirtualDeviceConfigSpec
 
 	// TODO: Replace this placeholder with actual provider spec field check
 	// When VSphereMachineProviderSpec.VirtualTPM field is added, replace the condition below:
 	// if s.providerSpec.VirtualTPM != nil && s.providerSpec.VirtualTPM.Enabled {
 
-	// For now, this is a placeholder that doesn't add TPM devices
-	// Set this to true to test VirtualTPM functionality
+	// For now, this is a placeholder that hardcodes adding a TPM device.
 	enableVirtualTPM := true
 
 	if enableVirtualTPM {
@@ -1442,7 +1441,7 @@ func getVirtualTPMDevices(s *machineScope, devices object.VirtualDeviceList) ([]
 		existingTPMs := devices.SelectByType((*types.VirtualTPM)(nil))
 		if len(existingTPMs) > 0 {
 			klog.V(3).Infof("VirtualTPM already exists in template, skipping addition")
-			return tpmDevices, nil
+			return baseVirtualDeviceConfigSpec, nil
 		}
 
 		// Create new VirtualTPM device
@@ -1454,15 +1453,15 @@ func getVirtualTPMDevices(s *machineScope, devices object.VirtualDeviceList) ([]
 			},
 		}
 
-		tpmDevices = append(tpmDevices, &types.VirtualDeviceConfigSpec{
+		baseVirtualDeviceConfigSpec = &types.VirtualDeviceConfigSpec{
 			Device:    tpmDevice,
 			Operation: types.VirtualDeviceConfigSpecOperationAdd,
-		})
+		}
 
 		klog.V(2).Infof("Adding VirtualTPM device to VM %s", s.machine.GetName())
 	}
 
-	return tpmDevices, nil
+	return baseVirtualDeviceConfigSpec, nil
 }
 
 func newVMFlagInfo() *types.VirtualMachineFlagInfo {
