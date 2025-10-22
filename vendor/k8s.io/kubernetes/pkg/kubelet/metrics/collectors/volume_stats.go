@@ -107,7 +107,7 @@ func (collector *volumeStatsCollector) CollectWithStability(ch chan<- metrics.Me
 		lv = append([]string{pvcRef.Namespace, pvcRef.Name}, lv...)
 		ch <- metrics.NewLazyConstMetric(desc, metrics.GaugeValue, v, lv...)
 	}
-	allPVCs := sets.Set[stats.PVCReference]{}
+	allPVCs := sets.Set[string]{}
 	for _, podStat := range podStats {
 		if podStat.VolumeStats == nil {
 			continue
@@ -118,7 +118,8 @@ func (collector *volumeStatsCollector) CollectWithStability(ch chan<- metrics.Me
 				// ignore if no PVC reference
 				continue
 			}
-			if allPVCs.Has(*pvcRef) {
+			pvcUniqStr := pvcRef.Namespace + "/" + pvcRef.Name
+			if allPVCs.Has(pvcUniqStr) {
 				// ignore if already collected
 				continue
 			}
@@ -131,7 +132,7 @@ func (collector *volumeStatsCollector) CollectWithStability(ch chan<- metrics.Me
 			if volumeStat.VolumeHealthStats != nil {
 				addGauge(volumeStatsHealthAbnormalDesc, pvcRef, convertBoolToFloat64(volumeStat.VolumeHealthStats.Abnormal))
 			}
-			allPVCs.Insert(*pvcRef)
+			allPVCs.Insert(pvcUniqStr)
 		}
 	}
 }

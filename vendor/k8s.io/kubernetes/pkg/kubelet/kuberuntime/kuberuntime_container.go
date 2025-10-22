@@ -56,7 +56,6 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/cm"
 	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/events"
-	"k8s.io/kubernetes/pkg/kubelet/managed"
 	proberesults "k8s.io/kubernetes/pkg/kubelet/prober/results"
 	"k8s.io/kubernetes/pkg/kubelet/types"
 	"k8s.io/kubernetes/pkg/kubelet/util/format"
@@ -626,8 +625,6 @@ func (m *kubeGenericRuntimeManager) getPodContainerStatuses(ctx context.Context,
 		return nil, nil, err
 	}
 
-	isManagedPod := managed.IsManagedPodFromRuntimeService(ctx, m.runtimeService, activePodSandboxID)
-
 	statuses := []*kubecontainer.Status{}
 	activeContainerStatuses := []*kubecontainer.Status{}
 	// TODO: optimization: set maximum number of containers per container name to examine.
@@ -650,9 +647,6 @@ func (m *kubeGenericRuntimeManager) getPodContainerStatuses(ctx context.Context,
 			return nil, nil, remote.ErrContainerStatusNil
 		}
 		cStatus := m.convertToKubeContainerStatus(ctx, status)
-		if isManagedPod && cStatus.Resources != nil { // Clear CPU resources for managed pods (workload-pinned)
-			cStatus.Resources.CPURequest, cStatus.Resources.CPULimit = nil, nil
-		}
 		statuses = append(statuses, cStatus)
 		if c.PodSandboxId == activePodSandboxID {
 			activeContainerStatuses = append(activeContainerStatuses, cStatus)

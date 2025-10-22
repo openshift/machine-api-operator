@@ -18,10 +18,6 @@ package server
 
 import (
 	"sync"
-	"sync/atomic"
-	"time"
-
-	utilsclock "k8s.io/utils/clock"
 )
 
 /*
@@ -104,10 +100,6 @@ type lifecycleSignal interface {
 
 	// Name returns the name of the signal, useful for logging.
 	Name() string
-
-	// SignaledAt returns the time the event was signaled. If SignaledAt is
-	// invoked before the event is signaled nil will be returned.
-	SignaledAt() *time.Time
 }
 
 // lifecycleSignals provides an abstraction of the events that
@@ -165,25 +157,23 @@ func (s lifecycleSignals) ShuttingDown() <-chan struct{} {
 // newLifecycleSignals returns an instance of lifecycleSignals interface to be used
 // to coordinate lifecycle of the apiserver
 func newLifecycleSignals() lifecycleSignals {
-	clock := utilsclock.RealClock{}
 	return lifecycleSignals{
-		ShutdownInitiated:          newNamedChannelWrapper("ShutdownInitiated", clock),
-		AfterShutdownDelayDuration: newNamedChannelWrapper("AfterShutdownDelayDuration", clock),
-		PreShutdownHooksStopped:    newNamedChannelWrapper("PreShutdownHooksStopped", clock),
-		NotAcceptingNewRequest:     newNamedChannelWrapper("NotAcceptingNewRequest", clock),
-		InFlightRequestsDrained:    newNamedChannelWrapper("InFlightRequestsDrained", clock),
-		HTTPServerStoppedListening: newNamedChannelWrapper("HTTPServerStoppedListening", clock),
-		HasBeenReady:               newNamedChannelWrapper("HasBeenReady", clock),
-		MuxAndDiscoveryComplete:    newNamedChannelWrapper("MuxAndDiscoveryComplete", clock),
+		ShutdownInitiated:          newNamedChannelWrapper("ShutdownInitiated"),
+		AfterShutdownDelayDuration: newNamedChannelWrapper("AfterShutdownDelayDuration"),
+		PreShutdownHooksStopped:    newNamedChannelWrapper("PreShutdownHooksStopped"),
+		NotAcceptingNewRequest:     newNamedChannelWrapper("NotAcceptingNewRequest"),
+		InFlightRequestsDrained:    newNamedChannelWrapper("InFlightRequestsDrained"),
+		HTTPServerStoppedListening: newNamedChannelWrapper("HTTPServerStoppedListening"),
+		HasBeenReady:               newNamedChannelWrapper("HasBeenReady"),
+		MuxAndDiscoveryComplete:    newNamedChannelWrapper("MuxAndDiscoveryComplete"),
 	}
 }
 
-func newNamedChannelWrapper(name string, clock utilsclock.PassiveClock) lifecycleSignal {
+func newNamedChannelWrapper(name string) lifecycleSignal {
 	return &namedChannelWrapper{
-		name:  name,
-		once:  sync.Once{},
-		ch:    make(chan struct{}),
-		clock: clock,
+		name: name,
+		once: sync.Once{},
+		ch:   make(chan struct{}),
 	}
 }
 
@@ -191,27 +181,10 @@ type namedChannelWrapper struct {
 	name string
 	once sync.Once
 	ch   chan struct{}
-
-	clock      utilsclock.PassiveClock
-	signaledAt atomic.Value
 }
 
 func (e *namedChannelWrapper) Signal() {
 	e.once.Do(func() {
-		// set the signaledAt value first to support the expected use case:
-		//
-		//   <-s.Signaled()
-		//   ..
-		//   at := s.SignaledAt()
-		//
-		// we guarantee that at will never be nil after the event is signaled,
-		// it also implies that 'SignaledAt' if used independently outside of
-		// the above use case, it may return a valid non-empty time (due to
-		// the delay between setting signaledAt and closing the channel)
-		// even when the event has not signaled yet.
-		now := e.clock.Now()
-		e.signaledAt.Store(&now)
-
 		close(e.ch)
 	})
 }
@@ -222,12 +195,4 @@ func (e *namedChannelWrapper) Signaled() <-chan struct{} {
 
 func (e *namedChannelWrapper) Name() string {
 	return e.name
-}
-
-func (e *namedChannelWrapper) SignaledAt() *time.Time {
-	value := e.signaledAt.Load()
-	if value == nil {
-		return nil
-	}
-	return value.(*time.Time)
 }
