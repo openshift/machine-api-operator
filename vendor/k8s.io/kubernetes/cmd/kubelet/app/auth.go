@@ -62,7 +62,6 @@ func BuildAuth(nodeName types.NodeName, client clientset.Interface, config kubel
 	if err != nil {
 		return nil, nil, err
 	}
-	authorizer = wrapAuthorizerWithMetricsScraper(authorizer)
 
 	return server.NewKubeletAuth(authenticator, attributes, authorizer), runAuthenticatorCAReload, nil
 }

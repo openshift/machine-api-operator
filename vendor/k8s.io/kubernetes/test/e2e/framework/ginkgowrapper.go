@@ -340,12 +340,10 @@ func validateText(location types.CodeLocation, text string, labels []string) {
 }
 
 func recordTextBug(location types.CodeLocation, message string) {
-	// TODO(soltysh): we need to figure out how we want to handle labels
-	// https://issues.redhat.com/browse/OCPBUGS-25641
-	// RecordBug(Bug{FileName: location.FileName, LineNumber: location.LineNumber, Message: message})
+	RecordBug(Bug{FileName: location.FileName, LineNumber: location.LineNumber, Message: message})
 }
 
-// WithEnvironment specifies that a certain test or group of tests only works
+// WithFeature specifies that a certain test or group of tests only works
 // with a feature available. The return value must be passed as additional
 // argument to [framework.It], [framework.Describe], [framework.Context].
 //
@@ -446,7 +444,7 @@ func withEnvironment(name Environment) interface{} {
 	return newLabel("Environment", string(name))
 }
 
-// WithConformace specifies that a certain test or group of tests must pass in
+// WithConformance specifies that a certain test or group of tests must pass in
 // all conformant Kubernetes clusters. The return value must be passed as
 // additional argument to [framework.It], [framework.Describe],
 // [framework.Context].
@@ -517,9 +515,10 @@ func withSerial() interface{} {
 	return newLabel("Serial")
 }
 
-// WithSlow specifies that a certain test or group of tests must not run in
-// parallel with other tests. The return value must be passed as additional
-// argument to [framework.It], [framework.Describe], [framework.Context].
+// WithSlow specifies that a certain test, or each test within a group of
+// tests, is slow (is expected to take longer than 5 minutes to run in CI).
+// The return value must be passed as additional argument to [framework.It],
+// [framework.Describe], [framework.Context].
 func WithSlow() interface{} {
 	return withSlow()
 }

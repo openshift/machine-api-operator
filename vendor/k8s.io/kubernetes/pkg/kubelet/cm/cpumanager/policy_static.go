@@ -22,6 +22,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	utilfeature "k8s.io/apiserver/pkg/util/feature"
+	resourcehelper "k8s.io/component-helpers/resource"
 	"k8s.io/klog/v2"
 	podutil "k8s.io/kubernetes/pkg/api/v1/pod"
 	v1qos "k8s.io/kubernetes/pkg/apis/core/v1/helper/qos"
@@ -30,7 +31,6 @@ import (
 	"k8s.io/kubernetes/pkg/kubelet/cm/cpumanager/topology"
 	"k8s.io/kubernetes/pkg/kubelet/cm/topologymanager"
 	"k8s.io/kubernetes/pkg/kubelet/cm/topologymanager/bitmask"
-	"k8s.io/kubernetes/pkg/kubelet/managed"
 	"k8s.io/kubernetes/pkg/kubelet/metrics"
 	"k8s.io/utils/cpuset"
 )
@@ -216,10 +216,6 @@ func (p *staticPolicy) validateState(s state.State) error {
 		// state is empty initialize
 		s.SetDefaultCPUSet(allCPUs)
 		klog.InfoS("Static policy initialized", "defaultCPUSet", allCPUs)
-		if managed.IsEnabled() {
-			defaultCpus := s.GetDefaultCPUSet().Difference(p.reservedCPUs)
-			s.SetDefaultCPUSet(defaultCpus)
-		}
 		return nil
 	}
 
@@ -233,9 +229,7 @@ func (p *staticPolicy) validateState(s state.State) error {
 				p.reservedCPUs.Intersection(tmpDefaultCPUset).String(), tmpDefaultCPUset.String())
 		}
 	} else {
-		// 2. This only applies when managed mode is disabled. Active workload partitioning feature
-		//    removes the reserved cpus from the default cpu mask on purpose.
-		if !managed.IsEnabled() && !p.reservedCPUs.Intersection(tmpDefaultCPUset).Equals(p.reservedCPUs) {
+		if !p.reservedCPUs.Intersection(tmpDefaultCPUset).Equals(p.reservedCPUs) {
 			return fmt.Errorf("not all reserved cpus: \"%s\" are present in defaultCpuSet: \"%s\"",
 				p.reservedCPUs.String(), tmpDefaultCPUset.String())
 		}
@@ -267,17 +261,10 @@ func (p *staticPolicy) validateState(s state.State) error {
 		}
 	}
 	totalKnownCPUs = totalKnownCPUs.Union(tmpCPUSets...)
-	availableCPUs := p.topology.CPUDetails.CPUs()
-
-	// CPU (workload) partitioning removes reserved cpus
-	// from the default mask intentionally
-	if managed.IsEnabled() {
-		availableCPUs = availableCPUs.Difference(p.reservedCPUs)
-	}
-
-	if !totalKnownCPUs.Equals(availableCPUs) {
+	if !totalKnownCPUs.Equals(allCPUs) {
 		return fmt.Errorf("current set of available CPUs \"%s\" doesn't match with CPUs in state \"%s\"",
-			availableCPUs.String(), totalKnownCPUs.String())
+			allCPUs.String(), totalKnownCPUs.String())
+
 	}
 
 	return nil
@@ -331,6 +318,11 @@ func (p *staticPolicy) Allocate(s state.State, pod *v1.Pod, container *v1.Contai
 	numCPUs := p.guaranteedCPUs(pod, container)
 	if numCPUs == 0 {
 		// container belongs in the shared pool (nothing to do; use default cpuset)
+		return nil
+	}
+
+	if utilfeature.DefaultFeatureGate.Enabled(features.PodLevelResources) && resourcehelper.IsPodLevelResourcesSet(pod) {
+		klog.V(2).InfoS("CPU Manager allocation skipped, pod is using pod-level resources which are not supported by the static CPU manager policy", "pod", klog.KObj(pod), "podUID", pod.UID)
 		return nil
 	}
 
@@ -571,6 +563,11 @@ func (p *staticPolicy) GetTopologyHints(s state.State, pod *v1.Pod, container *v
 		return nil
 	}
 
+	if utilfeature.DefaultFeatureGate.Enabled(features.PodLevelResources) && resourcehelper.IsPodLevelResourcesSet(pod) {
+		klog.V(3).InfoS("CPU Manager hint generation skipped, pod is using pod-level resources which are not supported by the static CPU manager policy", "pod", klog.KObj(pod), "podUID", pod.UID)
+		return nil
+	}
+
 	// Short circuit to regenerate the same hints if there are already
 	// guaranteed CPUs allocated to the Container. This might happen after a
 	// kubelet restart, for example.
@@ -615,6 +612,11 @@ func (p *staticPolicy) GetPodTopologyHints(s state.State, pod *v1.Pod) map[strin
 	// resource when considering pod alignment.
 	// In terms of hints, this is equal to: TopologyHints[NUMANodeAffinity: nil, Preferred: true].
 	if requested == 0 {
+		return nil
+	}
+
+	if utilfeature.DefaultFeatureGate.Enabled(features.PodLevelResources) && resourcehelper.IsPodLevelResourcesSet(pod) {
+		klog.V(3).InfoS("CPU Manager pod hint generation skipped, pod is using pod-level resources which are not supported by the static CPU manager policy", "pod", klog.KObj(pod), "podUID", pod.UID)
 		return nil
 	}
 
