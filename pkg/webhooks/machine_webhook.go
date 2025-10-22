@@ -897,6 +897,32 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 		}
 	}
 
+	// Dedicated host support.
+	// Check if host placement is configured.  If so, then we need to determine placement affinity and validate configs.
+	if providerSpec.HostPlacement != nil {
+		placement := *providerSpec.HostPlacement
+		if placement.Affinity == nil {
+			errs = append(errs, field.Required(field.NewPath("spec.hostPlacement.affinity"), "affinity is required and must be set"))
+		} else {
+			switch *placement.Affinity {
+			case machinev1beta1.HostAffinityAnyAvailable:
+				// Cannot have DedicatedHost set
+				if placement.DedicatedHost != nil {
+					errs = append(errs, field.Forbidden(field.NewPath("spec.hostPlacement.dedicatedHost"), "dedicatedHost is not allowed when affinity is AnyAvailable"))
+				}
+			case machinev1beta1.HostAffinityDedicatedHost:
+				// We need to make sure DedicatedHost is set with a HostID
+				if placement.DedicatedHost == nil {
+					errs = append(errs, field.Required(field.NewPath("spec.hostPlacement.dedicatedHost"), "dedicatedHost is required when affinity is DedicatedHost"))
+				} else if placement.DedicatedHost.ID == "" {
+					errs = append(errs, field.Invalid(field.NewPath("spec.hostPlacement.dedicatedHost.id"), placement.DedicatedHost.ID, "id must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)"))
+				}
+			default:
+				errs = append(errs, field.Invalid(field.NewPath("spec.hostPlacement.affinity"), placement.Affinity, "affinity is required and must be set to an allowed value"))
+			}
+		}
+	}
+
 	if len(errs) > 0 {
 		return false, warnings, errs
 	}

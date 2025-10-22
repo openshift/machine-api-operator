@@ -317,6 +317,67 @@ func TestMachineCreation(t *testing.T) {
 			expectedError: "",
 		},
 		{
+			name:         "configure host affinity with Host ID",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					InstanceType: "test",
+					HostAffinity: ptr.To(machinev1beta1.HostAffinityAnyAvailable),
+					HostID:       ptr.To("h-09dcf61cb388b0149"),
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "configure host affinity with invalid affinity",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					InstanceType: "test",
+					HostAffinity: ptr.To(machinev1beta1.HostAffinity("invalid")),
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.hostID: Required value: hostID must be set when hostAffinity is configured", // true
+		},
+		{
+			name:         "configure host affinity without Host ID",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					InstanceType: "test",
+					HostAffinity: ptr.To(machinev1beta1.HostAffinityHost),
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.hostID: Required value: hostID must be set when hostAffinity is configured", // true
+		},
+		{
+			name:         "hostID alone is valid",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					InstanceType: "test",
+					HostID:       ptr.To("h-1234567890abcdef0"),
+				},
+			},
+			expectedError: "",
+		},
+		{
 			name:              "with Azure and a nil provider spec value",
 			platformType:      osconfigv1.AzurePlatformType,
 			clusterID:         "azure-cluster",
