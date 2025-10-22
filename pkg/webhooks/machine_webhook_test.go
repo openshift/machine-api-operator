@@ -317,6 +317,141 @@ func TestMachineCreation(t *testing.T) {
 			expectedError: "",
 		},
 		{
+			name:         "configure host placement with AnyAvailable affinity",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					InstanceType: "test",
+					HostPlacement: &machinev1beta1.HostPlacement{
+						Affinity: ptr.To(machinev1beta1.HostAffinityAnyAvailable),
+					},
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "configure host placement with invalid affinity",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					InstanceType: "test",
+					HostPlacement: &machinev1beta1.HostPlacement{
+						Affinity: ptr.To(machinev1beta1.HostAffinity("invalid")),
+					},
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.hostPlacement.affinity: Invalid value: \"invalid\": affinity must be either AnyAvailable or DedicatedHost",
+		},
+		{
+			name:         "configure host placement dedicatedHost without dedicatedHost",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					InstanceType: "test",
+					HostPlacement: &machinev1beta1.HostPlacement{
+						Affinity: ptr.To(machinev1beta1.HostAffinityDedicatedHost),
+					},
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.hostPlacement.dedicatedHost: Required value: dedicatedHost is required when affinity is DedicatedHost",
+		},
+		{
+			name:         "configure host placement dedicatedHost with valid ID",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					InstanceType: "test",
+					HostPlacement: &machinev1beta1.HostPlacement{
+						Affinity:      ptr.To(machinev1beta1.HostAffinityDedicatedHost),
+						DedicatedHost: &machinev1beta1.DedicatedHost{ID: "h-1234567890abcdef0"},
+					},
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "configure host placement AnyAvailable forbids dedicatedHost",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI:          machinev1beta1.AWSResourceReference{ID: ptr.To[string]("ami")},
+					InstanceType: "test",
+					HostPlacement: &machinev1beta1.HostPlacement{
+						Affinity:      ptr.To(machinev1beta1.HostAffinityAnyAvailable),
+						DedicatedHost: &machinev1beta1.DedicatedHost{ID: "h-09dcf61cb388b0149"},
+					},
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.hostPlacement.dedicatedHost: Forbidden: dedicatedHost is required when affinity is DedicatedHost, and forbidden otherwise",
+		},
+		{
+			name:         "configure host placement dedicatedHost with empty ID",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI:          machinev1beta1.AWSResourceReference{ID: ptr.To[string]("ami")},
+					InstanceType: "test",
+					HostPlacement: &machinev1beta1.HostPlacement{
+						Affinity:      ptr.To(machinev1beta1.HostAffinityDedicatedHost),
+						DedicatedHost: &machinev1beta1.DedicatedHost{ID: ""},
+					},
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.hostPlacement.dedicatedHost.id: Required value: id is required and must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)",
+		},
+		{
+			name:         "configure host placement dedicatedHost with ID not set",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI:          machinev1beta1.AWSResourceReference{ID: ptr.To[string]("ami")},
+					InstanceType: "test",
+					HostPlacement: &machinev1beta1.HostPlacement{
+						Affinity:      ptr.To(machinev1beta1.HostAffinityDedicatedHost),
+						DedicatedHost: &machinev1beta1.DedicatedHost{},
+					},
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.hostPlacement.dedicatedHost.id: Required value: id is required and must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)",
+		},
+		{
+			name:         "configure host placement dedicatedHost with invalid ID",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI:          machinev1beta1.AWSResourceReference{ID: ptr.To[string]("ami")},
+					InstanceType: "test",
+					HostPlacement: &machinev1beta1.HostPlacement{
+						Affinity: ptr.To(machinev1beta1.HostAffinityDedicatedHost),
+						DedicatedHost: &machinev1beta1.DedicatedHost{
+							ID: "invalid",
+						},
+					},
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.hostPlacement.dedicatedHost.id: Invalid value: \"invalid\": id must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)",
+		},
+		{
 			name:              "with Azure and a nil provider spec value",
 			platformType:      osconfigv1.AzurePlatformType,
 			clusterID:         "azure-cluster",

@@ -50,6 +50,11 @@ type systemSpecifications struct {
 type machineArch string
 
 var (
+	// AWS Variables / Defaults
+
+	// awsDedicatedHostNamePattern is used to validate the id of a dedicated host
+	awsDedicatedHostNamePattern = regexp.MustCompile(`^h-[0-9a-f]{17}$`)
+
 	// Azure Defaults
 	defaultAzureVnet = func(clusterID string) string {
 		return fmt.Sprintf("%s-vnet", clusterID)
@@ -893,6 +898,38 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 						fmt.Sprintf("Allowed values are %s, %s and omitted", machinev1beta1.AWSConfidentialComputePolicyDisabled, machinev1beta1.AWSConfidentialComputePolicySEVSNP),
 					),
 				)
+			}
+		}
+	}
+
+	// Dedicated host support.
+	// Check if host placement is configured.  If so, then we need to determine placement affinity and validate configs.
+	if providerSpec.HostPlacement != nil {
+		klog.V(4).Infof("Validating AWS Host Placement")
+		placement := *providerSpec.HostPlacement
+		if placement.Affinity == nil {
+			errs = append(errs, field.Required(field.NewPath("spec.hostPlacement.affinity"), "affinity is required and must be set to either AnyAvailable or DedicatedHost"))
+		} else {
+			switch *placement.Affinity {
+			case machinev1beta1.HostAffinityAnyAvailable:
+				// Cannot have DedicatedHost set
+				if placement.DedicatedHost != nil {
+					errs = append(errs, field.Forbidden(field.NewPath("spec.hostPlacement.dedicatedHost"), "dedicatedHost is required when affinity is DedicatedHost, and forbidden otherwise"))
+				}
+			case machinev1beta1.HostAffinityDedicatedHost:
+				// We need to make sure DedicatedHost is set with a HostID
+				if placement.DedicatedHost == nil {
+					errs = append(errs, field.Required(field.NewPath("spec.hostPlacement.dedicatedHost"), "dedicatedHost is required when affinity is DedicatedHost, and forbidden otherwise"))
+				} else {
+					// If not set, return required error.  If it does not match pattern, return pattern failure message.
+					if placement.DedicatedHost.ID == "" {
+						errs = append(errs, field.Required(field.NewPath("spec.hostPlacement.dedicatedHost.id"), "id is required and must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)"))
+					} else if awsDedicatedHostNamePattern.FindStringSubmatch(placement.DedicatedHost.ID) == nil {
+						errs = append(errs, field.Invalid(field.NewPath("spec.hostPlacement.dedicatedHost.id"), placement.DedicatedHost.ID, "id must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)"))
+					}
+				}
+			default:
+				errs = append(errs, field.Invalid(field.NewPath("spec.hostPlacement.affinity"), placement.Affinity, "affinity must be either AnyAvailable or DedicatedHost"))
 			}
 		}
 	}
