@@ -28,6 +28,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -512,21 +513,19 @@ func AfterReadingAllFlags(t *TestContextType) {
 	gomega.SetDefaultConsistentlyDuration(t.timeouts.PodStartShort)
 	gomega.EnforceDefaultTimeoutsWhenUsingContexts()
 
-	// TODO(soltysh): we need to figure out how we want to handle labels
-	// https://issues.redhat.com/browse/OCPBUGS-25641
-	// // ginkgo.PreviewSpecs will expand all nodes and thus may find new bugs.
-	// report := ginkgo.PreviewSpecs("Kubernetes e2e test statistics")
-	// validateSpecs(report.SpecReports)
-	// if err := FormatBugs(); CheckForBugs && err != nil {
-	// 	// Refuse to do anything if the E2E suite is buggy.
-	// 	fmt.Fprint(Output, "ERROR: E2E suite initialization was faulty, these errors must be fixed:")
-	// 	fmt.Fprint(Output, "\n"+err.Error())
-	// 	Exit(1)
-	// }
-	// if t.listLabels || t.listTests {
-	// 	listTestInformation(report)
-	// 	Exit(0)
-	// }
+	// ginkgo.PreviewSpecs will expand all nodes and thus may find new bugs.
+	report := ginkgo.PreviewSpecs("Kubernetes e2e test statistics")
+	validateSpecs(report.SpecReports)
+	if err := FormatBugs(); CheckForBugs && err != nil {
+		// Refuse to do anything if the E2E suite is buggy.
+		fmt.Fprint(Output, "ERROR: E2E suite initialization was faulty, these errors must be fixed:")
+		fmt.Fprint(Output, "\n"+err.Error())
+		Exit(1)
+	}
+	if t.listLabels || t.listTests {
+		listTestInformation(report)
+		Exit(0)
+	}
 
 	// Only set a default host if one won't be supplied via kubeconfig
 	if len(t.Host) == 0 && len(t.KubeConfig) == 0 {
@@ -615,6 +614,19 @@ func AfterReadingAllFlags(t *TestContextType) {
 		}
 
 		ginkgo.ReportAfterSuite("Kubernetes e2e JUnit report", func(report ginkgo.Report) {
+			// Sort specs by full name. The default is by start (or completion?) time,
+			// which is less useful in spyglass because those times are not shown
+			// and thus tests seem to be listed with no apparent order.
+			slices.SortFunc(report.SpecReports, func(a, b types.SpecReport) int {
+				res := strings.Compare(a.FullText(), b.FullText())
+				if res == 0 {
+					// Use start time as tie-breaker in the unlikely
+					// case that two specs have the same full name.
+					return a.StartTime.Compare(b.StartTime)
+				}
+				return res
+			})
+
 			// With Ginkgo v1, we used to write one file per
 			// parallel node. Now Ginkgo v2 automatically merges
 			// all results into a report for us. The 01 suffix is
