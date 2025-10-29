@@ -1,7 +1,7 @@
 all: build
 .PHONY: all
 
-update: update-codegen-crds
+update: update-non-codegen update-codegen
 
 RUNTIME ?= podman
 RUNTIME_IMAGE_NAME ?= registry.ci.openshift.org/openshift/release:rhel-9-release-golang-1.24-openshift-4.20
@@ -57,23 +57,28 @@ verify-lint-fix:
 	make lint-fix 2>/dev/null || true
 	git diff --exit-code
 
-.PHONY: verify-scripts
-verify-scripts:
-	bash -x hack/verify-deepcopy.sh
-	bash -x hack/verify-openapi.sh
+# Verify codegen runs all verifiers in the order they are defined in the root.go file.
+# This includes all generators defined in update-codegen, but also the crd-schema-checker and crdify verifiers.
+.PHONY: verify-codegen
+verify-codegen:
+	EXTRA_ARGS=--verify hack/update-codegen.sh
+
+.PHONY: verify-non-codegen
+verify-non-codegen:
 	bash -x hack/verify-protobuf.sh
-	bash -x hack/verify-swagger-docs.sh
 	hack/verify-crds.sh
 	bash -x hack/verify-types.sh
-	bash -x hack/verify-compatibility.sh
 	bash -x hack/verify-integration-tests.sh
 	bash -x hack/verify-group-versions.sh
 	bash -x hack/verify-prerelease-lifecycle-gen.sh
 	hack/verify-payload-crds.sh
 	hack/verify-payload-featuregates.sh
 
+.PHONY: verify-scripts
+verify-scripts: verify-non-codegen verify-codegen
+
 .PHONY: verify
-verify: verify-scripts lint verify-crd-schema verify-crdify verify-codegen-crds
+verify: verify-scripts lint
 
 .PHONY: verify-codegen-crds
 verify-codegen-crds:
@@ -107,6 +112,19 @@ verify-%:
 
 .PHONY: update-scripts
 update-scripts: update-compatibility update-openapi update-deepcopy update-protobuf update-swagger-docs tests-vendor update-prerelease-lifecycle-gen update-payload-featuregates
+
+# Update codegen runs all generators in the order they are defined in the root.go file.
+# The per group generators are:[compatibility, deepcopy, swagger-docs, empty-partial-schema, schema-patch, crd-manifest-merge]
+# The multi group generators are:[openapi]
+.PHONY: update-codegen
+update-codegen:
+	hack/update-codegen.sh
+
+# Update non-codegen runs all generators that are not part of the codegen utility, or
+# are part of it, but are not run by default when invoking codegen without a specific generator.
+# E.g. the payload feature gates which is not part of the generator style, but is still a subcommand.
+.PHONY: update-non-codegen
+update-non-codegen: update-protobuf tests-vendor update-prerelease-lifecycle-gen update-payload-crds update-payload-featuregates
 
 .PHONY: update-compatibility
 update-compatibility:

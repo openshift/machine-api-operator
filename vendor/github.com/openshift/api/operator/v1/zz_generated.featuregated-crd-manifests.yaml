@@ -217,7 +217,8 @@ kubeapiservers.operator.openshift.io:
   CRDName: kubeapiservers.operator.openshift.io
   Capability: ""
   Category: coreoperators
-  FeatureGates: []
+  FeatureGates:
+  - EventTTL
   FilenameOperatorName: kube-apiserver
   FilenameOperatorOrdering: "01"
   FilenameRunLevel: "0000_20"

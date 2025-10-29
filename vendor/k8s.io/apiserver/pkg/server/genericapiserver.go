@@ -30,7 +30,6 @@ import (
 
 	"golang.org/x/time/rate"
 	apidiscoveryv2 "k8s.io/api/apidiscovery/v2"
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -57,6 +56,8 @@ import (
 	restclient "k8s.io/client-go/rest"
 	basecompatibility "k8s.io/component-base/compatibility"
 	"k8s.io/component-base/featuregate"
+	zpagesfeatures "k8s.io/component-base/zpages/features"
+	"k8s.io/component-base/zpages/statusz"
 	"k8s.io/klog/v2"
 	openapibuilder3 "k8s.io/kube-openapi/pkg/builder3"
 	openapicommon "k8s.io/kube-openapi/pkg/common"
@@ -297,9 +298,6 @@ type GenericAPIServer struct {
 	// This grace period is orthogonal to other grace periods, and
 	// it is not overridden by any other grace period.
 	ShutdownWatchTerminationGracePeriod time.Duration
-
-	// OpenShift patch
-	OpenShiftGenericAPIServerPatch
 }
 
 // DelegationTarget is an interface which allows for composition of API servers with top level handling that works
@@ -462,6 +460,10 @@ func (s *GenericAPIServer) PrepareRun() preparedGenericAPIServer {
 	}
 	s.installReadyz()
 
+	if utilfeature.DefaultFeatureGate.Enabled(zpagesfeatures.ComponentStatusz) {
+		statusz.Install(s.Handler.NonGoRestfulMux, "apiserver", statusz.NewRegistry(s.EffectiveVersion, statusz.WithListedPaths(s.ListedPaths())))
+	}
+
 	return preparedGenericAPIServer{s}
 }
 
@@ -552,10 +554,7 @@ func (s preparedGenericAPIServer) RunWithContext(ctx context.Context) error {
 
 	go func() {
 		defer delayedStopCh.Signal()
-		defer func() {
-			klog.V(1).InfoS("[graceful-termination] shutdown event", "name", delayedStopCh.Name())
-			s.Eventf(corev1.EventTypeNormal, delayedStopCh.Name(), "The minimal shutdown duration of %v finished", s.ShutdownDelayDuration)
-		}()
+		defer klog.V(1).InfoS("[graceful-termination] shutdown event", "name", delayedStopCh.Name())
 
 		<-stopCh
 
@@ -564,27 +563,9 @@ func (s preparedGenericAPIServer) RunWithContext(ctx context.Context) error {
 		// and stop sending traffic to this server.
 		shutdownInitiatedCh.Signal()
 		klog.V(1).InfoS("[graceful-termination] shutdown event", "name", shutdownInitiatedCh.Name())
-		s.Eventf(corev1.EventTypeNormal, shutdownInitiatedCh.Name(), "Received signal to terminate, becoming unready, but keeping serving")
 
 		time.Sleep(s.ShutdownDelayDuration)
 	}()
-
-	lateStopCh := make(chan struct{})
-	if s.ShutdownDelayDuration > 0 {
-		go func() {
-			defer close(lateStopCh)
-
-			<-stopCh
-
-			time.Sleep(s.ShutdownDelayDuration * 8 / 10)
-		}()
-	}
-
-	s.SecureServingInfo.Listener = &terminationLoggingListener{
-		Listener:   s.SecureServingInfo.Listener,
-		lateStopCh: lateStopCh,
-	}
-	unexpectedRequestsEventf.Store(s.Eventf)
 
 	// close socket after delayed stopCh
 	shutdownTimeout := s.ShutdownTimeout
@@ -634,17 +615,13 @@ func (s preparedGenericAPIServer) RunWithContext(ctx context.Context) error {
 		<-listenerStoppedCh
 		httpServerStoppedListeningCh.Signal()
 		klog.V(1).InfoS("[graceful-termination] shutdown event", "name", httpServerStoppedListeningCh.Name())
-		s.Eventf(corev1.EventTypeNormal, httpServerStoppedListeningCh.Name(), "HTTP Server has stopped listening")
 	}()
 
 	// we don't accept new request as soon as both ShutdownDelayDuration has
 	// elapsed and preshutdown hooks have completed.
 	preShutdownHooksHasStoppedCh := s.lifecycleSignals.PreShutdownHooksStopped
 	go func() {
-		defer func() {
-			klog.V(1).InfoS("[graceful-termination] shutdown event", "name", notAcceptingNewRequestCh.Name())
-			s.Eventf(corev1.EventTypeNormal, drainedCh.Name(), "All non long-running request(s) in-flight have drained")
-		}()
+		defer klog.V(1).InfoS("[graceful-termination] shutdown event", "name", notAcceptingNewRequestCh.Name())
 		defer notAcceptingNewRequestCh.Signal()
 
 		// wait for the delayed stopCh before closing the handler chain
@@ -731,7 +708,6 @@ func (s preparedGenericAPIServer) RunWithContext(ctx context.Context) error {
 		defer func() {
 			preShutdownHooksHasStoppedCh.Signal()
 			klog.V(1).InfoS("[graceful-termination] pre-shutdown hooks completed", "name", preShutdownHooksHasStoppedCh.Name())
-			s.Eventf(corev1.EventTypeNormal, "TerminationPreShutdownHooksFinished", "All pre-shutdown hooks have been finished")
 		}()
 		err = s.RunPreShutdownHooks()
 	}()
@@ -752,8 +728,6 @@ func (s preparedGenericAPIServer) RunWithContext(ctx context.Context) error {
 	<-stoppedCh
 
 	klog.V(1).Info("[graceful-termination] apiserver is exiting")
-	s.Eventf(corev1.EventTypeNormal, "TerminationGracefulTerminationFinished", "All pending requests processed")
-
 	return nil
 }
 

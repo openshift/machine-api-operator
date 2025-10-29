@@ -84,7 +84,6 @@ var (
 					enableIn(configv1.Default, configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
 					mustRegister()
 
-
 	FeatureGateDynamicResourceAllocation = newFeatureGate("DynamicResourceAllocation").
 						reportProblemsToJiraComponent("scheduling").
 						contactPerson("jchaloup").
@@ -343,7 +342,7 @@ var (
 						contactPerson("rsaini").
 						productScope(ocpSpecific).
 						enhancementPR("https://github.com/openshift/enhancements/pull/1496").
-						enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
+						enableIn(configv1.Default, configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
 						mustRegister()
 
 	FeatureGateManagedBootImagesAzure = newFeatureGate("ManagedBootImagesAzure").
@@ -351,7 +350,7 @@ var (
 						contactPerson("djoshy").
 						productScope(ocpSpecific).
 						enhancementPR("https://github.com/openshift/enhancements/pull/1761").
-						enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
+						enableIn(configv1.Default, configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
 						mustRegister()
 
 	FeatureGateManagedBootImagesCPMS = newFeatureGate("ManagedBootImagesCPMS").
@@ -510,8 +509,8 @@ var (
 								reportProblemsToJiraComponent("olm").
 								contactPerson("pegoncal").
 								productScope(ocpSpecific).
-								enhancementPR("https://github.com/openshift/enhancements/pull/1799").
-								enableForClusterProfile(SelfManaged, configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
+								enhancementPR("https://github.com/openshift/enhancements/pull/1844").
+								enableForClusterProfile(SelfManaged, configv1.Default, configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
 								mustRegister()
 
 	FeatureGateInsightsOnDemandDataGather = newFeatureGate("InsightsOnDemandDataGather").
@@ -753,8 +752,8 @@ var (
 					mustRegister()
 
 	FeatureGateAWSDedicatedHosts = newFeatureGate("AWSDedicatedHosts").
-					reportProblemsToJiraComponent("Installer").
-					contactPerson("faermanj").
+					reportProblemsToJiraComponent("splat").
+					contactPerson("rvanderp3").
 					productScope(ocpSpecific).
 					enhancementPR("https://github.com/openshift/enhancements/pull/1781").
 					enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
@@ -773,7 +772,7 @@ var (
 						contactPerson("kyrtapz").
 						productScope(ocpSpecific).
 						enhancementPR("https://github.com/openshift/enhancements/pull/1793").
-						enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
+						enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade, configv1.Default).
 						mustRegister()
 
 	FeatureGateAWSServiceLBNetworkSecurityGroup = newFeatureGate("AWSServiceLBNetworkSecurityGroup").
@@ -878,4 +877,20 @@ var (
 					enhancementPR("https://github.com/kubernetes/enhancements/issues/4222").
 					enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
 					mustRegister()
+
+	FeatureEventTTL = newFeatureGate("EventTTL").
+			reportProblemsToJiraComponent("kube-apiserver").
+			contactPerson("tjungblu").
+			productScope(ocpSpecific).
+			enhancementPR("https://github.com/openshift/enhancements/pull/1857").
+			enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
+			mustRegister()
+
+	FeatureGateMutableCSINodeAllocatableCount = newFeatureGate("MutableCSINodeAllocatableCount").
+							reportProblemsToJiraComponent("Storage / Kubernetes External Components").
+							contactPerson("jsafrane").
+							productScope(kubernetes).
+							enhancementPR("https://github.com/kubernetes/enhancements/issues/4876").
+							enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
+							mustRegister()
 )

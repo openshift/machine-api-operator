@@ -317,6 +317,107 @@ func TestMachineCreation(t *testing.T) {
 			expectedError: "",
 		},
 		{
+			name:         "configure host placement with AnyAvailable affinity",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					InstanceType: "test",
+					HostPlacement: &machinev1beta1.HostPlacement{
+						Affinity: ptr.To(machinev1beta1.HostAffinityAnyAvailable),
+					},
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "configure host placement with invalid affinity",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					InstanceType: "test",
+					HostPlacement: &machinev1beta1.HostPlacement{
+						Affinity: ptr.To(machinev1beta1.HostAffinity("invalid")),
+					},
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.hostPlacement.affinity: Invalid value: \"invalid\": affinity must be either AnyAvailable or DedicatedHost",
+		},
+		{
+			name:         "configure host placement dedicatedHost without dedicatedHost",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					InstanceType: "test",
+					HostPlacement: &machinev1beta1.HostPlacement{
+						Affinity: ptr.To(machinev1beta1.HostAffinityDedicatedHost),
+					},
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.hostPlacement.dedicatedHost: Required value: dedicatedHost is required when affinity is DedicatedHost",
+		},
+		{
+			name:         "configure host placement dedicatedHost with valid ID",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					InstanceType: "test",
+					HostPlacement: &machinev1beta1.HostPlacement{
+						Affinity:      ptr.To(machinev1beta1.HostAffinityDedicatedHost),
+						DedicatedHost: &machinev1beta1.DedicatedHost{ID: "h-1234567890abcdef0"},
+					},
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "configure host placement AnyAvailable forbids dedicatedHost",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI:          machinev1beta1.AWSResourceReference{ID: ptr.To[string]("ami")},
+					InstanceType: "test",
+					HostPlacement: &machinev1beta1.HostPlacement{
+						Affinity:      ptr.To(machinev1beta1.HostAffinityAnyAvailable),
+						DedicatedHost: &machinev1beta1.DedicatedHost{ID: "h-09dcf61cb388b0149"},
+					},
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.hostPlacement.dedicatedHost: Forbidden: dedicatedHost is required when affinity is DedicatedHost, and forbidden otherwise",
+		},
+		{
+			name:         "configure host placement dedicatedHost with empty ID",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI:          machinev1beta1.AWSResourceReference{ID: ptr.To[string]("ami")},
+					InstanceType: "test",
+					HostPlacement: &machinev1beta1.HostPlacement{
+						Affinity:      ptr.To(machinev1beta1.HostAffinityDedicatedHost),
+						DedicatedHost: &machinev1beta1.DedicatedHost{ID: ""},
+					},
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.hostPlacement.dedicatedHost.id: Invalid value: \"\": id must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)",
+		},
+		{
 			name:              "with Azure and a nil provider spec value",
 			platformType:      osconfigv1.AzurePlatformType,
 			clusterID:         "azure-cluster",
@@ -1958,7 +2059,7 @@ func TestMachineUpdate(t *testing.T) {
 					Object: object,
 				}
 			},
-			expectedError: `providerSpec.tagIDs: Invalid value: []string{"urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9500:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9501:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9502:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9503:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9504:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9505:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9506:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9507:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9508:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9509:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9510:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9511:GLOBAL"}: a maximum of 10 tags are allowed`,
+			expectedError: `providerSpec.tagIDs: Invalid value: ["urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9500:GLOBAL","urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9501:GLOBAL","urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9502:GLOBAL","urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9503:GLOBAL","urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9504:GLOBAL","urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9505:GLOBAL","urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9506:GLOBAL","urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9507:GLOBAL","urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9508:GLOBAL","urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9509:GLOBAL","urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9510:GLOBAL","urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9511:GLOBAL"]: a maximum of 10 tags are allowed`,
 		},
 		{
 			name:         "with an VSphere ProviderSpec, removing the template",
@@ -3300,7 +3401,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 				CloudName: osconfigv1.AzurePublicCloud,
 			},
 			expectedOk:    false,
-			expectedError: "providerSpec.diagnostics.boot.customerManaged: Invalid value: v1beta1.AzureCustomerManagedBootDiagnostics{StorageAccountURI:\"https://storageaccount.blob.core.windows.net/\"}: customerManaged may not be set when type is AzureManaged",
+			expectedError: "providerSpec.diagnostics.boot.customerManaged: Invalid value: {\"storageAccountURI\":\"https://storageaccount.blob.core.windows.net/\"}: customerManaged may not be set when type is AzureManaged",
 		},
 		{
 			testCase: "with Customer Managed boot diagnostics, with a missing storage account URI",
@@ -3883,7 +3984,7 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 				}
 			},
 			expectedOk:    false,
-			expectedError: "providerSpec.gpus: Too many: 2: must have at most 1 items",
+			expectedError: "providerSpec.gpus: Too many: 2: must have at most 1 item",
 		},
 		{
 			testCase: "with no gpus",

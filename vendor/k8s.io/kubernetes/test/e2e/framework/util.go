@@ -413,6 +413,7 @@ func CheckTestingNSDeletedExcept(ctx context.Context, c clientset.Interface, ski
 // WaitForServiceEndpointsNum waits until there are EndpointSlices for serviceName
 // containing a total of expectNum endpoints. (If the service is dual-stack, expectNum
 // must count the endpoints of both IP families.)
+// Deprecated: use e2eendpointslice.WaitForEndpointCount or other related functions.
 func WaitForServiceEndpointsNum(ctx context.Context, c clientset.Interface, namespace, serviceName string, expectNum int, interval, timeout time.Duration) error {
 	return wait.PollUntilContextTimeout(ctx, interval, timeout, false, func(ctx context.Context) (bool, error) {
 		Logf("Waiting for amount of service:%s endpoints to be %d", serviceName, expectNum)
@@ -450,7 +451,7 @@ func countEndpointsSlicesNum(epList *discoveryv1.EndpointSliceList) int {
 
 // restclientConfig returns a config holds the information needed to build connection to kubernetes clusters.
 func restclientConfig(kubeContext string) (*clientcmdapi.Config, error) {
-	//Logf(">>> kubeConfig: %s", TestContext.KubeConfig)
+	Logf(">>> kubeConfig: %s", TestContext.KubeConfig)
 	if TestContext.KubeConfig == "" {
 		return nil, fmt.Errorf("KubeConfig must be specified to load client config")
 	}
@@ -459,7 +460,7 @@ func restclientConfig(kubeContext string) (*clientcmdapi.Config, error) {
 		return nil, fmt.Errorf("error loading KubeConfig: %v", err.Error())
 	}
 	if kubeContext != "" {
-		//Logf(">>> kubeContext: %s", kubeContext)
+		Logf(">>> kubeContext: %s", kubeContext)
 		c.CurrentContext = kubeContext
 	}
 	return c, nil
@@ -469,9 +470,9 @@ func restclientConfig(kubeContext string) (*clientcmdapi.Config, error) {
 type ClientConfigGetter func() (*restclient.Config, error)
 
 // LoadConfig returns a config for a rest client with the UserAgent set to include the current test name.
-func LoadConfig(noUserAgent ...bool) (config *restclient.Config, err error) {
+func LoadConfig() (config *restclient.Config, err error) {
 	defer func() {
-		if err == nil && config != nil && len(noUserAgent) == 0 {
+		if err == nil && config != nil {
 			testDesc := ginkgo.CurrentSpecReport()
 			if len(testDesc.ContainerHierarchyTexts) > 0 {
 				testName := strings.Join(testDesc.ContainerHierarchyTexts, " ")
@@ -513,8 +514,8 @@ func LoadConfig(noUserAgent ...bool) (config *restclient.Config, err error) {
 }
 
 // LoadClientset returns clientset for connecting to kubernetes clusters.
-func LoadClientset(noUserAgent ...bool) (*clientset.Clientset, error) {
-	config, err := LoadConfig(noUserAgent...)
+func LoadClientset() (*clientset.Clientset, error) {
+	config, err := LoadConfig()
 	if err != nil {
 		return nil, fmt.Errorf("error creating client: %v", err.Error())
 	}
