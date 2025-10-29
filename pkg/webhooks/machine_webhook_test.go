@@ -4130,6 +4130,30 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 			expectedError:    "",
 			expectedWarnings: []string{"providerSpec.value: Unsupported value: \"randomField-1\": Unknown field (randomField-1) will be ignored"},
 		},
+		{
+			testCase: "with valid provisioningModel Spot",
+			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
+				p.ProvisioningModel = ptr.To(machinev1beta1.GCPSpotInstance)
+			},
+			expectedOk: true,
+		},
+		{
+			testCase: "with invalid provisioningModel",
+			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
+				p.ProvisioningModel = ptr.To(machinev1beta1.GCPProvisioningModelType("InvalidModel"))
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.provisioningModel: Invalid value: \"InvalidModel\": provisioningModel must be \"Spot\" or omit for standard provisioning",
+		},
+		{
+			testCase: "with both preemptible and provisioningModel Spot",
+			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
+				p.Preemptible = true
+				p.ProvisioningModel = ptr.To(machinev1beta1.GCPSpotInstance)
+			},
+			expectedOk:    false,
+			expectedError: "providerSpec.provisioningModel: Forbidden: preemptible cannot be used together with \"Spot\" provisioning model",
+		},
 	}
 
 	secret := &corev1.Secret{

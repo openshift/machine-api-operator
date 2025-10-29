@@ -1280,6 +1280,14 @@ func validateGCP(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "restartPolicy"), providerSpec.RestartPolicy, fmt.Sprintf("restartPolicy must be either %s or %s.", machinev1beta1.RestartPolicyNever, machinev1beta1.RestartPolicyAlways)))
 	}
 
+	if providerSpec.ProvisioningModel != nil && *providerSpec.ProvisioningModel != machinev1beta1.GCPSpotInstance {
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "provisioningModel"), *providerSpec.ProvisioningModel, fmt.Sprintf("provisioningModel must be %q or omit for standard provisioning", machinev1beta1.GCPSpotInstance)))
+	}
+
+	if providerSpec.Preemptible && providerSpec.ProvisioningModel != nil && *providerSpec.ProvisioningModel == machinev1beta1.GCPSpotInstance {
+		errs = append(errs, field.Forbidden(field.NewPath("providerSpec", "provisioningModel"), fmt.Sprintf("preemptible cannot be used together with %q provisioning model", machinev1beta1.GCPSpotInstance)))
+	}
+
 	if len(providerSpec.GPUs) != 0 || strings.HasPrefix(providerSpec.MachineType, "a2-") {
 		if providerSpec.OnHostMaintenance == machinev1beta1.MigrateHostMaintenanceType {
 			errs = append(errs, field.Forbidden(field.NewPath("providerSpec", "onHostMaintenance"), fmt.Sprintf("When GPUs are specified or using machineType with pre-attached GPUs(A2 machine family), onHostMaintenance must be set to %s.", machinev1beta1.TerminateHostMaintenanceType)))
