@@ -90,6 +90,10 @@ type FlakeAttempts uint
 type MustPassRepeatedly uint
 type Offset uint
 type Done chan<- any // Deprecated Done Channel for asynchronous testing
+<<<<<<< HEAD
+=======
+type Labels []string
+>>>>>>> c93292b3e (vendor changes)
 type PollProgressInterval time.Duration
 type PollProgressAfter time.Duration
 type NodeTimeout time.Duration
@@ -123,6 +127,7 @@ func unionOf[S ~[]E, E comparable](slices ...S) S {
 	return out
 }
 
+<<<<<<< HEAD
 func UnionOfLabels(labels ...Labels) Labels {
 	return unionOf(labels...)
 }
@@ -131,6 +136,8 @@ func UnionOfSemVerConstraints(semVerConstraints ...SemVerConstraints) SemVerCons
 	return unionOf(semVerConstraints...)
 }
 
+=======
+>>>>>>> c93292b3e (vendor changes)
 func PartitionDecorations(args ...any) ([]any, []any) {
 	decorations := []any{}
 	remainingArgs := []any{}
@@ -995,6 +1002,7 @@ func (n Nodes) GetMaxMustPassRepeatedly() int {
 	return maxMustPassRepeatedly
 }
 
+<<<<<<< HEAD
 func (n Nodes) GetSpecPriority() int {
 	for i := len(n) - 1; i >= 0; i-- {
 		if n[i].HasExplicitlySetSpecPriority {
@@ -1005,6 +1013,9 @@ func (n Nodes) GetSpecPriority() int {
 }
 
 func UnrollInterfaceSlice(args any) []any {
+=======
+func unrollInterfaceSlice(args any) []any {
+>>>>>>> c93292b3e (vendor changes)
 	v := reflect.ValueOf(args)
 	if v.Kind() != reflect.Slice {
 		return []any{args}

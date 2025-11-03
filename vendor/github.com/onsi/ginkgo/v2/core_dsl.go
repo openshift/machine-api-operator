@@ -330,7 +330,11 @@ func RunSpecs(t GinkgoTestingT, description string, args ...any) bool {
 	return passed
 }
 
+<<<<<<< HEAD
 func extractSuiteConfiguration(args []any) (Labels, SemVerConstraints, types.AroundNodes) {
+=======
+func extractSuiteConfiguration(args []any) Labels {
+>>>>>>> c93292b3e (vendor changes)
 	suiteLabels := Labels{}
 	suiteSemVerConstraints := SemVerConstraints{}
 	aroundNodes := types.AroundNodes{}
@@ -544,7 +548,11 @@ You can learn more at https://onsi.github.io/ginkgo/#organizing-specs-with-conta
 In addition, container nodes can be decorated with a variety of decorators.  You can learn more here: https://onsi.github.io/ginkgo/#decorator-reference
 */
 func Describe(text string, args ...any) bool {
+<<<<<<< HEAD
 	return pushNode(internal.NewNode(internal.TransformNewNodeArgs(exitIfErrors, deprecationTracker, types.NodeTypeContainer, text, args...)))
+=======
+	return pushNode(internal.NewNode(deprecationTracker, types.NodeTypeContainer, text, args...))
+>>>>>>> c93292b3e (vendor changes)
 }
 
 /*
@@ -573,12 +581,21 @@ var XDescribe = PDescribe
 /* Context is an alias for Describe - it generates the exact same kind of Container node */
 var Context, FContext, PContext, XContext = Describe, FDescribe, PDescribe, XDescribe
 
+<<<<<<< HEAD
 /* When is an alias for Describe - it generates the exact same kind of Container node with "when " as prefix for the text. */
 func When(text string, args ...any) bool {
 	return pushNode(internal.NewNode(internal.TransformNewNodeArgs(exitIfErrors, deprecationTracker, types.NodeTypeContainer, "when "+text, args...)))
 }
 
 /* When is an alias for Describe - it generates the exact same kind of Container node with "when " as prefix for the text. */
+=======
+/* When is an alias for Describe - it generates the exact same kind of Container node */
+func When(text string, args ...any) bool {
+	return pushNode(internal.NewNode(deprecationTracker, types.NodeTypeContainer, "when "+text, args...))
+}
+
+/* When is an alias for Describe - it generates the exact same kind of Container node */
+>>>>>>> c93292b3e (vendor changes)
 func FWhen(text string, args ...any) bool {
 	args = append(args, internal.Focus)
 	return pushNode(internal.NewNode(internal.TransformNewNodeArgs(exitIfErrors, deprecationTracker, types.NodeTypeContainer, "when "+text, args...)))
@@ -603,7 +620,11 @@ You can learn more at https://onsi.github.io/ginkgo/#spec-subjects-it
 In addition, subject nodes can be decorated with a variety of decorators.  You can learn more here: https://onsi.github.io/ginkgo/#decorator-reference
 */
 func It(text string, args ...any) bool {
+<<<<<<< HEAD
 	return pushNode(internal.NewNode(internal.TransformNewNodeArgs(exitIfErrors, deprecationTracker, types.NodeTypeIt, text, args...)))
+=======
+	return pushNode(internal.NewNode(deprecationTracker, types.NodeTypeIt, text, args...))
+>>>>>>> c93292b3e (vendor changes)
 }
 
 /*
@@ -756,7 +777,11 @@ You cannot nest any other Ginkgo nodes within a BeforeEach node's closure.
 You can learn more here: https://onsi.github.io/ginkgo/#extracting-common-setup-beforeeach
 */
 func BeforeEach(args ...any) bool {
+<<<<<<< HEAD
 	return pushNode(internal.NewNode(internal.TransformNewNodeArgs(exitIfErrors, deprecationTracker, types.NodeTypeBeforeEach, "", args...)))
+=======
+	return pushNode(internal.NewNode(deprecationTracker, types.NodeTypeBeforeEach, "", args...))
+>>>>>>> c93292b3e (vendor changes)
 }
 
 /*
@@ -769,7 +794,11 @@ You cannot nest any other Ginkgo nodes within a JustBeforeEach node's closure.
 You can learn more and see some examples here: https://onsi.github.io/ginkgo/#separating-creation-and-configuration-justbeforeeach
 */
 func JustBeforeEach(args ...any) bool {
+<<<<<<< HEAD
 	return pushNode(internal.NewNode(internal.TransformNewNodeArgs(exitIfErrors, deprecationTracker, types.NodeTypeJustBeforeEach, "", args...)))
+=======
+	return pushNode(internal.NewNode(deprecationTracker, types.NodeTypeJustBeforeEach, "", args...))
+>>>>>>> c93292b3e (vendor changes)
 }
 
 /*
@@ -784,7 +813,11 @@ You cannot nest any other Ginkgo nodes within an AfterEach node's closure.
 You can learn more here: https://onsi.github.io/ginkgo/#spec-cleanup-aftereach-and-defercleanup
 */
 func AfterEach(args ...any) bool {
+<<<<<<< HEAD
 	return pushNode(internal.NewNode(internal.TransformNewNodeArgs(exitIfErrors, deprecationTracker, types.NodeTypeAfterEach, "", args...)))
+=======
+	return pushNode(internal.NewNode(deprecationTracker, types.NodeTypeAfterEach, "", args...))
+>>>>>>> c93292b3e (vendor changes)
 }
 
 /*
@@ -796,7 +829,11 @@ You cannot nest any other Ginkgo nodes within a JustAfterEach node's closure.
 You can learn more and see some examples here: https://onsi.github.io/ginkgo/#separating-diagnostics-collection-and-teardown-justaftereach
 */
 func JustAfterEach(args ...any) bool {
+<<<<<<< HEAD
 	return pushNode(internal.NewNode(internal.TransformNewNodeArgs(exitIfErrors, deprecationTracker, types.NodeTypeJustAfterEach, "", args...)))
+=======
+	return pushNode(internal.NewNode(deprecationTracker, types.NodeTypeJustAfterEach, "", args...))
+>>>>>>> c93292b3e (vendor changes)
 }
 
 /*
@@ -811,7 +848,11 @@ You can learn more about Ordered Containers at: https://onsi.github.io/ginkgo/#o
 And you can learn more about BeforeAll at: https://onsi.github.io/ginkgo/#setup-in-ordered-containers-beforeall-and-afterall
 */
 func BeforeAll(args ...any) bool {
+<<<<<<< HEAD
 	return pushNode(internal.NewNode(internal.TransformNewNodeArgs(exitIfErrors, deprecationTracker, types.NodeTypeBeforeAll, "", args...)))
+=======
+	return pushNode(internal.NewNode(deprecationTracker, types.NodeTypeBeforeAll, "", args...))
+>>>>>>> c93292b3e (vendor changes)
 }
 
 /*
@@ -828,7 +869,11 @@ You can learn more about Ordered Containers at: https://onsi.github.io/ginkgo/#o
 And you can learn more about AfterAll at: https://onsi.github.io/ginkgo/#setup-in-ordered-containers-beforeall-and-afterall
 */
 func AfterAll(args ...any) bool {
+<<<<<<< HEAD
 	return pushNode(internal.NewNode(internal.TransformNewNodeArgs(exitIfErrors, deprecationTracker, types.NodeTypeAfterAll, "", args...)))
+=======
+	return pushNode(internal.NewNode(deprecationTracker, types.NodeTypeAfterAll, "", args...))
+>>>>>>> c93292b3e (vendor changes)
 }
 
 /*

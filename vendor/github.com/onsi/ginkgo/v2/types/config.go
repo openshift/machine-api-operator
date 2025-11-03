@@ -689,7 +689,11 @@ func GenerateGoTestCompileArgs(goFlagsConfig GoFlagsConfig, packageToBuild strin
 
 	args := []string{"test", "-c", packageToBuild}
 	goArgs, err := GenerateFlagArgs(
+<<<<<<< HEAD
 		GoBuildFlags.CopyAppend(GoBuildOFlags...),
+=======
+		GoBuildFlags,
+>>>>>>> c93292b3e (vendor changes)
 		map[string]any{
 			"Go": &goFlagsConfig,
 		},

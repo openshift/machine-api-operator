@@ -145,10 +145,6 @@ type cgroupCommon struct {
 
 	// useSystemd tells if systemd cgroup manager should be used.
 	useSystemd bool
-
-	// cpuLoadBalanceDisable tells whether kubelet should disable
-	// cpu load balancing on new cgroups it creates.
-	cpuLoadBalanceDisable bool
 }
 
 // Make sure that cgroupV1impl and cgroupV2impl implement the CgroupManager interface
@@ -394,6 +390,7 @@ func (m *cgroupCommon) Create(logger klog.Logger, cgroupConfig *CgroupConfig) er
 		return err
 	}
 
+<<<<<<< HEAD
 	// Disable cpuset.sched_load_balance for all cgroups Kubelet creates.
 	// This way, CRI can disable sched_load_balance for pods that must have load balance
 	// disabled, but the slices can contain all cpus (as the guaranteed cpus are known dynamically).
@@ -413,6 +410,8 @@ func (m *cgroupCommon) Create(logger klog.Logger, cgroupConfig *CgroupConfig) er
 		}
 	}
 
+=======
+>>>>>>> c93292b3e (vendor changes)
 	// Apply(-1) is a hack to create the cgroup directories for each resource
 	// subsystem. The function [cgroups.Manager.apply()] applies cgroup
 	// configuration to the process with the specified pid.
@@ -428,6 +427,7 @@ func (m *cgroupCommon) Create(logger klog.Logger, cgroupConfig *CgroupConfig) er
 	if err := manager.Set(libcontainerCgroupConfig.Resources); err != nil {
 		utilruntime.HandleError(fmt.Errorf("cgroup manager.Set failed: %w", err))
 	}
+
 	return nil
 }
 

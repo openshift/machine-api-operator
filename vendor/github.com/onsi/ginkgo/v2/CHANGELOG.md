@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 ## 2.27.2
 
 ### Fixes
@@ -101,6 +102,8 @@ Specs can now be decorated with (e.g.) `SemVerConstraint("2.1.0")` and `ginkgo -
 
 Numerous dependency bumps and documentation fixes
 
+=======
+>>>>>>> c93292b3e (vendor changes)
 ## 2.23.4
 
 Prior to this release Ginkgo would compute the incorrect number of available CPUs when running with `-p` in a linux container.  Thanks to @emirot for the fix!
