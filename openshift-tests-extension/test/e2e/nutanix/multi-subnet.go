@@ -15,7 +15,7 @@ import (
 	configclient "github.com/openshift/client-go/config/clientset/versioned/typed/config/v1"
 	machinesetclient "github.com/openshift/client-go/machine/clientset/versioned/typed/machine/v1beta1"
 
-	e2eutil "github.com/openshift/machine-api-operator/test/e2e"
+	e2eutil "github.com/openshift/machine-api-operator/openshift-tests-extension/test/e2e"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 

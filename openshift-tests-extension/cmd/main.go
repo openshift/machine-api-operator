@@ -15,8 +15,8 @@ import (
 	"k8s.io/component-base/logs"
 
 	// If using ginkgo, import your tests here
-	_ "github.com/openshift/machine-api-operator/test/e2e/nutanix"
-	_ "github.com/openshift/machine-api-operator/test/e2e/vsphere"
+	_ "github.com/openshift/machine-api-operator/openshift-tests-extension/test/e2e/nutanix"
+	_ "github.com/openshift/machine-api-operator/openshift-tests-extension/test/e2e/vsphere"
 )
 
 func main() {
@@ -51,13 +51,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-
-	// Initialization for kube ginkgo test framework needs to run before all tests execute
-	specs.AddBeforeAll(func() {
-		if err := initializeTestFramework(os.Getenv("TEST_PROVIDER")); err != nil {
-			panic(err)
-		}
-	})
 
 	// Let's scan for tests with a platform label and create the rule for them such as [platform:vsphere]
 	foundPlatforms := make(map[string]string)

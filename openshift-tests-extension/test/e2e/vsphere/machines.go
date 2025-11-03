@@ -15,8 +15,8 @@ import (
 	"k8s.io/client-go/rest"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 
+	util "github.com/openshift/machine-api-operator/openshift-tests-extension/test/e2e"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere"
-	util "github.com/openshift/machine-api-operator/test/e2e"
 )
 
 const (
