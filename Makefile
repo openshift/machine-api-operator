@@ -91,8 +91,7 @@ machineset:
 machine-api-tests-ext:
 	pushd openshift-tests-extension/cmd && \
 	GO111MODULE=on CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) GOPROXY=$(GOPROXY) go build \
-    		-trimpath \
-    		-ldflags="$(LDFLAGS)" \
+    		${GOFLAGS} -ldflags="${GLDFLAGS}" \
     		-o=../../bin/machine-api-tests-ext
 
 .PHONY: test-e2e
