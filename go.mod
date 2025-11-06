@@ -6,6 +6,7 @@ go 1.24.0
 // an API yet we can leverage so that I do not have to copy what openshift/kubernetes/openshift-hack/cmd/k8s-tests-ext did to initialize.
 replace (
 	github.com/onsi/ginkgo/v2 => github.com/openshift/onsi-ginkgo/v2 v2.6.1-0.20241205171354-8006f302fd12
+	github.com/openshift-eng/openshift-tests-extension => /Users/stbenjam/go/src/github.com/openshift-eng/openshift-tests-extension
 	k8s.io/apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/apiserver v0.0.0-20250716113245-b94367cabf3e // openshift kubernetes has very old copy of k8s.io/kubernetes/pkg/kubelet/server/server.go
 	k8s.io/kubelet => github.com/openshift/kubernetes/staging/src/k8s.io/kubelet v0.0.0-20250716113245-b94367cabf3e // openshift kubernetes has very old copy of k8s.io/kubernetes/cmd/kubelet/app/options/options.go:
 	k8s.io/kubernetes => github.com/openshift/kubernetes v1.30.1-0.20250716113245-b94367cabf3e //v1.30.1-0.20250704150419-38c60a516ecb
