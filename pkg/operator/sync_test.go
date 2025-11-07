@@ -270,7 +270,7 @@ func Test_ensureDependecyAnnotations(t *testing.T) {
 			input := test.input.DeepCopy()
 			ensureDependecyAnnotations(test.inputHashes, input)
 			if !equality.Semantic.DeepEqual(test.expected, input) {
-				t.Fatalf("unexpected: %s", diff.ObjectDiff(test.expected, input))
+				t.Fatalf("unexpected: %s", diff.Diff(test.expected, input))
 			}
 		})
 	}
