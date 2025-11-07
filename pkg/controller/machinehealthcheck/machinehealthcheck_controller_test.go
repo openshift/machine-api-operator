@@ -307,7 +307,7 @@ func TestReconcile(t *testing.T) {
 			node:    nodeHealthy,
 			mhc:     machineHealthCheck,
 			expected: expectedReconcile{
-				result: reconcile.Result{Requeue: true},
+				result: reconcile.Result{},
 				error:  false,
 			},
 			expectedEvents: []string{},
@@ -327,7 +327,6 @@ func TestReconcile(t *testing.T) {
 			mhc:     machineHealthCheck,
 			expected: expectedReconcile{
 				result: reconcile.Result{
-					Requeue:      true,
 					RequeueAfter: 300 * time.Second,
 				},
 				error: false,
@@ -465,7 +464,7 @@ func TestReconcile(t *testing.T) {
 			mhc:     machineHealthCheckNegativeMaxUnhealthy,
 			expected: expectedReconcile{
 				result: reconcile.Result{
-					Requeue: true,
+					RequeueAfter: defaultRequeueAfter,
 				},
 				error: false,
 			},
@@ -3119,7 +3118,7 @@ func assertBaseReconcile(t *testing.T, tc testCase, ctx context.Context, r *Reco
 	}
 
 	if result != tc.expected.result {
-		if tc.expected.result.Requeue {
+		if tc.expected.result.RequeueAfter > 0 {
 			before := tc.expected.result.RequeueAfter
 			after := tc.expected.result.RequeueAfter + time.Second
 			if after < result.RequeueAfter || before > result.RequeueAfter {

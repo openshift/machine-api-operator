@@ -121,7 +121,7 @@ func (optr *Operator) syncAll(config *OperatorConfig) (reconcile.Result, error) 
 		klog.Errorf("Error waiting for resource to sync: %v", err)
 		return reconcile.Result{}, err
 	}
-	if result.Requeue || result.RequeueAfter > 0 {
+	if result.RequeueAfter > 0 {
 		// The deployment is not yet rolled out, do not set the status to available yet
 		return result, nil
 	}
@@ -170,7 +170,7 @@ func (optr *Operator) checkRolloutStatus(config *OperatorConfig) (reconcile.Resu
 	if err != nil {
 		return reconcile.Result{}, err
 	}
-	if result.Requeue || result.RequeueAfter > 0 {
+	if result.RequeueAfter > 0 {
 		return result, nil
 	}
 
@@ -180,7 +180,7 @@ func (optr *Operator) checkRolloutStatus(config *OperatorConfig) (reconcile.Resu
 		if err != nil {
 			return reconcile.Result{}, err
 		}
-		if result.Requeue || result.RequeueAfter > 0 {
+		if result.RequeueAfter > 0 {
 			return result, nil
 		}
 	}

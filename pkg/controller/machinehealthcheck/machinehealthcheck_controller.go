@@ -43,6 +43,7 @@ const (
 	remediationStrategyAnnotation = "machine.openshift.io/remediation-strategy"
 	remediationStrategyExternal   = machinev1.RemediationStrategyType("external-baremetal")
 	defaultNodeStartupTimeout     = 10 * time.Minute
+	defaultRequeueAfter           = 1 * time.Millisecond
 	machineNodeNameIndex          = "machineNodeNameIndex"
 	controllerName                = "machinehealthcheck-controller"
 
@@ -246,7 +247,7 @@ func (r *ReconcileMachineHealthCheck) Reconcile(ctx context.Context, request rec
 			mhc.Spec.MaxUnhealthy,
 		)
 		metrics.ObserveMachineHealthCheckShortCircuitEnabled(mhc.Name, mhc.Namespace)
-		return reconcile.Result{Requeue: true}, nil
+		return reconcile.Result{RequeueAfter: defaultRequeueAfter}, nil
 	}
 	klog.V(3).Infof("Remediations are allowed for %s: total targets: %v,  max unhealthy: %v, unhealthy targets: %v",
 		request.String(),
