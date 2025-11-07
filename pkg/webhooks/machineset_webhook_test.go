@@ -1047,7 +1047,7 @@ func TestMachineSetUpdate(t *testing.T) {
 			updateMachineSet: func(ms *machinev1beta1.MachineSet) {
 				ms.Spec.Selector.MatchLabels["foo"] = "bar"
 			},
-			expectedError: "[spec.selector: Forbidden: selector is immutable, spec.template.metadata.labels: Invalid value: map[string]string{\"machineset-name\":\"machineset-update-abcd\"}: `selector` does not match template `labels`]",
+			expectedError: "[spec.selector: Forbidden: selector is immutable, spec.template.metadata.labels: Invalid value: {\"machineset-name\":\"machineset-update-abcd\"}: `selector` does not match template `labels`]",
 		},
 		{
 			name:         "with an incompatible template labels",
@@ -1061,7 +1061,7 @@ func TestMachineSetUpdate(t *testing.T) {
 					"foo": "bar",
 				}
 			},
-			expectedError: "spec.template.metadata.labels: Invalid value: map[string]string{\"foo\":\"bar\"}: `selector` does not match template `labels`",
+			expectedError: "spec.template.metadata.labels: Invalid value: {\"foo\":\"bar\"}: `selector` does not match template `labels`",
 		},
 		{
 			name:         "with a valid PowerVS ProviderSpec",

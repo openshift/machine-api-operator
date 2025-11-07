@@ -1958,7 +1958,7 @@ func TestMachineUpdate(t *testing.T) {
 					Object: object,
 				}
 			},
-			expectedError: `providerSpec.tagIDs: Invalid value: []string{"urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9500:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9501:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9502:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9503:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9504:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9505:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9506:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9507:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9508:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9509:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9510:GLOBAL", "urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9511:GLOBAL"}: a maximum of 10 tags are allowed`,
+			expectedError: `providerSpec.tagIDs: Invalid value: ["urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9500:GLOBAL","urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9501:GLOBAL","urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9502:GLOBAL","urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9503:GLOBAL","urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9504:GLOBAL","urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9505:GLOBAL","urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9506:GLOBAL","urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9507:GLOBAL","urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9508:GLOBAL","urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9509:GLOBAL","urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9510:GLOBAL","urn:vmomi:InventoryServiceTag:5736bf56-49f5-4667-b38c-b97e09dc9511:GLOBAL"]: a maximum of 10 tags are allowed`,
 		},
 		{
 			name:         "with an VSphere ProviderSpec, removing the template",
@@ -2109,7 +2109,7 @@ func TestMachineUpdate(t *testing.T) {
 			updateMachine: func(m *machinev1beta1.Machine) {
 				m.Spec.LifecycleHooks.PreDrain = []machinev1beta1.LifecycleHook{preDrainHook, preDrainHook}
 			},
-			expectedError: "spec.lifecycleHooks.preDrain[1]: Duplicate value: map[string]interface {}{\"name\":\"pre-drain\"}", // This is an openapi error. As lifecycleHooks have list-type=map, the API server will prevent duplication
+			expectedError: "spec.lifecycleHooks.preDrain[1]: Duplicate value: {\"name\":\"pre-drain\"}", // This is an openapi error. As lifecycleHooks have list-type=map, the API server will prevent duplication
 		},
 		{
 			name:         "with a valid PowerVS ProviderSpec",
@@ -3300,7 +3300,7 @@ func TestValidateAzureProviderSpec(t *testing.T) {
 				CloudName: osconfigv1.AzurePublicCloud,
 			},
 			expectedOk:    false,
-			expectedError: "providerSpec.diagnostics.boot.customerManaged: Invalid value: v1beta1.AzureCustomerManagedBootDiagnostics{StorageAccountURI:\"https://storageaccount.blob.core.windows.net/\"}: customerManaged may not be set when type is AzureManaged",
+			expectedError: "providerSpec.diagnostics.boot.customerManaged: Invalid value: {\"storageAccountURI\":\"https://storageaccount.blob.core.windows.net/\"}: customerManaged may not be set when type is AzureManaged",
 		},
 		{
 			testCase: "with Customer Managed boot diagnostics, with a missing storage account URI",
@@ -3883,7 +3883,7 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 				}
 			},
 			expectedOk:    false,
-			expectedError: "providerSpec.gpus: Too many: 2: must have at most 1 items",
+			expectedError: "providerSpec.gpus: Too many: 2: must have at most 1 item",
 		},
 		{
 			testCase: "with no gpus",
