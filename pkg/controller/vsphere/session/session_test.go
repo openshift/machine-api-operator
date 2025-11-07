@@ -67,7 +67,7 @@ func TestFindVMByName(t *testing.T) {
 	model, session, server := initSimulator(t)
 	defer model.Remove()
 	defer server.Close()
-	simulatorVM := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	simulatorVM := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 
 	testCases := []struct {
 		testCase    string
@@ -106,7 +106,7 @@ func TestFindRefByInstanceUUID(t *testing.T) {
 	model, session, server := initSimulator(t)
 	defer model.Remove()
 	defer server.Close()
-	simulatorVM := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	simulatorVM := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 	instanceUUID := "instanceUUID"
 	simulatorVM.Config.InstanceUuid = instanceUUID
 
@@ -144,7 +144,7 @@ func TestFindVM(t *testing.T) {
 	model, session, server := initSimulator(t)
 	defer model.Remove()
 	defer server.Close()
-	simulatorVM := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	simulatorVM := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 	instanceUUID := "a5764857-ae35-34dc-8f25-a9c9e73aa898"
 	invalidInstanceUUID := "a5764857-ae35-34dc-8f25-a9c9e73aa899"
 	simulatorVM.Config.InstanceUuid = instanceUUID
@@ -201,7 +201,7 @@ func TestGetTask(t *testing.T) {
 	defer model.Remove()
 	defer server.Close()
 
-	obj := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	obj := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 	// Validate VM is powered on
 	if obj.Runtime.PowerState != "poweredOn" {
 		t.Fatal(obj.Runtime.PowerState)
@@ -263,7 +263,7 @@ func TestClientTimeout(t *testing.T) {
 			Delay: int(time.Second.Milliseconds()),
 		}
 
-		simulatorVM := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+		simulatorVM := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 
 		_, err := session.FindVM(context.TODO(), simulatorVM.Config.Uuid, simulatorVM.Config.Name)
 		g.Expect(err).ShouldNot(HaveOccurred())
@@ -281,7 +281,7 @@ func TestClientTimeout(t *testing.T) {
 				"RetrievePropertiesEx": int(300),
 			},
 		}
-		simulatorVM := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+		simulatorVM := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 
 		ctx, cancel := context.WithTimeout(context.TODO(), time.Duration(time.Millisecond*100))
 		defer cancel()

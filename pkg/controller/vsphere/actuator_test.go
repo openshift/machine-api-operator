@@ -58,7 +58,7 @@ func TestMachineEvents(t *testing.T) {
 	credentialsSecretPassword := fmt.Sprintf("%s.password", host)
 	password, _ := server.URL.User.Password()
 
-	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	vm := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 	vm.Config.Version = minimumHWVersionString
 
 	testEnv := &envtest.Environment{
