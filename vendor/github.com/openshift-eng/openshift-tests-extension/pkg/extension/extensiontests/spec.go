@@ -1,7 +1,9 @@
 package extensiontests
 
 import (
+	"context"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -105,11 +107,13 @@ func (specs ExtensionTestSpecs) MustSelectAll(selectFns []SelectFunction) (Exten
 	return filtered, nil
 }
 
-// ModuleTestsOnly ensures that ginkgo tests from vendored sources aren't selected.
+// ModuleTestsOnly ensures that ginkgo tests from vendored sources aren't selected,
+// except for the Origin extended util packages, that may contain Ginkgo nodes but
+// should not cause a test exclusion.
 func ModuleTestsOnly() SelectFunction {
 	return func(spec *ExtensionTestSpec) bool {
 		for _, cl := range spec.CodeLocations {
-			if strings.Contains(cl, "/vendor/") {
+			if strings.Contains(cl, "/vendor/") && !strings.Contains(cl, "github.com/openshift/origin/test/extended/util") {
 				return false
 			}
 		}
@@ -178,9 +182,10 @@ func (specs ExtensionTestSpecs) Names() []string {
 // are written to the given ResultWriter after each spec has completed execution.  BeforeEach,
 // BeforeAll, AfterEach, AfterAll hooks are executed when specified. "Each" hooks must be thread
 // safe. Returns an error if any test spec failed, indicating the quantity of failures.
-func (specs ExtensionTestSpecs) Run(w ResultWriter, maxConcurrent int) error {
+func (specs ExtensionTestSpecs) Run(ctx context.Context, w ResultWriter, maxConcurrent int) error {
 	queue := make(chan *ExtensionTestSpec)
-	failures := atomic.Int64{}
+	terminalFailures := atomic.Int64{}
+	nonTerminalFailures := atomic.Int64{}
 
 	// Execute beforeAll
 	for _, spec := range specs {
@@ -197,6 +202,12 @@ func (specs ExtensionTestSpecs) Run(w ResultWriter, maxConcurrent int) error {
 		close(queue)
 	}()
 
+	// if we have only a single spec to run, we do that differently than running multiple.
+	// multiple specs can run in parallel and do so by exec-ing back into the binary with `run-test` with a single test to execute.
+	// This means that to avoid infinite recursion, when requesting a single test to run
+	// we need to run it in process.
+	runSingleSpec := len(specs) == 1
+
 	// Start consumers
 	var wg sync.WaitGroup
 	for i := 0; i < maxConcurrent; i++ {
@@ -208,9 +219,13 @@ func (specs ExtensionTestSpecs) Run(w ResultWriter, maxConcurrent int) error {
 					beforeEachTask.Run(*spec)
 				}
 
-				res := runSpec(spec)
+				res := runSpec(ctx, spec, runSingleSpec)
 				if res.Result == ResultFailed {
-					failures.Add(1)
+					if res.Lifecycle.IsTerminal() {
+						terminalFailures.Add(1)
+					} else {
+						nonTerminalFailures.Add(1)
+					}
 				}
 
 				for _, afterEachTask := range spec.afterEach {
@@ -235,10 +250,22 @@ func (specs ExtensionTestSpecs) Run(w ResultWriter, maxConcurrent int) error {
 		}
 	}
 
-	failCount := failures.Load()
-	if failCount > 0 {
-		return fmt.Errorf("%d tests failed", failCount)
+	terminalFailCount := terminalFailures.Load()
+	nonTerminalFailCount := nonTerminalFailures.Load()
+
+	// Non-terminal failures don't cause exit 1, but we still log them
+	if nonTerminalFailCount > 0 {
+		fmt.Fprintf(os.Stderr, "%d informing tests failed (not terminal)\n", nonTerminalFailCount)
 	}
+
+	// Only exit with error if terminal lifecycle tests failed
+	if terminalFailCount > 0 {
+		if nonTerminalFailCount > 0 {
+			return fmt.Errorf("%d tests failed (%d informing)", terminalFailCount+nonTerminalFailCount, nonTerminalFailCount)
+		}
+		return fmt.Errorf("%d tests failed", terminalFailCount)
+	}
+
 	return nil
 }
 
@@ -540,9 +567,14 @@ func (spec *ExtensionTestSpec) Exclude(excludeCEL string) *ExtensionTestSpec {
 	return spec
 }
 
-func runSpec(spec *ExtensionTestSpec) *ExtensionTestResult {
+func runSpec(ctx context.Context, spec *ExtensionTestSpec, runSingleSpec bool) *ExtensionTestResult {
 	startTime := time.Now().UTC()
-	res := spec.Run()
+	var res *ExtensionTestResult
+	if runSingleSpec || spec.RunParallel == nil {
+		res = spec.Run(ctx)
+	} else {
+		res = spec.RunParallel(ctx)
+	}
 	duration := time.Since(startTime)
 	endTime := startTime.Add(duration).UTC()
 	if res == nil {

@@ -165,7 +165,7 @@ func (v VSphereProviderConfig) InjectFailureDomain(fd machinev1.VSphereFailureDo
 }
 
 // ExtractFailureDomain is used to extract a failure domain from the ProviderConfig.
-func (v VSphereProviderConfig) ExtractFailureDomain() machinev1.VSphereFailureDomain {
+func (v VSphereProviderConfig) ExtractFailureDomain() machinev1.VSphereFailureDomain { //nolint:cyclop
 	workspace := v.providerConfig.Workspace
 
 	if v.infrastructure.Spec.PlatformSpec.Type != configv1.VSpherePlatformType {

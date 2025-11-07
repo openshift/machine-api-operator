@@ -1,33 +1,22 @@
-/*
-Copyright (c) 2017 VMware, Inc. All Rights Reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// © Broadcom. All Rights Reserved.
+// The term "Broadcom" refers to Broadcom Inc. and/or its subsidiaries.
+// SPDX-License-Identifier: Apache-2.0
 
 package simulator
 
 import (
+	"errors"
 	"fmt"
 	"os"
-	"strconv"
+	"path/filepath"
 	"strings"
 
-	"github.com/google/uuid"
-
+	"github.com/vmware/govmomi/internal"
 	"github.com/vmware/govmomi/vim25/methods"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/soap"
 	"github.com/vmware/govmomi/vim25/types"
+	"github.com/vmware/govmomi/vmdk"
 )
 
 type VirtualDiskManager struct {
@@ -38,101 +27,98 @@ func (m *VirtualDiskManager) MO() mo.VirtualDiskManager {
 	return m.VirtualDiskManager
 }
 
+func VirtualDiskBackingFileName(name string) string {
+	return strings.Replace(name, ".vmdk", "-flat.vmdk", 1)
+}
+
 func vdmNames(name string) []string {
 	return []string{
-		strings.Replace(name, ".vmdk", "-flat.vmdk", 1),
+		VirtualDiskBackingFileName(name),
 		name,
 	}
 }
 
-func vdmCreateVirtualDisk(op types.VirtualDeviceConfigSpecFileOperation, req *types.CreateVirtualDisk_Task) types.BaseMethodFault {
-	fm := Map.FileManager()
+func vdmCreateVirtualDisk(ctx *Context, op types.VirtualDeviceConfigSpecFileOperation, req *types.CreateVirtualDisk_Task) types.BaseMethodFault {
+	fm := ctx.Map.FileManager()
 
-	file, fault := fm.resolve(req.Datacenter, req.Name)
+	file, fault := fm.resolve(ctx, req.Datacenter, req.Name)
 	if fault != nil {
 		return fault
 	}
 
 	shouldReplace := op == types.VirtualDeviceConfigSpecFileOperationReplace
 	shouldExist := op == ""
-	for _, name := range vdmNames(file) {
-		_, err := os.Stat(name)
-		if err == nil {
-			if shouldExist {
-				return nil
-			}
-			if shouldReplace {
-				if err = os.Truncate(file, 0); err != nil {
-					return fm.fault(name, err, new(types.CannotCreateFile))
-				}
-				return nil
-			}
-			return fm.fault(name, nil, new(types.FileAlreadyExists))
-		} else if shouldExist {
-			return fm.fault(name, nil, new(types.FileNotFound))
+
+	_, err := os.Stat(file)
+	if err == nil {
+		if shouldExist {
+			return nil
 		}
-
-		f, err := os.Create(name)
-		if err != nil {
-			return fm.fault(name, err, new(types.CannotCreateFile))
+		if !shouldReplace {
+			return fm.fault(file, nil, new(types.FileAlreadyExists))
 		}
-
-		if req.Spec != nil {
-			var spec interface{} = req.Spec
-			fileBackedSpec, ok := spec.(*types.FileBackedVirtualDiskSpec)
-
-			if !ok {
-				return fm.fault(name, nil, new(types.FileFault))
-			}
-
-			if _, err = f.WriteString(strconv.FormatInt(fileBackedSpec.CapacityKb, 10)); err != nil {
-				return fm.fault(name, err, new(types.FileFault))
-			}
-		}
-
-		_ = f.Close()
+	} else if shouldExist {
+		return fm.fault(file, nil, new(types.FileNotFound))
 	}
+
+	backing := VirtualDiskBackingFileName(file)
+
+	extent := vmdk.Extent{
+		Info: filepath.Base(backing),
+	}
+
+	f, err := os.Create(file)
+	if err != nil {
+		return fm.fault(file, err, new(types.CannotCreateFile))
+	}
+
+	defer f.Close()
+
+	if req.Spec != nil {
+		spec, ok := req.Spec.(types.BaseFileBackedVirtualDiskSpec)
+		if !ok {
+			return fm.fault(file, nil, new(types.FileFault))
+		}
+
+		fileSpec := spec.GetFileBackedVirtualDiskSpec()
+		extent.Size = fileSpec.CapacityKb * 1024 / vmdk.SectorSize
+	}
+
+	desc := vmdk.NewDescriptor(extent)
+	if err := desc.Write(f); err != nil {
+		return fm.fault(file, err, new(types.FileFault))
+	}
+
+	b, err := os.Create(backing)
+	if err != nil {
+		return fm.fault(backing, err, new(types.CannotCreateFile))
+	}
+	_ = b.Close()
 
 	return nil
 }
 
-func vdmExtendVirtualDisk(req *types.ExtendVirtualDisk_Task) types.BaseMethodFault {
-	fm := Map.FileManager()
+func vdmExtendVirtualDisk(ctx *Context, req *types.ExtendVirtualDisk_Task) types.BaseMethodFault {
+	fm := ctx.Map.FileManager()
 
-	file, fault := fm.resolve(req.Datacenter, req.Name)
+	desc, file, fault := fm.DiskDescriptor(ctx, req.Datacenter, req.Name)
 	if fault != nil {
 		return fault
 	}
 
-	for _, name := range vdmNames(file) {
-		_, err := os.Stat(name)
-		if err == nil {
-			content, err := os.ReadFile(name)
-			if err != nil {
-				return fm.fault(name, err, new(types.FileFault))
-			}
-
-			capacity, err := strconv.Atoi(string(content))
-			if err != nil {
-				return fm.fault(name, err, new(types.FileFault))
-			}
-
-			if int64(capacity) > req.NewCapacityKb {
-				// cannot shrink disk
-				return fm.fault(name, nil, new(types.FileFault))
-			}
-			return nil
-		} else {
-			return fm.fault(name, nil, new(types.FileNotFound))
-		}
+	newCapacity := req.NewCapacityKb * 1024
+	if desc.Capacity() > newCapacity {
+		return fm.fault(req.Name, errors.New("cannot shrink disk"), new(types.FileFault))
 	}
 
-	return nil
+	desc.Extent[0].Size = newCapacity / vmdk.SectorSize
+
+	return fm.SaveDiskDescriptor(ctx, desc, file)
 }
 
 func (m *VirtualDiskManager) CreateVirtualDiskTask(ctx *Context, req *types.CreateVirtualDisk_Task) soap.HasFault {
 	task := CreateTask(m, "createVirtualDisk", func(*Task) (types.AnyType, types.BaseMethodFault) {
-		if err := vdmCreateVirtualDisk(types.VirtualDeviceConfigSpecFileOperationCreate, req); err != nil {
+		if err := vdmCreateVirtualDisk(ctx, types.VirtualDeviceConfigSpecFileOperationCreate, req); err != nil {
 			return "", err
 		}
 		return req.Name, nil
@@ -147,7 +133,7 @@ func (m *VirtualDiskManager) CreateVirtualDiskTask(ctx *Context, req *types.Crea
 
 func (m *VirtualDiskManager) ExtendVirtualDiskTask(ctx *Context, req *types.ExtendVirtualDisk_Task) soap.HasFault {
 	task := CreateTask(m, "extendVirtualDisk", func(*Task) (types.AnyType, types.BaseMethodFault) {
-		if err := vdmExtendVirtualDisk(req); err != nil {
+		if err := vdmExtendVirtualDisk(ctx, req); err != nil {
 			return "", err
 		}
 		return req.Name, nil
@@ -162,10 +148,10 @@ func (m *VirtualDiskManager) ExtendVirtualDiskTask(ctx *Context, req *types.Exte
 
 func (m *VirtualDiskManager) DeleteVirtualDiskTask(ctx *Context, req *types.DeleteVirtualDisk_Task) soap.HasFault {
 	task := CreateTask(m, "deleteVirtualDisk", func(*Task) (types.AnyType, types.BaseMethodFault) {
-		fm := Map.FileManager()
+		fm := ctx.Map.FileManager()
 
 		for _, name := range vdmNames(req.Name) {
-			err := fm.deleteDatastoreFile(&types.DeleteDatastoreFile_Task{
+			err := fm.deleteDatastoreFile(ctx, &types.DeleteDatastoreFile_Task{
 				Name:       name,
 				Datacenter: req.Datacenter,
 			})
@@ -192,7 +178,7 @@ func (m *VirtualDiskManager) MoveVirtualDiskTask(ctx *Context, req *types.MoveVi
 		dest := vdmNames(req.DestName)
 
 		for i, name := range vdmNames(req.SourceName) {
-			err := fm.moveDatastoreFile(&types.MoveDatastoreFile_Task{
+			err := fm.moveDatastoreFile(ctx, &types.MoveDatastoreFile_Task{
 				SourceName:            name,
 				SourceDatacenter:      req.SourceDatacenter,
 				DestinationName:       dest[i],
@@ -218,9 +204,7 @@ func (m *VirtualDiskManager) MoveVirtualDiskTask(ctx *Context, req *types.MoveVi
 func (m *VirtualDiskManager) CopyVirtualDiskTask(ctx *Context, req *types.CopyVirtualDisk_Task) soap.HasFault {
 	task := CreateTask(m, "copyVirtualDisk", func(*Task) (types.AnyType, types.BaseMethodFault) {
 		if req.DestSpec != nil {
-			if ctx.Map.IsVPX() {
-				return nil, new(types.NotImplemented)
-			}
+			// TODO: apply to destination vmdk.Descriptor
 		}
 
 		fm := ctx.Map.FileManager()
@@ -228,7 +212,7 @@ func (m *VirtualDiskManager) CopyVirtualDiskTask(ctx *Context, req *types.CopyVi
 		dest := vdmNames(req.DestName)
 
 		for i, name := range vdmNames(req.SourceName) {
-			err := fm.copyDatastoreFile(&types.CopyDatastoreFile_Task{
+			err := fm.copyDatastoreFile(ctx, &types.CopyDatastoreFile_Task{
 				SourceName:            name,
 				SourceDatacenter:      req.SourceDatacenter,
 				DestinationName:       dest[i],
@@ -255,7 +239,7 @@ func virtualDiskUUID(dc *types.ManagedObjectReference, file string) string {
 	if dc != nil {
 		file = dc.String() + file
 	}
-	return uuid.NewSHA1(uuid.NameSpaceOID, []byte(file)).String()
+	return newUUID(file)
 }
 
 func (m *VirtualDiskManager) QueryVirtualDiskUuid(ctx *Context, req *types.QueryVirtualDiskUuid) soap.HasFault {
@@ -263,7 +247,7 @@ func (m *VirtualDiskManager) QueryVirtualDiskUuid(ctx *Context, req *types.Query
 
 	fm := ctx.Map.FileManager()
 
-	file, fault := fm.resolve(req.Datacenter, req.Name)
+	file, fault := fm.resolve(ctx, req.Datacenter, req.Name)
 	if fault != nil {
 		body.Fault_ = Fault("", fault)
 		return body
@@ -277,7 +261,7 @@ func (m *VirtualDiskManager) QueryVirtualDiskUuid(ctx *Context, req *types.Query
 	}
 
 	body.Res = &types.QueryVirtualDiskUuidResponse{
-		Returnval: virtualDiskUUID(req.Datacenter, file),
+		Returnval: virtualDiskUUID(req.Datacenter, req.Name),
 	}
 
 	return body
@@ -288,4 +272,31 @@ func (m *VirtualDiskManager) SetVirtualDiskUuid(_ *Context, req *types.SetVirtua
 	// TODO: validate uuid format and persist
 	body.Res = new(types.SetVirtualDiskUuidResponse)
 	return body
+}
+
+func (m *VirtualDiskManager) QueryVirtualDiskInfoTask(ctx *Context, req *internal.QueryVirtualDiskInfoTaskRequest) soap.HasFault {
+	task := CreateTask(m, "queryVirtualDiskInfo", func(*Task) (types.AnyType, types.BaseMethodFault) {
+		var res []internal.VirtualDiskInfo
+
+		fm := ctx.Map.FileManager()
+
+		_, fault := fm.resolve(ctx, req.Datacenter, req.Name)
+		if fault != nil {
+			return nil, fault
+		}
+
+		res = append(res, internal.VirtualDiskInfo{Name: req.Name, DiskType: "thin"})
+
+		if req.IncludeParents {
+			// TODO
+		}
+
+		return res, nil
+	})
+
+	return &internal.QueryVirtualDiskInfoTaskBody{
+		Res: &internal.QueryVirtualDiskInfo_TaskResponse{
+			Returnval: task.Run(ctx),
+		},
+	}
 }
