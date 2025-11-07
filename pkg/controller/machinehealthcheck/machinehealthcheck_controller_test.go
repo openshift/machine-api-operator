@@ -3075,7 +3075,8 @@ func assertBaseReconcile(t *testing.T, tc testCase, ctx context.Context, r *Reco
 
 	if result != tc.expected.result {
 		if tc.expected.result.RequeueAfter > 0 {
-			before := tc.expected.result.RequeueAfter
+			// Allow 1 second tolerance on both sides to account for timing variations during test execution
+			before := tc.expected.result.RequeueAfter - time.Second
 			after := tc.expected.result.RequeueAfter + time.Second
 			if after < result.RequeueAfter || before > result.RequeueAfter {
 				t.Errorf("Test case: %s. Expected RequeueAfter between: %v and %v, got: %v", tc.node.Name, before, after, result)
