@@ -95,9 +95,6 @@ func NewNode(name string, ready bool) *corev1.Node {
 			Labels: map[string]string{},
 			UID:    uuid.NewUUID(),
 		},
-		TypeMeta: metav1.TypeMeta{
-			Kind: "Node",
-		},
 		Status: corev1.NodeStatus{
 			Conditions: []corev1.NodeCondition{
 				{
@@ -113,14 +110,10 @@ func NewNode(name string, ready bool) *corev1.Node {
 // NewMachine returns new machine object that can be used for testing
 func NewMachine(name string, nodeName string) *machinev1.Machine {
 	m := &machinev1.Machine{
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "machine.openshift.io/v1beta1",
-			Kind:       "Machine",
-		},
 		ObjectMeta: metav1.ObjectMeta{
-			Annotations: make(map[string]string),
 			Name:        name,
 			Namespace:   Namespace,
+			Annotations: map[string]string{},
 			Labels:      FooBar(),
 			UID:         uuid.NewUUID(),
 			OwnerReferences: []metav1.OwnerReference{
@@ -153,10 +146,6 @@ func NewMachineHealthCheck(name string) *machinev1.MachineHealthCheck {
 			Namespace: Namespace,
 			// the following line is to account for a change in the fake client, see https://github.com/kubernetes-sigs/controller-runtime/pull/1306
 			ResourceVersion: "999",
-		},
-		TypeMeta: metav1.TypeMeta{
-			APIVersion: "machine.openshift.io/v1beta1",
-			Kind:       "MachineHealthCheck",
 		},
 		Spec: machinev1.MachineHealthCheckSpec{
 			Selector: *NewSelectorFooBar(),

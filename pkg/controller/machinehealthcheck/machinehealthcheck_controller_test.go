@@ -1158,7 +1158,6 @@ func TestGetTargetsFromMHC(t *testing.T) {
 			machines: []*machinev1.Machine{
 				machine1,
 				{
-					TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations:     make(map[string]string),
 						Name:            "noMatch",
@@ -1179,10 +1178,6 @@ func TestGetTargetsFromMHC(t *testing.T) {
 						},
 						Labels: map[string]string{},
 					},
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "Node",
-						APIVersion: "v1",
-					},
 					Status: corev1.NodeStatus{
 						Conditions: []corev1.NodeCondition{},
 					},
@@ -1195,9 +1190,6 @@ func TestGetTargetsFromMHC(t *testing.T) {
 							machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "match2"),
 						},
 						Labels: map[string]string{},
-					},
-					TypeMeta: metav1.TypeMeta{
-						Kind: "Node",
 					},
 					Status: corev1.NodeStatus{
 						Conditions: []corev1.NodeCondition{},
@@ -1218,10 +1210,6 @@ func TestGetTargetsFromMHC(t *testing.T) {
 							Labels: map[string]string{},
 							// the following line is to account for a change in the fake client, see https://github.com/kubernetes-sigs/controller-runtime/pull/1306
 							ResourceVersion: "999",
-						},
-						TypeMeta: metav1.TypeMeta{
-							Kind:       "Node",
-							APIVersion: "v1",
 						},
 						Status: corev1.NodeStatus{
 							Conditions: []corev1.NodeCondition{},
@@ -1247,10 +1235,6 @@ func TestGetTargetsFromMHC(t *testing.T) {
 						},
 						Labels: map[string]string{},
 					},
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "Node",
-						APIVersion: "v1",
-					},
 					Status: corev1.NodeStatus{
 						Conditions: []corev1.NodeCondition{},
 					},
@@ -1263,10 +1247,6 @@ func TestGetTargetsFromMHC(t *testing.T) {
 							machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "match2"),
 						},
 						Labels: map[string]string{},
-					},
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "Node",
-						APIVersion: "v1",
 					},
 					Status: corev1.NodeStatus{
 						Conditions: []corev1.NodeCondition{},
@@ -1288,10 +1268,6 @@ func TestGetTargetsFromMHC(t *testing.T) {
 							// the following line is to account for a change in the fake client, see https://github.com/kubernetes-sigs/controller-runtime/pull/1306
 							ResourceVersion: "999",
 						},
-						TypeMeta: metav1.TypeMeta{
-							Kind:       "Node",
-							APIVersion: "v1",
-						},
 						Status: corev1.NodeStatus{
 							Conditions: []corev1.NodeCondition{},
 						},
@@ -1311,10 +1287,6 @@ func TestGetTargetsFromMHC(t *testing.T) {
 							// the following line is to account for a change in the fake client, see https://github.com/kubernetes-sigs/controller-runtime/pull/1306
 							ResourceVersion: "999",
 						},
-						TypeMeta: metav1.TypeMeta{
-							Kind:       "Node",
-							APIVersion: "v1",
-						},
 						Status: corev1.NodeStatus{
 							Conditions: []corev1.NodeCondition{},
 						},
@@ -1327,7 +1299,6 @@ func TestGetTargetsFromMHC(t *testing.T) {
 			mhc:      mhc,
 			machines: []*machinev1.Machine{
 				{
-					TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations:     make(map[string]string),
 						Name:            "noNodeRef",
@@ -1344,7 +1315,6 @@ func TestGetTargetsFromMHC(t *testing.T) {
 				{
 					MHC: *mhc,
 					Machine: machinev1.Machine{
-						TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 						ObjectMeta: metav1.ObjectMeta{
 							Annotations:     make(map[string]string),
 							Name:            "noNodeRef",
@@ -1415,7 +1385,6 @@ func TestGetNodeFromMachine(t *testing.T) {
 		{
 			testCase: "match",
 			machine: &machinev1.Machine{
-				TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations:     make(map[string]string),
 					Name:            "machine",
@@ -1440,10 +1409,6 @@ func TestGetNodeFromMachine(t *testing.T) {
 					},
 					Labels: map[string]string{},
 				},
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "Node",
-					APIVersion: "v1",
-				},
 				Status: corev1.NodeStatus{
 					Conditions: []corev1.NodeCondition{},
 				},
@@ -1459,10 +1424,6 @@ func TestGetNodeFromMachine(t *testing.T) {
 					// the following line is to account for a change in the fake client, see https://github.com/kubernetes-sigs/controller-runtime/pull/1306
 					ResourceVersion: "999",
 				},
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "Node",
-					APIVersion: "v1",
-				},
 				Status: corev1.NodeStatus{
 					Conditions: []corev1.NodeCondition{},
 				},
@@ -1472,7 +1433,6 @@ func TestGetNodeFromMachine(t *testing.T) {
 		{
 			testCase: "no nodeRef",
 			machine: &machinev1.Machine{
-				TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations:     make(map[string]string),
 					Name:            "machine",
@@ -1492,9 +1452,6 @@ func TestGetNodeFromMachine(t *testing.T) {
 					},
 					Labels: map[string]string{},
 				},
-				TypeMeta: metav1.TypeMeta{
-					Kind: "Node",
-				},
 				Status: corev1.NodeStatus{
 					Conditions: []corev1.NodeCondition{},
 				},
@@ -1505,7 +1462,6 @@ func TestGetNodeFromMachine(t *testing.T) {
 		{
 			testCase: "node not found",
 			machine: &machinev1.Machine{
-				TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations:     make(map[string]string),
 					Name:            "machine",
