@@ -22,7 +22,6 @@ func TestCheckDeploymentRolloutStatus(t *testing.T) {
 		name                 string
 		deployment           *appsv1.Deployment
 		expectedError        error
-		expectedRequeue      bool
 		expectedRequeueAfter time.Duration
 	}{
 		{
@@ -52,7 +51,6 @@ func TestCheckDeploymentRolloutStatus(t *testing.T) {
 				},
 			},
 			expectedError:        nil,
-			expectedRequeue:      false,
 			expectedRequeueAfter: 0,
 		},
 		{
@@ -82,7 +80,6 @@ func TestCheckDeploymentRolloutStatus(t *testing.T) {
 				},
 			},
 			expectedError:        nil,
-			expectedRequeue:      true,
 			expectedRequeueAfter: 170 * time.Second,
 		},
 		{
@@ -112,7 +109,6 @@ func TestCheckDeploymentRolloutStatus(t *testing.T) {
 				},
 			},
 			expectedError:        nil,
-			expectedRequeue:      true,
 			expectedRequeueAfter: 5 * time.Second,
 		},
 	}
@@ -145,9 +141,6 @@ func TestCheckDeploymentRolloutStatus(t *testing.T) {
 				t.Errorf("Got error: %v, expected: %v", gotErr, tc.expectedError)
 			}
 
-			if tc.expectedRequeue != result.Requeue {
-				t.Errorf("Got requeue: %v, expected: %v", result.Requeue, tc.expectedRequeue)
-			}
 			if tc.expectedRequeueAfter != result.RequeueAfter.Round(time.Second) {
 				t.Errorf("Got requeueAfter: %v, expected: %v", result.RequeueAfter.Round(time.Second), tc.expectedRequeueAfter)
 			}
@@ -270,7 +263,7 @@ func Test_ensureDependecyAnnotations(t *testing.T) {
 			input := test.input.DeepCopy()
 			ensureDependecyAnnotations(test.inputHashes, input)
 			if !equality.Semantic.DeepEqual(test.expected, input) {
-				t.Fatalf("unexpected: %s", diff.ObjectDiff(test.expected, input))
+				t.Fatalf("unexpected: %s", diff.Diff(test.expected, input))
 			}
 		})
 	}

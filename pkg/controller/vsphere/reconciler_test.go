@@ -144,7 +144,7 @@ func TestClone(t *testing.T) {
 
 	password, _ := server.URL.User.Password()
 	namespace := "test"
-	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	vm := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 	vm.Config.Version = minimumHWVersionString
 
 	machine := object.NewVirtualMachine(session.Client.Client, vm.Reference())
@@ -635,7 +635,7 @@ func TestPowerOn(t *testing.T) {
 
 	t.Run("Test powering on vm with RDS (via datacenter)", func(t *testing.T) {
 		g := NewWithT(t)
-		vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+		vm := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 		object.NewVirtualMachine(simSession.Client.Client, vm.Reference())
 
 		scope := getMachineScope(getMinimalProviderSpec(), vm.Name)
@@ -651,7 +651,7 @@ func TestPowerOn(t *testing.T) {
 
 	t.Run("Test powering on vm without a datacenter", func(t *testing.T) {
 		g := NewWithT(t)
-		vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+		vm := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 		object.NewVirtualMachine(simSession.Client.Client, vm.Reference())
 
 		scope := getMachineScope(getMinimalProviderSpec(), vm.Name)
@@ -672,7 +672,7 @@ func TestGetPowerState(t *testing.T) {
 	defer model.Remove()
 	defer server.Close()
 
-	simulatorVM := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	simulatorVM := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 	ref := simulatorVM.VirtualMachine.Reference()
 
 	testCases := []struct {
@@ -732,7 +732,7 @@ func TestTaskIsFinished(t *testing.T) {
 	defer model.Remove()
 	defer server.Close()
 
-	obj := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	obj := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 	// Validate VM is powered on
 	if obj.Runtime.PowerState != poweredOnState {
 		t.Fatal(obj.Runtime.PowerState)
@@ -1027,7 +1027,7 @@ func testStaticIPsWithSimulator(t *testing.T, model *simulator.Model, server *si
 
 func testGetNetworkDevicesWithSimulator(t *testing.T, model *simulator.Model, server *simulator.Server, session *session.Session) {
 
-	managedObj := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	managedObj := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 	objVM := object.NewVirtualMachine(session.Client.Client, managedObj.Reference())
 
 	devices, err := objVM.Device(context.TODO())
@@ -1187,7 +1187,7 @@ func TestGetDiskSpec(t *testing.T) {
 	defer model.Remove()
 	defer server.Close()
 
-	managedObj := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	managedObj := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 	objVM := object.NewVirtualMachine(session.Client.Client, managedObj.Reference())
 
 	testCases := []struct {
@@ -1291,7 +1291,7 @@ func TestCreateDataDisks(t *testing.T) {
 	model, session, server := initSimulator(t)
 	t.Cleanup(model.Remove)
 	t.Cleanup(server.Close)
-	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	vm := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 	machine := object.NewVirtualMachine(session.Client.Client, vm.Reference())
 
 	deviceList, err := machine.Device(context.TODO())
@@ -1472,7 +1472,7 @@ func TestGetNetworkStatusList(t *testing.T) {
 	defer model.Remove()
 	defer server.Close()
 
-	managedObj := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	managedObj := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 	defaultFakeIPs := []string{"127.0.0.1"}
 	managedObj.Guest.Net[0].IpAddress = defaultFakeIPs
 	managedObjRef := object.NewVirtualMachine(session.Client.Client, managedObj.Reference()).Reference()
@@ -1518,7 +1518,7 @@ func TestReconcileNetwork(t *testing.T) {
 	defer model.Remove()
 	defer server.Close()
 
-	managedObj := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	managedObj := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 	managedObj.Guest.Net[0].IpAddress = []string{"127.0.0.1"}
 	managedObjRef := object.NewVirtualMachine(session.Client.Client, managedObj.Reference()).Reference()
 
@@ -1576,7 +1576,7 @@ func TestReconcileTags(t *testing.T) {
 	defer model.Remove()
 	defer server.Close()
 
-	managedObj := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	managedObj := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 	managedObjRef := object.NewVirtualMachine(sessionObj.Client.Client, managedObj.Reference()).Reference()
 
 	vm := &virtualMachine{
@@ -1718,7 +1718,7 @@ func TestCheckAttachedTag(t *testing.T) {
 	defer model.Remove()
 	defer server.Close()
 
-	managedObj := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	managedObj := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 	managedObjRef := object.NewVirtualMachine(sessionObj.Client.Client, managedObj.Reference()).Reference()
 
 	vm := &virtualMachine{
@@ -1885,7 +1885,7 @@ func TestReconcileProviderID(t *testing.T) {
 	defer model.Remove()
 	defer server.Close()
 
-	managedObj := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	managedObj := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 	objectVM := object.NewVirtualMachine(session.Client.Client, managedObj.Reference())
 	managedObjRef := objectVM.Reference()
 
@@ -2162,7 +2162,7 @@ func TestDelete(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
-			vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+			vm := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 			vm.Config.InstanceUuid = instanceUUID
 
 			simParams, err := getVcenterSimParams(server, namespace)
@@ -2436,11 +2436,11 @@ func TestDelete(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			_, sess, srv := initSimulator(t)
+			model, sess, srv := initSimulator(t)
 			simParams, err := getVcenterSimParams(srv, namespace)
 			g.Expect(err).NotTo(HaveOccurred())
 
-			vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+			vm := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 			vm.Config.InstanceUuid = instanceUUID
 
 			if tc.attachDisks {
@@ -2498,7 +2498,7 @@ func TestCreate(t *testing.T) {
 	vmGroup := "testVMGroupName"
 	vmName := "testName"
 	namespace := "test"
-	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	vm := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 	vm.Name = vmName
 	vm.Config.Version = minimumHWVersionString
 
@@ -3006,7 +3006,7 @@ func TestUpdate(t *testing.T) {
 
 	password, _ := server.URL.User.Password()
 	namespace := "test"
-	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	vm := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 	instanceUUID := "a5764857-ae35-34dc-8f25-a9c9e73aa898"
 	vm.Config.InstanceUuid = instanceUUID
 
@@ -3178,7 +3178,7 @@ func TestExists(t *testing.T) {
 
 	password, _ := server.URL.User.Password()
 	namespace := "test"
-	VMs := simulator.Map.All("VirtualMachine")
+	VMs := model.Map().All("VirtualMachine")
 	poweredOffVM := VMs[0].(*simulator.VirtualMachine)
 	poweredOnVM := VMs[1].(*simulator.VirtualMachine)
 
@@ -3300,7 +3300,7 @@ func TestReconcileMachineWithCloudState(t *testing.T) {
 	defer model.Remove()
 	defer server.Close()
 
-	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	vm := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 	instanceUUID := "a5764857-ae35-34dc-8f25-a9c9e73aa898"
 	vm.Config.InstanceUuid = instanceUUID
 
@@ -3310,8 +3310,8 @@ func TestReconcileMachineWithCloudState(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cluster := simulator.Map.Any("ClusterComputeResource").(*simulator.ClusterComputeResource)
-	dc := simulator.Map.Any("Datacenter").(*simulator.Datacenter)
+	cluster := model.Map().Any("ClusterComputeResource").(*simulator.ClusterComputeResource)
+	dc := model.Map().Any("Datacenter").(*simulator.Datacenter)
 
 	if _, err := createTagAndCategory(session, zoneKey, testZone); err != nil {
 		t.Fatalf("cannot create tag and category: %v", err)
@@ -3448,7 +3448,7 @@ func TestVmDisksManipulation(t *testing.T) {
 	defer model.Remove()
 	defer server.Close()
 
-	simulatorVM := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	simulatorVM := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 	managedObjRef := simulatorVM.VirtualMachine.Reference()
 	vmObj := object.NewVirtualMachine(session.Client.Client, managedObjRef)
 	machineObj := &machinev1.Machine{
@@ -3590,7 +3590,7 @@ func TestReconcilePowerStateAnnontation(t *testing.T) {
 	defer model.Remove()
 	defer server.Close()
 
-	simulatorVM := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	simulatorVM := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 	managedObjRef := simulatorVM.VirtualMachine.Reference()
 	vmObj := object.NewVirtualMachine(session.Client.Client, simulatorVM.Reference())
 	_, err := vmObj.PowerOn(context.Background())

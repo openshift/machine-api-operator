@@ -1,18 +1,6 @@
-/*
-Copyright (c) 2017 VMware, Inc. All Rights Reserved.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-*/
+// © Broadcom. All Rights Reserved.
+// The term "Broadcom" refers to Broadcom Inc. and/or its subsidiaries.
+// SPDX-License-Identifier: Apache-2.0
 
 package simulator
 
@@ -121,7 +109,9 @@ func (p *PerformanceManager) buildAvailablePerfMetricsQueryResponse(ids []types.
 				r.Returnval = append(r.Returnval, types.PerfMetricId{CounterId: id.CounterId, Instance: strconv.Itoa(i)})
 			}
 		case "$physDisk":
-			r.Returnval = append(r.Returnval, types.PerfMetricId{CounterId: id.CounterId, Instance: datastoreURL})
+			if datastoreURL != "" {
+				r.Returnval = append(r.Returnval, types.PerfMetricId{CounterId: id.CounterId, Instance: datastoreURL})
+			}
 		case "$file":
 			r.Returnval = append(r.Returnval, types.PerfMetricId{CounterId: id.CounterId, Instance: "DISKFILE"})
 			r.Returnval = append(r.Returnval, types.PerfMetricId{CounterId: id.CounterId, Instance: "DELTAFILE"})
@@ -136,13 +126,17 @@ func (p *PerformanceManager) buildAvailablePerfMetricsQueryResponse(ids []types.
 	return r
 }
 
-func (p *PerformanceManager) queryAvailablePerfMetric(entity types.ManagedObjectReference, interval int32) *types.QueryAvailablePerfMetricResponse {
+func (p *PerformanceManager) queryAvailablePerfMetric(ctx *Context, entity types.ManagedObjectReference, interval int32) *types.QueryAvailablePerfMetricResponse {
 	switch entity.Type {
 	case "VirtualMachine":
-		vm := Map.Get(entity).(*VirtualMachine)
-		return p.buildAvailablePerfMetricsQueryResponse(p.vmMetrics, int(vm.Summary.Config.NumCpu), vm.Datastore[0].Value)
+		vm := ctx.Map.Get(entity).(*VirtualMachine)
+		ds := ""
+		if len(vm.Datastore) != 0 {
+			ds = vm.Datastore[0].Value
+		}
+		return p.buildAvailablePerfMetricsQueryResponse(p.vmMetrics, int(vm.Summary.Config.NumCpu), ds)
 	case "HostSystem":
-		host := Map.Get(entity).(*HostSystem)
+		host := ctx.Map.Get(entity).(*HostSystem)
 		return p.buildAvailablePerfMetricsQueryResponse(p.hostMetrics, int(host.Hardware.CpuInfo.NumCpuThreads), host.Datastore[0].Value)
 	case "ResourcePool":
 		return p.buildAvailablePerfMetricsQueryResponse(p.rpMetrics, 0, "")
@@ -166,7 +160,7 @@ func (p *PerformanceManager) queryAvailablePerfMetric(entity types.ManagedObject
 
 func (p *PerformanceManager) QueryAvailablePerfMetric(ctx *Context, req *types.QueryAvailablePerfMetric) soap.HasFault {
 	body := new(methods.QueryAvailablePerfMetricBody)
-	body.Res = p.queryAvailablePerfMetric(req.Entity, req.IntervalId)
+	body.Res = p.queryAvailablePerfMetric(ctx, req.Entity, req.IntervalId)
 
 	return body
 }

@@ -162,36 +162,22 @@ var _ = common.SIGDescribe("ServiceCIDR and IPAddress API", func() {
 
 	framework.ConformanceIt("should support ServiceCIDR API operations", func(ctx context.Context) {
 		ginkgo.By("getting")
-		_, err := f.ClientSet.NetworkingV1().ServiceCIDRs().Get(ctx, defaultservicecidr.DefaultServiceCIDRName, metav1.GetOptions{})
+		defaultServiceCIDR, err := f.ClientSet.NetworkingV1().ServiceCIDRs().Get(ctx, defaultservicecidr.DefaultServiceCIDRName, metav1.GetOptions{})
 		if err != nil {
 			framework.Failf("unexpected error getting default ServiceCIDR: %v", err)
 		}
 
-		ginkgo.By("patching")
-		patchedServiceCIDR, err := f.ClientSet.NetworkingV1().ServiceCIDRs().Patch(ctx, defaultservicecidr.DefaultServiceCIDRName, types.MergePatchType, []byte(`{"metadata":{"annotations":{"patched":"true"}}}`), metav1.PatchOptions{})
+		ginkgo.By("getting /status")
+		resource := networkingv1.SchemeGroupVersion.WithResource("servicecidrs")
+		gottenStatus, err := f.DynamicClient.Resource(resource).Get(ctx, defaultservicecidr.DefaultServiceCIDRName, metav1.GetOptions{}, "status")
 		if err != nil {
-			framework.Failf("unexpected error patching IPAddress: %v", err)
+			framework.Failf("unexpected error getting default ServiceCIDR status: %v", err)
 		}
-		if v, ok := patchedServiceCIDR.Annotations["patched"]; !ok || v != "true" {
-			framework.Failf("patched object should have the applied annotation")
+		if gottenStatus.GetObjectKind().GroupVersionKind() != networkingv1.SchemeGroupVersion.WithKind("ServiceCIDR") {
+			framework.Failf("unexpected GVK got %v expected: %v", gottenStatus.GetObjectKind().GroupVersionKind(), networkingv1.SchemeGroupVersion.WithKind("ServiceCIDR"))
 		}
-
-		ginkgo.By("updating")
-		var cidrToUpdate, updatedCIDR *networkingv1.ServiceCIDR
-		err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-			cidrToUpdate, err = f.ClientSet.NetworkingV1().ServiceCIDRs().Get(ctx, defaultservicecidr.DefaultServiceCIDRName, metav1.GetOptions{})
-			if err != nil {
-				return err
-			}
-			cidrToUpdate.Annotations["updated"] = "true"
-			updatedCIDR, err = f.ClientSet.NetworkingV1().ServiceCIDRs().Update(ctx, cidrToUpdate, metav1.UpdateOptions{})
-			return err
-		})
-		if err != nil {
-			framework.Failf("unexpected error updating IPAddress: %v", err)
-		}
-		if v, ok := updatedCIDR.Annotations["updated"]; !ok || v != "true" {
-			framework.Failf("updated object should have the applied annotation")
+		if gottenStatus.GetUID() != defaultServiceCIDR.GetUID() {
+			framework.Failf("unexpected UID got %v expected: %v", gottenStatus.GetUID(), defaultServiceCIDR.GetUID())
 		}
 
 		ginkgo.By("listing")

@@ -41,6 +41,7 @@ type AzureProviderSpecBuilder struct {
 	vmSize               string
 	zone                 string
 	subnet               string
+	image                machinev1beta1.Image
 }
 
 // Build builds a new Azure machine config based on the configuration provided.
@@ -118,5 +119,11 @@ func (m AzureProviderSpecBuilder) WithZone(az string) AzureProviderSpecBuilder {
 // WithZone sets the availabilityZone for the Azure machine config builder.
 func (m AzureProviderSpecBuilder) WithSubnet(subnet string) AzureProviderSpecBuilder {
 	m.subnet = subnet
+	return m
+}
+
+// WithImage sets the image for the Azure machine config builder.
+func (m AzureProviderSpecBuilder) WithImage(image machinev1beta1.Image) AzureProviderSpecBuilder {
+	m.image = image
 	return m
 }

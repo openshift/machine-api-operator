@@ -393,8 +393,6 @@ func (optr *Operator) handleSyncResult(result reconcile.Result, err error, key s
 		// to result.RequestAfter
 		optr.queue.Forget(key)
 		optr.queue.AddAfter(key, result.RequeueAfter)
-	case result.Requeue:
-		optr.queue.AddRateLimited(key)
 	default:
 		// Finally, if no error occurs we Forget this item so it does not
 		// get queued again until another change happens.

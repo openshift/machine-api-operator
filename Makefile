@@ -5,7 +5,7 @@ MUTABLE_TAG ?= latest
 IMAGE        = $(REGISTRY)machine-api-operator
 BUILD_IMAGE ?= registry.ci.openshift.org/openshift/release:golang-1.24
 GOLANGCI_LINT = go run ./vendor/github.com/golangci/golangci-lint/cmd/golangci-lint
-ENVTEST_K8S_VERSION = 1.33.2
+ENVTEST_K8S_VERSION = 1.34.1
 
 # Enable go modules and vendoring
 # https://github.com/golang/go/wiki/Modules#how-to-install-and-activate-module-support

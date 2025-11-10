@@ -307,7 +307,7 @@ func TestReconcile(t *testing.T) {
 			node:    nodeHealthy,
 			mhc:     machineHealthCheck,
 			expected: expectedReconcile{
-				result: reconcile.Result{Requeue: true},
+				result: reconcile.Result{},
 				error:  false,
 			},
 			expectedEvents: []string{},
@@ -327,7 +327,6 @@ func TestReconcile(t *testing.T) {
 			mhc:     machineHealthCheck,
 			expected: expectedReconcile{
 				result: reconcile.Result{
-					Requeue:      true,
 					RequeueAfter: 300 * time.Second,
 				},
 				error: false,
@@ -465,7 +464,7 @@ func TestReconcile(t *testing.T) {
 			mhc:     machineHealthCheckNegativeMaxUnhealthy,
 			expected: expectedReconcile{
 				result: reconcile.Result{
-					Requeue: true,
+					RequeueAfter: defaultRequeueAfter,
 				},
 				error: false,
 			},
@@ -1159,7 +1158,6 @@ func TestGetTargetsFromMHC(t *testing.T) {
 			machines: []*machinev1.Machine{
 				machine1,
 				{
-					TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations:     make(map[string]string),
 						Name:            "noMatch",
@@ -1180,10 +1178,6 @@ func TestGetTargetsFromMHC(t *testing.T) {
 						},
 						Labels: map[string]string{},
 					},
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "Node",
-						APIVersion: "v1",
-					},
 					Status: corev1.NodeStatus{
 						Conditions: []corev1.NodeCondition{},
 					},
@@ -1196,9 +1190,6 @@ func TestGetTargetsFromMHC(t *testing.T) {
 							machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "match2"),
 						},
 						Labels: map[string]string{},
-					},
-					TypeMeta: metav1.TypeMeta{
-						Kind: "Node",
 					},
 					Status: corev1.NodeStatus{
 						Conditions: []corev1.NodeCondition{},
@@ -1219,10 +1210,6 @@ func TestGetTargetsFromMHC(t *testing.T) {
 							Labels: map[string]string{},
 							// the following line is to account for a change in the fake client, see https://github.com/kubernetes-sigs/controller-runtime/pull/1306
 							ResourceVersion: "999",
-						},
-						TypeMeta: metav1.TypeMeta{
-							Kind:       "Node",
-							APIVersion: "v1",
 						},
 						Status: corev1.NodeStatus{
 							Conditions: []corev1.NodeCondition{},
@@ -1248,10 +1235,6 @@ func TestGetTargetsFromMHC(t *testing.T) {
 						},
 						Labels: map[string]string{},
 					},
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "Node",
-						APIVersion: "v1",
-					},
 					Status: corev1.NodeStatus{
 						Conditions: []corev1.NodeCondition{},
 					},
@@ -1264,10 +1247,6 @@ func TestGetTargetsFromMHC(t *testing.T) {
 							machineAnnotationKey: fmt.Sprintf("%s/%s", namespace, "match2"),
 						},
 						Labels: map[string]string{},
-					},
-					TypeMeta: metav1.TypeMeta{
-						Kind:       "Node",
-						APIVersion: "v1",
 					},
 					Status: corev1.NodeStatus{
 						Conditions: []corev1.NodeCondition{},
@@ -1289,10 +1268,6 @@ func TestGetTargetsFromMHC(t *testing.T) {
 							// the following line is to account for a change in the fake client, see https://github.com/kubernetes-sigs/controller-runtime/pull/1306
 							ResourceVersion: "999",
 						},
-						TypeMeta: metav1.TypeMeta{
-							Kind:       "Node",
-							APIVersion: "v1",
-						},
 						Status: corev1.NodeStatus{
 							Conditions: []corev1.NodeCondition{},
 						},
@@ -1312,10 +1287,6 @@ func TestGetTargetsFromMHC(t *testing.T) {
 							// the following line is to account for a change in the fake client, see https://github.com/kubernetes-sigs/controller-runtime/pull/1306
 							ResourceVersion: "999",
 						},
-						TypeMeta: metav1.TypeMeta{
-							Kind:       "Node",
-							APIVersion: "v1",
-						},
 						Status: corev1.NodeStatus{
 							Conditions: []corev1.NodeCondition{},
 						},
@@ -1328,7 +1299,6 @@ func TestGetTargetsFromMHC(t *testing.T) {
 			mhc:      mhc,
 			machines: []*machinev1.Machine{
 				{
-					TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 					ObjectMeta: metav1.ObjectMeta{
 						Annotations:     make(map[string]string),
 						Name:            "noNodeRef",
@@ -1345,7 +1315,6 @@ func TestGetTargetsFromMHC(t *testing.T) {
 				{
 					MHC: *mhc,
 					Machine: machinev1.Machine{
-						TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 						ObjectMeta: metav1.ObjectMeta{
 							Annotations:     make(map[string]string),
 							Name:            "noNodeRef",
@@ -1416,7 +1385,6 @@ func TestGetNodeFromMachine(t *testing.T) {
 		{
 			testCase: "match",
 			machine: &machinev1.Machine{
-				TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations:     make(map[string]string),
 					Name:            "machine",
@@ -1441,10 +1409,6 @@ func TestGetNodeFromMachine(t *testing.T) {
 					},
 					Labels: map[string]string{},
 				},
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "Node",
-					APIVersion: "v1",
-				},
 				Status: corev1.NodeStatus{
 					Conditions: []corev1.NodeCondition{},
 				},
@@ -1460,10 +1424,6 @@ func TestGetNodeFromMachine(t *testing.T) {
 					// the following line is to account for a change in the fake client, see https://github.com/kubernetes-sigs/controller-runtime/pull/1306
 					ResourceVersion: "999",
 				},
-				TypeMeta: metav1.TypeMeta{
-					Kind:       "Node",
-					APIVersion: "v1",
-				},
 				Status: corev1.NodeStatus{
 					Conditions: []corev1.NodeCondition{},
 				},
@@ -1473,7 +1433,6 @@ func TestGetNodeFromMachine(t *testing.T) {
 		{
 			testCase: "no nodeRef",
 			machine: &machinev1.Machine{
-				TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations:     make(map[string]string),
 					Name:            "machine",
@@ -1493,9 +1452,6 @@ func TestGetNodeFromMachine(t *testing.T) {
 					},
 					Labels: map[string]string{},
 				},
-				TypeMeta: metav1.TypeMeta{
-					Kind: "Node",
-				},
 				Status: corev1.NodeStatus{
 					Conditions: []corev1.NodeCondition{},
 				},
@@ -1506,7 +1462,6 @@ func TestGetNodeFromMachine(t *testing.T) {
 		{
 			testCase: "node not found",
 			machine: &machinev1.Machine{
-				TypeMeta: metav1.TypeMeta{Kind: "Machine"},
 				ObjectMeta: metav1.ObjectMeta{
 					Annotations:     make(map[string]string),
 					Name:            "machine",
@@ -3119,8 +3074,9 @@ func assertBaseReconcile(t *testing.T, tc testCase, ctx context.Context, r *Reco
 	}
 
 	if result != tc.expected.result {
-		if tc.expected.result.Requeue {
-			before := tc.expected.result.RequeueAfter
+		if tc.expected.result.RequeueAfter > 0 {
+			// Allow 1 second tolerance on both sides to account for timing variations during test execution
+			before := tc.expected.result.RequeueAfter - time.Second
 			after := tc.expected.result.RequeueAfter + time.Second
 			if after < result.RequeueAfter || before > result.RequeueAfter {
 				t.Errorf("Test case: %s. Expected RequeueAfter between: %v and %v, got: %v", tc.node.Name, before, after, result)

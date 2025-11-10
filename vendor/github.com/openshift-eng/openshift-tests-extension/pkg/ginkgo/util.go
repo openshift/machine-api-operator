@@ -1,6 +1,7 @@
 package ginkgo
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -35,6 +36,7 @@ func configureGinkgo() (*types.SuiteConfig, *types.ReporterConfig, error) {
 
 	// Write output to Stderr
 	ginkgo.GinkgoWriter = ginkgo.NewWriter(os.Stderr)
+	ginkgo.GinkgoLogr = GinkgoLogrFunc(ginkgo.GinkgoWriter)
 
 	gomega.RegisterFailHandler(ginkgo.Fail)
 
@@ -69,7 +71,7 @@ func BuildExtensionTestSpecsFromOpenShiftGinkgoSuite(selectFns ...ext.SelectFunc
 			Labels:        sets.New[string](spec.Labels()...),
 			CodeLocations: codeLocations,
 			Lifecycle:     GetLifecycle(spec.Labels()),
-			Run: func() *ext.ExtensionTestResult {
+			Run: func(ctx context.Context) *ext.ExtensionTestResult {
 				enforceSerialExecutionForGinkgo.Lock()
 				defer enforceSerialExecutionForGinkgo.Unlock()
 
@@ -94,7 +96,7 @@ func BuildExtensionTestSpecsFromOpenShiftGinkgoSuite(selectFns ...ext.SelectFunc
 				switch {
 				case summary.State == types.SpecStatePassed:
 					result.Result = ext.ResultPassed
-				case summary.State == types.SpecStateSkipped:
+				case summary.State == types.SpecStateSkipped, summary.State == types.SpecStatePending:
 					result.Result = ext.ResultSkipped
 					if len(summary.Failure.Message) > 0 {
 						result.Output = fmt.Sprintf(
@@ -113,7 +115,7 @@ func BuildExtensionTestSpecsFromOpenShiftGinkgoSuite(selectFns ...ext.SelectFunc
 							summary.Failure.ForwardedPanic,
 						)
 					}
-				case summary.State == types.SpecStateFailed, summary.State == types.SpecStatePanicked, summary.State == types.SpecStateInterrupted:
+				case summary.State == types.SpecStateFailed, summary.State == types.SpecStatePanicked, summary.State == types.SpecStateInterrupted, summary.State == types.SpecStateAborted:
 					result.Result = ext.ResultFailed
 					var errors []string
 					if len(summary.Failure.ForwardedPanic) > 0 {
@@ -124,11 +126,26 @@ func BuildExtensionTestSpecsFromOpenShiftGinkgoSuite(selectFns ...ext.SelectFunc
 					}
 					errors = append(errors, fmt.Sprintf("fail [%s:%d]: %s", lastFilenameSegment(summary.Failure.Location.FileName), summary.Failure.Location.LineNumber, summary.Failure.Message))
 					result.Error = strings.Join(errors, "\n")
+				case summary.State == types.SpecStateTimedout:
+					result.Result = ext.ResultFailed
+					var errors []string
+					for _, additionalFailure := range summary.AdditionalFailures {
+						collectAdditionalFailures(&errors, "  ", additionalFailure.Failure)
+					}
+					if summary.Failure.AdditionalFailure != nil {
+						collectAdditionalFailures(&errors, "  ", summary.Failure.AdditionalFailure.Failure)
+					}
+					errors = append(errors, fmt.Sprintf("fail [%s:%d]: %s", lastFilenameSegment(summary.Failure.Location.FileName), summary.Failure.Location.LineNumber, summary.Failure.Message))
+					result.Error = strings.Join(errors, "\n")
 				default:
 					panic(fmt.Sprintf("test produced unknown outcome: %#v", summary))
 				}
 
 				return result
+			},
+			RunParallel: func(ctx context.Context) *ext.ExtensionTestResult {
+				// TODO pass through timeout and determine Lifecycle
+				return SpawnProcessToRunTest(ctx, name, 90*time.Minute)
 			},
 		}
 		specs = append(specs, testCase)
@@ -191,4 +208,22 @@ func lastFilenameSegment(filename string) string {
 		return parts[len(parts)-1]
 	}
 	return filename
+}
+
+func collectAdditionalFailures(errors *[]string, suffix string, failure types.Failure) {
+	if failure.IsZero() {
+		return
+	}
+
+	if len(failure.ForwardedPanic) > 0 {
+		if len(failure.Location.FullStackTrace) > 0 {
+			*errors = append(*errors, fmt.Sprintf("\n%s\n", failure.Location.FullStackTrace))
+		}
+		*errors = append(*errors, fmt.Sprintf("fail [%s:%d]: Test Panicked: %s%s", lastFilenameSegment(failure.Location.FileName), failure.Location.LineNumber, failure.ForwardedPanic, suffix))
+	}
+	*errors = append(*errors, fmt.Sprintf("fail [%s:%d] %s%s", lastFilenameSegment(failure.Location.FileName), failure.Location.LineNumber, failure.Message, suffix))
+
+	if failure.AdditionalFailure != nil {
+		collectAdditionalFailures(errors, "  ", failure.AdditionalFailure.Failure)
+	}
 }
