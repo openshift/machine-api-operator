@@ -594,15 +594,10 @@ func (r *Reconciler) reconcileRegionAndZoneLabels(vm *virtualMachine) error {
 	regionLabel := r.vSphereConfig.Labels.Region
 	zoneLabel := r.vSphereConfig.Labels.Zone
 
-	var res map[string]string
-
-	err := r.session.WithCachingTagsManager(vm.Context, func(c *session.CachingTagsManager) error {
-		var err error
-		res, err = vm.getRegionAndZone(c, regionLabel, zoneLabel)
-
-		return err
-	})
-
+	// Use cached tag manager to avoid creating new REST sessions.
+	// This eliminates excessive vCenter login/logout cycles.
+	tagManager := r.session.GetCachingTagsManager()
+	res, err := vm.getRegionAndZone(tagManager, regionLabel, zoneLabel)
 	if err != nil {
 		return err
 	}
@@ -1599,32 +1594,29 @@ func (vm *virtualMachine) getPowerState() (types.VirtualMachinePowerState, error
 // reconcileTags ensures that the required tags are present on the virtual machine, eg the Cluster ID
 // that is used by the installer on cluster deletion to ensure ther are no leaked resources.
 func (vm *virtualMachine) reconcileTags(ctx context.Context, sessionInstance *session.Session, machine *machinev1.Machine, providerSpec *machinev1.VSphereMachineProviderSpec) error {
-	if err := sessionInstance.WithCachingTagsManager(vm.Context, func(c *session.CachingTagsManager) error {
-		klog.Infof("%v: Reconciling attached tags", machine.GetName())
+	// Use cached tag manager to avoid creating new REST sessions.
+	// This eliminates excessive vCenter login/logout cycles.
+	tagManager := sessionInstance.GetCachingTagsManager()
+	klog.Infof("%v: Reconciling attached tags", machine.GetName())
 
-		clusterID := machine.Labels[machinev1.MachineClusterIDLabel]
-		tagIDs := []string{clusterID}
-		tagIDs = append(tagIDs, providerSpec.TagIDs...)
-		klog.Infof("%v: Reconciling %s tags to vm", machine.GetName(), tagIDs)
-		for _, tagID := range tagIDs {
-			attached, err := vm.checkAttachedTag(ctx, tagID, c)
-			if err != nil {
+	clusterID := machine.Labels[machinev1.MachineClusterIDLabel]
+	tagIDs := []string{clusterID}
+	tagIDs = append(tagIDs, providerSpec.TagIDs...)
+	klog.Infof("%v: Reconciling %s tags to vm", machine.GetName(), tagIDs)
+	for _, tagID := range tagIDs {
+		attached, err := vm.checkAttachedTag(ctx, tagID, tagManager)
+		if err != nil {
+			return err
+		}
+
+		if !attached {
+			klog.Infof("%v: Attaching %s tag to vm", machine.GetName(), tagID)
+			// the tag should already be created by installer or the administrator
+			if err := tagManager.AttachTag(ctx, tagID, vm.Ref); err != nil {
 				return err
 			}
-
-			if !attached {
-				klog.Infof("%v: Attaching %s tag to vm", machine.GetName(), tagID)
-				// the tag should already be created by installer or the administrator
-				if err := c.AttachTag(ctx, tagID, vm.Ref); err != nil {
-					return err
-				}
-			}
 		}
-		return nil
-	}); err != nil {
-		return err
 	}
-
 	return nil
 }
 
