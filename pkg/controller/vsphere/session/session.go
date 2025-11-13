@@ -46,10 +46,14 @@ const (
 )
 
 // Session is a vSphere session with a configured Finder.
+// This implementation is inspired by cluster-api-provider-vsphere's session caching pattern
+// to avoid excessive vCenter login/logout cycles for REST API operations.
+// Reference: https://github.com/kubernetes-sigs/cluster-api-provider-vsphere/blob/main/pkg/session/session.go
 type Session struct {
 	*govmomi.Client
 	Finder     *find.Finder
 	Datacenter *object.Datacenter
+	TagManager *tags.Manager
 
 	username string
 	password string
@@ -80,12 +84,39 @@ func GetOrCreate(
 
 	sessionKey := server + username + datacenter
 	if session, ok := sessionCache[sessionKey]; ok {
+		// Check both SOAP and REST session validity before reusing cached session.
+		// This prevents reusing sessions where one connection type has expired.
+		// Pattern adapted from cluster-api-provider-vsphere:
+		// https://github.com/kubernetes-sigs/cluster-api-provider-vsphere/blob/main/pkg/session/session.go#L132-L149
 		sessionActive, err := session.SessionManager.SessionIsActive(ctx)
 		if err != nil {
-			klog.Errorf("Error performing session check request to vSphere: %v", err)
+			klog.Errorf("Error performing SOAP session check request to vSphere: %v", err)
 		}
-		if sessionActive {
+
+		var restSessionActive bool
+		if session.TagManager != nil {
+			restSession, err := session.TagManager.Session(ctx)
+			if err != nil {
+				klog.Errorf("Error performing REST session check request to vSphere: %v", err)
+			}
+			restSessionActive = restSession != nil
+		}
+
+		if sessionActive && restSessionActive {
+			klog.V(3).Infof("Found active cached vSphere session with valid SOAP and REST connections")
 			return &session, nil
+		}
+
+		// If either session is invalid, logout both to clean up
+		if session.TagManager != nil {
+			klog.Infof("Logging out inactive REST session")
+			if err := session.TagManager.Logout(ctx); err != nil {
+				klog.Errorf("Failed to logout REST session: %v", err)
+			}
+		}
+		klog.Infof("Logging out inactive SOAP session")
+		if err := session.Client.Logout(ctx); err != nil {
+			klog.Errorf("Failed to logout SOAP session: %v", err)
 		}
 	}
 	klog.Infof("No existing vCenter soap session found, creating new session")
@@ -126,6 +157,20 @@ func GetOrCreate(
 	}
 	session.Datacenter = dc
 	session.Finder.SetDatacenter(dc)
+
+	// Create and cache REST client for tag operations.
+	// This prevents creating a new REST session on every tag operation.
+	// Pattern adapted from cluster-api-provider-vsphere:
+	// https://github.com/kubernetes-sigs/cluster-api-provider-vsphere/blob/main/pkg/session/session.go#L196-L205
+	restClient := rest.NewClient(session.Client.Client)
+	if err := restClient.Login(ctx, url.UserPassword(username, password)); err != nil {
+		// Cleanup SOAP session on REST login failure
+		if logoutErr := client.Logout(ctx); logoutErr != nil {
+			klog.Errorf("Failed to logout SOAP session after REST login failure: %v", logoutErr)
+		}
+		return nil, fmt.Errorf("unable to login REST client to vCenter: %w", err)
+	}
+	session.TagManager = tags.NewManager(restClient)
 
 	// Cache the session.
 	sessionCache[sessionKey] = session
@@ -206,7 +251,21 @@ func (s *Session) GetTask(ctx context.Context, taskRef string) (*mo.Task, error)
 	return &obj, nil
 }
 
+// GetCachingTagsManager returns a CachingTagsManager that wraps the cached TagManager.
+// This replaces the previous WithCachingTagsManager pattern which created new sessions
+// on every call. The returned manager uses the session's cached REST client.
+func (s *Session) GetCachingTagsManager() *CachingTagsManager {
+	return newTagsCachingClient(s.TagManager, s.sessionKey)
+}
+
+// WithRestClient is deprecated. Use s.TagManager directly instead.
+// This function is maintained for backward compatibility but creates excessive
+// vCenter login/logout cycles. Migration path: replace callback pattern with
+// direct access to s.TagManager.
+//
+// Deprecated: Use s.TagManager for direct REST client access.
 func (s *Session) WithRestClient(ctx context.Context, f func(c *rest.Client) error) error {
+	klog.Warning("WithRestClient is deprecated and causes excessive vCenter logouts. Use s.TagManager directly instead.")
 	c := rest.NewClient(s.Client.Client)
 
 	user := url.UserPassword(s.username, s.password)
@@ -223,7 +282,14 @@ func (s *Session) WithRestClient(ctx context.Context, f func(c *rest.Client) err
 	return f(c)
 }
 
+// WithCachingTagsManager is deprecated. Use s.GetCachingTagsManager() instead.
+// This function is maintained for backward compatibility but creates excessive
+// vCenter login/logout cycles. Migration path: replace callback pattern with
+// direct call to s.GetCachingTagsManager().
+//
+// Deprecated: Use s.GetCachingTagsManager() for cached tag manager access.
 func (s *Session) WithCachingTagsManager(ctx context.Context, f func(m *CachingTagsManager) error) error {
+	klog.Warning("WithCachingTagsManager is deprecated and causes excessive vCenter logouts. Use s.GetCachingTagsManager() instead.")
 	c := rest.NewClient(s.Client.Client)
 
 	klog.Infof("No existing vCenter rest session found, creating new session")
