@@ -6,9 +6,10 @@ go 1.24.0
 // an API yet we can leverage so that I do not have to copy what openshift/kubernetes/openshift-hack/cmd/k8s-tests-ext did to initialize.
 replace (
 	github.com/onsi/ginkgo/v2 => github.com/openshift/onsi-ginkgo/v2 v2.6.1-0.20251001123353-fd5b1fb35db1
-	k8s.io/apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/apiserver v0.0.0-20251015171918-61114aa5a292 // openshift kubernetes has very old copy of k8s.io/kubernetes/pkg/kubelet/server/server.go
-	k8s.io/kubelet => github.com/openshift/kubernetes/staging/src/k8s.io/kubelet v0.0.0-20251015171918-61114aa5a292 // openshift kubernetes has very old copy of k8s.io/kubernetes/cmd/kubelet/app/options/options.go
-	k8s.io/kubernetes => github.com/openshift/kubernetes v1.30.1-0.20251027205255-4e0347881cbd
+// I was able to remove the following by removing the namespace checking logic of OTE.  Current assumption is origin is making sure all permissions are set before launching OTE.
+//k8s.io/apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/apiserver v0.0.0-20250716113245-b94367cabf3e // openshift kubernetes has very old copy of k8s.io/kubernetes/pkg/kubelet/server/server.go
+//k8s.io/kubelet => github.com/openshift/kubernetes/staging/src/k8s.io/kubelet v0.0.0-20250716113245-b94367cabf3e // openshift kubernetes has very old copy of k8s.io/kubernetes/cmd/kubelet/app/options/options.go:
+//k8s.io/kubernetes => github.com/openshift/kubernetes v1.30.1-0.20250716113245-b94367cabf3e //v1.30.1-0.20250704150419-38c60a516ecb
 )
 
 require (
@@ -19,7 +20,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.27.2
 	github.com/onsi/gomega v1.38.2
 	github.com/openshift-eng/openshift-tests-extension v0.0.0-20251105193959-75a0be5d9bd7
-	github.com/openshift/api v0.0.0-20251106190826-ebe535b08719
+	github.com/openshift/api v0.0.0-20251111193948-50e2ece149d7
 	github.com/openshift/client-go v0.0.0-20251015124057-db0dee36e235
 	github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20250910145856-21d03d30056d
 	github.com/openshift/cluster-control-plane-machine-set-operator v0.0.0-20251029084908-344babe6a957
@@ -127,7 +128,6 @@ require (
 	github.com/evanphx/json-patch v5.9.0+incompatible // indirect
 	github.com/evanphx/json-patch/v5 v5.9.11 // indirect
 	github.com/exponent-io/jsonpath v0.0.0-20210407135951-1de76d718b3f // indirect
-	github.com/fatih/camelcase v1.0.0 // indirect
 	github.com/fatih/color v1.18.0 // indirect
 	github.com/fatih/structtag v1.2.0 // indirect
 	github.com/felixge/httpsnoop v1.0.4 // indirect
@@ -237,10 +237,9 @@ require (
 	github.com/nishanths/predeclared v0.2.2 // indirect
 	github.com/nunnatsa/ginkgolinter v0.19.1 // indirect
 	github.com/olekukonko/tablewriter v0.0.5 // indirect
-	github.com/opencontainers/cgroups v0.0.3 // indirect
+	github.com/opencontainers/cgroups v0.0.1 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
-	github.com/opencontainers/runc v1.2.5 // indirect
 	github.com/opencontainers/runtime-spec v1.2.0 // indirect
 	github.com/opencontainers/selinux v1.11.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
@@ -315,7 +314,6 @@ require (
 	go.opentelemetry.io/otel/sdk v1.34.0 // indirect
 	go.opentelemetry.io/otel/trace v1.35.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.5.0 // indirect
-	go.uber.org/atomic v1.11.0 // indirect
 	go.uber.org/automaxprocs v1.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
@@ -339,7 +337,6 @@ require (
 	google.golang.org/grpc v1.72.1 // indirect
 	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
-	gopkg.in/go-jose/go-jose.v2 v2.6.3 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
@@ -349,7 +346,6 @@ require (
 	k8s.io/apiextensions-apiserver v0.34.1 // indirect
 	k8s.io/cli-runtime v0.34.1 // indirect
 	k8s.io/cloud-provider v0.32.0 // indirect
-	k8s.io/cluster-bootstrap v0.32.3 // indirect
 	k8s.io/component-helpers v0.34.1 // indirect
 	k8s.io/controller-manager v0.32.1 // indirect
 	k8s.io/cri-api v0.34.1 // indirect

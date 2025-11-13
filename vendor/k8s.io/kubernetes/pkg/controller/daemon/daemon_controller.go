@@ -122,13 +122,7 @@ type DaemonSetsController struct {
 	nodeLister corelisters.NodeLister
 	// nodeStoreSynced returns true if the node store has been synced at least once.
 	// Added as a member to the struct to allow injection for testing.
-	nodeStoreSynced                    cache.InformerSynced
-	namespaceLister                    corelisters.NamespaceLister
-	namespaceStoreSynced               cache.InformerSynced
-	openshiftDefaultNodeSelectorString string
-	openshiftDefaultNodeSelector       labels.Selector
-	kubeDefaultNodeSelectorString      string
-	kubeDefaultNodeSelector            labels.Selector
+	nodeStoreSynced cache.InformerSynced
 
 	// DaemonSet keys that need to be synced.
 	queue workqueue.TypedRateLimitingInterface[string]
@@ -318,11 +312,6 @@ func (dsc *DaemonSetsController) Run(ctx context.Context, workers int) {
 
 	if !cache.WaitForNamedCacheSync("daemon sets", ctx.Done(), dsc.podStoreSynced, dsc.nodeStoreSynced, dsc.historyStoreSynced, dsc.dsStoreSynced) {
 		return
-	}
-	if dsc.namespaceStoreSynced != nil {
-		if !cache.WaitForNamedCacheSync("daemon sets", ctx.Done(), dsc.namespaceStoreSynced) {
-			return
-		}
 	}
 
 	for i := 0; i < workers; i++ {
@@ -797,7 +786,7 @@ func (dsc *DaemonSetsController) podsShouldBeOnNode(
 	hash string,
 ) (nodesNeedingDaemonPods, podsToDelete []string) {
 
-	shouldRun, shouldContinueRunning := dsc.nodeShouldRunDaemonPod(node, ds)
+	shouldRun, shouldContinueRunning := NodeShouldRunDaemonPod(node, ds)
 	daemonPods, exists := nodeToDaemonPods[node.Name]
 
 	switch {
@@ -1152,7 +1141,7 @@ func (dsc *DaemonSetsController) updateDaemonSetStatus(ctx context.Context, ds *
 	var desiredNumberScheduled, currentNumberScheduled, numberMisscheduled, numberReady, updatedNumberScheduled, numberAvailable int
 	now := dsc.failedPodsBackoff.Clock.Now()
 	for _, node := range nodeList {
-		shouldRun, _ := dsc.nodeShouldRunDaemonPod(node, ds)
+		shouldRun, _ := NodeShouldRunDaemonPod(node, ds)
 		scheduled := len(nodeToDaemonPods[node.Name]) > 0
 
 		if shouldRun {
@@ -1447,7 +1436,7 @@ func (dsc *DaemonSetsController) syncNodeUpdate(ctx context.Context, nodeName st
 	}
 
 	for _, ds := range dsList {
-		shouldRun, shouldContinueRunning := dsc.nodeShouldRunDaemonPod(node, ds)
+		shouldRun, shouldContinueRunning := NodeShouldRunDaemonPod(node, ds)
 
 		dsKey, err := controller.KeyFunc(ds)
 		if err != nil {

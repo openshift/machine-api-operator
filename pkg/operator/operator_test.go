@@ -45,6 +45,7 @@ var (
 		{Name: apifeatures.FeatureGateAzureWorkloadIdentity},
 		{Name: apifeatures.FeatureGateVSphereMultiDisk},
 		{Name: apifeatures.FeatureGateVSphereHostVMGroupZonal},
+		{Name: apifeatures.FeatureGateAWSDedicatedHosts},
 	}
 
 	enabledFeatureMap = map[string]bool{
@@ -52,6 +53,7 @@ var (
 		"AzureWorkloadIdentity":   true,
 		"VSphereMultiDisk":        true,
 		"VSphereHostVMGroupZonal": true,
+		"AWSDedicatedHosts":       true,
 	}
 )
 

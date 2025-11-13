@@ -340,9 +340,7 @@ func validateText(location types.CodeLocation, text string, labels []string) {
 }
 
 func recordTextBug(location types.CodeLocation, message string) {
-	// TODO(soltysh): we need to figure out how we want to handle labels
-	// https://issues.redhat.com/browse/OCPBUGS-25641
-	// RecordBug(Bug{FileName: location.FileName, LineNumber: location.LineNumber, Message: message})
+	RecordBug(Bug{FileName: location.FileName, LineNumber: location.LineNumber, Message: message})
 }
 
 // WithFeature specifies that a certain test or group of tests only works

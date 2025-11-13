@@ -154,7 +154,7 @@ func (a *AdmissionOptions) ApplyTo(
 	discoveryClient := cacheddiscovery.NewMemCacheClient(kubeClient.Discovery())
 	discoveryRESTMapper := restmapper.NewDeferredDiscoveryRESTMapper(discoveryClient)
 	genericInitializer := initializer.New(kubeClient, dynamicClient, informers, c.Authorization.Authorizer, features,
-		c.DrainedNotify(), NewAdmissionRESTMapper(discoveryRESTMapper))
+		c.DrainedNotify(), discoveryRESTMapper)
 	initializersChain := admission.PluginInitializers{genericInitializer}
 	initializersChain = append(initializersChain, pluginInitializers...)
 
