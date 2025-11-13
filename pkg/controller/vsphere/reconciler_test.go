@@ -30,7 +30,6 @@ import (
 
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/simulator"
-	"github.com/vmware/govmomi/vapi/rest"
 	"github.com/vmware/govmomi/vapi/tags"
 	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/mo"
@@ -1666,45 +1665,40 @@ func TestReconcileTags(t *testing.T) {
 				}
 
 				if tc.attachTag {
-					if err := sessionObj.WithCachingTagsManager(context.TODO(), func(tagMgr *session.CachingTagsManager) error {
+					tagMgr := sessionObj.GetCachingTagsManager()
 
-						tags, err := tagMgr.GetAttachedTags(context.TODO(), managedObjRef)
-						if err != nil {
-							return err
-						}
+					tags, err := tagMgr.GetAttachedTags(context.TODO(), managedObjRef)
+					if err != nil {
+						t.Fatal(err)
+					}
 
-						if len(tags) == 0 {
-							t.Fatalf("Expected tags to be found")
-						}
+					if len(tags) == 0 {
+						t.Fatalf("Expected tags to be found")
+					}
 
-						expectedTags := []string{tc.tagName}
-						if len(providerSpec.TagIDs) > 0 {
-							expectedTags = append(expectedTags, providerSpec.TagIDs...)
-						}
+					expectedTags := []string{tc.tagName}
+					if len(providerSpec.TagIDs) > 0 {
+						expectedTags = append(expectedTags, providerSpec.TagIDs...)
+					}
 
-						for _, expectedTag := range expectedTags {
-							gotTag := false
-							for _, attachedTag := range tags {
-								if session.IsName(expectedTag) {
-									if attachedTag.Name == expectedTag {
-										gotTag = true
-										break
-									}
-								} else {
-									if attachedTag.ID == expectedTag {
-										gotTag = true
-										break
-									}
+					for _, expectedTag := range expectedTags {
+						gotTag := false
+						for _, attachedTag := range tags {
+							if session.IsName(expectedTag) {
+								if attachedTag.Name == expectedTag {
+									gotTag = true
+									break
+								}
+							} else {
+								if attachedTag.ID == expectedTag {
+									gotTag = true
+									break
 								}
 							}
-							if !gotTag {
-								t.Fatalf("Expected tag %s to be found", expectedTag)
-							}
 						}
-
-						return nil
-					}); err != nil {
-						t.Fatal(err)
+						if !gotTag {
+							t.Fatalf("Expected tag %s to be found", expectedTag)
+						}
 					}
 				}
 			}
@@ -1730,50 +1724,43 @@ func TestCheckAttachedTag(t *testing.T) {
 	tagName := "CLUSTERID"
 	nonAttachedTagName := "nonAttachedTag"
 
-	if err := sessionObj.WithRestClient(context.TODO(), func(c *rest.Client) error {
-		tagsMgr := tags.NewManager(c)
+	tagsMgr := sessionObj.TagManager
 
-		id, err := tagsMgr.CreateCategory(context.TODO(), &tags.Category{
-			AssociableTypes: []string{"VirtualMachine"},
-			Cardinality:     "SINGLE",
-			Name:            tagToCategoryName(tagName),
-		})
-		if err != nil {
-			return err
-		}
+	id, err := tagsMgr.CreateCategory(context.TODO(), &tags.Category{
+		AssociableTypes: []string{"VirtualMachine"},
+		Cardinality:     "SINGLE",
+		Name:            tagToCategoryName(tagName),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
-		_, err = tagsMgr.CreateTag(context.TODO(), &tags.Tag{
-			CategoryID: id,
-			Name:       tagName,
-		})
-		if err != nil {
-			return err
-		}
+	_, err = tagsMgr.CreateTag(context.TODO(), &tags.Tag{
+		CategoryID: id,
+		Name:       tagName,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
-		if err := tagsMgr.AttachTag(context.TODO(), tagName, vm.Ref); err != nil {
-			return err
-		}
+	if err := tagsMgr.AttachTag(context.TODO(), tagName, vm.Ref); err != nil {
+		t.Fatal(err)
+	}
 
-		nonAttachedCategoryId, err := tagsMgr.CreateCategory(context.TODO(), &tags.Category{
-			AssociableTypes: []string{"VirtualMachine"},
-			Cardinality:     "SINGLE",
-			Name:            tagToCategoryName(nonAttachedTagName),
-		})
+	nonAttachedCategoryId, err := tagsMgr.CreateCategory(context.TODO(), &tags.Category{
+		AssociableTypes: []string{"VirtualMachine"},
+		Cardinality:     "SINGLE",
+		Name:            tagToCategoryName(nonAttachedTagName),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
 
-		if err != nil {
-			return err
-		}
-
-		_, err = tagsMgr.CreateTag(context.TODO(), &tags.Tag{
-			CategoryID: nonAttachedCategoryId,
-			Name:       nonAttachedTagName,
-		})
-		if err != nil {
-			return err
-		}
-
-		return nil
-	}); err != nil {
+	_, err = tagsMgr.CreateTag(context.TODO(), &tags.Tag{
+		CategoryID: nonAttachedCategoryId,
+		Name:       nonAttachedTagName,
+	})
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -1800,20 +1787,15 @@ func TestCheckAttachedTag(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			if err := sessionObj.WithCachingTagsManager(context.TODO(), func(c *session.CachingTagsManager) error {
+			c := sessionObj.GetCachingTagsManager()
 
-				attached, err := vm.checkAttachedTag(context.TODO(), tc.tagName, c)
-				if err != nil {
-					return fmt.Errorf("Not expected error %v", err)
-				}
+			attached, err := vm.checkAttachedTag(context.TODO(), tc.tagName, c)
+			if err != nil {
+				t.Fatalf("Not expected error %v", err)
+			}
 
-				if attached != tc.findTag {
-					return fmt.Errorf("Failed to find attached tag: got %v, expected %v", attached, tc.findTag)
-				}
-
-				return nil
-			}); err != nil {
-				t.Fatal(err)
+			if attached != tc.findTag {
+				t.Fatalf("Failed to find attached tag: got %v, expected %v", attached, tc.findTag)
 			}
 		})
 	}
@@ -3321,21 +3303,15 @@ func TestReconcileMachineWithCloudState(t *testing.T) {
 		t.Fatalf("cannot create tag and category: %v", err)
 	}
 
-	if err := session.WithRestClient(context.TODO(), func(c *rest.Client) error {
-		tagsMgr := tags.NewManager(c)
+	tagsMgr := session.TagManager
 
-		err = tagsMgr.AttachTag(context.TODO(), testZone, cluster.Reference())
-		if err != nil {
-			return err
-		}
+	err = tagsMgr.AttachTag(context.TODO(), testZone, cluster.Reference())
+	if err != nil {
+		t.Fatal(err)
+	}
 
-		err = tagsMgr.AttachTag(context.TODO(), testRegion, dc.Reference())
-		if err != nil {
-			return err
-		}
-
-		return nil
-	}); err != nil {
+	err = tagsMgr.AttachTag(context.TODO(), testRegion, dc.Reference())
+	if err != nil {
 		t.Fatal(err)
 	}
 
@@ -3412,29 +3388,22 @@ func TestReconcileMachineWithCloudState(t *testing.T) {
 }
 
 func createTagAndCategory(session *session.Session, categoryName, tagName string) (string, error) {
-	var tagID string
-	if err := session.WithRestClient(context.TODO(), func(c *rest.Client) error {
-		tagsMgr := tags.NewManager(c)
+	tagsMgr := session.TagManager
 
-		id, err := tagsMgr.CreateCategory(context.TODO(), &tags.Category{
-			AssociableTypes: []string{"VirtualMachine"},
-			Cardinality:     "SINGLE",
-			Name:            categoryName,
-		})
-		if err != nil {
-			return err
-		}
+	id, err := tagsMgr.CreateCategory(context.TODO(), &tags.Category{
+		AssociableTypes: []string{"VirtualMachine"},
+		Cardinality:     "SINGLE",
+		Name:            categoryName,
+	})
+	if err != nil {
+		return "", err
+	}
 
-		tagID, err = tagsMgr.CreateTag(context.TODO(), &tags.Tag{
-			CategoryID: id,
-			Name:       tagName,
-		})
-		if err != nil {
-			return err
-		}
-
-		return nil
-	}); err != nil {
+	tagID, err := tagsMgr.CreateTag(context.TODO(), &tags.Tag{
+		CategoryID: id,
+		Name:       tagName,
+	})
+	if err != nil {
 		return "", err
 	}
 
