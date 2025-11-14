@@ -760,8 +760,8 @@ var (
 					mustRegister()
 
 	FeatureGateAWSDedicatedHosts = newFeatureGate("AWSDedicatedHosts").
-					reportProblemsToJiraComponent("splat").
-					contactPerson("rvanderp3").
+					reportProblemsToJiraComponent("Installer").
+					contactPerson("faermanj").
 					productScope(ocpSpecific).
 					enhancementPR("https://github.com/openshift/enhancements/pull/1781").
 					enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
