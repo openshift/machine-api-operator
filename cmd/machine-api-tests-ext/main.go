@@ -15,6 +15,7 @@ import (
 	"k8s.io/component-base/logs"
 
 	// If using ginkgo, import your tests here
+	_ "github.com/openshift/machine-api-operator/test/e2e/azure"
 	_ "github.com/openshift/machine-api-operator/test/e2e/vsphere"
 )
 
