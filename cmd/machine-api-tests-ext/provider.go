@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,7 +10,10 @@ import (
 
 	"github.com/onsi/ginkgo/v2"
 	"github.com/onsi/gomega"
+	corev1 "k8s.io/api/core/v1"
+	kclientset "k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/kubernetes/openshift-hack/e2e"
 	conformancetestdata "k8s.io/kubernetes/test/conformance/testdata"
 	"k8s.io/kubernetes/test/e2e/framework"
 	"k8s.io/kubernetes/test/e2e/framework/testfiles"
@@ -85,6 +89,11 @@ func initializeTestFramework(provider string) error {
 		return err
 	}
 	testContext.Host = cfg.Host
+
+	// Ensure that Kube tests run privileged (like they do upstream)
+	testContext.CreateTestingNS = func(ctx context.Context, baseName string, c kclientset.Interface, labels map[string]string) (*corev1.Namespace, error) {
+		return e2e.CreateTestingNS(ctx, baseName, c, labels, true)
+	}
 
 	gomega.RegisterFailHandler(ginkgo.Fail)
 

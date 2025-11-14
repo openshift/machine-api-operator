@@ -253,6 +253,9 @@ func NewContainerManager(mountUtil mount.Interface, cadvisorInterface cadvisor.I
 	cgroupRoot := ParseCgroupfsToCgroupName(nodeConfig.CgroupRoot)
 	cgroupManager := NewCgroupManager(subsystems, nodeConfig.CgroupDriver)
 	nodeConfig.CgroupVersion = cgroupManager.Version()
+	if nodeConfig.CPUManagerPolicy == string(cpumanager.PolicyStatic) {
+		cgroupManager.SetCPULoadBalanceDisable()
+	}
 	// Check if Cgroup-root actually exists on the node
 	if nodeConfig.CgroupsPerQOS {
 		// this does default to / when enabled, but this tests against regressions.
@@ -317,7 +320,7 @@ func NewContainerManager(mountUtil mount.Interface, cadvisorInterface cadvisor.I
 		if err != nil {
 			return nil, err
 		}
-		metrics.Register(cm.draManager.NewMetricsCollector())
+		metrics.RegisterCollectors(cm.draManager.NewMetricsCollector())
 	}
 	cm.kubeClient = kubeClient
 

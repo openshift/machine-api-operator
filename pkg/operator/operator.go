@@ -472,7 +472,6 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 	// flags, we selectively populate the map (and therefore passed
 	// as args)
 	features := map[string]bool{
-		string(apifeatures.FeatureGateAWSDedicatedHosts):       featureGates.Enabled(apifeatures.FeatureGateAWSDedicatedHosts),
 		string(apifeatures.FeatureGateMachineAPIMigration):     featureGates.Enabled(apifeatures.FeatureGateMachineAPIMigration),
 		string(apifeatures.FeatureGateAzureWorkloadIdentity):   featureGates.Enabled(apifeatures.FeatureGateAzureWorkloadIdentity),
 		string(apifeatures.FeatureGateVSphereMultiDisk):        featureGates.Enabled(apifeatures.FeatureGateVSphereMultiDisk),
