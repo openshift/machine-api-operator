@@ -45,36 +45,42 @@ func main() {
 		Qualifiers: []string{`labels.exists(l, l == "Serial") && labels.exists(l, l == "Conformance")`},
 	})
 
-	// Build our specs from ginkgo
-	specs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
-	if err != nil {
-		panic(err)
-	}
-
-	// Initialization for kube ginkgo test framework needs to run before all tests execute
-	specs.AddBeforeAll(func() {
-		if err := initializeTestFramework(os.Getenv("TEST_PROVIDER")); err != nil {
+	// Build our specs from ginkgo only when not running a single test
+	// When running in parallel, child processes are spawned with "run-test" command
+	// and should not rebuild the Ginkgo suite tree to avoid "cannot clone suite after tree has been built" error
+	isRunningTest := len(os.Args) > 1 && os.Args[1] == "run-test"
+	if !isRunningTest {
+		// Build our specs from ginkgo
+		specs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
+		if err != nil {
 			panic(err)
 		}
-	})
 
-	// Let's scan for tests with a platform label and create the rule for them such as [platform:vsphere]
-	foundPlatforms := make(map[string]string)
-	for _, test := range specs.Select(extensiontests.NameContains("[platform:")).Names() {
-		re := regexp.MustCompile(`\[platform:[a-z]*]`)
-		match := re.FindStringSubmatch(test)
-		for _, platformDef := range match {
-			if _, ok := foundPlatforms[platformDef]; !ok {
-				platform := platformDef[strings.Index(platformDef, ":")+1 : len(platformDef)-1]
-				foundPlatforms[platformDef] = platform
-				specs.Select(extensiontests.NameContains(platformDef)).
-					Include(extensiontests.PlatformEquals(platform))
+		// Initialization for kube ginkgo test framework needs to run before all tests execute
+		specs.AddBeforeAll(func() {
+			if err := initializeTestFramework(os.Getenv("TEST_PROVIDER")); err != nil {
+				panic(err)
 			}
+		})
+
+		// Let's scan for tests with a platform label and create the rule for them such as [platform:vsphere]
+		foundPlatforms := make(map[string]string)
+		for _, test := range specs.Select(extensiontests.NameContains("[platform:")).Names() {
+			re := regexp.MustCompile(`\[platform:[a-z]*]`)
+			match := re.FindStringSubmatch(test)
+			for _, platformDef := range match {
+				if _, ok := foundPlatforms[platformDef]; !ok {
+					platform := platformDef[strings.Index(platformDef, ":")+1 : len(platformDef)-1]
+					foundPlatforms[platformDef] = platform
+					specs.Select(extensiontests.NameContains(platformDef)).
+						Include(extensiontests.PlatformEquals(platform))
+				}
+			}
+
 		}
 
+		kubeTestsExtension.AddSpecs(specs)
 	}
-
-	kubeTestsExtension.AddSpecs(specs)
 
 	// Cobra stuff
 	root := &cobra.Command{
