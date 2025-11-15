@@ -72,6 +72,8 @@ import (
 	utilflowcontrol "k8s.io/apiserver/pkg/util/flowcontrol"
 	flowcontrolrequest "k8s.io/apiserver/pkg/util/flowcontrol/request"
 	"k8s.io/client-go/informers"
+	"k8s.io/client-go/kubernetes"
+	v1 "k8s.io/client-go/kubernetes/typed/core/v1"
 	restclient "k8s.io/client-go/rest"
 	basecompatibility "k8s.io/component-base/compatibility"
 	"k8s.io/component-base/featuregate"
@@ -288,6 +290,9 @@ type Config struct {
 	// rejected with a 429 status code and a 'Retry-After' response.
 	ShutdownSendRetryAfter bool
 
+	// EventSink receives events about the life cycle of the API server, e.g. readiness, serving, signals and termination.
+	EventSink EventSink
+
 	//===========================================================================
 	// values below here are targets for removal
 	//===========================================================================
@@ -326,6 +331,18 @@ type Config struct {
 	// This grace period is orthogonal to other grace periods, and
 	// it is not overridden by any other grace period.
 	ShutdownWatchTerminationGracePeriod time.Duration
+
+	// SendRetryAfterWhileNotReadyOnce, if enabled, the apiserver will
+	// reject all incoming requests with a 503 status code and a
+	// 'Retry-After' response header until the apiserver has fully
+	// initialized, except for requests from a designated debugger group.
+	// This option ensures that the system stays consistent even when
+	// requests are received before the server has been initialized.
+	// In particular, it prevents child deletion in case of GC or/and
+	// orphaned content in case of the namespaces controller.
+	// NOTE: this option is applicable to Microshift only,
+	//  this should never be enabled for OCP.
+	SendRetryAfterWhileNotReadyOnce bool
 }
 
 type RecommendedConfig struct {
@@ -569,13 +586,27 @@ type CompletedConfig struct {
 func (c *Config) AddHealthChecks(healthChecks ...healthz.HealthChecker) {
 	c.HealthzChecks = append(c.HealthzChecks, healthChecks...)
 	c.LivezChecks = append(c.LivezChecks, healthChecks...)
-	c.ReadyzChecks = append(c.ReadyzChecks, healthChecks...)
+	c.AddReadyzChecks(healthChecks...)
 }
 
 // AddReadyzChecks adds a health check to our config to be exposed by the readyz endpoint
 // of our configured apiserver.
 func (c *Config) AddReadyzChecks(healthChecks ...healthz.HealthChecker) {
-	c.ReadyzChecks = append(c.ReadyzChecks, healthChecks...)
+	// Info(ingvagabund): Explicitly exclude etcd and etcd-readiness checks (OCPBUGS-48177)
+	// and have etcd operator take responsibility for properly reporting etcd readiness.
+	// Justification: kube-apiserver instances get removed from a load balancer when etcd starts
+	// to report not ready (as will KA's /readyz). Client connections can withstand etcd unreadiness
+	// longer than the readiness timeout is. Thus, it is not necessary to drop connections
+	// in case etcd resumes its readiness before a client connection times out naturally.
+	// This is a downstream patch only as OpenShift's way of using etcd is unique.
+	readyzChecks := []healthz.HealthChecker{}
+	for _, check := range healthChecks {
+		if check.Name() == "etcd" || check.Name() == "etcd-readiness" {
+			continue
+		}
+		readyzChecks = append(readyzChecks, check)
+	}
+	c.ReadyzChecks = append(c.ReadyzChecks, readyzChecks...)
 }
 
 // AddPostStartHook allows you to add a PostStartHook that will later be added to the server itself in a New call.
@@ -696,6 +727,11 @@ func (c *Config) ShutdownInitiatedNotify() <-chan struct{} {
 	return c.lifecycleSignals.ShutdownInitiated.Signaled()
 }
 
+// HasBeenReadySignal exposes a server's lifecycle signal which is signaled when the readyz endpoint succeeds for the first time.
+func (c *Config) HasBeenReadySignal() <-chan struct{} {
+	return c.lifecycleSignals.HasBeenReady.Signaled()
+}
+
 // Complete fills in any fields not set that are required to have valid data and can be derived
 // from other fields. If you're going to `ApplyOptions`, do that first. It's mutating the receiver.
 func (c *Config) Complete(informers informers.SharedInformerFactory) CompletedConfig {
@@ -722,6 +758,10 @@ func (c *Config) Complete(informers informers.SharedInformerFactory) CompletedCo
 
 	if c.DiscoveryAddresses == nil {
 		c.DiscoveryAddresses = discovery.DefaultAddresses{DefaultAddress: c.ExternalAddress}
+	}
+
+	if c.EventSink == nil {
+		c.EventSink = nullEventSink{}
 	}
 
 	AuthorizeClientBearerToken(c.LoopbackClientConfig, &c.Authentication, &c.Authorization)
@@ -751,6 +791,22 @@ func (c *Config) Complete(informers informers.SharedInformerFactory) CompletedCo
 // Complete fills in any fields not set that are required to have valid data and can be derived
 // from other fields. If you're going to `ApplyOptions`, do that first. It's mutating the receiver.
 func (c *RecommendedConfig) Complete() CompletedConfig {
+	if c.ClientConfig != nil {
+		ref, err := eventReference()
+		if err != nil {
+			klog.Warningf("Failed to derive event reference, won't create events: %v", err)
+			c.EventSink = nullEventSink{}
+		} else {
+			ns := ref.Namespace
+			if len(ns) == 0 {
+				ns = "default"
+			}
+			c.EventSink = clientEventSink{
+				&v1.EventSinkImpl{Interface: kubernetes.NewForConfigOrDie(c.ClientConfig).CoreV1().Events(ns)},
+			}
+		}
+	}
+
 	return c.Config.Complete(c.SharedInformerFactory)
 }
 
@@ -855,7 +911,19 @@ func (c completedConfig) New(name string, delegationTarget DelegationTarget) (*G
 		FeatureGate:                             c.FeatureGate,
 
 		muxAndDiscoveryCompleteSignals: map[string]<-chan struct{}{},
+
+		OpenShiftGenericAPIServerPatch: OpenShiftGenericAPIServerPatch{
+			eventSink: c.EventSink,
+		},
 	}
+
+	ref, err := eventReference()
+	if err != nil {
+		klog.Warningf("Failed to derive event reference, won't create events: %v", err)
+		s.OpenShiftGenericAPIServerPatch.eventSink = nullEventSink{}
+	}
+	s.RegisterDestroyFunc(c.EventSink.Destroy)
+	s.eventRef = ref
 
 	manager := c.AggregatedDiscoveryGroupManager
 	if manager == nil {
@@ -1029,6 +1097,10 @@ func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
 		handler = genericfilters.WithMaxInFlightLimit(handler, c.MaxRequestsInFlight, c.MaxMutatingRequestsInFlight, c.LongRunningFunc)
 	}
 
+	if c.SendRetryAfterWhileNotReadyOnce {
+		handler = genericfilters.WithNotReady(handler, c.lifecycleSignals.HasBeenReady.Signaled())
+	}
+
 	handler = filterlatency.TrackCompleted(handler)
 	handler = genericapifilters.WithImpersonation(handler, c.Authorization.Authorizer, c.Serializer)
 	handler = filterlatency.TrackStarted(handler, c.TracerProvider, "impersonation")
@@ -1036,6 +1108,8 @@ func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
 	handler = filterlatency.TrackCompleted(handler)
 	handler = genericapifilters.WithAudit(handler, c.AuditBackend, c.AuditPolicyRuleEvaluator, c.LongRunningFunc)
 	handler = filterlatency.TrackStarted(handler, c.TracerProvider, "audit")
+
+	handler = genericfilters.WithStartupEarlyAnnotation(handler, c.lifecycleSignals.HasBeenReady)
 
 	failedHandler := genericapifilters.Unauthorized(c.Serializer)
 	failedHandler = genericapifilters.WithFailedAuthenticationAudit(failedHandler, c.AuditBackend, c.AuditPolicyRuleEvaluator)
@@ -1063,6 +1137,8 @@ func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
 	handler = genericapifilters.WithRequestDeadline(handler, c.AuditBackend, c.AuditPolicyRuleEvaluator,
 		c.LongRunningFunc, c.Serializer, c.RequestTimeout)
 	handler = genericfilters.WithWaitGroup(handler, c.LongRunningFunc, c.NonLongRunningRequestWaitGroup)
+	handler = WithNonReadyRequestLogging(handler, c.lifecycleSignals.HasBeenReady)
+	handler = WithLateConnectionFilter(handler)
 	if c.ShutdownWatchTerminationGracePeriod > 0 {
 		handler = genericfilters.WithWatchTerminationDuringShutdown(handler, c.lifecycleSignals, c.WatchRequestWaitGroup)
 	}
@@ -1074,6 +1150,8 @@ func DefaultBuildHandlerChain(apiHandler http.Handler, c *Config) http.Handler {
 	if c.ShutdownSendRetryAfter {
 		handler = genericfilters.WithRetryAfter(handler, c.lifecycleSignals.NotAcceptingNewRequest.Signaled())
 	}
+	handler = genericfilters.WithOptInRetryAfter(handler, c.newServerFullyInitializedFunc())
+	handler = genericfilters.WithShutdownResponseHeader(handler, c.lifecycleSignals.ShutdownInitiated, c.ShutdownDelayDuration, c.APIServerID)
 	handler = genericfilters.WithHTTPLogging(handler)
 	handler = genericapifilters.WithLatencyTrackers(handler)
 	// WithRoutine will execute future handlers in a separate goroutine and serving

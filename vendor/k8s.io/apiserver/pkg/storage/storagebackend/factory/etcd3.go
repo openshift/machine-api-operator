@@ -39,6 +39,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	"golang.org/x/time/rate"
 	"google.golang.org/grpc"
+	"k8s.io/apiserver/pkg/storage/etcd3/etcd3retry"
 	"k8s.io/klog/v2"
 
 	"k8s.io/apimachinery/pkg/runtime"
@@ -155,13 +156,13 @@ func newETCD3Check(c storagebackend.Config, timeout time.Duration, stopCh <-chan
 	// retry in a loop in the background until we successfully create the client, storing the client or error encountered
 
 	lock := sync.RWMutex{}
-	var prober *etcd3ProberMonitor
+	var prober *etcd3RetryingProberMonitor
 	clientErr := fmt.Errorf("etcd client connection not yet established")
 
 	go wait.PollImmediateUntil(time.Second, func() (bool, error) {
 		lock.Lock()
 		defer lock.Unlock()
-		newProber, err := newETCD3ProberMonitor(c)
+		newProber, err := newRetryingETCD3ProberMonitor(c)
 		// Ensure that server is already not shutting down.
 		select {
 		case <-stopCh:
@@ -455,7 +456,8 @@ func newETCD3Storage(c storagebackend.ConfigForResource, newFunc, newListFunc fu
 		transformer = etcd3.WithCorruptObjErrorHandlingTransformer(transformer)
 		decoder = etcd3.WithCorruptObjErrorHandlingDecoder(decoder)
 	}
-	store := etcd3.New(client, compactor, c.Codec, newFunc, newListFunc, c.Prefix, resourcePrefix, c.GroupResource, transformer, c.LeaseManagerConfig, decoder, versioner)
+	etcd3StorageInterface := etcd3.New(client, compactor, c.Codec, newFunc, newListFunc, c.Prefix, resourcePrefix, c.GroupResource, transformer, c.LeaseManagerConfig, decoder, versioner)
+	store := etcd3retry.NewRetryingEtcdStorage(etcd3StorageInterface)
 	var once sync.Once
 	destroyFunc := func() {
 		// we know that storage destroy funcs are called multiple times (due to reuse in subresources).
@@ -464,7 +466,7 @@ func newETCD3Storage(c storagebackend.ConfigForResource, newFunc, newListFunc fu
 		once.Do(func() {
 			stopCompactor()
 			stopDBSizeMonitor()
-			store.Close()
+			etcd3StorageInterface.Close()
 			_ = client.Close()
 		})
 	}
