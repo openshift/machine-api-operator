@@ -799,32 +799,6 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 
 	// TODO(alberto): Validate providerSpec.BlockDevices.
 	// https://github.com/openshift/cluster-api-provider-aws/pull/299#discussion_r433920532
-	for i, blockDevice := range providerSpec.BlockDevices {
-		ebs := blockDevice.EBS
-		if ebs == nil || ebs.VolumeType == nil || ebs.ThroughputMib == nil {
-			continue
-		}
-
-		throughputPath := field.NewPath("providerSpec", "blockDevices").Index(i).Child("ebs", "throughputMib")
-		throughputValue := *ebs.ThroughputMib
-
-		if *ebs.VolumeType != "gp3" {
-			errs = append(errs, field.Invalid(
-				throughputPath,
-				throughputValue,
-				"only valid for gp3 volumes",
-			))
-			continue
-		}
-
-		if throughputValue < 125 || throughputValue > 2000 {
-			errs = append(errs, field.Invalid(
-				throughputPath,
-				throughputValue,
-				"must be a value between 125 and 2000",
-			))
-		}
-	}
 
 	switch providerSpec.Placement.Tenancy {
 	case "", machinev1beta1.DefaultTenancy, machinev1beta1.DedicatedTenancy, machinev1beta1.HostTenancy:
