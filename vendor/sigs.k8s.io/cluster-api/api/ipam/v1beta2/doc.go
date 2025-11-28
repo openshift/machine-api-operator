@@ -1,5 +1,5 @@
 /*
-Copyright 2017 The Kubernetes Authors.
+Copyright 2025 The Kubernetes Authors.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package api (k8s.io/cluster-bootstrap/token/api) contains constants and types needed for
-// bootstrap tokens as maintained by the BootstrapSigner and TokenCleaner
-// controllers (in k8s.io/kubernetes/pkg/controller/bootstrap)
-package api
+// Package v1beta2 contains API Schema definitions for the v1beta2 IPAM API.
+// +kubebuilder:object:generate=true
+// +groupName=ipam.cluster.x-k8s.io
+package v1beta2
