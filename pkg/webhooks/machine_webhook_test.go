@@ -557,6 +557,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -570,6 +571,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB:  128,
 						CachingType: "ReadOnly",
@@ -587,6 +589,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 						DiskSettings: machinev1beta1.DiskSettings{
@@ -603,6 +606,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB:  128,
 						CachingType: "ReadOnly",
@@ -617,6 +621,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB:  128,
 						CachingType: "INVALID",
@@ -631,6 +636,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB:  128,
 						CachingType: "ReadWrite",
@@ -648,6 +654,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -663,6 +670,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -676,6 +684,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -697,6 +706,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -721,6 +731,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -735,6 +746,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -749,6 +761,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -763,6 +776,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -787,6 +801,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -814,6 +829,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -837,6 +853,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -860,6 +877,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -883,6 +901,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -911,6 +930,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -932,6 +952,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -959,6 +980,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -980,6 +1002,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -1001,6 +1024,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -1028,6 +1052,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -1041,6 +1066,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -1054,6 +1080,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -1066,6 +1093,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -1081,6 +1109,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -1108,6 +1137,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -1134,6 +1164,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -1159,6 +1190,7 @@ func TestMachineCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -1713,7 +1745,10 @@ func TestMachineUpdate(t *testing.T) {
 		Subnet:               defaultAzureSubnet(azureClusterID),
 		NetworkResourceGroup: defaultAzureNetworkResourceGroup(azureClusterID),
 		Image: machinev1beta1.Image{
-			ResourceID: defaultAzureImageResourceID(azureClusterID),
+			Publisher: "test-publisher",
+			Offer:     "test-offer",
+			SKU:       "test-sku",
+			Version:   "test-version",
 		},
 		ManagedIdentity: defaultAzureManagedIdentiy(azureClusterID),
 		ResourceGroup:   defaultAzureResourceGroup(azureClusterID),
@@ -3768,7 +3803,10 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 				Vnet:   defaultAzureVnet(clusterID),
 				Subnet: defaultAzureSubnet(clusterID),
 				Image: machinev1beta1.Image{
-					ResourceID: defaultAzureImageResourceID(clusterID),
+					Publisher: "test-publisher",
+					Offer:     "test-offer",
+					SKU:       "test-sku",
+					Version:   "test-version",
 				},
 				UserDataSecret: &corev1.SecretReference{
 					Name: defaultUserDataSecret,

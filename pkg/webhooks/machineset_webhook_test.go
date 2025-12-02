@@ -150,6 +150,7 @@ func TestMachineSetCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &runtime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					Location: "location",
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
@@ -164,6 +165,7 @@ func TestMachineSetCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &runtime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -179,6 +181,7 @@ func TestMachineSetCreation(t *testing.T) {
 			clusterID:    "azure-cluster",
 			providerSpecValue: &runtime.RawExtension{
 				Object: &machinev1beta1.AzureMachineProviderSpec{
+					Image: machinev1beta1.Image{ResourceID: "test-image-id"},
 					OSDisk: machinev1beta1.OSDisk{
 						DiskSizeGB: 128,
 					},
@@ -603,7 +606,10 @@ func TestMachineSetUpdate(t *testing.T) {
 		Subnet:               defaultAzureSubnet(azureClusterID),
 		NetworkResourceGroup: defaultAzureNetworkResourceGroup(azureClusterID),
 		Image: machinev1beta1.Image{
-			ResourceID: defaultAzureImageResourceID(azureClusterID),
+			Publisher: "test-publisher",
+			Offer:     "test-offer",
+			SKU:       "test-sku",
+			Version:   "test-version",
 		},
 		ManagedIdentity: defaultAzureManagedIdentiy(azureClusterID),
 		ResourceGroup:   defaultAzureResourceGroup(azureClusterID),

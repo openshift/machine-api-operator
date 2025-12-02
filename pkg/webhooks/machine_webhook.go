@@ -65,18 +65,6 @@ var (
 	defaultAzureNetworkResourceGroup = func(clusterID string) string {
 		return fmt.Sprintf("%s-rg", clusterID)
 	}
-	defaultAzureImageResourceID = func(clusterID string) string {
-		// image gallery names cannot have dashes
-		galleryName := strings.Replace(clusterID, "-", "_", -1)
-		imageName := clusterID
-		if arch == ARM64 {
-			// append gen2 to the image name for ARM64.
-			// Although the installer creates a gen2 image for AMD64, we cannot guarantee that clusters created
-			// before that change will have a -gen2 image.
-			imageName = fmt.Sprintf("%s-gen2", clusterID)
-		}
-		return fmt.Sprintf("/resourceGroups/%s/providers/Microsoft.Compute/galleries/gallery_%s/images/%s/versions/%s", clusterID+"-rg", galleryName, imageName, azureRHCOSVersion)
-	}
 	defaultAzureManagedIdentiy = func(clusterID string) string {
 		return fmt.Sprintf("%s-identity", clusterID)
 	}
@@ -1009,10 +997,6 @@ func defaultAzure(m *machinev1beta1.Machine, config *admissionConfig) (bool, []s
 	if providerSpec.Vnet == "" && providerSpec.Subnet == "" {
 		providerSpec.Vnet = defaultAzureVnet(config.clusterID)
 		providerSpec.Subnet = defaultAzureSubnet(config.clusterID)
-	}
-
-	if providerSpec.Image == (machinev1beta1.Image{}) {
-		providerSpec.Image.ResourceID = defaultAzureImageResourceID(config.clusterID)
 	}
 
 	if providerSpec.UserDataSecret == nil {
