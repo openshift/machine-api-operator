@@ -831,19 +831,7 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 		}
 	}
 
-	switch providerSpec.Placement.Tenancy {
-	case "", machinev1beta1.DefaultTenancy, machinev1beta1.DedicatedTenancy, machinev1beta1.HostTenancy:
-		// Do nothing, valid values
-	default:
-		errs = append(
-			errs,
-			field.Invalid(
-				field.NewPath("providerSpec", "tenancy"),
-				providerSpec.Placement.Tenancy,
-				fmt.Sprintf("Invalid providerSpec.tenancy, the only allowed options are: %s, %s, %s", machinev1beta1.DefaultTenancy, machinev1beta1.DedicatedTenancy, machinev1beta1.HostTenancy),
-			),
-		)
-	}
+	errs = append(errs, processAWSPlacementTenancy(providerSpec.Placement)...)
 
 	if providerSpec.PlacementGroupPartition != nil {
 		partition := *providerSpec.PlacementGroupPartition
@@ -933,43 +921,66 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 		}
 	}
 
-	// Dedicated host support.
-	// Check if host placement is configured.  If so, then we need to determine placement affinity and validate configs.
-	if providerSpec.HostPlacement != nil {
-		klog.V(4).Infof("Validating AWS Host Placement")
-		placement := *providerSpec.HostPlacement
-		if placement.Affinity == nil {
-			errs = append(errs, field.Required(field.NewPath("spec.hostPlacement.affinity"), "affinity is required and must be set to either AnyAvailable or DedicatedHost"))
-		} else {
-			switch *placement.Affinity {
-			case machinev1beta1.HostAffinityAnyAvailable:
-				// Cannot have DedicatedHost set
-				if placement.DedicatedHost != nil {
-					errs = append(errs, field.Forbidden(field.NewPath("spec.hostPlacement.dedicatedHost"), "dedicatedHost is required when affinity is DedicatedHost, and forbidden otherwise"))
-				}
-			case machinev1beta1.HostAffinityDedicatedHost:
-				// We need to make sure DedicatedHost is set with a HostID
-				if placement.DedicatedHost == nil {
-					errs = append(errs, field.Required(field.NewPath("spec.hostPlacement.dedicatedHost"), "dedicatedHost is required when affinity is DedicatedHost, and forbidden otherwise"))
-				} else {
-					// If not set, return required error.  If it does not match pattern, return pattern failure message.
-					if placement.DedicatedHost.ID == "" {
-						errs = append(errs, field.Required(field.NewPath("spec.hostPlacement.dedicatedHost.id"), "id is required and must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)"))
-					} else if awsDedicatedHostNamePattern.FindStringSubmatch(placement.DedicatedHost.ID) == nil {
-						errs = append(errs, field.Invalid(field.NewPath("spec.hostPlacement.dedicatedHost.id"), placement.DedicatedHost.ID, "id must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)"))
-					}
-				}
-			default:
-				errs = append(errs, field.Invalid(field.NewPath("spec.hostPlacement.affinity"), placement.Affinity, "affinity must be either AnyAvailable or DedicatedHost"))
-			}
-		}
-	}
-
 	if len(errs) > 0 {
 		return false, warnings, errs
 	}
 
 	return true, warnings, nil
+}
+
+// processAWSPlacement analyzes the Placement field in relation to Tenancy and host placement.  These are analyzed
+// together based based on their relations to one another.
+func processAWSPlacementTenancy(placement machinev1beta1.Placement) field.ErrorList {
+	var errs field.ErrorList
+
+	switch placement.Tenancy {
+	case "", machinev1beta1.DefaultTenancy, machinev1beta1.DedicatedTenancy:
+		// Host is not supported for these cases
+		if placement.Host != nil {
+			errs = append(errs, field.Forbidden(field.NewPath("spec.placement.host"), "host may only be specified when tenancy is 'host'"))
+		}
+	case machinev1beta1.HostTenancy:
+		if placement.Host != nil {
+			klog.V(4).Infof("Validating AWS Host Placement")
+
+			if placement.Host.Affinity == nil {
+				errs = append(errs, field.Required(field.NewPath("spec.placement.host.affinity"), "affinity is required and must be set to either AnyAvailable or DedicatedHost"))
+			} else {
+				switch *placement.Host.Affinity {
+				case machinev1beta1.HostAffinityAnyAvailable:
+					// DedicatedHost is optional.  If it is set, make sure it follows conventions
+					if placement.Host.DedicatedHost != nil && !awsDedicatedHostNamePattern.MatchString(placement.Host.DedicatedHost.ID) {
+						errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.dedicatedHost.id"), placement.Host.DedicatedHost.ID, "id must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)"))
+					}
+				case machinev1beta1.HostAffinityDedicatedHost:
+					// We need to make sure DedicatedHost is set with an ID
+					if placement.Host.DedicatedHost == nil {
+						errs = append(errs, field.Required(field.NewPath("spec.placement.host.dedicatedHost"), "dedicatedHost is required when hostAffinity is DedicatedHost, and optional otherwise"))
+					} else {
+						// If not set, return required error.  If it does not match pattern, return pattern failure message.
+						if placement.Host.DedicatedHost.ID == "" {
+							errs = append(errs, field.Required(field.NewPath("spec.placement.host.dedicatedHost.id"), "id is required and must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)"))
+						} else if !awsDedicatedHostNamePattern.MatchString(placement.Host.DedicatedHost.ID) {
+							errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.dedicatedHost.id"), placement.Host.DedicatedHost.ID, "id must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)"))
+						}
+					}
+				default:
+					errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.affinity"), placement.Host.Affinity, "hostAffinity must be either AnyAvailable or DedicatedHost"))
+				}
+			}
+		}
+	default:
+		errs = append(
+			errs,
+			field.Invalid(
+				field.NewPath("providerSpec", "tenancy"),
+				placement.Tenancy,
+				fmt.Sprintf("Invalid providerSpec.tenancy, the only allowed options are: %s, %s, %s, or omitted", machinev1beta1.DefaultTenancy, machinev1beta1.DedicatedTenancy, machinev1beta1.HostTenancy),
+			),
+		)
+	}
+
+	return errs
 }
 
 // getDuplicatedTags iterates through the AWS TagSpecifications
