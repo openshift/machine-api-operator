@@ -65,11 +65,22 @@ var (
 	defaultAzureNetworkResourceGroup = func(clusterID string) string {
 		return fmt.Sprintf("%s-rg", clusterID)
 	}
-	defaultAzureImage = func() machinev1beta1.Image {
-		if arch == ARM64 {
+	defaultAzureGalleryImage = func(clusterID string) machinev1beta1.Image {
+		// image gallery names cannot have dashes
+		galleryName := strings.Replace(clusterID, "-", "_", -1)
+		imageName := fmt.Sprintf("%s-gen2", clusterID) // Confidential VMs are gen2 only
+		imgID := fmt.Sprintf("/resourceGroups/%s/providers/Microsoft.Compute/galleries/gallery_%s/images/%s/versions/%s", clusterID+"-rg", galleryName, imageName, azureRHCOSVersion)
+		return machinev1beta1.Image{ResourceID: imgID}
+	}
+	defaultAzureImage = func(securityProfile *machinev1beta1.SecurityProfile, clusterID string) machinev1beta1.Image {
+		switch {
+		case securityProfile != nil: // Confidential VMs are x86-only
+			return defaultAzureGalleryImage(clusterID)
+		case arch == ARM64:
 			return urnToImage(defaultAzureARMImageURN)
+		default:
+			return urnToImage(defaultAzureX86ImageURN)
 		}
-		return urnToImage(defaultAzureX86ImageURN)
 	}
 	defaultAzureManagedIdentiy = func(clusterID string) string {
 		return fmt.Sprintf("%s-identity", clusterID)
@@ -1017,7 +1028,7 @@ func defaultAzure(m *machinev1beta1.Machine, config *admissionConfig) (bool, []s
 	}
 
 	if providerSpec.Image == (machinev1beta1.Image{}) {
-		providerSpec.Image = defaultAzureImage()
+		providerSpec.Image = defaultAzureImage(providerSpec.SecurityProfile, config.clusterID)
 	}
 
 	if providerSpec.UserDataSecret == nil {
