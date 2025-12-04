@@ -976,7 +976,7 @@ github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo
 github.com/openshift-eng/openshift-tests-extension/pkg/junit
 github.com/openshift-eng/openshift-tests-extension/pkg/util/sets
 github.com/openshift-eng/openshift-tests-extension/pkg/version
-# github.com/openshift/api v0.0.0-20251120220512-cb382c9eaf42
+# github.com/openshift/api v0.0.0-20251202143230-02f6733e651c => github.com/radekmanak/api v0.0.0-20251204123453-af93e51a025c
 ## explicit; go 1.24.0
 github.com/openshift/api
 github.com/openshift/api/annotations
@@ -1051,7 +1051,7 @@ github.com/openshift/api/template
 github.com/openshift/api/template/v1
 github.com/openshift/api/user
 github.com/openshift/api/user/v1
-# github.com/openshift/client-go v0.0.0-20251015124057-db0dee36e235
+# github.com/openshift/client-go v0.0.0-20251015124057-db0dee36e235 => github.com/radekmanak/client-go v0.0.0-20251204152955-25da3c24268b
 ## explicit; go 1.24.0
 github.com/openshift/client-go/config/applyconfigurations
 github.com/openshift/client-go/config/applyconfigurations/config/v1
@@ -3666,3 +3666,5 @@ sigs.k8s.io/yaml/kyaml
 # k8s.io/apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/apiserver v0.0.0-20251015171918-61114aa5a292
 # k8s.io/kubelet => github.com/openshift/kubernetes/staging/src/k8s.io/kubelet v0.0.0-20251015171918-61114aa5a292
 # k8s.io/kubernetes => github.com/openshift/kubernetes v1.30.1-0.20251027205255-4e0347881cbd
+# github.com/openshift/api => github.com/radekmanak/api v0.0.0-20251204123453-af93e51a025c
+# github.com/openshift/client-go => github.com/radekmanak/client-go v0.0.0-20251204152955-25da3c24268b

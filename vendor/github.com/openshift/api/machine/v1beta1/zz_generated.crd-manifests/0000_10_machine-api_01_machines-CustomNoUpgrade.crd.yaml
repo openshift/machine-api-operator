@@ -567,6 +567,16 @@ spec:
                   serialized/deserialized from this field.
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
+              synchronizedAPI:
+                description: |-
+                  synchronizedAPI represents the API that is currently in sync with the state of the resource.
+                  It is used to determine the source API of the migration.
+                  When a migration begins, `status.synchronizedAPI` is set to the value of the `status.authoritativeAPI` before it transitions to "Migrating".
+                  An empty value indicates that the resource has not yet been reconciled by the migration controller.
+                enum:
+                - MachineAPI
+                - ClusterAPI
+                type: string
               synchronizedGeneration:
                 description: |-
                   synchronizedGeneration is the generation of the authoritative resource that the non-authoritative resource is synchronised with.
