@@ -185,6 +185,16 @@ const (
 	MachineAuthorityMigrating MachineAuthority = "Migrating"
 )
 
+type SynchronizedAPI string
+
+const (
+	// MachineAPISynchronized indicates that the Machine API is the last synchronized API.
+	MachineAPISynchronized SynchronizedAPI = "MachineAPI"
+
+	// ClusterAPISynchronized indicates that the Cluster API is the last synchronized API.
+	ClusterAPISynchronized SynchronizedAPI = "ClusterAPI"
+)
+
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
@@ -405,6 +415,16 @@ type MachineStatus struct {
 	// +openshift:enable:FeatureGate=MachineAPIMigration
 	// +optional
 	AuthoritativeAPI MachineAuthority `json:"authoritativeAPI,omitempty"`
+
+	// synchronizedAPI represents the API that is currently in sync with the state of the resource.
+	// Valid values are "MachineAPI" and "ClusterAPI".
+	// When omitted (empty value), the resource has not yet been reconciled by the migration controller.
+	// The migration controller sets `status.synchronizedAPI` to the value of the `status.authoritativeAPI` before it transitions to "Migrating".
+	// It is used to determine the source API of the migration.
+	// +kubebuilder:validation:Enum=MachineAPI;ClusterAPI
+	// +openshift:enable:FeatureGate=MachineAPIMigration
+	// +optional
+	SynchronizedAPI SynchronizedAPI `json:"synchronizedAPI,omitempty"`
 
 	// synchronizedGeneration is the generation of the authoritative resource that the non-authoritative resource is synchronised with.
 	// This field is set when the authoritative resource is updated and the sync controller has updated the non-authoritative resource to match.
