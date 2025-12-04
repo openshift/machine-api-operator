@@ -1712,11 +1712,9 @@ func TestMachineUpdate(t *testing.T) {
 		Vnet:                 defaultAzureVnet(azureClusterID),
 		Subnet:               defaultAzureSubnet(azureClusterID),
 		NetworkResourceGroup: defaultAzureNetworkResourceGroup(azureClusterID),
-		Image: machinev1beta1.Image{
-			ResourceID: defaultAzureImageResourceID(azureClusterID),
-		},
-		ManagedIdentity: defaultAzureManagedIdentiy(azureClusterID),
-		ResourceGroup:   defaultAzureResourceGroup(azureClusterID),
+		Image:                defaultAzureImage(),
+		ManagedIdentity:      defaultAzureManagedIdentiy(azureClusterID),
+		ResourceGroup:        defaultAzureResourceGroup(azureClusterID),
 		UserDataSecret: &corev1.SecretReference{
 			Name:      defaultUserDataSecret,
 			Namespace: defaultSecretNamespace,
@@ -3767,9 +3765,7 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 				VMSize: defaultInstanceType,
 				Vnet:   defaultAzureVnet(clusterID),
 				Subnet: defaultAzureSubnet(clusterID),
-				Image: machinev1beta1.Image{
-					ResourceID: defaultAzureImageResourceID(clusterID),
-				},
+				Image:  defaultAzureImage(),
 				UserDataSecret: &corev1.SecretReference{
 					Name: defaultUserDataSecret,
 				},

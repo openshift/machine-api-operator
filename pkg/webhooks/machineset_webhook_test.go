@@ -602,11 +602,9 @@ func TestMachineSetUpdate(t *testing.T) {
 		Vnet:                 defaultAzureVnet(azureClusterID),
 		Subnet:               defaultAzureSubnet(azureClusterID),
 		NetworkResourceGroup: defaultAzureNetworkResourceGroup(azureClusterID),
-		Image: machinev1beta1.Image{
-			ResourceID: defaultAzureImageResourceID(azureClusterID),
-		},
-		ManagedIdentity: defaultAzureManagedIdentiy(azureClusterID),
-		ResourceGroup:   defaultAzureResourceGroup(azureClusterID),
+		Image:                defaultAzureImage(),
+		ManagedIdentity:      defaultAzureManagedIdentiy(azureClusterID),
+		ResourceGroup:        defaultAzureResourceGroup(azureClusterID),
 		UserDataSecret: &corev1.SecretReference{
 			Name:      defaultUserDataSecret,
 			Namespace: defaultSecretNamespace,

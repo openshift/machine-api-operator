@@ -65,23 +65,26 @@ var (
 	defaultAzureNetworkResourceGroup = func(clusterID string) string {
 		return fmt.Sprintf("%s-rg", clusterID)
 	}
-	defaultAzureImageResourceID = func(clusterID string) string {
-		// image gallery names cannot have dashes
-		galleryName := strings.Replace(clusterID, "-", "_", -1)
-		imageName := clusterID
+	defaultAzureImage = func() machinev1beta1.Image {
 		if arch == ARM64 {
-			// append gen2 to the image name for ARM64.
-			// Although the installer creates a gen2 image for AMD64, we cannot guarantee that clusters created
-			// before that change will have a -gen2 image.
-			imageName = fmt.Sprintf("%s-gen2", clusterID)
+			return urnToImage(defaultAzureARMImageURN)
 		}
-		return fmt.Sprintf("/resourceGroups/%s/providers/Microsoft.Compute/galleries/gallery_%s/images/%s/versions/%s", clusterID+"-rg", galleryName, imageName, azureRHCOSVersion)
+		return urnToImage(defaultAzureX86ImageURN)
 	}
 	defaultAzureManagedIdentiy = func(clusterID string) string {
 		return fmt.Sprintf("%s-identity", clusterID)
 	}
 	defaultAzureResourceGroup = func(clusterID string) string {
 		return fmt.Sprintf("%s-rg", clusterID)
+	}
+	urnToImage = func(urn string) machinev1beta1.Image {
+		attributes := strings.Split(urn, ":")
+		return machinev1beta1.Image{
+			Publisher: attributes[0],
+			Offer:     attributes[1],
+			SKU:       attributes[2],
+			Version:   attributes[3],
+		}
 	}
 
 	// GCP Defaults
@@ -164,6 +167,8 @@ const (
 	defaultAzureCredentialsSecret = "azure-cloud-credentials"
 	defaultAzureOSDiskOSType      = "Linux"
 	defaultAzureOSDiskStorageType = "Premium_LRS"
+	defaultAzureX86ImageURN       = "azureopenshift:aro4:aro_420:9.6.20251015" // hyperV Gen1
+	defaultAzureARMImageURN       = "azureopenshift:aro4:420-arm:9.6.20251015"
 
 	// Azure OSDisk constants
 	azureMaxDiskSizeGB                 = 32768
@@ -1012,7 +1017,7 @@ func defaultAzure(m *machinev1beta1.Machine, config *admissionConfig) (bool, []s
 	}
 
 	if providerSpec.Image == (machinev1beta1.Image{}) {
-		providerSpec.Image.ResourceID = defaultAzureImageResourceID(config.clusterID)
+		providerSpec.Image = defaultAzureImage()
 	}
 
 	if providerSpec.UserDataSecret == nil {
