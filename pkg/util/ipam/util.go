@@ -5,9 +5,8 @@ import (
 	"fmt"
 
 	machinev1 "github.com/openshift/api/machine/v1beta1"
-	ipamv1beta1 "sigs.k8s.io/cluster-api/api/ipam/v1beta1" //nolint:staticcheck
+	ipamv1 "sigs.k8s.io/cluster-api/api/ipam/v1beta2"
 
-	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -21,12 +20,12 @@ func EnsureIPAddressClaim(
 	runtimeClient client.Client,
 	claimName string,
 	machine *machinev1.Machine,
-	pool machinev1.AddressesFromPool) (*ipamv1beta1.IPAddressClaim, error) {
+	pool machinev1.AddressesFromPool) (*ipamv1.IPAddressClaim, error) {
 	claimKey := client.ObjectKey{
 		Namespace: machine.Namespace,
 		Name:      claimName,
 	}
-	ipAddressClaim := &ipamv1beta1.IPAddressClaim{}
+	ipAddressClaim := &ipamv1.IPAddressClaim{}
 	if err := runtimeClient.Get(ctx, claimKey, ipAddressClaim); err == nil {
 		// If we found a claim, make sure it has owner field set.
 		if len(ipAddressClaim.OwnerReferences) == 0 {
@@ -41,7 +40,7 @@ func EnsureIPAddressClaim(
 	klog.Infof("creating IPAddressClaim %s", claimName)
 	gv := machinev1.SchemeGroupVersion
 	machineRef := metav1.NewControllerRef(machine, gv.WithKind("Machine"))
-	ipAddressClaim = &ipamv1beta1.IPAddressClaim{
+	ipAddressClaim = &ipamv1.IPAddressClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			OwnerReferences: []metav1.OwnerReference{
 				*machineRef,
@@ -52,9 +51,9 @@ func EnsureIPAddressClaim(
 			Name:      claimName,
 			Namespace: machine.Namespace,
 		},
-		Spec: ipamv1beta1.IPAddressClaimSpec{
-			PoolRef: corev1.TypedLocalObjectReference{
-				APIGroup: &pool.Group,
+		Spec: ipamv1.IPAddressClaimSpec{
+			PoolRef: ipamv1.IPPoolReference{
+				APIGroup: pool.Group,
 				Kind:     pool.Resource,
 				Name:     pool.Name,
 			},
@@ -72,7 +71,7 @@ func AdoptOrphanClaim(
 	runtimeClient client.Client,
 	claimName string,
 	machine *machinev1.Machine,
-	ipAddressClaim *ipamv1beta1.IPAddressClaim) error {
+	ipAddressClaim *ipamv1.IPAddressClaim) error {
 	gv := machinev1.SchemeGroupVersion
 	machineRef := metav1.NewControllerRef(machine, gv.WithKind("Machine"))
 	ipAddressClaim.OwnerReferences = []metav1.OwnerReference{
@@ -90,7 +89,7 @@ func AdoptOrphanClaim(
 func CountOutstandingIPAddressClaimsForMachine(
 	ctx context.Context,
 	runtimeClient client.Client,
-	ipAddressClaims []ipamv1beta1.IPAddressClaim) int {
+	ipAddressClaims []ipamv1.IPAddressClaim) int {
 	fulfilledClaimCount := 0
 
 	for _, claim := range ipAddressClaims {
@@ -107,13 +106,13 @@ func RetrieveBoundIPAddress(
 	ctx context.Context,
 	runtimeClient client.Client,
 	machine *machinev1.Machine,
-	claimName string) (*ipamv1beta1.IPAddress, error) {
+	claimName string) (*ipamv1.IPAddress, error) {
 
 	claimKey := client.ObjectKey{
 		Namespace: machine.Namespace,
 		Name:      claimName,
 	}
-	ipAddressClaim := &ipamv1beta1.IPAddressClaim{}
+	ipAddressClaim := &ipamv1.IPAddressClaim{}
 	if err := runtimeClient.Get(ctx, claimKey, ipAddressClaim); err != nil {
 		return nil, fmt.Errorf("unable to get IPAddressClaim: %w", err)
 	}
@@ -122,7 +121,7 @@ func RetrieveBoundIPAddress(
 		return nil, fmt.Errorf("no IPAddress is bound to claim %s", claimName)
 	}
 
-	ipAddress := &ipamv1beta1.IPAddress{}
+	ipAddress := &ipamv1.IPAddress{}
 	addressKey := client.ObjectKey{
 		Namespace: machine.Namespace,
 		Name:      ipAddressClaim.Status.AddressRef.Name,
@@ -137,7 +136,7 @@ func RemoveFinalizersForIPAddressClaims(
 	ctx context.Context,
 	runtimeClient client.Client,
 	machine machinev1.Machine) error {
-	ipAddressClaimList := &ipamv1beta1.IPAddressClaimList{}
+	ipAddressClaimList := &ipamv1.IPAddressClaimList{}
 	if err := runtimeClient.List(ctx, ipAddressClaimList, client.InNamespace(machine.Namespace)); err != nil {
 		return fmt.Errorf("unable to list IPAddressClaims: %w", err)
 	}
@@ -183,7 +182,7 @@ func HasOutstandingIPAddressClaims(
 	machine *machinev1.Machine,
 	networkDevices []machinev1.NetworkDeviceSpec,
 ) (int, error) {
-	var associatedClaims []ipamv1beta1.IPAddressClaim
+	var associatedClaims []ipamv1.IPAddressClaim
 	for deviceIdx, networkDevice := range networkDevices {
 		for poolIdx, addressPool := range networkDevice.AddressesFromPools {
 			claimName := GetIPAddressClaimName(machine, deviceIdx, poolIdx)

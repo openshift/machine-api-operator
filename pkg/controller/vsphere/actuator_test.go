@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/events"
 	ipamv1beta1 "sigs.k8s.io/cluster-api/api/ipam/v1beta1" //nolint:staticcheck
+	ipamv1 "sigs.k8s.io/cluster-api/api/ipam/v1beta2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
@@ -42,7 +43,7 @@ func init() {
 		panic(err)
 	}
 
-	if err := ipamv1beta1.AddToScheme(scheme.Scheme); err != nil {
+	if err := ipamv1.AddToScheme(scheme.Scheme); err != nil {
 		panic(err)
 	}
 }
