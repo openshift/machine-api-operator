@@ -41,6 +41,7 @@ import (
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	vsphere "k8s.io/cloud-provider-vsphere/pkg/common/config"
+	"k8s.io/utils/ptr"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 
@@ -48,7 +49,7 @@ import (
 	"github.com/openshift/api/features"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 
-	ipamv1beta1 "sigs.k8s.io/cluster-api/api/ipam/v1beta1" //nolint:staticcheck
+	ipamv1 "sigs.k8s.io/cluster-api/api/ipam/v1beta2"
 
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
@@ -913,39 +914,39 @@ func testStaticIPsWithSimulator(t *testing.T, model *simulator.Model, server *si
 		},
 	}
 
-	ipAddressClaim := ipamv1beta1.IPAddressClaim{
+	ipAddressClaim := ipamv1.IPAddressClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-claim-0-0",
 			Namespace: "openshift-machine-api",
 		},
-		Spec: ipamv1beta1.IPAddressClaimSpec{
-			PoolRef: corev1.TypedLocalObjectReference{
+		Spec: ipamv1.IPAddressClaimSpec{
+			PoolRef: ipamv1.IPPoolReference{
 				Name:     "test-pool",
-				APIGroup: &poolGroup,
+				APIGroup: poolGroup,
 				Kind:     "ippools",
 			},
 		},
-		Status: ipamv1beta1.IPAddressClaimStatus{
-			AddressRef: corev1.LocalObjectReference{
+		Status: ipamv1.IPAddressClaimStatus{
+			AddressRef: ipamv1.IPAddressReference{
 				Name: "test-test-0",
 			},
 		},
 	}
 
-	ipAddress := ipamv1beta1.IPAddress{
+	ipAddress := ipamv1.IPAddress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-test-0",
 			Namespace: "openshift-machine-api",
 		},
-		Spec: ipamv1beta1.IPAddressSpec{
-			ClaimRef: corev1.LocalObjectReference{
+		Spec: ipamv1.IPAddressSpec{
+			ClaimRef: ipamv1.IPAddressClaimReference{
 				Name: "test-test-0",
 			},
-			PoolRef: corev1.TypedLocalObjectReference{
+			PoolRef: ipamv1.IPPoolReference{
 				Name: "test-pool",
 			},
 			Address: "192.168.1.11",
-			Prefix:  24,
+			Prefix:  ptr.To(int32(24)),
 			Gateway: "192.168.1.1",
 		},
 	}
@@ -2156,7 +2157,7 @@ func TestDelete(t *testing.T) {
 		t.Fatalf("cannot add scheme: %v", err)
 	}
 
-	if err := ipamv1beta1.AddToScheme(scheme.Scheme); err != nil {
+	if err := ipamv1.AddToScheme(scheme.Scheme); err != nil {
 		t.Fatalf("cannot add scheme: %v", err)
 	}
 
@@ -2601,53 +2602,53 @@ func TestCreate(t *testing.T) {
 		},
 	}
 
-	ipAddressClaimTest3 := &ipamv1beta1.IPAddressClaim{
+	ipAddressClaimTest3 := &ipamv1.IPAddressClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-3-claim-0-0",
 			Namespace: namespace,
 		},
-		Spec: ipamv1beta1.IPAddressClaimSpec{
-			PoolRef: corev1.TypedLocalObjectReference{
+		Spec: ipamv1.IPAddressClaimSpec{
+			PoolRef: ipamv1.IPPoolReference{
 				Name:     "test-3-pool",
-				APIGroup: &poolGroup,
+				APIGroup: poolGroup,
 				Kind:     "ippools",
 			},
 		},
-		Status: ipamv1beta1.IPAddressClaimStatus{
-			AddressRef: corev1.LocalObjectReference{
+		Status: ipamv1.IPAddressClaimStatus{
+			AddressRef: ipamv1.IPAddressReference{
 				Name: "test-test-0",
 			},
 		},
 	}
 
-	ipAddressClaimNoAddress := &ipamv1beta1.IPAddressClaim{
+	ipAddressClaimNoAddress := &ipamv1.IPAddressClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-claim-0-0",
 			Namespace: namespace,
 		},
-		Spec: ipamv1beta1.IPAddressClaimSpec{
-			PoolRef: corev1.TypedLocalObjectReference{
+		Spec: ipamv1.IPAddressClaimSpec{
+			PoolRef: ipamv1.IPPoolReference{
 				Name:     "test-pool",
-				APIGroup: &poolGroup,
+				APIGroup: poolGroup,
 				Kind:     "ippools",
 			},
 		},
 	}
 
-	ipAddress := &ipamv1beta1.IPAddress{
+	ipAddress := &ipamv1.IPAddress{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "test-test-0",
 			Namespace: namespace,
 		},
-		Spec: ipamv1beta1.IPAddressSpec{
-			ClaimRef: corev1.LocalObjectReference{
+		Spec: ipamv1.IPAddressSpec{
+			ClaimRef: ipamv1.IPAddressClaimReference{
 				Name: "test-test-0",
 			},
-			PoolRef: corev1.TypedLocalObjectReference{
+			PoolRef: ipamv1.IPPoolReference{
 				Name: "test-pool",
 			},
 			Address: "192.168.1.11",
-			Prefix:  24,
+			Prefix:  ptr.To(int32(24)),
 			Gateway: "192.168.1.1",
 		},
 	}
@@ -2659,8 +2660,8 @@ func TestCreate(t *testing.T) {
 		providerSpec          machinev1.VSphereMachineProviderSpec
 		labels                map[string]string
 		notConnectedToVCenter bool
-		ipAddressClaim        *ipamv1beta1.IPAddressClaim
-		ipAddress             *ipamv1beta1.IPAddress
+		ipAddressClaim        *ipamv1.IPAddressClaim
+		ipAddress             *ipamv1.IPAddress
 		featureGatesEnabled   map[string]bool
 	}{
 		{
@@ -2957,7 +2958,7 @@ func TestCreate(t *testing.T) {
 						Namespace: machine.Namespace,
 						Name:      tc.ipAddressClaim.Name,
 					}
-					ipAddressClaim := &ipamv1beta1.IPAddressClaim{}
+					ipAddressClaim := &ipamv1.IPAddressClaim{}
 					err = client.Get(context.Background(), claimKey, ipAddressClaim)
 					if err != nil {
 						t.Fatal(err)

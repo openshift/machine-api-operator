@@ -11,7 +11,7 @@ import (
 	"k8s.io/apiserver/pkg/util/feature"
 	"k8s.io/component-base/featuregate"
 	"k8s.io/klog/v2"
-	ipamv1beta1 "sigs.k8s.io/cluster-api/api/ipam/v1beta1" //nolint:staticcheck
+	ipamv1 "sigs.k8s.io/cluster-api/api/ipam/v1beta2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
@@ -188,8 +188,8 @@ func main() {
 		klog.Fatal(err)
 	}
 
-	if err := ipamv1beta1.AddToScheme(mgr.GetScheme()); err != nil {
-		klog.Fatalf("unable to add ipamv1beta1 to scheme: %v", err)
+	if err := ipamv1.AddToScheme(mgr.GetScheme()); err != nil {
+		klog.Fatalf("unable to add ipamv1 to scheme: %v", err)
 	}
 
 	if err := capimachine.AddWithActuator(mgr, machineActuator, defaultMutableGate); err != nil {
