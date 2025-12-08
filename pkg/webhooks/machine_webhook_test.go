@@ -326,12 +326,103 @@ func TestMachineCreation(t *testing.T) {
 						ID: ptr.To[string]("ami"),
 					},
 					InstanceType: "test",
-					HostPlacement: &machinev1beta1.HostPlacement{
-						Affinity: ptr.To(machinev1beta1.HostAffinityAnyAvailable),
+					Placement: machinev1beta1.Placement{
+						Tenancy: machinev1beta1.HostTenancy,
+						Host: &machinev1beta1.HostPlacement{
+							Affinity: ptr.To(machinev1beta1.HostAffinityAnyAvailable),
+						},
 					},
 				},
 			},
 			expectedError: "",
+		},
+		{
+			name:         "configure host placement with AnyAvailable affinity and with ID",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI:          machinev1beta1.AWSResourceReference{ID: ptr.To[string]("ami")},
+					InstanceType: "test",
+					Placement: machinev1beta1.Placement{
+						Tenancy: machinev1beta1.HostTenancy,
+						Host: &machinev1beta1.HostPlacement{
+							Affinity: ptr.To(machinev1beta1.HostAffinityAnyAvailable),
+							DedicatedHost: &machinev1beta1.DedicatedHost{
+								ID: "h-1234567890abcdef0",
+							},
+						},
+					},
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "configure host placement with AnyAvailable affinity and without ID",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					InstanceType: "test",
+					Placement: machinev1beta1.Placement{
+						Tenancy: machinev1beta1.HostTenancy,
+						Host: &machinev1beta1.HostPlacement{
+							Affinity:      ptr.To(machinev1beta1.HostAffinityDedicatedHost),
+							DedicatedHost: &machinev1beta1.DedicatedHost{},
+						},
+					},
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host.dedicatedHost.id: Required value: id is required and must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)",
+		},
+		{
+			name:         "configure host placement with AnyAvailable affinity and empty ID",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					InstanceType: "test",
+					Placement: machinev1beta1.Placement{
+						Tenancy: machinev1beta1.HostTenancy,
+						Host: &machinev1beta1.HostPlacement{
+							Affinity: ptr.To(machinev1beta1.HostAffinityDedicatedHost),
+							DedicatedHost: &machinev1beta1.DedicatedHost{
+								ID: "",
+							},
+						},
+					},
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host.dedicatedHost.id: Required value: id is required and must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)",
+		},
+		{
+			name:         "configure host placement with AnyAvailable affinity and invalid ID",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI: machinev1beta1.AWSResourceReference{
+						ID: ptr.To[string]("ami"),
+					},
+					InstanceType: "test",
+					Placement: machinev1beta1.Placement{
+						Tenancy: machinev1beta1.HostTenancy,
+						Host: &machinev1beta1.HostPlacement{
+							Affinity: ptr.To(machinev1beta1.HostAffinityAnyAvailable),
+							DedicatedHost: &machinev1beta1.DedicatedHost{
+								ID: "invalid",
+							},
+						},
+					},
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host.dedicatedHost.id: Invalid value: \"invalid\": id must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)",
 		},
 		{
 			name:         "configure host placement with invalid affinity",
@@ -343,15 +434,18 @@ func TestMachineCreation(t *testing.T) {
 						ID: ptr.To[string]("ami"),
 					},
 					InstanceType: "test",
-					HostPlacement: &machinev1beta1.HostPlacement{
-						Affinity: ptr.To(machinev1beta1.HostAffinity("invalid")),
+					Placement: machinev1beta1.Placement{
+						Tenancy: machinev1beta1.HostTenancy,
+						Host: &machinev1beta1.HostPlacement{
+							Affinity: ptr.To(machinev1beta1.HostAffinity("invalid")),
+						},
 					},
 				},
 			},
-			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.hostPlacement.affinity: Invalid value: \"invalid\": affinity must be either AnyAvailable or DedicatedHost",
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host.affinity: Invalid value: \"invalid\": hostAffinity must be either AnyAvailable or DedicatedHost",
 		},
 		{
-			name:         "configure host placement dedicatedHost without dedicatedHost",
+			name:         "configure host placement with DedicatedHost affinity and valid ID",
 			platformType: osconfigv1.AWSPlatformType,
 			clusterID:    "aws-cluster",
 			providerSpecValue: &kruntime.RawExtension{
@@ -360,96 +454,121 @@ func TestMachineCreation(t *testing.T) {
 						ID: ptr.To[string]("ami"),
 					},
 					InstanceType: "test",
-					HostPlacement: &machinev1beta1.HostPlacement{
-						Affinity: ptr.To(machinev1beta1.HostAffinityDedicatedHost),
-					},
-				},
-			},
-			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.hostPlacement.dedicatedHost: Required value: dedicatedHost is required when affinity is DedicatedHost",
-		},
-		{
-			name:         "configure host placement dedicatedHost with valid ID",
-			platformType: osconfigv1.AWSPlatformType,
-			clusterID:    "aws-cluster",
-			providerSpecValue: &kruntime.RawExtension{
-				Object: &machinev1beta1.AWSMachineProviderConfig{
-					AMI: machinev1beta1.AWSResourceReference{
-						ID: ptr.To[string]("ami"),
-					},
-					InstanceType: "test",
-					HostPlacement: &machinev1beta1.HostPlacement{
-						Affinity:      ptr.To(machinev1beta1.HostAffinityDedicatedHost),
-						DedicatedHost: &machinev1beta1.DedicatedHost{ID: "h-1234567890abcdef0"},
+					Placement: machinev1beta1.Placement{
+						Tenancy: machinev1beta1.HostTenancy,
+						Host: &machinev1beta1.HostPlacement{
+							Affinity: ptr.To(machinev1beta1.HostAffinityDedicatedHost),
+							DedicatedHost: &machinev1beta1.DedicatedHost{
+								ID: "h-1234567890abcdef0",
+							},
+						},
 					},
 				},
 			},
 			expectedError: "",
 		},
 		{
-			name:         "configure host placement AnyAvailable forbids dedicatedHost",
+			name:         "configure host placement with DedicatedHost affinity and empty ID",
 			platformType: osconfigv1.AWSPlatformType,
 			clusterID:    "aws-cluster",
 			providerSpecValue: &kruntime.RawExtension{
 				Object: &machinev1beta1.AWSMachineProviderConfig{
 					AMI:          machinev1beta1.AWSResourceReference{ID: ptr.To[string]("ami")},
 					InstanceType: "test",
-					HostPlacement: &machinev1beta1.HostPlacement{
-						Affinity:      ptr.To(machinev1beta1.HostAffinityAnyAvailable),
-						DedicatedHost: &machinev1beta1.DedicatedHost{ID: "h-09dcf61cb388b0149"},
-					},
-				},
-			},
-			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.hostPlacement.dedicatedHost: Forbidden: dedicatedHost is required when affinity is DedicatedHost, and forbidden otherwise",
-		},
-		{
-			name:         "configure host placement dedicatedHost with empty ID",
-			platformType: osconfigv1.AWSPlatformType,
-			clusterID:    "aws-cluster",
-			providerSpecValue: &kruntime.RawExtension{
-				Object: &machinev1beta1.AWSMachineProviderConfig{
-					AMI:          machinev1beta1.AWSResourceReference{ID: ptr.To[string]("ami")},
-					InstanceType: "test",
-					HostPlacement: &machinev1beta1.HostPlacement{
-						Affinity:      ptr.To(machinev1beta1.HostAffinityDedicatedHost),
-						DedicatedHost: &machinev1beta1.DedicatedHost{ID: ""},
-					},
-				},
-			},
-			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.hostPlacement.dedicatedHost.id: Required value: id is required and must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)",
-		},
-		{
-			name:         "configure host placement dedicatedHost with ID not set",
-			platformType: osconfigv1.AWSPlatformType,
-			clusterID:    "aws-cluster",
-			providerSpecValue: &kruntime.RawExtension{
-				Object: &machinev1beta1.AWSMachineProviderConfig{
-					AMI:          machinev1beta1.AWSResourceReference{ID: ptr.To[string]("ami")},
-					InstanceType: "test",
-					HostPlacement: &machinev1beta1.HostPlacement{
-						Affinity:      ptr.To(machinev1beta1.HostAffinityDedicatedHost),
-						DedicatedHost: &machinev1beta1.DedicatedHost{},
-					},
-				},
-			},
-			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.hostPlacement.dedicatedHost.id: Required value: id is required and must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)",
-		},
-		{
-			name:         "configure host placement dedicatedHost with invalid ID",
-			platformType: osconfigv1.AWSPlatformType,
-			clusterID:    "aws-cluster",
-			providerSpecValue: &kruntime.RawExtension{
-				Object: &machinev1beta1.AWSMachineProviderConfig{
-					AMI:          machinev1beta1.AWSResourceReference{ID: ptr.To[string]("ami")},
-					InstanceType: "test",
-					HostPlacement: &machinev1beta1.HostPlacement{
-						Affinity: ptr.To(machinev1beta1.HostAffinityDedicatedHost),
-						DedicatedHost: &machinev1beta1.DedicatedHost{
-							ID: "invalid",
+					Placement: machinev1beta1.Placement{
+						Tenancy: machinev1beta1.HostTenancy,
+						Host: &machinev1beta1.HostPlacement{
+							Affinity: ptr.To(machinev1beta1.HostAffinityDedicatedHost),
+							DedicatedHost: &machinev1beta1.DedicatedHost{
+								ID: "",
+							},
 						},
 					},
 				},
 			},
-			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.hostPlacement.dedicatedHost.id: Invalid value: \"invalid\": id must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)",
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host.dedicatedHost.id: Required value: id is required and must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)",
+		},
+		{
+			name:         "configure host placement with DedicatedHost affinity and ID not set",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI:          machinev1beta1.AWSResourceReference{ID: ptr.To[string]("ami")},
+					InstanceType: "test",
+					Placement: machinev1beta1.Placement{
+						Tenancy: machinev1beta1.HostTenancy,
+						Host: &machinev1beta1.HostPlacement{
+							Affinity:      ptr.To(machinev1beta1.HostAffinityDedicatedHost),
+							DedicatedHost: &machinev1beta1.DedicatedHost{},
+						},
+					},
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host.dedicatedHost.id: Required value: id is required and must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)",
+		},
+		{
+			name:         "configure host placement with DedicatedHost affinity and invalid ID",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI:          machinev1beta1.AWSResourceReference{ID: ptr.To[string]("ami")},
+					InstanceType: "test",
+					Placement: machinev1beta1.Placement{
+						Tenancy: machinev1beta1.HostTenancy,
+						Host: &machinev1beta1.HostPlacement{
+							Affinity: ptr.To(machinev1beta1.HostAffinityDedicatedHost),
+							DedicatedHost: &machinev1beta1.DedicatedHost{
+								ID: "invalid",
+							},
+						},
+					},
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host.dedicatedHost.id: Invalid value: \"invalid\": id must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)",
+		},
+		{
+			name:         "configure dedicated tenancy with host placement",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI:          machinev1beta1.AWSResourceReference{ID: ptr.To[string]("ami")},
+					InstanceType: "test",
+					Placement: machinev1beta1.Placement{
+						Tenancy: machinev1beta1.DedicatedTenancy,
+						Host: &machinev1beta1.HostPlacement{
+							Affinity: ptr.To(machinev1beta1.HostAffinityDedicatedHost),
+							DedicatedHost: &machinev1beta1.DedicatedHost{
+								ID: "h-1234567890abcdef0",
+							},
+						},
+					},
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host: Forbidden: host may only be specified when tenancy is 'host'",
+		},
+		{
+			name:         "configure default tenancy with host placement",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI:          machinev1beta1.AWSResourceReference{ID: ptr.To[string]("ami")},
+					InstanceType: "test",
+					Placement: machinev1beta1.Placement{
+						Tenancy: machinev1beta1.DefaultTenancy,
+						Host: &machinev1beta1.HostPlacement{
+							Affinity: ptr.To(machinev1beta1.HostAffinityDedicatedHost),
+							DedicatedHost: &machinev1beta1.DedicatedHost{
+								ID: "h-1234567890abcdef0",
+							},
+						},
+					},
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host: Forbidden: host may only be specified when tenancy is 'host'",
 		},
 		{
 			name:         "with VolumeType set to gp3 and Throughput set under minium value",
@@ -1677,12 +1796,14 @@ func TestMachineCreation(t *testing.T) {
 
 				gs.Expect(statusError.Status().Message).To(ContainSubstring(tc.expectedError))
 			} else {
+				// Ensure creation succeeded and refresh the object from the API server so we see defaults set by the mutating webhook.
+				gs.Expect(err).To(BeNil())
+				gs.Expect(c.Get(ctx, client.ObjectKey{Namespace: m.Namespace, Name: m.Name}, m)).To(Succeed())
 				if tc.presetClusterID {
 					gs.Expect(m.Labels[machinev1beta1.MachineClusterIDLabel]).To(BeIdenticalTo(presetClusterID))
 				} else {
 					gs.Expect(m.Labels[machinev1beta1.MachineClusterIDLabel]).To(BeIdenticalTo(tc.clusterID))
 				}
-				gs.Expect(err).To(BeNil())
 			}
 		})
 	}
@@ -2656,7 +2777,7 @@ func TestValidateAWSProviderSpec(t *testing.T) {
 				p.Placement.Tenancy = "invalid"
 			},
 			expectedOk:    false,
-			expectedError: "providerSpec.tenancy: Invalid value: \"invalid\": Invalid providerSpec.tenancy, the only allowed options are: default, dedicated, host",
+			expectedError: "providerSpec.tenancy: Invalid value: \"invalid\": Invalid providerSpec.tenancy, the only allowed options are: default, dedicated, host, or omitted",
 		},
 		{
 			testCase: "fail if placementGroupPartition is set, but placementGroupName is empty",

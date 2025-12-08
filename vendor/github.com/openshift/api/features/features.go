@@ -84,14 +84,6 @@ var (
 					enableIn(configv1.Default, configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
 					mustRegister()
 
-	FeatureGateDynamicResourceAllocation = newFeatureGate("DynamicResourceAllocation").
-						reportProblemsToJiraComponent("scheduling").
-						contactPerson("jchaloup").
-						productScope(kubernetes).
-						enhancementPR("https://github.com/kubernetes/enhancements/issues/4381").
-						enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
-						mustRegister()
-
 	FeatureGateAzureWorkloadIdentity = newFeatureGate("AzureWorkloadIdentity").
 						reportProblemsToJiraComponent("cloud-credential-operator").
 						contactPerson("abutcher").
@@ -501,7 +493,7 @@ var (
 						reportProblemsToJiraComponent("olm").
 						contactPerson("nschieder").
 						productScope(ocpSpecific).
-						enhancementPR("https://github.com/openshift/enhancements/pull/1774").
+						enhancementPR("https://github.com/openshift/enhancements/pull/1849").
 						enableForClusterProfile(SelfManaged, configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
 						mustRegister()
 
@@ -518,7 +510,6 @@ var (
 						contactPerson("pegoncal").
 						productScope(ocpSpecific).
 						enhancementPR("https://github.com/openshift/enhancements/pull/1890").
-						enableForClusterProfile(SelfManaged, configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
 						mustRegister()
 
 	FeatureGateInsightsOnDemandDataGather = newFeatureGate("InsightsOnDemandDataGather").
@@ -597,7 +588,7 @@ var (
 						contactPerson("psundara").
 						productScope(ocpSpecific).
 						enhancementPR(legacyFeatureGateWithoutEnhancement).
-						enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
+						enableIn(configv1.Default, configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
 						mustRegister()
 
 	FeatureGateUserNamespacesSupport = newFeatureGate("UserNamespacesSupport").
@@ -883,7 +874,6 @@ var (
 					contactPerson("benluddy").
 					productScope(kubernetes).
 					enhancementPR("https://github.com/kubernetes/enhancements/issues/4222").
-					enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
 					mustRegister()
 
 	FeatureClientsPreferCBOR = newFeatureGate("ClientsPreferCBOR").
@@ -939,4 +929,12 @@ var (
 						enhancementPR("https://github.com/openshift/enhancements/pull/1752").
 						enableIn(configv1.DevPreviewNoUpgrade).
 						mustRegister()
+
+	FeatureGateHyperShiftOnlyDynamicResourceAllocation = newFeatureGate("HyperShiftOnlyDynamicResourceAllocation").
+								reportProblemsToJiraComponent("hypershift").
+								contactPerson("csrwng").
+								productScope(ocpSpecific).
+								enhancementPR("https://github.com/kubernetes/enhancements/issues/4381").
+								enableForClusterProfile(Hypershift, configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade, configv1.Default).
+								mustRegister()
 )
