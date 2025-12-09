@@ -51,8 +51,9 @@ const (
 type Operator struct {
 	namespace, name string
 
-	imagesFile string
-	config     string
+	imagesFile      string
+	config          string
+	disableWebhooks bool
 
 	kubeClient    kubernetes.Interface
 	osClient      osclientset.Interface
@@ -93,6 +94,7 @@ func New(
 	imagesFile string,
 
 	config string,
+	disableWebhooks bool,
 
 	deployInformer appsinformersv1.DeploymentInformer,
 	daemonsetInformer appsinformersv1.DaemonSetInformer,
@@ -122,15 +124,16 @@ func New(
 	}
 
 	optr := &Operator{
-		namespace:     namespace,
-		name:          name,
-		imagesFile:    imagesFile,
-		kubeClient:    kubeClient,
-		osClient:      osClient,
-		machineClient: machineClient,
-		dynamicClient: dynamicClient,
-		eventRecorder: eventRecorder,
-		recorder:      recorder,
+		namespace:       namespace,
+		name:            name,
+		imagesFile:      imagesFile,
+		disableWebhooks: disableWebhooks,
+		kubeClient:      kubeClient,
+		osClient:        osClient,
+		machineClient:   machineClient,
+		dynamicClient:   dynamicClient,
+		eventRecorder:   eventRecorder,
+		recorder:        recorder,
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.DefaultTypedControllerRateLimiter[string](), workqueue.TypedRateLimitingQueueConfig[string]{
 			Name: "machineapioperator",
 		}),

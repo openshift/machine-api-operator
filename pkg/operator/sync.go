@@ -231,6 +231,10 @@ func (optr *Operator) syncTerminationHandler(config *OperatorConfig) error {
 }
 
 func (optr *Operator) syncWebhookConfiguration(config *OperatorConfig) error {
+	if optr.disableWebhooks {
+		klog.V(3).Info("Webhook synchronization is disabled via --disable-webhooks flag")
+		return nil
+	}
 	if err := optr.syncMachineValidatingWebhook(); err != nil {
 		return err
 	}

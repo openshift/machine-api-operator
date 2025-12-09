@@ -104,6 +104,7 @@ func newFakeOperator(kubeObjects, osObjects, machineObjects []runtime.Object, im
 		featureGateAccessor:     featureGateAccessor,
 		imagesFile:              imagesFile,
 		namespace:               targetNamespace,
+		disableWebhooks:         false,
 		eventRecorder:           record.NewFakeRecorder(50),
 		queue: workqueue.NewTypedRateLimitingQueueWithConfig(workqueue.DefaultTypedControllerRateLimiter[string](), workqueue.TypedRateLimitingQueueConfig[string]{
 			Name: "machineapioperator",
