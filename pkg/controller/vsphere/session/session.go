@@ -88,7 +88,7 @@ func GetOrCreate(
 			return &session, nil
 		}
 	}
-	klog.Infof("No existing vCenter session found, creating new session")
+	klog.Infof("No existing vCenter soap session found, creating new session")
 
 	soapURL, err := soap.ParseURL(server)
 	if err != nil {
@@ -226,6 +226,7 @@ func (s *Session) WithRestClient(ctx context.Context, f func(c *rest.Client) err
 func (s *Session) WithCachingTagsManager(ctx context.Context, f func(m *CachingTagsManager) error) error {
 	c := rest.NewClient(s.Client.Client)
 
+	klog.Infof("No existing vCenter rest session found, creating new session")
 	user := url.UserPassword(s.username, s.password)
 	if err := c.Login(ctx, user); err != nil {
 		return err
