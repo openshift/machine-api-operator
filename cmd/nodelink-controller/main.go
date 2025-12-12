@@ -22,7 +22,7 @@ import (
 )
 
 func printVersion() {
-	klog.Infof("Go Version: %s", runtime.Version())
+	klog.Infof("then suddenly, i got in... Go Version: %s", runtime.Version())
 	klog.Infof("Go OS/Arch: %s/%s", runtime.GOOS, runtime.GOARCH)
 }
 
