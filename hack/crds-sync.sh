@@ -13,6 +13,8 @@ CRDS_MAPPING=(
     "0000_10_machine-api_01_machinesets-DevPreviewNoUpgrade.crd.yaml:0000_30_machine-api-operator_03_machineset.DevPreviewNoUpgrade.crd.yaml"
     "0000_10_machine-api_01_machinesets-TechPreviewNoUpgrade.crd.yaml:0000_30_machine-api-operator_03_machineset.TechPreviewNoUpgrade.crd.yaml"
     "0000_10_machine-api_01_machinehealthchecks.crd.yaml:0000_30_machine-api-operator_07_machinehealthcheck.crd.yaml"
+    "0000_10_machine-api_01_machines-OKD.crd.yaml:0000_30_machine-api-operator_02_machine.OKD.crd.yaml"
+    "0000_10_machine-api_01_machinesets-OKD.crd.yaml:0000_30_machine-api-operator_03_machineset.OKD.crd.yaml"
            )
 
 # Fetch the local directory which holds machine/v1beta1, whether it's vendored
