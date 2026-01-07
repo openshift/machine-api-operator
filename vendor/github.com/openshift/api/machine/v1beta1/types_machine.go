@@ -185,6 +185,16 @@ const (
 	MachineAuthorityMigrating MachineAuthority = "Migrating"
 )
 
+type SynchronizedAPI string
+
+const (
+	// MachineAPISynchronized indicates that the Machine API is the last synchronized API.
+	MachineAPISynchronized SynchronizedAPI = "MachineAPI"
+
+	// ClusterAPISynchronized indicates that the Cluster API is the last synchronized API.
+	ClusterAPISynchronized SynchronizedAPI = "ClusterAPI"
+)
+
 // +genclient
 // +k8s:deepcopy-gen:interfaces=k8s.io/apimachinery/pkg/runtime.Object
 
@@ -402,9 +412,21 @@ type MachineStatus struct {
 	// When set to Migrating, the migration controller is currently performing the handover of authority from one API to the other.
 	// +kubebuilder:validation:Enum=MachineAPI;ClusterAPI;Migrating
 	// +kubebuilder:validation:XValidation:rule="self == 'Migrating' || self == oldSelf || oldSelf == 'Migrating'",message="The authoritativeAPI field must not transition directly from MachineAPI to ClusterAPI or vice versa. It must transition through Migrating."
+	// +kubebuilder:validation:XValidation:rule="oldSelf == ''|| self != ''",message="The authoritativeAPI field must not be set empty once it has a value."
 	// +openshift:enable:FeatureGate=MachineAPIMigration
 	// +optional
 	AuthoritativeAPI MachineAuthority `json:"authoritativeAPI,omitempty"`
+
+	// synchronizedAPI represents the API that is currently in sync with the state of the resource.
+	// Valid values are "MachineAPI" and "ClusterAPI".
+	// When omitted (empty value), the resource has not yet been reconciled by the migration controller.
+	// The migration controller sets `status.synchronizedAPI` to the value of the `status.authoritativeAPI` before it transitions to "Migrating".
+	// It is used to determine the source API of the migration.
+	// +kubebuilder:validation:XValidation:rule="oldSelf == ''|| self != ''",message="The synchronizedAPI field must not be set empty once it has a value."
+	// +kubebuilder:validation:Enum=MachineAPI;ClusterAPI
+	// +openshift:enable:FeatureGate=MachineAPIMigration
+	// +optional
+	SynchronizedAPI SynchronizedAPI `json:"synchronizedAPI,omitempty"`
 
 	// synchronizedGeneration is the generation of the authoritative resource that the non-authoritative resource is synchronised with.
 	// This field is set when the authoritative resource is updated and the sync controller has updated the non-authoritative resource to match.

@@ -674,6 +674,17 @@ spec:
                 description: replicas is the most recently observed number of replicas.
                 format: int32
                 type: integer
+              synchronizedAPI:
+                description: |-
+                  synchronizedAPI represents the API that is currently in sync with the state of the resource.
+                  Valid values are "MachineAPI" and "ClusterAPI".
+                  When omitted (empty value), the resource has not yet been reconciled by the migration controller.
+                  The migration controller sets `status.synchronizedAPI` to the value of the `status.authoritativeAPI` before it transitions to "Migrating".
+                  It is used to determine the source API of the migration.
+                enum:
+                - MachineAPI
+                - ClusterAPI
+                type: string
               synchronizedGeneration:
                 description: |-
                   synchronizedGeneration is the generation of the authoritative resource that the non-authoritative resource is synchronised with.
