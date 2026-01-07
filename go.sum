@@ -449,8 +449,6 @@ github.com/opencontainers/selinux v1.11.1 h1:nHFvthhM0qY8/m+vfhJylliSshm8G1jJ2jD
 github.com/opencontainers/selinux v1.11.1/go.mod h1:E5dMC3VPuVvVHDYmi78qvhJp8+M586T4DlDRYpFkyec=
 github.com/openshift-eng/openshift-tests-extension v0.0.0-20251105193959-75a0be5d9bd7 h1:Z1swlS6b3Adm6RPhjqefs3DWnNFLDxRX+WC8GMXhja4=
 github.com/openshift-eng/openshift-tests-extension v0.0.0-20251105193959-75a0be5d9bd7/go.mod h1:6gkP5f2HL0meusT0Aim8icAspcD1cG055xxBZ9yC68M=
-github.com/openshift/api v0.0.0-20260114133223-6ab113cb7368 h1:kSr3DOlq0NCrHd65HB2o/pBsks7AfRm+fkpf9RLUPoc=
-github.com/openshift/api v0.0.0-20260114133223-6ab113cb7368/go.mod h1:d5uzF0YN2nQQFA0jIEWzzOZ+edmo6wzlGLvx5Fhz4uY=
 github.com/openshift/client-go v0.0.0-20251202151200-fb4471581cf8 h1:97rgISdT4IOmXlmEUV5Wr6d8BzzjPclzAjCARLbSlT0=
 github.com/openshift/client-go v0.0.0-20251202151200-fb4471581cf8/go.mod h1:WVJnsrbSO1J8x8KceOmv1d5CpoN34Uzsaz1O4MIOKJI=
 github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20250910145856-21d03d30056d h1:+sqUThLi/lmgT5/scmmjnS6+RZFtbdxRAscNfCPyLPI=

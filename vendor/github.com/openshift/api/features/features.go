@@ -953,12 +953,4 @@ var (
 								enhancementPR("https://github.com/kubernetes/enhancements/issues/4381").
 								enableForClusterProfile(Hypershift, configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade, configv1.Default, configv1.OKD).
 								mustRegister()
-
-	FeatureGateConfigurablePKI = newFeatureGate("ConfigurablePKI").
-					reportProblemsToJiraComponent("kube-apiserver").
-					contactPerson("sanchezl").
-					productScope(ocpSpecific).
-					enhancementPR("https://github.com/openshift/enhancements/pull/1882").
-					enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
-					mustRegister()
 )
