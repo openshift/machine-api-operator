@@ -53,7 +53,7 @@ var (
 	// AWS Variables / Defaults
 
 	// awsDedicatedHostNamePattern is used to validate the id of a dedicated host
-	awsDedicatedHostNamePattern = regexp.MustCompile(`^h-[0-9a-f]{17}$`)
+	awsDedicatedHostNamePattern = regexp.MustCompile(`^h-([0-9a-f]{8}|[0-9a-f]{17})$`)
 
 	// Azure Defaults
 	defaultAzureVnet = func(clusterID string) string {
@@ -950,7 +950,7 @@ func processAWSPlacementTenancy(placement machinev1beta1.Placement) field.ErrorL
 				case machinev1beta1.HostAffinityAnyAvailable:
 					// DedicatedHost is optional.  If it is set, make sure it follows conventions
 					if placement.Host.DedicatedHost != nil && !awsDedicatedHostNamePattern.MatchString(placement.Host.DedicatedHost.ID) {
-						errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.dedicatedHost.id"), placement.Host.DedicatedHost.ID, "id must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)"))
+						errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.dedicatedHost.id"), placement.Host.DedicatedHost.ID, "id must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)"))
 					}
 				case machinev1beta1.HostAffinityDedicatedHost:
 					// We need to make sure DedicatedHost is set with an ID
@@ -959,9 +959,9 @@ func processAWSPlacementTenancy(placement machinev1beta1.Placement) field.ErrorL
 					} else {
 						// If not set, return required error.  If it does not match pattern, return pattern failure message.
 						if placement.Host.DedicatedHost.ID == "" {
-							errs = append(errs, field.Required(field.NewPath("spec.placement.host.dedicatedHost.id"), "id is required and must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)"))
+							errs = append(errs, field.Required(field.NewPath("spec.placement.host.dedicatedHost.id"), "id is required and must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)"))
 						} else if !awsDedicatedHostNamePattern.MatchString(placement.Host.DedicatedHost.ID) {
-							errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.dedicatedHost.id"), placement.Host.DedicatedHost.ID, "id must start with 'h-' followed by 17 lowercase hexadecimal characters (0-9 and a-f)"))
+							errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.dedicatedHost.id"), placement.Host.DedicatedHost.ID, "id must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)"))
 						}
 					}
 				default:
