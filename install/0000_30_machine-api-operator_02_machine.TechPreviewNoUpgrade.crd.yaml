@@ -394,6 +394,9 @@ spec:
                     from MachineAPI to ClusterAPI or vice versa. It must transition
                     through Migrating.
                   rule: self == 'Migrating' || self == oldSelf || oldSelf == 'Migrating'
+                - message: The authoritativeAPI field must not be set empty once it
+                    has a value.
+                  rule: oldSelf == ''|| self != ''
               conditions:
                 description: conditions defines the current state of the Machine
                 items:
@@ -567,6 +570,21 @@ spec:
                   serialized/deserialized from this field.
                 type: object
                 x-kubernetes-preserve-unknown-fields: true
+              synchronizedAPI:
+                description: |-
+                  synchronizedAPI represents the API that is currently in sync with the state of the resource.
+                  Valid values are "MachineAPI" and "ClusterAPI".
+                  When omitted (empty value), the resource has not yet been reconciled by the migration controller.
+                  The migration controller sets `status.synchronizedAPI` to the value of the `status.authoritativeAPI` before it transitions to "Migrating".
+                  It is used to determine the source API of the migration.
+                enum:
+                - MachineAPI
+                - ClusterAPI
+                type: string
+                x-kubernetes-validations:
+                - message: The synchronizedAPI field must not be set empty once it
+                    has a value.
+                  rule: oldSelf == ''|| self != ''
               synchronizedGeneration:
                 description: |-
                   synchronizedGeneration is the generation of the authoritative resource that the non-authoritative resource is synchronised with.

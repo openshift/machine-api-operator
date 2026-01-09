@@ -11,6 +11,11 @@ replace (
 	k8s.io/kubernetes => github.com/openshift/kubernetes v1.30.1-0.20251027205255-4e0347881cbd
 )
 
+replace (
+	github.com/openshift/api => ../api
+	github.com/openshift/clinet-go => ../client-go
+)
+
 require (
 	github.com/blang/semver v3.5.1+incompatible
 	github.com/go-logr/logr v1.4.3
