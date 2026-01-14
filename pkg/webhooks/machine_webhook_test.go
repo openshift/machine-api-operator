@@ -656,7 +656,9 @@ func TestMachineCreation(t *testing.T) {
 					},
 				},
 			},
-			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host: Forbidden: host may only be specified when tenancy is 'host'",
+			// We used to error on the following, but due to CAPI allowing it even though AWS will ignore the host info
+			// and just honor the tenancy, we are changing our logic to behave the same
+			//expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host: Forbidden: host may only be specified when tenancy is 'host'",
 		},
 		{
 			name:         "configure default tenancy with host placement",
@@ -677,7 +679,9 @@ func TestMachineCreation(t *testing.T) {
 					},
 				},
 			},
-			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host: Forbidden: host may only be specified when tenancy is 'host'",
+			// We used to error on the following, but due to CAPI allowing it even though AWS will ignore the host info
+			// and just honor the tenancy, we are changing our logic to behave the same
+			//expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host: Forbidden: host may only be specified when tenancy is 'host'",
 		},
 		{
 			name:         "with VolumeType set to gp3 and Throughput set under minium value",

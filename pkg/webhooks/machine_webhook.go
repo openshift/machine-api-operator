@@ -928,47 +928,14 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 	return true, warnings, nil
 }
 
-// processAWSPlacement analyzes the Placement field in relation to Tenancy and host placement.  These are analyzed
-// together based based on their relations to one another.
+// processAWSPlacement analyzes the Placement field in relation to Tenancy and host placement.
 func processAWSPlacementTenancy(placement machinev1beta1.Placement) field.ErrorList {
 	var errs field.ErrorList
 
+	// Validate tenancy values
 	switch placement.Tenancy {
-	case "", machinev1beta1.DefaultTenancy, machinev1beta1.DedicatedTenancy:
-		// Host is not supported for these cases
-		if placement.Host != nil {
-			errs = append(errs, field.Forbidden(field.NewPath("spec.placement.host"), "host may only be specified when tenancy is 'host'"))
-		}
-	case machinev1beta1.HostTenancy:
-		if placement.Host != nil {
-			klog.V(4).Infof("Validating AWS Host Placement")
-
-			if placement.Host.Affinity == nil {
-				errs = append(errs, field.Required(field.NewPath("spec.placement.host.affinity"), "affinity is required and must be set to either AnyAvailable or DedicatedHost"))
-			} else {
-				switch *placement.Host.Affinity {
-				case machinev1beta1.HostAffinityAnyAvailable:
-					// DedicatedHost is optional.  If it is set, make sure it follows conventions
-					if placement.Host.DedicatedHost != nil && !awsDedicatedHostNamePattern.MatchString(placement.Host.DedicatedHost.ID) {
-						errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.dedicatedHost.id"), placement.Host.DedicatedHost.ID, "id must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)"))
-					}
-				case machinev1beta1.HostAffinityDedicatedHost:
-					// We need to make sure DedicatedHost is set with an ID
-					if placement.Host.DedicatedHost == nil {
-						errs = append(errs, field.Required(field.NewPath("spec.placement.host.dedicatedHost"), "dedicatedHost is required when hostAffinity is DedicatedHost, and optional otherwise"))
-					} else {
-						// If not set, return required error.  If it does not match pattern, return pattern failure message.
-						if placement.Host.DedicatedHost.ID == "" {
-							errs = append(errs, field.Required(field.NewPath("spec.placement.host.dedicatedHost.id"), "id is required and must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)"))
-						} else if !awsDedicatedHostNamePattern.MatchString(placement.Host.DedicatedHost.ID) {
-							errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.dedicatedHost.id"), placement.Host.DedicatedHost.ID, "id must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)"))
-						}
-					}
-				default:
-					errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.affinity"), placement.Host.Affinity, "hostAffinity must be either AnyAvailable or DedicatedHost"))
-				}
-			}
-		}
+	case "", machinev1beta1.DefaultTenancy, machinev1beta1.DedicatedTenancy, machinev1beta1.HostTenancy:
+		// Do nothing, valid values
 	default:
 		errs = append(
 			errs,
@@ -978,6 +945,38 @@ func processAWSPlacementTenancy(placement machinev1beta1.Placement) field.ErrorL
 				fmt.Sprintf("Invalid providerSpec.tenancy, the only allowed options are: %s, %s, %s, or omitted", machinev1beta1.DefaultTenancy, machinev1beta1.DedicatedTenancy, machinev1beta1.HostTenancy),
 			),
 		)
+	}
+
+	// Validate host settings.  Upstream CAPI does not enforce host placement requiring tenancy=host, so we are just validating values and allowing MAPI to follow suit.
+	// Any deviation will result in CAPI2MAPI / MAPI2CAPI converison issues.
+	if placement.Host != nil {
+		klog.V(4).Infof("Validating AWS Host Placement")
+
+		if placement.Host.Affinity == nil {
+			errs = append(errs, field.Required(field.NewPath("spec.placement.host.affinity"), "affinity is required and must be set to either AnyAvailable or DedicatedHost"))
+		} else {
+			switch *placement.Host.Affinity {
+			case machinev1beta1.HostAffinityAnyAvailable:
+				// DedicatedHost is optional.  If it is set, make sure it follows conventions
+				if placement.Host.DedicatedHost != nil && !awsDedicatedHostNamePattern.MatchString(placement.Host.DedicatedHost.ID) {
+					errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.dedicatedHost.id"), placement.Host.DedicatedHost.ID, "id must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)"))
+				}
+			case machinev1beta1.HostAffinityDedicatedHost:
+				// We need to make sure DedicatedHost is set with an ID
+				if placement.Host.DedicatedHost == nil {
+					errs = append(errs, field.Required(field.NewPath("spec.placement.host.dedicatedHost"), "dedicatedHost is required when hostAffinity is DedicatedHost, and optional otherwise"))
+				} else {
+					// If not set, return required error.  If it does not match pattern, return pattern failure message.
+					if placement.Host.DedicatedHost.ID == "" {
+						errs = append(errs, field.Required(field.NewPath("spec.placement.host.dedicatedHost.id"), "id is required and must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)"))
+					} else if !awsDedicatedHostNamePattern.MatchString(placement.Host.DedicatedHost.ID) {
+						errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.dedicatedHost.id"), placement.Host.DedicatedHost.ID, "id must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)"))
+					}
+				}
+			default:
+				errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.affinity"), placement.Host.Affinity, "hostAffinity must be either AnyAvailable or DedicatedHost"))
+			}
+		}
 	}
 
 	return errs
