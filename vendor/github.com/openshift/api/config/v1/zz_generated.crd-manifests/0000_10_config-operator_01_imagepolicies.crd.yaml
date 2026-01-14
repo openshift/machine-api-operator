@@ -6,22 +6,21 @@ metadata:
     api.openshift.io/merged-by-featuregates: "true"
     include.release.openshift.io/ibm-cloud-managed: "true"
     include.release.openshift.io/self-managed-high-availability: "true"
-    release.openshift.io/feature-set: CustomNoUpgrade
-  name: clusterimagepolicies.config.openshift.io
+  name: imagepolicies.config.openshift.io
 spec:
   group: config.openshift.io
   names:
-    kind: ClusterImagePolicy
-    listKind: ClusterImagePolicyList
-    plural: clusterimagepolicies
-    singular: clusterimagepolicy
-  scope: Cluster
+    kind: ImagePolicy
+    listKind: ImagePolicyList
+    plural: imagepolicies
+    singular: imagepolicy
+  scope: Namespaced
   versions:
   - name: v1
     schema:
       openAPIV3Schema:
         description: |-
-          ClusterImagePolicy holds cluster-wide configuration for image signature verification
+          ImagePolicy holds namespace-wide configuration for image signature verification
 
           Compatibility level 1: Stable within a major release for a minimum of 12 months or 3 minor releases (whichever is longer).
         properties:
@@ -43,7 +42,7 @@ spec:
           metadata:
             type: object
           spec:
-            description: spec contains the configuration for the cluster image policy.
+            description: spec holds user settable values for configuration
             properties:
               policy:
                 description: |-
@@ -220,7 +219,7 @@ spec:
                           Allowed values are "PublicKey", "FulcioCAWithRekor", and "PKI".
                           When set to "PublicKey", the policy relies on a sigstore publicKey and may optionally use a Rekor verification.
                           When set to "FulcioCAWithRekor", the policy is based on the Fulcio certification and incorporates a Rekor verification.
-                          When set to "PKI", the policy is based on the certificates from Bring Your Own Public Key Infrastructure (BYOPKI). This value is enabled by turning on the SigstoreImageVerificationPKI feature gate.
+                          When set to "PKI", the policy is based on the certificates from Bring Your Own Public Key Infrastructure (BYOPKI).
                         enum:
                         - PublicKey
                         - FulcioCAWithRekor
@@ -438,8 +437,9 @@ spec:
             description: status contains the observed state of the resource.
             properties:
               conditions:
-                description: conditions provide details on the status of this API
-                  Resource.
+                description: |-
+                  conditions provide details on the status of this API Resource.
+                  condition type 'Pending' indicates that the customer resource contains a policy that cannot take effect. It is either overwritten by a global policy or the image scope is not valid.
                 items:
                   description: Condition contains details for one aspect of the current
                     state of this API Resource.
