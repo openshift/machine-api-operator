@@ -94,7 +94,7 @@ func (CPUOptions) SwaggerDoc() map[string]string {
 
 var map_DedicatedHost = map[string]string{
 	"":   "DedicatedHost represents the configuration for the usage of dedicated host.",
-	"id": "id identifies the AWS Dedicated Host on which the instance must run. The value must start with \"h-\" followed by 17 lowercase hexadecimal characters (0-9 and a-f). Must be exactly 19 characters in length.",
+	"id": "id identifies the AWS Dedicated Host on which the instance must run. The value must start with \"h-\" followed by either 8 or 17 lowercase hexadecimal characters (0-9 and a-f). The use of 8 lowercase hexadecimal characters is for older legacy hosts that may not have been migrated to newer format. Must be either 10 or 19 characters in length.",
 }
 
 func (DedicatedHost) SwaggerDoc() map[string]string {
