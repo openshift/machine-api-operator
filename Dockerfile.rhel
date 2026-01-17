@@ -6,7 +6,7 @@ RUN NO_DOCKER=1 make build && \
     cp /go/src/github.com/openshift/machine-api-operator/bin/machine-api-tests-ext /tmp/build/machine-api-tests-ext && \
     gzip /tmp/build/machine-api-tests-ext
 
-FROM registry.ci.openshift.org/ocp/4.22:base-rhel9
+FROM registry.ci.openshift.org/ocp/4.22:base-rhel9-minimal
 COPY --from=builder /go/src/github.com/openshift/machine-api-operator/install manifests
 COPY --from=builder /go/src/github.com/openshift/machine-api-operator/bin/machine-api-operator .
 COPY --from=builder /go/src/github.com/openshift/machine-api-operator/bin/nodelink-controller .
