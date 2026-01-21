@@ -1418,6 +1418,109 @@ func TestCreateDataDisks(t *testing.T) {
 	}
 }
 
+func TestGetVMFirmware(t *testing.T) {
+	// TODO
+}
+
+func TestGetVirtualTPMDevices(t *testing.T) {
+	model, session, server := initSimulator(t)
+	t.Cleanup(model.Remove)
+	t.Cleanup(server.Close)
+	vm := simulator.Map.Any("VirtualMachine").(*simulator.VirtualMachine)
+	machine := object.NewVirtualMachine(session.Client.Client, vm.Reference())
+
+	deviceList, err := machine.Device(context.TODO())
+	if err != nil {
+		t.Fatalf("Failed to obtain vm devices: %v", err)
+	}
+
+	getMachineScope := func() *machineScope {
+		gates, _ := testutils.NewDefaultMutableFeatureGate()
+		return &machineScope{
+			Context: context.TODO(),
+			machine: &machinev1.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-tpm",
+					Namespace: "test",
+					Labels: map[string]string{
+						machinev1.MachineClusterIDLabel: "CLUSTERID",
+					},
+				},
+			},
+			providerSpec:   &machinev1.VSphereMachineProviderSpec{},
+			session:        session,
+			providerStatus: &machinev1.VSphereMachineProviderStatus{},
+			featureGates:   gates,
+		}
+	}
+
+	testCases := []struct {
+		name                string
+		devices             object.VirtualDeviceList
+		expectedDeviceCount int
+		expectedError       string
+	}{
+		{
+			name:                "No existing TPM devices",
+			devices:             deviceList,
+			expectedDeviceCount: 1, // TPM is enabled by default now
+		},
+		{
+			name:                "Empty device list",
+			devices:             object.VirtualDeviceList{},
+			expectedDeviceCount: 1, // TPM is enabled by default now
+		},
+	}
+
+	for _, test := range testCases {
+		tc := test
+		t.Run(tc.name, func(t *testing.T) {
+			scope := getMachineScope()
+
+			// Call the function under test
+			tpmDeviceSpec, err := addVirtualTPMDevice(scope, tc.devices)
+
+			// Check for expected errors
+			if tc.expectedError != "" {
+				if err == nil || err.Error() != tc.expectedError {
+					t.Fatalf("Expected error '%s', got: %v", tc.expectedError, err)
+				}
+				return
+			}
+
+			// Check for unexpected errors
+			if err != nil {
+				t.Fatalf("Unexpected error: %v", err)
+			}
+
+			// Check device count - if we expect a device, tpmDeviceSpec should not be nil
+			if tc.expectedDeviceCount > 0 && tpmDeviceSpec == nil {
+				t.Fatalf("Expected %d TPM devices, got nil device spec", tc.expectedDeviceCount)
+			}
+			if tc.expectedDeviceCount == 0 && tpmDeviceSpec != nil {
+				t.Fatalf("Expected %d TPM devices, got non-nil device spec", tc.expectedDeviceCount)
+			}
+
+			// If devices were created, validate their structure
+			if tpmDeviceSpec != nil {
+				spec := tpmDeviceSpec.(*types.VirtualDeviceConfigSpec)
+				if spec.Operation != types.VirtualDeviceConfigSpecOperationAdd {
+					t.Fatalf("Expected operation to be Add, got %v", spec.Operation)
+				}
+
+				tpmDevice, ok := spec.Device.(*types.VirtualTPM)
+				if !ok {
+					t.Fatalf("Expected device to be VirtualTPM, got %T", spec.Device)
+				}
+
+				if tpmDevice.Key == 0 {
+					t.Fatalf("Expected TPM device to have a non-zero key")
+				}
+			}
+		})
+	}
+}
+
 func createAdditionalDisks(devices object.VirtualDeviceList, controller types.BaseVirtualController, numOfDisks int) object.VirtualDeviceList {
 	deviceList := devices
 	disks := devices.SelectByType((*types.VirtualDisk)(nil))
