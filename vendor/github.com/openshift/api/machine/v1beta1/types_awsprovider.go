@@ -454,21 +454,71 @@ type HostAffinity string
 
 const (
 	// HostAffinityAnyAvailable lets the platform select any available dedicated host.
+
 	HostAffinityAnyAvailable HostAffinity = "AnyAvailable"
 
 	// HostAffinityDedicatedHost requires specifying a particular host via dedicatedHost.host.hostID.
 	HostAffinityDedicatedHost HostAffinity = "DedicatedHost"
 )
 
+// AllocationStrategy selects how a dedicated host is provided to the system for assigning to the instance.
+// +kubebuilder:validation:Enum:=UserProvided;Dynamic
+type AllocationStrategy string
+
+const (
+	// AllocationStrategyUserProvided specifies that the system should assign instances to a user-provided dedicated host.
+	AllocationStrategyUserProvided AllocationStrategy = "UserProvided"
+
+	// AllocationStrategyDynamic specifies that the system should dynamically allocate a dedicated host for instances.
+	AllocationStrategyDynamic AllocationStrategy = "Dynamic"
+)
+
 // DedicatedHost represents the configuration for the usage of dedicated host.
+// +kubebuilder:validation:XValidation:rule="self.allocationStrategy == 'UserProvided' ? has(self.id) : true",message="id is required when allocationStrategy is UserProvided"
+// +kubebuilder:validation:XValidation:rule="has(self.id) ? self.allocationStrategy == 'UserProvided' : true",message="id is only allowed when allocationStrategy is UserProvided"
+// +kubebuilder:validation:XValidation:rule="has(self.dynamicHostAllocation) ? self.allocationStrategy == 'Dynamic' : true",message="dynamicHostAllocation is only allowed when allocationStrategy is Dynamic"
+// +union
 type DedicatedHost struct {
+	// allocationStrategy specifies if the dedicated host will be provided by the admin through the id field or if the host will be dynamically allocated.
+	// Valid values are UserProvided and Dynamic.
+	// This field is optional and defaults to "UserProvided".
+	// When AllocationStrategy is set to UserProvided, an ID of the dedicated host to assign must be provided.
+	// When AllocationStrategy is set to Dynamic, a dedicated host will be allocated and used to assign instances.
+	// When AllocationStrategy is set to Dynamic, and DynamicHostAllocation is configured, a dedicated host will be allocated and the tags in DynamicHostAllocation will be assigned to that host.
+	// +optional
+	// +unionDiscriminator
+	// +default="UserProvided"
+	AllocationStrategy *AllocationStrategy `json:"allocationStrategy,omitempty"`
+
 	// id identifies the AWS Dedicated Host on which the instance must run.
 	// The value must start with "h-" followed by either 8 or 17 lowercase hexadecimal characters (0-9 and a-f).
 	// The use of 8 lowercase hexadecimal characters is for older legacy hosts that may not have been migrated to newer format.
 	// Must be either 10 or 19 characters in length.
+	// This field is required when allocationStrategy is UserProvided, and forbidden when allocationStrategy is Dynamic.
+	// When omitted, allocationStrategy must be set to Dynamic to enable automatic host allocation.
 	// +kubebuilder:validation:XValidation:rule="self.matches('^h-([0-9a-f]{8}|[0-9a-f]{17})$')",message="hostID must start with 'h-' followed by either 8 or 17 lowercase hexadecimal characters (0-9 and a-f)"
 	// +kubebuilder:validation:MinLength=10
 	// +kubebuilder:validation:MaxLength=19
-	// +required
+	// +optional
+	// +unionMember=UserProvided
 	ID string `json:"id,omitempty"`
+
+	// dynamicHostAllocation specifies tags to apply to a dynamically allocated dedicated host.
+	// This field is only allowed when allocationStrategy is Dynamic, and is mutually exclusive with id.
+	// When specified, a dedicated host will be allocated with the provided tags applied.
+	// When omitted (and allocationStrategy is Dynamic), a dedicated host will be allocated without any additional tags.
+	// +optional
+	// +unionMember=Dynamic
+	DynamicHostAllocation *DynamicHostAllocationSpec `json:"dynamicHostAllocation,omitempty"`
+}
+
+// DynamicHostAllocationSpec defines the configuration for dynamic dedicated host allocation.
+// This specification always allocates exactly one dedicated host per machine.
+// +kubebuilder:validation:MinProperties=1
+type DynamicHostAllocationSpec struct {
+	// tags specifies a set of key-value pairs to apply to the allocated dedicated host.
+	// When omitted, no additional user-defined tags will be applied to the allocated host.
+	// +kubebuilder:validation:MinProperties=1
+	// +optional
+	Tags map[string]string `json:"tags,omitempty"`
 }

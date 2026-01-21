@@ -93,12 +93,23 @@ func (CPUOptions) SwaggerDoc() map[string]string {
 }
 
 var map_DedicatedHost = map[string]string{
-	"":   "DedicatedHost represents the configuration for the usage of dedicated host.",
-	"id": "id identifies the AWS Dedicated Host on which the instance must run. The value must start with \"h-\" followed by either 8 or 17 lowercase hexadecimal characters (0-9 and a-f). The use of 8 lowercase hexadecimal characters is for older legacy hosts that may not have been migrated to newer format. Must be either 10 or 19 characters in length.",
+	"":                      "DedicatedHost represents the configuration for the usage of dedicated host.",
+	"allocationStrategy":    "allocationStrategy specifies if the dedicated host will be provided by the admin through the id field or if the host will be dynamically allocated. Valid values are UserProvided and Dynamic. This field is optional and defaults to \"UserProvided\". When AllocationStrategy is set to UserProvided, an ID of the dedicated host to assign must be provided. When AllocationStrategy is set to Dynamic, a dedicated host will be allocated and used to assign instances. When AllocationStrategy is set to Dynamic, and DynamicHostAllocation is configured, a dedicated host will be allocated and the tags in DynamicHostAllocation will be assigned to that host.",
+	"id":                    "id identifies the AWS Dedicated Host on which the instance must run. The value must start with \"h-\" followed by either 8 or 17 lowercase hexadecimal characters (0-9 and a-f). The use of 8 lowercase hexadecimal characters is for older legacy hosts that may not have been migrated to newer format. Must be either 10 or 19 characters in length. This field is required when allocationStrategy is UserProvided, and forbidden when allocationStrategy is Dynamic. When omitted, allocationStrategy must be set to Dynamic to enable automatic host allocation.",
+	"dynamicHostAllocation": "dynamicHostAllocation specifies tags to apply to a dynamically allocated dedicated host. This field is only allowed when allocationStrategy is Dynamic, and is mutually exclusive with id. When specified, a dedicated host will be allocated with the provided tags applied. When omitted (and allocationStrategy is Dynamic), a dedicated host will be allocated without any additional tags.",
 }
 
 func (DedicatedHost) SwaggerDoc() map[string]string {
 	return map_DedicatedHost
+}
+
+var map_DynamicHostAllocationSpec = map[string]string{
+	"":     "DynamicHostAllocationSpec defines the configuration for dynamic dedicated host allocation. This specification always allocates exactly one dedicated host per machine.",
+	"tags": "tags specifies a set of key-value pairs to apply to the allocated dedicated host. When omitted, no additional user-defined tags will be applied to the allocated host.",
+}
+
+func (DynamicHostAllocationSpec) SwaggerDoc() map[string]string {
+	return map_DynamicHostAllocationSpec
 }
 
 var map_EBSBlockDeviceSpec = map[string]string{

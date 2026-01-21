@@ -376,7 +376,7 @@ func TestMachineCreation(t *testing.T) {
 					},
 				},
 			},
-			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host.dedicatedHost.id: Required value: id is required and must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)",
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host.dedicatedHost.id: Required value: id is required when allocationStrategy is UserProvided and must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)",
 		},
 		{
 			name:         "configure host placement with AnyAvailable affinity and empty ID",
@@ -399,7 +399,7 @@ func TestMachineCreation(t *testing.T) {
 					},
 				},
 			},
-			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host.dedicatedHost.id: Required value: id is required and must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)",
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host.dedicatedHost.id: Required value: id is required when allocationStrategy is UserProvided and must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)",
 		},
 		{
 			name:         "configure host placement with AnyAvailable affinity and invalid ID",
@@ -532,7 +532,7 @@ func TestMachineCreation(t *testing.T) {
 					},
 				},
 			},
-			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host.dedicatedHost.id: Required value: id is required and must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)",
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host.dedicatedHost.id: Required value: id is required when allocationStrategy is UserProvided and must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)",
 		},
 		{
 			name:         "configure host placement with DedicatedHost affinity and ID not set",
@@ -551,7 +551,7 @@ func TestMachineCreation(t *testing.T) {
 					},
 				},
 			},
-			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host.dedicatedHost.id: Required value: id is required and must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)",
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host.dedicatedHost.id: Required value: id is required when allocationStrategy is UserProvided and must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)",
 		},
 		{
 			name:         "configure host placement with DedicatedHost affinity and invalid ID",
@@ -678,6 +678,206 @@ func TestMachineCreation(t *testing.T) {
 				},
 			},
 			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host: Forbidden: host may only be specified when tenancy is 'host'",
+		},
+		{
+			name:         "configure AllocationStrategy Provided with valid ID",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI:          machinev1beta1.AWSResourceReference{ID: ptr.To[string]("ami")},
+					InstanceType: "test",
+					Placement: machinev1beta1.Placement{
+						Tenancy: machinev1beta1.HostTenancy,
+						Host: &machinev1beta1.HostPlacement{
+							Affinity: ptr.To(machinev1beta1.HostAffinityDedicatedHost),
+							DedicatedHost: &machinev1beta1.DedicatedHost{
+								AllocationStrategy: ptr.To(machinev1beta1.AllocationStrategyUserProvided),
+								ID:                 "h-1234567890abcdef0",
+							},
+						},
+					},
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "configure AllocationStrategy Provided without ID",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI:          machinev1beta1.AWSResourceReference{ID: ptr.To[string]("ami")},
+					InstanceType: "test",
+					Placement: machinev1beta1.Placement{
+						Tenancy: machinev1beta1.HostTenancy,
+						Host: &machinev1beta1.HostPlacement{
+							Affinity: ptr.To(machinev1beta1.HostAffinityDedicatedHost),
+							DedicatedHost: &machinev1beta1.DedicatedHost{
+								AllocationStrategy: ptr.To(machinev1beta1.AllocationStrategyUserProvided),
+							},
+						},
+					},
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host.dedicatedHost.id: Required value: id is required when allocationStrategy is UserProvided and must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)",
+		},
+		{
+			name:         "configure AllocationStrategy UserProvided with empty ID",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI:          machinev1beta1.AWSResourceReference{ID: ptr.To[string]("ami")},
+					InstanceType: "test",
+					Placement: machinev1beta1.Placement{
+						Tenancy: machinev1beta1.HostTenancy,
+						Host: &machinev1beta1.HostPlacement{
+							Affinity: ptr.To(machinev1beta1.HostAffinityDedicatedHost),
+							DedicatedHost: &machinev1beta1.DedicatedHost{
+								AllocationStrategy: ptr.To(machinev1beta1.AllocationStrategyUserProvided),
+								ID:                 "",
+							},
+						},
+					},
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host.dedicatedHost.id: Required value: id is required when allocationStrategy is UserProvided and must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)",
+		},
+		{
+			name:         "configure AllocationStrategy UserProvided with DynamicHostAllocation",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI:          machinev1beta1.AWSResourceReference{ID: ptr.To[string]("ami")},
+					InstanceType: "test",
+					Placement: machinev1beta1.Placement{
+						Tenancy: machinev1beta1.HostTenancy,
+						Host: &machinev1beta1.HostPlacement{
+							Affinity: ptr.To(machinev1beta1.HostAffinityDedicatedHost),
+							DedicatedHost: &machinev1beta1.DedicatedHost{
+								AllocationStrategy: ptr.To(machinev1beta1.AllocationStrategyUserProvided),
+								ID:                 "h-1234567890abcdef0",
+								DynamicHostAllocation: &machinev1beta1.DynamicHostAllocationSpec{
+									Tags: map[string]string{"key": "value"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host.dedicatedHost.dynamicHostAllocation: Invalid value: \"h-1234567890abcdef0\": dynamicHostAllocation is only allowed when allocationStrategy is Dynamic",
+		},
+		{
+			name:         "configure AllocationStrategy Dynamic without ID",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI:          machinev1beta1.AWSResourceReference{ID: ptr.To[string]("ami")},
+					InstanceType: "test",
+					Placement: machinev1beta1.Placement{
+						Tenancy: machinev1beta1.HostTenancy,
+						Host: &machinev1beta1.HostPlacement{
+							Affinity: ptr.To(machinev1beta1.HostAffinityDedicatedHost),
+							DedicatedHost: &machinev1beta1.DedicatedHost{
+								AllocationStrategy: ptr.To(machinev1beta1.AllocationStrategyDynamic),
+							},
+						},
+					},
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "configure AllocationStrategy Dynamic with DynamicHostAllocation",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI:          machinev1beta1.AWSResourceReference{ID: ptr.To[string]("ami")},
+					InstanceType: "test",
+					Placement: machinev1beta1.Placement{
+						Tenancy: machinev1beta1.HostTenancy,
+						Host: &machinev1beta1.HostPlacement{
+							Affinity: ptr.To(machinev1beta1.HostAffinityDedicatedHost),
+							DedicatedHost: &machinev1beta1.DedicatedHost{
+								AllocationStrategy: ptr.To(machinev1beta1.AllocationStrategyDynamic),
+								DynamicHostAllocation: &machinev1beta1.DynamicHostAllocationSpec{
+									Tags: map[string]string{"env": "test"},
+								},
+							},
+						},
+					},
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "configure AllocationStrategy Dynamic with ID",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI:          machinev1beta1.AWSResourceReference{ID: ptr.To[string]("ami")},
+					InstanceType: "test",
+					Placement: machinev1beta1.Placement{
+						Tenancy: machinev1beta1.HostTenancy,
+						Host: &machinev1beta1.HostPlacement{
+							Affinity: ptr.To(machinev1beta1.HostAffinityDedicatedHost),
+							DedicatedHost: &machinev1beta1.DedicatedHost{
+								AllocationStrategy: ptr.To(machinev1beta1.AllocationStrategyDynamic),
+								ID:                 "h-1234567890abcdef0",
+							},
+						},
+					},
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host.dedicatedHost.id: Forbidden: id is only allowed when allocationStrategy is Provided",
+		},
+		{
+			name:         "configure nil AllocationStrategy with valid ID (backward compatibility)",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI:          machinev1beta1.AWSResourceReference{ID: ptr.To[string]("ami")},
+					InstanceType: "test",
+					Placement: machinev1beta1.Placement{
+						Tenancy: machinev1beta1.HostTenancy,
+						Host: &machinev1beta1.HostPlacement{
+							Affinity: ptr.To(machinev1beta1.HostAffinityDedicatedHost),
+							DedicatedHost: &machinev1beta1.DedicatedHost{
+								AllocationStrategy: nil,
+								ID:                 "h-1234567890abcdef0",
+							},
+						},
+					},
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:         "configure nil AllocationStrategy without ID (backward compatibility)",
+			platformType: osconfigv1.AWSPlatformType,
+			clusterID:    "aws-cluster",
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI:          machinev1beta1.AWSResourceReference{ID: ptr.To[string]("ami")},
+					InstanceType: "test",
+					Placement: machinev1beta1.Placement{
+						Tenancy: machinev1beta1.HostTenancy,
+						Host: &machinev1beta1.HostPlacement{
+							Affinity: ptr.To(machinev1beta1.HostAffinityDedicatedHost),
+							DedicatedHost: &machinev1beta1.DedicatedHost{
+								AllocationStrategy: nil,
+							},
+						},
+					},
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host.dedicatedHost.id: Required value: id is required when allocationStrategy is UserProvided and must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)",
 		},
 		{
 			name:         "with VolumeType set to gp3 and Throughput set under minium value",

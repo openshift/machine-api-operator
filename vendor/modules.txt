@@ -976,7 +976,7 @@ github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo
 github.com/openshift-eng/openshift-tests-extension/pkg/junit
 github.com/openshift-eng/openshift-tests-extension/pkg/util/sets
 github.com/openshift-eng/openshift-tests-extension/pkg/version
-# github.com/openshift/api v0.0.0-20260114133223-6ab113cb7368
+# github.com/openshift/api v0.0.0-20260114133223-6ab113cb7368 => github.com/vr4manta/api v0.0.0-20260121131545-9cd445624861
 ## explicit; go 1.24.0
 github.com/openshift/api
 github.com/openshift/api/annotations
@@ -3668,3 +3668,4 @@ sigs.k8s.io/yaml/kyaml
 # k8s.io/apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/apiserver v0.0.0-20251015171918-61114aa5a292
 # k8s.io/kubelet => github.com/openshift/kubernetes/staging/src/k8s.io/kubelet v0.0.0-20251015171918-61114aa5a292
 # k8s.io/kubernetes => github.com/openshift/kubernetes v1.30.1-0.20251027205255-4e0347881cbd
+# github.com/openshift/api => github.com/vr4manta/api v0.0.0-20260121131545-9cd445624861

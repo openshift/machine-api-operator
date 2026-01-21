@@ -949,20 +949,15 @@ func processAWSPlacementTenancy(placement machinev1beta1.Placement) field.ErrorL
 				switch *placement.Host.Affinity {
 				case machinev1beta1.HostAffinityAnyAvailable:
 					// DedicatedHost is optional.  If it is set, make sure it follows conventions
-					if placement.Host.DedicatedHost != nil && !awsDedicatedHostNamePattern.MatchString(placement.Host.DedicatedHost.ID) {
-						errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.dedicatedHost.id"), placement.Host.DedicatedHost.ID, "id must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)"))
+					if placement.Host.DedicatedHost != nil {
+						errs = append(errs, validateDedicatedHost(placement.Host.DedicatedHost)...)
 					}
 				case machinev1beta1.HostAffinityDedicatedHost:
 					// We need to make sure DedicatedHost is set with an ID
 					if placement.Host.DedicatedHost == nil {
 						errs = append(errs, field.Required(field.NewPath("spec.placement.host.dedicatedHost"), "dedicatedHost is required when hostAffinity is DedicatedHost, and optional otherwise"))
 					} else {
-						// If not set, return required error.  If it does not match pattern, return pattern failure message.
-						if placement.Host.DedicatedHost.ID == "" {
-							errs = append(errs, field.Required(field.NewPath("spec.placement.host.dedicatedHost.id"), "id is required and must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)"))
-						} else if !awsDedicatedHostNamePattern.MatchString(placement.Host.DedicatedHost.ID) {
-							errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.dedicatedHost.id"), placement.Host.DedicatedHost.ID, "id must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)"))
-						}
+						errs = append(errs, validateDedicatedHost(placement.Host.DedicatedHost)...)
 					}
 				default:
 					errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.affinity"), placement.Host.Affinity, "hostAffinity must be either AnyAvailable or DedicatedHost"))
@@ -976,6 +971,54 @@ func processAWSPlacementTenancy(placement machinev1beta1.Placement) field.ErrorL
 				field.NewPath("providerSpec", "tenancy"),
 				placement.Tenancy,
 				fmt.Sprintf("Invalid providerSpec.tenancy, the only allowed options are: %s, %s, %s, or omitted", machinev1beta1.DefaultTenancy, machinev1beta1.DedicatedTenancy, machinev1beta1.HostTenancy),
+			),
+		)
+	}
+
+	return errs
+}
+
+// validateDedicatedHost validates that all fields in the DedicatedHost are configured correctly.
+func validateDedicatedHost(host *machinev1beta1.DedicatedHost) field.ErrorList {
+	var errs field.ErrorList
+
+	// If host is nil, then nothing to validate
+	if host == nil {
+		return errs
+	}
+
+	strategy := machinev1beta1.AllocationStrategyUserProvided
+	if host.AllocationStrategy != nil {
+		strategy = *host.AllocationStrategy
+	}
+
+	switch strategy {
+	// Empty string is for backward compatability in case an existing config exists with the allocation strategy not set.
+	// Default is User Provided.
+	case machinev1beta1.AllocationStrategyUserProvided, "":
+		// User Provided requires the ID being set of the host to use
+		if host.ID == "" {
+			errs = append(errs, field.Required(field.NewPath("spec.placement.host.dedicatedHost.id"), "id is required when allocationStrategy is UserProvided and must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)"))
+		} else if !awsDedicatedHostNamePattern.MatchString(host.ID) {
+			errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.dedicatedHost.id"), host.ID, "id must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)"))
+		}
+
+		// DynamicHostAllocation is not allowed if user provided
+		if host.DynamicHostAllocation != nil {
+			errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.dedicatedHost.dynamicHostAllocation"), host.ID, "dynamicHostAllocation is only allowed when allocationStrategy is Dynamic"))
+		}
+	case machinev1beta1.AllocationStrategyDynamic:
+		// ID must not be set
+		if host.ID != "" {
+			errs = append(errs, field.Forbidden(field.NewPath("spec.placement.host.dedicatedHost.id"), "id is only allowed when allocationStrategy is Provided"))
+		}
+	default:
+		errs = append(
+			errs,
+			field.Invalid(
+				field.NewPath("spec.placement.host.dedicatedHost.allocationStrategy"),
+				host.AllocationStrategy,
+				fmt.Sprintf("Invalid allocationStrategy, the only allowed options are: %s, %s", machinev1beta1.AllocationStrategyUserProvided, machinev1beta1.AllocationStrategyDynamic),
 			),
 		)
 	}

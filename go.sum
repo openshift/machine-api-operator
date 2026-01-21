@@ -449,8 +449,6 @@ github.com/opencontainers/selinux v1.11.1 h1:nHFvthhM0qY8/m+vfhJylliSshm8G1jJ2jD
 github.com/opencontainers/selinux v1.11.1/go.mod h1:E5dMC3VPuVvVHDYmi78qvhJp8+M586T4DlDRYpFkyec=
 github.com/openshift-eng/openshift-tests-extension v0.0.0-20251105193959-75a0be5d9bd7 h1:Z1swlS6b3Adm6RPhjqefs3DWnNFLDxRX+WC8GMXhja4=
 github.com/openshift-eng/openshift-tests-extension v0.0.0-20251105193959-75a0be5d9bd7/go.mod h1:6gkP5f2HL0meusT0Aim8icAspcD1cG055xxBZ9yC68M=
-github.com/openshift/api v0.0.0-20260114133223-6ab113cb7368 h1:kSr3DOlq0NCrHd65HB2o/pBsks7AfRm+fkpf9RLUPoc=
-github.com/openshift/api v0.0.0-20260114133223-6ab113cb7368/go.mod h1:d5uzF0YN2nQQFA0jIEWzzOZ+edmo6wzlGLvx5Fhz4uY=
 github.com/openshift/client-go v0.0.0-20251202151200-fb4471581cf8 h1:97rgISdT4IOmXlmEUV5Wr6d8BzzjPclzAjCARLbSlT0=
 github.com/openshift/client-go v0.0.0-20251202151200-fb4471581cf8/go.mod h1:WVJnsrbSO1J8x8KceOmv1d5CpoN34Uzsaz1O4MIOKJI=
 github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20250910145856-21d03d30056d h1:+sqUThLi/lmgT5/scmmjnS6+RZFtbdxRAscNfCPyLPI=
@@ -616,6 +614,8 @@ github.com/uudashr/iface v1.3.1 h1:bA51vmVx1UIhiIsQFSNq6GZ6VPTk3WNMZgRiCe9R29U=
 github.com/uudashr/iface v1.3.1/go.mod h1:4QvspiRd3JLPAEXBQ9AiZpLbJlrWWgRChOKDJEuQTdg=
 github.com/vmware/govmomi v0.52.0 h1:JyxQ1IQdllrY7PJbv2am9mRsv3p9xWlIQ66bv+XnyLw=
 github.com/vmware/govmomi v0.52.0/go.mod h1:Yuc9xjznU3BH0rr6g7MNS1QGvxnJlE1vOvTJ7Lx7dqI=
+github.com/vr4manta/api v0.0.0-20260121131545-9cd445624861 h1:CI4EPLfHEssv+uuL1y7feU5zT9Swy0f3PnCE7SbMZYA=
+github.com/vr4manta/api v0.0.0-20260121131545-9cd445624861/go.mod h1:d5uzF0YN2nQQFA0jIEWzzOZ+edmo6wzlGLvx5Fhz4uY=
 github.com/x448/float16 v0.8.4 h1:qLwI1I70+NjRFUR3zs1JPUCgaCXSh3SW62uAKT1mSBM=
 github.com/x448/float16 v0.8.4/go.mod h1:14CWIYCyZA/cWjXOioeEpHeN/83MdbZDRQHoFcYsOfg=
 github.com/xen0n/gosmopolitan v1.2.2 h1:/p2KTnMzwRexIW8GlKawsTWOxn7UHA+jCMF/V8HHtvU=
