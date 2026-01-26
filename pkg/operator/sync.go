@@ -2,6 +2,7 @@ package operator
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"os"
 	"slices"
@@ -20,9 +21,9 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	v1 "github.com/openshift/api/config/v1"
+	configv1 "github.com/openshift/api/config/v1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
-	utiltls "github.com/openshift/controller-runtime-common/pkg/tls"
+	utiltls "github.com/openshift/library-go/pkg/controllerruntime/tls"
 	libgocrypto "github.com/openshift/library-go/pkg/crypto"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
@@ -239,7 +240,7 @@ func (optr *Operator) syncWebhookConfiguration(config *OperatorConfig) error {
 	if err := optr.syncMachineMutatingWebhook(); err != nil {
 		return err
 	}
-	if config.PlatformType == v1.BareMetalPlatformType {
+	if config.PlatformType == configv1.BareMetalPlatformType {
 		if err := optr.syncMetal3RemediationValidatingWebhook(); err != nil {
 			return err
 		}
@@ -512,7 +513,7 @@ func newRBACConfigVolumes() []corev1.Volume {
 func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev1.PodTemplateSpec {
 	containers := newContainers(config, features)
 	withMHCProxy := config.Controllers.MachineHealthCheck != ""
-	proxyContainers := newKubeProxyContainers(config.Controllers.KubeRBACProxy, withMHCProxy)
+	proxyContainers := newKubeProxyContainers(config.Controllers.KubeRBACProxy, withMHCProxy, config.TLSProfile)
 	tolerations := []corev1.Toleration{
 		{
 			Key:    "node-role.kubernetes.io/master",
@@ -675,7 +676,7 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 
 	machineControllerArgs := append([]string{}, featureGateArgs...)
 	switch config.PlatformType {
-	case v1.AzurePlatformType, v1.GCPPlatformType:
+	case configv1.AzurePlatformType, configv1.GCPPlatformType:
 		machineControllerArgs = append(machineControllerArgs, "--max-concurrent-reconciles=10")
 	}
 
@@ -855,20 +856,20 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 	return containers
 }
 
-func newKubeProxyContainers(image string, withMHCProxy bool) []corev1.Container {
+func newKubeProxyContainers(image string, withMHCProxy bool, tlsProfile configv1.TLSProfileSpec) []corev1.Container {
 	proxyContainers := []corev1.Container{
-		newKubeProxyContainer(image, "machineset-mtrc", metrics.DefaultMachineSetMetricsAddress, machineSetExposeMetricsPort),
-		newKubeProxyContainer(image, "machine-mtrc", metrics.DefaultMachineMetricsAddress, machineExposeMetricsPort),
+		newKubeProxyContainer(image, "machineset-mtrc", metrics.DefaultMachineSetMetricsAddress, machineSetExposeMetricsPort, tlsProfile),
+		newKubeProxyContainer(image, "machine-mtrc", metrics.DefaultMachineMetricsAddress, machineExposeMetricsPort, tlsProfile),
 	}
 	if withMHCProxy {
 		proxyContainers = append(proxyContainers,
-			newKubeProxyContainer(image, "mhc-mtrc", metrics.DefaultHealthCheckMetricsAddress, machineHealthCheckExposeMetricsPort),
+			newKubeProxyContainer(image, "mhc-mtrc", metrics.DefaultHealthCheckMetricsAddress, machineHealthCheckExposeMetricsPort, tlsProfile),
 		)
 	}
 	return proxyContainers
 }
 
-func newKubeProxyContainer(image, portName, upstreamPort string, exposePort int32) corev1.Container {
+func newKubeProxyContainer(image, portName, upstreamPort string, exposePort int32, tlsProfile configv1.TLSProfileSpec) corev1.Container {
 	configMountPath := "/etc/kube-rbac-proxy"
 	tlsCertMountPath := "/etc/tls/private"
 	resources := corev1.ResourceRequirements{
@@ -877,16 +878,32 @@ func newKubeProxyContainer(image, portName, upstreamPort string, exposePort int3
 			corev1.ResourceCPU:    resource.MustParse("10m"),
 		},
 	}
+
+	tlsConfigFn, _ := utiltls.NewTLSConfigFromProfile(tlsProfile)
+
+	// Apply the config function to get the validated cipher codes.
+	tlsConf := &tls.Config{}
+	tlsConfigFn(tlsConf)
+
 	args := []string{
 		fmt.Sprintf("--secure-listen-address=0.0.0.0:%d", exposePort),
 		fmt.Sprintf("--upstream=http://localhost%s", upstreamPort),
 		fmt.Sprintf("--config-file=%s/config-file.yaml", configMountPath),
 		fmt.Sprintf("--tls-cert-file=%s/tls.crt", tlsCertMountPath),
 		fmt.Sprintf("--tls-private-key-file=%s/tls.key", tlsCertMountPath),
-		"--tls-cipher-suites=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305",
+	}
+
+	// Ciphers are empty when using TLS 1.3, so we don't need to set them.
+	if len(tlsConf.CipherSuites) > 0 {
+		ianaCiphers := libgocrypto.CipherSuitesToNamesOrDie(tlsConf.CipherSuites)
+		args = append(args, fmt.Sprintf("--tls-cipher-suites=%s", strings.Join(ianaCiphers, ",")))
+	}
+
+	args = append(args,
+		fmt.Sprintf("--tls-min-version=%s", tlsProfile.MinTLSVersion),
 		"--logtostderr=true",
 		"--v=3",
-	}
+	)
 	ports := []corev1.ContainerPort{{
 		Name:          portName,
 		ContainerPort: exposePort,

@@ -30,7 +30,7 @@ import (
 
 	osconfigv1 "github.com/openshift/api/config/v1"
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
-	utiltls "github.com/openshift/library-go/pkg/controllerruntime/tls"
+	utiltls "github.com/openshift/controller-runtime-common/pkg/tls"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/machine-api-operator/pkg/metrics"
 	"github.com/openshift/machine-api-operator/pkg/operator"
@@ -265,7 +265,7 @@ func setupTLSProfileWatcher(ctx *ControllerContext, shutdown func()) error {
 	}
 
 	apiServerInformer := ctx.ConfigInformerFactory.Config().V1().APIServers().Informer()
-	apiServerInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+	_, err = apiServerInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
 			handleTLSProfileEvent(obj, initialProfile, shutdown)
 		},
@@ -273,6 +273,9 @@ func setupTLSProfileWatcher(ctx *ControllerContext, shutdown func()) error {
 			handleTLSProfileEvent(newObj, initialProfile, shutdown)
 		},
 	})
+	if err != nil {
+		return fmt.Errorf("failed to add APIServer event handler: %w", err)
+	}
 
 	return nil
 }

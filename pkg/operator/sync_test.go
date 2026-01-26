@@ -7,7 +7,7 @@ import (
 	"time"
 
 	. "github.com/onsi/gomega"
-	v1 "github.com/openshift/api/config/v1"
+	configv1 "github.com/openshift/api/config/v1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -456,20 +456,20 @@ func TestSyncWebhookConfiguration(t *testing.T) {
 
 	testCases := []struct {
 		name                         string
-		platformType                 v1.PlatformType
+		platformType                 configv1.PlatformType
 		expectedNrMutatingWebhooks   int
 		expectedNrValidatingWebhooks int
 	}{
 		{
 			name: "webhooks on non baremetal",
 			// using AWS as random non baremetal platform
-			platformType:                 v1.AWSPlatformType,
+			platformType:                 configv1.AWSPlatformType,
 			expectedNrMutatingWebhooks:   1,
 			expectedNrValidatingWebhooks: 1,
 		},
 		{
 			name:                         "webhooks on baremetal",
-			platformType:                 v1.BareMetalPlatformType,
+			platformType:                 configv1.BareMetalPlatformType,
 			expectedNrMutatingWebhooks:   2,
 			expectedNrValidatingWebhooks: 2,
 		},
