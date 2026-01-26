@@ -7,7 +7,7 @@ import (
 	"time"
 
 	. "github.com/onsi/gomega"
-	v1 "github.com/openshift/api/config/v1"
+	configv1 "github.com/openshift/api/config/v1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -456,20 +456,20 @@ func TestSyncWebhookConfiguration(t *testing.T) {
 
 	testCases := []struct {
 		name                         string
-		platformType                 v1.PlatformType
+		platformType                 configv1.PlatformType
 		expectedNrMutatingWebhooks   int
 		expectedNrValidatingWebhooks int
 	}{
 		{
 			name: "webhooks on non baremetal",
 			// using AWS as random non baremetal platform
-			platformType:                 v1.AWSPlatformType,
+			platformType:                 configv1.AWSPlatformType,
 			expectedNrMutatingWebhooks:   1,
 			expectedNrValidatingWebhooks: 1,
 		},
 		{
 			name:                         "webhooks on baremetal",
-			platformType:                 v1.BareMetalPlatformType,
+			platformType:                 configv1.BareMetalPlatformType,
 			expectedNrMutatingWebhooks:   2,
 			expectedNrValidatingWebhooks: 2,
 		},
@@ -501,6 +501,49 @@ func TestSyncWebhookConfiguration(t *testing.T) {
 				"wrong nr of mutating webhooks")
 			g.Expect(nrValidatingWebhooks).To(BeNumerically("==", tc.expectedNrValidatingWebhooks),
 				"wrong nr of validating webhooks")
+		})
+	}
+}
+
+func TestBuildKubeRBACProxyTLSArgs(t *testing.T) {
+	testCases := []struct {
+		name            string
+		tlsProfile      *configv1.TLSProfileSpec
+		expectedCiphers string
+		expectedMin     configv1.TLSProtocolVersion
+	}{
+		{
+			name:        "nil profile uses defaults",
+			tlsProfile:  nil,
+			expectedMin: configv1.VersionTLS12,
+		},
+		{
+			name: "custom profile with specific ciphers",
+			tlsProfile: &configv1.TLSProfileSpec{
+				Ciphers:       []string{"TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384"},
+				MinTLSVersion: configv1.VersionTLS12,
+			},
+			expectedCiphers: "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
+			expectedMin:     configv1.VersionTLS12,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			args := buildKubeRBACProxyTLSArgs(tc.tlsProfile)
+
+			g.Expect(args).To(HaveLen(2), "should return exactly 2 args (cipher-suites and min-version)")
+			g.Expect(args[0]).To(HavePrefix("--tls-cipher-suites="))
+			g.Expect(args[1]).To(HavePrefix("--tls-min-version="))
+
+			if tc.expectedCiphers != "" {
+				g.Expect(args[0]).To(Equal("--tls-cipher-suites=" + tc.expectedCiphers))
+			}
+			if tc.expectedMin != "" {
+				g.Expect(args[1]).To(Equal("--tls-min-version=" + string(tc.expectedMin)))
+			}
 		})
 	}
 }

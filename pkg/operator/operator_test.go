@@ -354,12 +354,20 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 		},
 	}
 
+	// Default APIServer with Intermediate TLS profile
+	defaultAPIServer := &openshiftv1.APIServer{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "cluster",
+		},
+	}
+
 	testCases := []struct {
 		name           string
 		platform       openshiftv1.PlatformType
 		infra          *openshiftv1.Infrastructure
 		featureGate    *openshiftv1.FeatureGate
 		proxy          *openshiftv1.Proxy
+		apiServer      *openshiftv1.APIServer
 		imagesFile     string
 		expectedConfig *OperatorConfig
 		expectedError  error
@@ -382,7 +390,8 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					},
 				},
 			},
-			proxy: proxy,
+			proxy:     proxy,
+			apiServer: defaultAPIServer,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -396,6 +405,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				},
 				PlatformType: openshiftv1.AWSPlatformType,
 				Features:     enabledFeatureMap,
+				TLSProfile:   openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
 			},
 		},
 		{
@@ -416,7 +426,8 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					},
 				},
 			},
-			proxy: proxy,
+			proxy:     proxy,
+			apiServer: defaultAPIServer,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -430,6 +441,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				},
 				PlatformType: openshiftv1.LibvirtPlatformType,
 				Features:     enabledFeatureMap,
+				TLSProfile:   openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
 			},
 		},
 		{
@@ -450,7 +462,8 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					},
 				},
 			},
-			proxy: proxy,
+			proxy:     proxy,
+			apiServer: defaultAPIServer,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -464,6 +477,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				},
 				PlatformType: openshiftv1.OpenStackPlatformType,
 				Features:     enabledFeatureMap,
+				TLSProfile:   openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
 			},
 		},
 		{
@@ -484,7 +498,8 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					},
 				},
 			},
-			proxy: proxy,
+			proxy:     proxy,
+			apiServer: defaultAPIServer,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -498,6 +513,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				},
 				PlatformType: openshiftv1.AzurePlatformType,
 				Features:     enabledFeatureMap,
+				TLSProfile:   openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
 			},
 		},
 		{
@@ -518,7 +534,8 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					},
 				},
 			},
-			proxy: proxy,
+			proxy:     proxy,
+			apiServer: defaultAPIServer,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -532,6 +549,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				},
 				PlatformType: openshiftv1.BareMetalPlatformType,
 				Features:     enabledFeatureMap,
+				TLSProfile:   openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
 			},
 		},
 		{
@@ -552,7 +570,8 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					},
 				},
 			},
-			proxy: proxy,
+			proxy:     proxy,
+			apiServer: defaultAPIServer,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -566,6 +585,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				},
 				PlatformType: openshiftv1.GCPPlatformType,
 				Features:     enabledFeatureMap,
+				TLSProfile:   openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
 			},
 		},
 		{
@@ -586,7 +606,8 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					},
 				},
 			},
-			proxy: proxy,
+			proxy:     proxy,
+			apiServer: defaultAPIServer,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -600,6 +621,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				},
 				PlatformType: kubemarkPlatform,
 				Features:     enabledFeatureMap,
+				TLSProfile:   openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
 			},
 		},
 		{
@@ -620,7 +642,8 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					},
 				},
 			},
-			proxy: proxy,
+			proxy:     proxy,
+			apiServer: defaultAPIServer,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -634,6 +657,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				},
 				PlatformType: openshiftv1.VSpherePlatformType,
 				Features:     enabledFeatureMap,
+				TLSProfile:   openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
 			},
 		},
 		{
@@ -654,7 +678,8 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					},
 				},
 			},
-			proxy: proxy,
+			proxy:     proxy,
+			apiServer: defaultAPIServer,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -668,6 +693,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				},
 				PlatformType: openshiftv1.NonePlatformType,
 				Features:     enabledFeatureMap,
+				TLSProfile:   openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
 			},
 		},
 		{
@@ -690,7 +716,8 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					},
 				},
 			},
-			proxy: proxy,
+			proxy:     proxy,
+			apiServer: defaultAPIServer,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -704,6 +731,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				},
 				PlatformType: openshiftv1.BareMetalPlatformType,
 				Features:     enabledFeatureMap,
+				TLSProfile:   openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
 			},
 		},
 		{
@@ -724,7 +752,8 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					},
 				},
 			},
-			proxy: proxy,
+			proxy:     proxy,
+			apiServer: defaultAPIServer,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -738,6 +767,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				},
 				PlatformType: openshiftv1.BareMetalPlatformType,
 				Features:     enabledFeatureMap,
+				TLSProfile:   openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
 			},
 		},
 		{
@@ -758,7 +788,8 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 					},
 				},
 			},
-			proxy: proxy,
+			proxy:     proxy,
+			apiServer: defaultAPIServer,
 			expectedConfig: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				Proxy:           proxy,
@@ -772,6 +803,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				},
 				PlatformType: "bad-platform",
 				Features:     enabledFeatureMap,
+				TLSProfile:   openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
 			},
 		},
 		{
@@ -831,6 +863,10 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 			if tc.proxy != nil {
 				proxy := tc.proxy.DeepCopy()
 				objects = append(objects, proxy)
+			}
+			if tc.apiServer != nil {
+				apiServer := tc.apiServer.DeepCopy()
+				objects = append(objects, apiServer)
 			}
 
 			stopCh := make(chan struct{})
