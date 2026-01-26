@@ -257,6 +257,7 @@ rules:
   - apiGroups:
     - config.openshift.io
     resources:
+    - apiservers
     - infrastructures
     - dnses
     - clusterversions
@@ -426,6 +427,7 @@ rules:
   - apiGroups:
       - config.openshift.io
     resources:
+      - apiservers
       - featuregates
       - featuregates/status
       - proxies
