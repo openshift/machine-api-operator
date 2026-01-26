@@ -176,7 +176,7 @@ func main() {
 	machineActuator := machine.NewActuator(machine.ActuatorParams{
 		Client:                   mgr.GetClient(),
 		APIReader:                mgr.GetAPIReader(),
-		EventRecorder:            mgr.GetEventRecorderFor("vspherecontroller"), //nolint:staticcheck
+		EventRecorder:            mgr.GetEventRecorder("vspherecontroller"),
 		TaskIDCache:              taskIDCache,
 		FeatureGates:             defaultMutableGate,
 		OpenshiftConfigNamespace: vsphere.OpenshiftConfigNamespace,

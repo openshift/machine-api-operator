@@ -3,11 +3,12 @@ package operator
 import (
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	. "github.com/onsi/gomega"
-	v1 "github.com/openshift/api/config/v1"
+	configv1 "github.com/openshift/api/config/v1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -456,20 +457,20 @@ func TestSyncWebhookConfiguration(t *testing.T) {
 
 	testCases := []struct {
 		name                         string
-		platformType                 v1.PlatformType
+		platformType                 configv1.PlatformType
 		expectedNrMutatingWebhooks   int
 		expectedNrValidatingWebhooks int
 	}{
 		{
 			name: "webhooks on non baremetal",
 			// using AWS as random non baremetal platform
-			platformType:                 v1.AWSPlatformType,
+			platformType:                 configv1.AWSPlatformType,
 			expectedNrMutatingWebhooks:   1,
 			expectedNrValidatingWebhooks: 1,
 		},
 		{
 			name:                         "webhooks on baremetal",
-			platformType:                 v1.BareMetalPlatformType,
+			platformType:                 configv1.BareMetalPlatformType,
 			expectedNrMutatingWebhooks:   2,
 			expectedNrValidatingWebhooks: 2,
 		},
@@ -593,4 +594,300 @@ func TestCheckDaemonSetRolloutStatus(t *testing.T) {
 			}
 		})
 	}
+}
+func TestNewKubeProxyContainers(t *testing.T) {
+	testCases := []struct {
+		name                       string
+		image                      string
+		withMHCProxy               bool
+		tlsProfile                 configv1.TLSProfileSpec
+		expectedCipherSuitesInArgs bool
+		expectedPorts              map[string]int32
+	}{
+		{
+			name:         "TLS 1.2 Intermediate profile with cipher suites",
+			image:        "test-image:latest",
+			withMHCProxy: true,
+			tlsProfile: configv1.TLSProfileSpec{
+				Ciphers: []string{
+					"TLS_AES_128_GCM_SHA256",
+					"TLS_AES_256_GCM_SHA384",
+					"TLS_CHACHA20_POLY1305_SHA256",
+					"ECDHE-ECDSA-AES128-GCM-SHA256",
+					"ECDHE-RSA-AES128-GCM-SHA256",
+				},
+				MinTLSVersion: configv1.VersionTLS12,
+			},
+			expectedCipherSuitesInArgs: true,
+			expectedPorts: map[string]int32{
+				"kube-rbac-proxy-machineset-mtrc": machineSetExposeMetricsPort,
+				"kube-rbac-proxy-machine-mtrc":    machineExposeMetricsPort,
+				"kube-rbac-proxy-mhc-mtrc":        machineHealthCheckExposeMetricsPort,
+			},
+		},
+		{
+			name:         "TLS 1.3 Modern profile without cipher suites",
+			image:        "test-image:latest",
+			withMHCProxy: false,
+			tlsProfile: configv1.TLSProfileSpec{
+				Ciphers: []string{
+					"TLS_AES_128_GCM_SHA256",
+					"TLS_AES_256_GCM_SHA384",
+					"TLS_CHACHA20_POLY1305_SHA256",
+				},
+				MinTLSVersion: configv1.VersionTLS13,
+			},
+			expectedCipherSuitesInArgs: false,
+			expectedPorts: map[string]int32{
+				"kube-rbac-proxy-machineset-mtrc": machineSetExposeMetricsPort,
+				"kube-rbac-proxy-machine-mtrc":    machineExposeMetricsPort,
+			},
+		},
+		{
+			name:         "Empty cipher list",
+			image:        "test-image:latest",
+			withMHCProxy: false,
+			tlsProfile: configv1.TLSProfileSpec{
+				Ciphers:       []string{},
+				MinTLSVersion: configv1.VersionTLS13,
+			},
+			expectedCipherSuitesInArgs: false,
+			expectedPorts: map[string]int32{
+				"kube-rbac-proxy-machineset-mtrc": machineSetExposeMetricsPort,
+				"kube-rbac-proxy-machine-mtrc":    machineExposeMetricsPort,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			containers := newKubeProxyContainers(tc.image, tc.withMHCProxy, getTLSArgs(tc.tlsProfile))
+
+			// Verify we get the expected number of containers
+			g.Expect(containers).To(HaveLen(len(tc.expectedPorts)))
+
+			// Verify each container has the correct TLS args and specific ports
+			for _, container := range containers {
+				// Verify basic container properties
+				g.Expect(container.Image).To(Equal(tc.image))
+
+				// Verify ports
+				g.Expect(container.Ports).To(HaveLen(1))
+				expectedPort, ok := tc.expectedPorts[container.Name]
+				g.Expect(ok).To(BeTrue(), "Unexpected container name: %s", container.Name)
+				g.Expect(container.Ports[0].ContainerPort).To(Equal(expectedPort))
+
+				// Verify resource requests
+				g.Expect(container.Resources.Requests).To(HaveKey(corev1.ResourceMemory))
+				g.Expect(container.Resources.Requests).To(HaveKey(corev1.ResourceCPU))
+
+				// Verify volume mounts
+				g.Expect(container.VolumeMounts).To(HaveLen(2))
+
+				// Verify TLS args
+				hasCipherSuitesArg := false
+				hasTLSMinVersionArg := false
+				for _, arg := range container.Args {
+					if strings.HasPrefix(arg, "--tls-cipher-suites=") {
+						hasCipherSuitesArg = true
+					}
+					if strings.HasPrefix(arg, "--tls-min-version=") {
+						hasTLSMinVersionArg = true
+						g.Expect(arg).To(HavePrefix("--tls-min-version=" + string(tc.tlsProfile.MinTLSVersion)))
+					}
+				}
+
+				g.Expect(hasCipherSuitesArg).To(Equal(tc.expectedCipherSuitesInArgs),
+					"cipher suites arg presence mismatch for container %s", container.Name)
+				g.Expect(hasTLSMinVersionArg).To(BeTrue(), "TLS min version arg should be present for container %s", container.Name)
+			}
+		})
+	}
+}
+
+func TestNewPodTemplateSpecTLSArgs(t *testing.T) {
+	testCases := []struct {
+		name                                  string
+		config                                *OperatorConfig
+		tlsProfile                            configv1.TLSProfileSpec
+		tlsAdherencePolicy                    configv1.TLSAdherencePolicy
+		expectedTLSProfile                    configv1.TLSProfileSpec
+		expectMachineControllerTLSOnBareMetal bool
+		expectTLSArgsOnProfileConsumers       bool
+	}{
+		{
+			name: "AWS: TLS 1.2 with cipher suites",
+			config: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				PlatformType:    configv1.AWSPlatformType,
+				Controllers: Controllers{
+					Provider:           "provider-image:latest",
+					MachineSet:         "machineset-image:latest",
+					NodeLink:           "nodelink-image:latest",
+					MachineHealthCheck: "mhc-image:latest",
+					KubeRBACProxy:      "kube-rbac-proxy-image:latest",
+				},
+			},
+			tlsProfile: configv1.TLSProfileSpec{
+				Ciphers: []string{
+					"ECDHE-ECDSA-AES128-GCM-SHA256",
+					"ECDHE-RSA-AES128-GCM-SHA256",
+				},
+				MinTLSVersion: configv1.VersionTLS12,
+			},
+			expectedTLSProfile:                    configv1.TLSProfileSpec{Ciphers: []string{"ECDHE-ECDSA-AES128-GCM-SHA256", "ECDHE-RSA-AES128-GCM-SHA256"}, MinTLSVersion: configv1.VersionTLS12},
+			expectMachineControllerTLSOnBareMetal: false,
+			tlsAdherencePolicy:                    configv1.TLSAdherencePolicyStrictAllComponents,
+			expectTLSArgsOnProfileConsumers:       true,
+		},
+		{
+			name: "GCP: TLS 1.3 without cipher suites",
+			config: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				PlatformType:    configv1.GCPPlatformType,
+				Controllers: Controllers{
+					Provider:           "provider-image:latest",
+					MachineSet:         "machineset-image:latest",
+					NodeLink:           "nodelink-image:latest",
+					MachineHealthCheck: "",
+					KubeRBACProxy:      "kube-rbac-proxy-image:latest",
+				},
+			},
+			tlsProfile: configv1.TLSProfileSpec{
+				Ciphers:       []string{},
+				MinTLSVersion: configv1.VersionTLS13,
+			},
+			expectedTLSProfile:                    *configv1.TLSProfiles[configv1.TLSProfileIntermediateType],
+			expectMachineControllerTLSOnBareMetal: false,
+			tlsAdherencePolicy:                    configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly,
+			expectTLSArgsOnProfileConsumers:       true,
+		},
+		{
+			name: "BareMetal: TLS args passed to machine-controller for Metal3Remediation webhooks",
+			config: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				PlatformType:    configv1.BareMetalPlatformType,
+				Controllers: Controllers{
+					Provider:           "provider-image:latest",
+					MachineSet:         "machineset-image:latest",
+					NodeLink:           "nodelink-image:latest",
+					MachineHealthCheck: "mhc-image:latest",
+					KubeRBACProxy:      "kube-rbac-proxy-image:latest",
+				},
+			},
+			tlsProfile: configv1.TLSProfileSpec{
+				Ciphers: []string{
+					"ECDHE-ECDSA-AES128-GCM-SHA256",
+					"ECDHE-RSA-AES128-GCM-SHA256",
+				},
+				MinTLSVersion: configv1.VersionTLS12,
+			},
+			expectedTLSProfile:                    configv1.TLSProfileSpec{Ciphers: []string{"ECDHE-ECDSA-AES128-GCM-SHA256", "ECDHE-RSA-AES128-GCM-SHA256"}, MinTLSVersion: configv1.VersionTLS12},
+			expectMachineControllerTLSOnBareMetal: true,
+			tlsAdherencePolicy:                    configv1.TLSAdherencePolicyStrictAllComponents,
+			expectTLSArgsOnProfileConsumers:       true,
+		},
+		{
+			name: "AWS: no opinion applies default profile TLS args through pod template",
+			config: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				PlatformType:    configv1.AWSPlatformType,
+				Controllers: Controllers{
+					Provider:           "provider-image:latest",
+					MachineSet:         "machineset-image:latest",
+					NodeLink:           "nodelink-image:latest",
+					MachineHealthCheck: "mhc-image:latest",
+					KubeRBACProxy:      "kube-rbac-proxy-image:latest",
+				},
+			},
+			tlsProfile: configv1.TLSProfileSpec{
+				Ciphers: []string{
+					"ECDHE-ECDSA-AES128-GCM-SHA256",
+					"ECDHE-RSA-AES128-GCM-SHA256",
+				},
+				MinTLSVersion: configv1.VersionTLS12,
+			},
+			expectedTLSProfile:                    *configv1.TLSProfiles[configv1.TLSProfileIntermediateType],
+			expectMachineControllerTLSOnBareMetal: false,
+			tlsAdherencePolicy:                    configv1.TLSAdherencePolicyNoOpinion,
+			expectTLSArgsOnProfileConsumers:       true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			configForPodTemplate := *tc.config
+			configForPodTemplate.TLSProfile = tc.tlsProfile
+			configForPodTemplate.TLSAdherencePolicy = tc.tlsAdherencePolicy
+			podTemplate := newPodTemplateSpec(&configForPodTemplate, map[string]bool{})
+
+			containerArgs := map[string][]string{}
+			for _, container := range podTemplate.Spec.Containers {
+				containerArgs[container.Name] = container.Args
+			}
+
+			g.Expect(containerArgs).To(HaveKey("machineset-controller"))
+			g.Expect(containerArgs).To(HaveKey("machine-controller"))
+			g.Expect(containerArgs).To(HaveKey("nodelink-controller"))
+			g.Expect(containerArgs).To(HaveKey("kube-rbac-proxy-machineset-mtrc"))
+			g.Expect(containerArgs).To(HaveKey("kube-rbac-proxy-machine-mtrc"))
+
+			if tc.config.Controllers.MachineHealthCheck != "" {
+				g.Expect(containerArgs).To(HaveKey("machine-healthcheck-controller"))
+				g.Expect(containerArgs).To(HaveKey("kube-rbac-proxy-mhc-mtrc"))
+			}
+
+			expectedTLSArgs := getTLSArgs(tc.expectedTLSProfile)
+			assertTLSArgs := func(args []string, shouldContain bool) {
+				joined := strings.Join(args, " ")
+				for _, expectedTLSArg := range expectedTLSArgs {
+					if shouldContain {
+						g.Expect(joined).To(ContainSubstring(expectedTLSArg))
+					} else {
+						g.Expect(joined).ToNot(ContainSubstring(expectedTLSArg))
+					}
+				}
+			}
+
+			// machineset-controller and kube-rbac-proxy containers always receive TLS args
+			// from either the cluster profile (strict) or the default profile.
+			assertTLSArgs(containerArgs["machineset-controller"], tc.expectTLSArgsOnProfileConsumers)
+			assertTLSArgs(containerArgs["kube-rbac-proxy-machineset-mtrc"], tc.expectTLSArgsOnProfileConsumers)
+			assertTLSArgs(containerArgs["kube-rbac-proxy-machine-mtrc"], tc.expectTLSArgsOnProfileConsumers)
+			if tc.config.Controllers.MachineHealthCheck != "" {
+				assertTLSArgs(containerArgs["kube-rbac-proxy-mhc-mtrc"], tc.expectTLSArgsOnProfileConsumers)
+			}
+
+			// machine-controller gets TLS args only on BareMetal.
+			expectMachineControllerTLSArgs := tc.expectTLSArgsOnProfileConsumers && tc.expectMachineControllerTLSOnBareMetal
+			assertTLSArgs(containerArgs["machine-controller"], expectMachineControllerTLSArgs)
+
+			// nodelink-controller and machine-healthcheck-controller never receive TLS args.
+			assertTLSArgs(containerArgs["nodelink-controller"], false)
+			if tc.config.Controllers.MachineHealthCheck != "" {
+				assertTLSArgs(containerArgs["machine-healthcheck-controller"], false)
+			}
+		})
+	}
+}
+
+func TestResolveTLSProfile(t *testing.T) {
+	g := NewWithT(t)
+
+	clusterTLSProfile := configv1.TLSProfileSpec{
+		Ciphers: []string{
+			"ECDHE-ECDSA-AES128-GCM-SHA256",
+			"ECDHE-RSA-AES128-GCM-SHA256",
+		},
+		MinTLSVersion: configv1.VersionTLS12,
+	}
+	defaultTLSProfile := *configv1.TLSProfiles[configv1.TLSProfileIntermediateType]
+
+	g.Expect(resolveTLSProfile(clusterTLSProfile, configv1.TLSAdherencePolicyStrictAllComponents)).To(Equal(clusterTLSProfile))
+	g.Expect(resolveTLSProfile(clusterTLSProfile, configv1.TLSAdherencePolicyNoOpinion)).To(Equal(defaultTLSProfile))
+	g.Expect(resolveTLSProfile(clusterTLSProfile, configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly)).To(Equal(defaultTLSProfile))
 }

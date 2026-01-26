@@ -17,12 +17,15 @@ limitations under the License.
 package main
 
 import (
+	"context"
+	"crypto/tls"
 	"flag"
 	"fmt"
 	"log"
 	"strings"
 	"time"
 
+	"github.com/spf13/pflag"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	ctrl "sigs.k8s.io/controller-runtime"
 
@@ -34,6 +37,7 @@ import (
 
 	"k8s.io/apiserver/pkg/util/feature"
 	_ "k8s.io/client-go/plugin/pkg/client/auth/gcp"
+	cliflag "k8s.io/component-base/cli/flag"
 	"k8s.io/component-base/featuregate"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
@@ -50,6 +54,7 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/controller/machineset"
 	"github.com/openshift/machine-api-operator/pkg/metrics"
 	"github.com/openshift/machine-api-operator/pkg/operator"
+	pkgtls "github.com/openshift/machine-api-operator/pkg/tls"
 	"github.com/openshift/machine-api-operator/pkg/util"
 )
 
@@ -85,6 +90,11 @@ func main() {
 
 	webhookCertdir := flag.String("webhook-cert-dir", defaultWebhookCertdir,
 		"Webhook cert dir, only used when webhook-enabled is true.")
+
+	var tlsMinVersionFlag string
+	var tlsCipherSuitesFlag []string
+	pflag.StringVar(&tlsMinVersionFlag, "tls-min-version", "", "Minimum TLS version supported. When set, overrides the cluster-wide TLS profile. Possible values: "+strings.Join(cliflag.TLSPossibleVersions(), ", "))
+	pflag.StringSliceVar(&tlsCipherSuitesFlag, "tls-cipher-suites", nil, "Comma-separated list of cipher suites for the server. If omitted, the default Go cipher suites will be used. Possible values: "+strings.Join(cliflag.TLSCipherPossibleValues(), ", "))
 
 	healthAddr := flag.String(
 		"health-addr",
@@ -127,7 +137,8 @@ func main() {
 	// Add the --feature-gates flag
 	gateOpts.AddFlagsToGoFlagSet(nil)
 
-	flag.Parse()
+	pflag.CommandLine.AddGoFlagSet(flag.CommandLine)
+	pflag.Parse()
 	if *watchNamespace != "" {
 		log.Printf("Watching cluster-api objects only in namespace %q for reconciliation.", *watchNamespace)
 	}
@@ -137,6 +148,14 @@ func main() {
 	cfg, err := config.GetConfig()
 	if err != nil {
 		log.Fatal(err)
+	}
+
+	var tlsResult pkgtls.TLSConfigResult
+	if *webhookEnabled {
+		tlsResult, err = pkgtls.ResolveTLSConfig(context.Background(), cfg, tlsMinVersionFlag, tlsCipherSuitesFlag)
+		if err != nil {
+			log.Fatalf("Unable to configure TLS: %v", err)
+		}
 	}
 
 	le := util.GetLeaderElectionConfig(cfg, osconfigv1.LeaderElection{
@@ -169,6 +188,7 @@ func main() {
 		opts.WebhookServer = webhook.NewServer(webhook.Options{
 			Port:    *webhookPort,
 			CertDir: *webhookCertdir,
+			TLSOpts: []func(*tls.Config){tlsResult.TLSConfig},
 		})
 	}
 

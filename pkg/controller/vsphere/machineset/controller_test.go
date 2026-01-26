@@ -27,7 +27,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -39,7 +39,7 @@ import (
 var _ = Describe("Reconciler", func() {
 	var c client.Client
 	var stopMgr context.CancelFunc
-	var fakeRecorder *record.FakeRecorder
+	var fakeRecorder *events.FakeRecorder
 	var namespace *corev1.Namespace
 
 	BeforeEach(func() {
@@ -58,7 +58,7 @@ var _ = Describe("Reconciler", func() {
 			SkipNameValidation: ptr.To(true),
 		})).To(Succeed())
 
-		fakeRecorder = record.NewFakeRecorder(1)
+		fakeRecorder = events.NewFakeRecorder(1)
 		r.recorder = fakeRecorder
 
 		c = mgr.GetClient()

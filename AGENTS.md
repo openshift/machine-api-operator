@@ -66,8 +66,7 @@ make test-e2e                # E2E tests (requires KUBECONFIG)
 
 ### Running Specific Package Tests
 ```bash
-KUBEBUILDER_ASSETS="$(go run ./vendor/sigs.k8s.io/controller-runtime/tools/setup-envtest use 1.34.1 -p path --bin-dir ./bin --index https://raw.githubusercontent.com/openshift/api/master/envtest-releases.yaml)" \
-go run ./vendor/github.com/onsi/ginkgo/v2/ginkgo -v ./pkg/controller/machine/...
+TEST_PACKAGES="$(go list -f '{{ .Dir }}' ./pkg/controller/machine/...)" make unit
 ```
 
 ### Ginkgo Configuration

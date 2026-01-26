@@ -136,6 +136,16 @@ rules:
       - delete
 
   - apiGroups:
+      - events.k8s.io
+    resources:
+      - events
+    verbs:
+      - create
+      - watch
+      - list
+      - patch
+
+  - apiGroups:
       - ""
     resources:
       - events
@@ -257,6 +267,7 @@ rules:
   - apiGroups:
     - config.openshift.io
     resources:
+    - apiservers
     - infrastructures
     - dnses
     - clusterversions
@@ -426,6 +437,7 @@ rules:
   - apiGroups:
       - config.openshift.io
     resources:
+      - apiservers
       - featuregates
       - featuregates/status
       - proxies
@@ -434,6 +446,16 @@ rules:
       - get
       - list
       - watch
+
+  - apiGroups:
+      - events.k8s.io
+    resources:
+      - events
+    verbs:
+      - create
+      - watch
+      - list
+      - patch
 
   - apiGroups:
       - ""

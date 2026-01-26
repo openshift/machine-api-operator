@@ -25,6 +25,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -499,7 +500,7 @@ func TestReconcile(t *testing.T) {
 			}
 			recorder := record.NewFakeRecorder(2)
 			r := newFakeReconcilerWithCustomRecorder(recorder, buildRunTimeObjects(tc)...)
-			assertBaseReconcile(t, tc, ctx, r)
+			assertBaseReconcile(t, tc, ctx, r, recorder)
 		})
 	}
 }
@@ -591,7 +592,7 @@ func TestReconcileExternalRemediationTemplate(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			recorder := record.NewFakeRecorder(2)
 			r := newFakeReconcilerWithCustomRecorder(recorder, buildRunTimeObjects(tc)...)
-			assertBaseReconcile(t, tc, ctx, r)
+			assertBaseReconcile(t, tc, ctx, r, recorder)
 			assertExternalRemediation(t, tc, ctx, r)
 
 		})
@@ -3009,7 +3010,7 @@ type fakeReconcilerBuilder struct {
 	fakeClientBuilder *fake.ClientBuilder
 	scheme            *runtime.Scheme
 	namespace         string
-	recorder          record.EventRecorder
+	recorder          events.EventRecorder
 }
 
 func newFakeReconcilerBuilder() fakeReconcilerBuilder {
@@ -3026,8 +3027,13 @@ func (f fakeReconcilerBuilder) WithFakeClientBuilder(fakeClientBuilder *fake.Cli
 	return f
 }
 
-func (f fakeReconcilerBuilder) WithRecorder(recorder record.EventRecorder) fakeReconcilerBuilder {
-	f.recorder = recorder
+func (f fakeReconcilerBuilder) WithRecorder(recorder record.EventRecorderLogger) fakeReconcilerBuilder {
+	if recorder == nil {
+		f.recorder = nil
+		return f
+	}
+
+	f.recorder = record.NewEventRecorderAdapter(recorder)
 	return f
 }
 
@@ -3049,22 +3055,26 @@ func (f fakeReconcilerBuilder) Build() *ReconcileMachineHealthCheck {
 	}
 }
 
-func newFakeReconcilerWithCustomRecorder(recorder record.EventRecorder, initObjects ...runtime.Object) *ReconcileMachineHealthCheck {
+func newFakeReconcilerWithCustomRecorder(recorder record.EventRecorderLogger, initObjects ...runtime.Object) *ReconcileMachineHealthCheck {
 	fakeClient := fake.NewClientBuilder().
 		WithIndex(&machinev1.Machine{}, machineNodeNameIndex, indexMachineByNodeName).
 		WithRuntimeObjects(initObjects...).
 		WithStatusSubresource(&machinev1.MachineHealthCheck{}).
 		Build()
+
+	var eventRecorder events.EventRecorder
+	if recorder != nil {
+		eventRecorder = record.NewEventRecorderAdapter(recorder)
+	}
+
 	return &ReconcileMachineHealthCheck{
 		client:   fakeClient,
 		scheme:   scheme.Scheme,
-		recorder: recorder,
+		recorder: eventRecorder,
 	}
 }
 
-func assertBaseReconcile(t *testing.T, tc testCase, ctx context.Context, r *ReconcileMachineHealthCheck) {
-	recorder := r.recorder.(*record.FakeRecorder)
-
+func assertBaseReconcile(t *testing.T, tc testCase, ctx context.Context, r *ReconcileMachineHealthCheck, recorder *record.FakeRecorder) {
 	request := reconcile.Request{
 		NamespacedName: types.NamespacedName{
 			Namespace: tc.mhc.GetNamespace(),

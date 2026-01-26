@@ -296,7 +296,7 @@ var _ = Describe("MachineSet Reconcile", func() {
 
 		r = &ReconcileMachineSet{
 			scheme:   scheme.Scheme,
-			recorder: rec,
+			recorder: record.NewEventRecorderAdapter(rec),
 			gate:     gate,
 		}
 	})
