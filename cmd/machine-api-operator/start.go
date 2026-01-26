@@ -2,18 +2,23 @@ package main
 
 import (
 	"context"
+	"crypto/tls"
 	"errors"
 	"flag"
 	"fmt"
 	"net/http"
 	"os"
+	"reflect"
 	"strconv"
+	"sync"
+	"sync/atomic"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	coreclientsetv1 "k8s.io/client-go/kubernetes/typed/core/v1"
@@ -24,16 +29,21 @@ import (
 	"k8s.io/utils/clock"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
+	osclientset "github.com/openshift/client-go/config/clientset/versioned"
+	utiltls "github.com/openshift/library-go/pkg/controllerruntime/tls"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/machine-api-operator/pkg/metrics"
 	"github.com/openshift/machine-api-operator/pkg/operator"
 	"github.com/openshift/machine-api-operator/pkg/util"
 	"github.com/openshift/machine-api-operator/pkg/version"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
 	// defaultMetricsPort is the default port to expose metrics.
-	defaultMetricsPort = 8080
+	defaultMetricsPort = 8443
+	metricsCertFile    = "/etc/tls/private/tls.crt"
+	metricsKeyFile     = "/etc/tls/private/tls.key"
 )
 
 var (
@@ -82,10 +92,20 @@ func runStartCmd(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("error creating clients: %v", err)
 	}
 	stopCh := make(chan struct{})
+	leaderElectionCtx, leaderElectionCancel := context.WithCancel(context.Background())
+	var shutdownOnce sync.Once
+	var shuttingDown atomic.Bool
+	shutdown := func() {
+		shutdownOnce.Do(func() {
+			shuttingDown.Store(true)
+			close(stopCh)
+			leaderElectionCancel()
+		})
+	}
 
 	le := util.GetLeaderElectionConfig(cb.config, osconfigv1.LeaderElection{})
 
-	leaderelection.RunOrDie(context.TODO(), leaderelection.LeaderElectionConfig{
+	leaderelection.RunOrDie(leaderElectionCtx, leaderelection.LeaderElectionConfig{
 		Lock:          CreateResourceLock(cb, componentNamespace, componentName),
 		RenewDeadline: le.RenewDeadline.Duration,
 		RetryPeriod:   le.RetryPeriod.Duration,
@@ -93,6 +113,9 @@ func runStartCmd(cmd *cobra.Command, args []string) error {
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				ctrlCtx := CreateControllerContext(cb, stopCh, componentNamespace)
+				if err := setupTLSProfileWatcher(ctrlCtx, shutdown); err != nil {
+					klog.Fatalf("Unable to set up TLS profile watcher: %v", err)
+				}
 				startControllersOrDie(ctrlCtx)
 				ctrlCtx.KubeNamespacedInformerFactory.Start(ctrlCtx.Stop)
 				ctrlCtx.ConfigInformerFactory.Start(ctrlCtx.Stop)
@@ -100,15 +123,19 @@ func runStartCmd(cmd *cobra.Command, args []string) error {
 				startMetricsCollectionAndServer(ctrlCtx)
 				close(ctrlCtx.InformersStarted)
 
-				select {}
+				<-stopCh
 			},
 			OnStoppedLeading: func() {
+				if shuttingDown.Load() {
+					klog.Info("Leader election stopped due to shutdown")
+					return
+				}
 				klog.Fatalf("Leader election lost")
 			},
 		},
 		ReleaseOnCancel: true,
 	})
-	panic("unreachable")
+	return nil
 }
 
 func initMachineAPIInformers(ctx *ControllerContext) {
@@ -196,16 +223,111 @@ func startMetricsCollectionAndServer(ctx *ControllerContext) {
 		metricsPort = v
 	}
 	klog.V(4).Info("Starting server to serve prometheus metrics")
-	go startHTTPMetricServer(fmt.Sprintf("localhost:%d", metricsPort))
+	tlsConfig, err := metricsTLSConfig(ctx)
+	if err != nil {
+		klog.Fatalf("Unable to configure metrics TLS: %v", err)
+	}
+	go startHTTPSMetricServer(fmt.Sprintf(":%d", metricsPort), tlsConfig)
 }
 
-func startHTTPMetricServer(metricsPort string) {
+func metricsTLSConfig(ctx *ControllerContext) (*tls.Config, error) {
+	scheme := runtime.NewScheme()
+	if err := osconfigv1.Install(scheme); err != nil {
+		return nil, fmt.Errorf("unable to add config.openshift.io scheme: %w", err)
+	}
+
+	k8sClient, err := client.New(ctx.ClientBuilder.config, client.Options{Scheme: scheme})
+	if err != nil {
+		return nil, fmt.Errorf("unable to create Kubernetes client: %w", err)
+	}
+
+	tlsSecurityProfileSpec, err := utiltls.FetchAPIServerTLSProfile(context.Background(), k8sClient)
+	if err != nil {
+		return nil, fmt.Errorf("unable to get TLS profile from API server: %w", err)
+	}
+
+	tlsConfigFn, unsupportedCiphers := utiltls.NewTLSConfigFromProfile(tlsSecurityProfileSpec)
+	if len(unsupportedCiphers) > 0 {
+		klog.Infof("TLS configuration contains unsupported ciphers that will be ignored: %v", unsupportedCiphers)
+	}
+
+	tlsConfig := &tls.Config{}
+	tlsConfigFn(tlsConfig)
+
+	return tlsConfig, nil
+}
+
+func setupTLSProfileWatcher(ctx *ControllerContext, shutdown func()) error {
+	configClient := ctx.ClientBuilder.OpenshiftClientOrDie("tls-profile-watcher")
+	initialProfile, err := fetchAPIServerTLSProfileSpec(context.Background(), configClient)
+	if err != nil {
+		return err
+	}
+
+	apiServerInformer := ctx.ConfigInformerFactory.Config().V1().APIServers().Informer()
+	apiServerInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+		AddFunc: func(obj interface{}) {
+			handleTLSProfileEvent(obj, initialProfile, shutdown)
+		},
+		UpdateFunc: func(_, newObj interface{}) {
+			handleTLSProfileEvent(newObj, initialProfile, shutdown)
+		},
+	})
+
+	return nil
+}
+
+func fetchAPIServerTLSProfileSpec(ctx context.Context, configClient osclientset.Interface) (osconfigv1.TLSProfileSpec, error) {
+	apiServer, err := configClient.ConfigV1().APIServers().Get(ctx, utiltls.APIServerName, metav1.GetOptions{})
+	if err != nil {
+		return osconfigv1.TLSProfileSpec{}, fmt.Errorf("failed to get APIServer %q: %w", utiltls.APIServerName, err)
+	}
+
+	profile, err := utiltls.GetTLSProfileSpec(apiServer.Spec.TLSSecurityProfile)
+	if err != nil {
+		return osconfigv1.TLSProfileSpec{}, fmt.Errorf("failed to get TLS profile from APIServer %q: %w", utiltls.APIServerName, err)
+	}
+
+	return profile, nil
+}
+
+func handleTLSProfileEvent(obj interface{}, initialProfile osconfigv1.TLSProfileSpec, shutdown func()) {
+	apiServer, ok := obj.(*osconfigv1.APIServer)
+	if !ok {
+		return
+	}
+	if apiServer.Name != utiltls.APIServerName {
+		return
+	}
+
+	currentProfile, err := utiltls.GetTLSProfileSpec(apiServer.Spec.TLSSecurityProfile)
+	if err != nil {
+		klog.Errorf("Failed to get TLS profile from APIServer %q: %v", apiServer.Name, err)
+		return
+	}
+
+	if reflect.DeepEqual(initialProfile, currentProfile) {
+		klog.V(2).Info("TLS security profile unchanged")
+		return
+	}
+
+	klog.Infof("TLS security profile has changed, initiating a shutdown to pick up the new configuration: initialMinTLSVersion=%s currentMinTLSVersion=%s initialCiphers=%v currentCiphers=%v",
+		initialProfile.MinTLSVersion,
+		currentProfile.MinTLSVersion,
+		initialProfile.Ciphers,
+		currentProfile.Ciphers,
+	)
+	shutdown()
+}
+
+func startHTTPSMetricServer(metricsAddr string, tlsConfig *tls.Config) {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.Handler())
 
 	server := &http.Server{
-		Addr:    metricsPort,
-		Handler: mux,
+		Addr:      metricsAddr,
+		Handler:   mux,
+		TLSConfig: tlsConfig,
 	}
-	klog.Fatal(server.ListenAndServe())
+	klog.Fatal(server.ListenAndServeTLS(metricsCertFile, metricsKeyFile))
 }

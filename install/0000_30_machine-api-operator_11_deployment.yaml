@@ -28,31 +28,6 @@ spec:
       priorityClassName: system-node-critical
       serviceAccountName: machine-api-operator
       containers:
-      - name: kube-rbac-proxy
-        image: quay.io/openshift/origin-kube-rbac-proxy
-        args:
-        - "--secure-listen-address=0.0.0.0:8443"
-        - "--upstream=http://localhost:8080/"
-        - "--tls-cert-file=/etc/tls/private/tls.crt"
-        - "--tls-private-key-file=/etc/tls/private/tls.key"
-        - "--config-file=/etc/kube-rbac-proxy/config-file.yaml"
-        - "--tls-cipher-suites=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305"
-        - "--logtostderr=true"
-        - "--v=3"
-        ports:
-        - containerPort: 8443
-          name: https
-          protocol: TCP
-        resources:
-          requests:
-            memory: 20Mi
-            cpu: 10m
-        terminationMessagePolicy: FallbackToLogsOnError
-        volumeMounts:
-        - name: config
-          mountPath: /etc/kube-rbac-proxy
-        - mountPath: /etc/tls/private
-          name: machine-api-operator-tls
       - name: machine-api-operator
         image: quay.io/openshift/origin-machine-api-operator
         command:
@@ -75,7 +50,11 @@ spec:
             fieldRef:
               fieldPath: metadata.name
         - name: METRICS_PORT
-          value: "8080"
+          value: "8443"
+        ports:
+        - containerPort: 8443
+          name: https
+          protocol: TCP
         resources:
           requests:
             cpu: 10m
@@ -84,6 +63,8 @@ spec:
         volumeMounts:
         - name: images
           mountPath: /etc/machine-api-operator-config/images
+        - mountPath: /etc/tls/private
+          name: machine-api-operator-tls
       nodeSelector:
         node-role.kubernetes.io/master: ""
       restartPolicy: Always
@@ -100,10 +81,6 @@ spec:
         effect: "NoExecute"
         tolerationSeconds: 120
       volumes:
-      - name: config
-        configMap:
-          name: kube-rbac-proxy
-          defaultMode: 420
       - name: images
         configMap:
           defaultMode: 420
