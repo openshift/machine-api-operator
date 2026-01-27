@@ -405,7 +405,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				},
 				PlatformType: openshiftv1.AWSPlatformType,
 				Features:     enabledFeatureMap,
-				TLSProfile:   openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
+				TLSProfile:   *openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
 			},
 		},
 		{
@@ -441,7 +441,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				},
 				PlatformType: openshiftv1.LibvirtPlatformType,
 				Features:     enabledFeatureMap,
-				TLSProfile:   openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
+				TLSProfile:   *openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
 			},
 		},
 		{
@@ -477,7 +477,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				},
 				PlatformType: openshiftv1.OpenStackPlatformType,
 				Features:     enabledFeatureMap,
-				TLSProfile:   openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
+				TLSProfile:   *openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
 			},
 		},
 		{
@@ -513,7 +513,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				},
 				PlatformType: openshiftv1.AzurePlatformType,
 				Features:     enabledFeatureMap,
-				TLSProfile:   openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
+				TLSProfile:   *openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
 			},
 		},
 		{
@@ -549,7 +549,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				},
 				PlatformType: openshiftv1.BareMetalPlatformType,
 				Features:     enabledFeatureMap,
-				TLSProfile:   openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
+				TLSProfile:   *openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
 			},
 		},
 		{
@@ -585,7 +585,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				},
 				PlatformType: openshiftv1.GCPPlatformType,
 				Features:     enabledFeatureMap,
-				TLSProfile:   openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
+				TLSProfile:   *openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
 			},
 		},
 		{
@@ -621,7 +621,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				},
 				PlatformType: kubemarkPlatform,
 				Features:     enabledFeatureMap,
-				TLSProfile:   openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
+				TLSProfile:   *openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
 			},
 		},
 		{
@@ -657,7 +657,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				},
 				PlatformType: openshiftv1.VSpherePlatformType,
 				Features:     enabledFeatureMap,
-				TLSProfile:   openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
+				TLSProfile:   *openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
 			},
 		},
 		{
@@ -693,7 +693,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				},
 				PlatformType: openshiftv1.NonePlatformType,
 				Features:     enabledFeatureMap,
-				TLSProfile:   openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
+				TLSProfile:   *openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
 			},
 		},
 		{
@@ -731,7 +731,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				},
 				PlatformType: openshiftv1.BareMetalPlatformType,
 				Features:     enabledFeatureMap,
-				TLSProfile:   openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
+				TLSProfile:   *openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
 			},
 		},
 		{
@@ -767,7 +767,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				},
 				PlatformType: openshiftv1.BareMetalPlatformType,
 				Features:     enabledFeatureMap,
-				TLSProfile:   openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
+				TLSProfile:   *openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
 			},
 		},
 		{
@@ -803,7 +803,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 				},
 				PlatformType: "bad-platform",
 				Features:     enabledFeatureMap,
-				TLSProfile:   openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
+				TLSProfile:   *openshiftv1.TLSProfiles[openshiftv1.TLSProfileIntermediateType],
 			},
 		},
 		{

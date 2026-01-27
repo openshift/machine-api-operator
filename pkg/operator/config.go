@@ -25,7 +25,7 @@ type OperatorConfig struct {
 	Proxy           *configv1.Proxy
 	PlatformType    configv1.PlatformType
 	Features        map[string]bool
-	TLSProfile      *configv1.TLSProfileSpec
+	TLSProfile      configv1.TLSProfileSpec
 }
 
 type Controllers struct {

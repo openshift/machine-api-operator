@@ -484,17 +484,13 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 	}
 
 	// Fetch TLS security profile from APIServer
-	var tlsProfile *osconfigv1.TLSProfileSpec
 	apiServer, err := optr.osClient.ConfigV1().APIServers().Get(context.Background(), "cluster", metav1.GetOptions{})
 	if err != nil {
-		klog.Warningf("Failed to fetch APIServer, using default TLS profile: %v", err)
-	} else {
-		profile, err := utiltls.GetTLSProfileSpec(apiServer.Spec.TLSSecurityProfile)
-		if err != nil {
-			klog.Warningf("Failed to get TLS profile spec, using defaults: %v", err)
-		} else {
-			tlsProfile = &profile
-		}
+		return nil, fmt.Errorf("failed to fetch APIServer for TLS profile: %w", err)
+	}
+	tlsProfile, err := utiltls.GetTLSProfileSpec(apiServer.Spec.TLSSecurityProfile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get TLS profile spec: %w", err)
 	}
 
 	return &OperatorConfig{
