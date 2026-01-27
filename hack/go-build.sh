@@ -12,7 +12,10 @@ eval $(go env | grep -e "GOHOSTOS" -e "GOHOSTARCH")
 : "${GOARCH:=${GOHOSTARCH}}"
 
 # Go to the root of the repo
-cd "$(git rev-parse --show-cdup)"
+cdup="$(git rev-parse --show-cdup)"
+if [ -n "$cdup" ]; then
+	cd "$cdup"
+fi
 
 if [ -z ${VERSION_OVERRIDE+a} ]; then
 	if [ -n "${BUILD_VERSION+a}" ] && [ -n "${BUILD_RELEASE+a}" ]; then
