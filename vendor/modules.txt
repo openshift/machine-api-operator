@@ -207,8 +207,8 @@ github.com/containerd/typeurl/v2
 # github.com/coreos/go-semver v0.3.1
 ## explicit; go 1.8
 github.com/coreos/go-semver/semver
-# github.com/coreos/go-systemd/v22 v22.5.0
-## explicit; go 1.12
+# github.com/coreos/go-systemd/v22 v22.6.0
+## explicit; go 1.23
 github.com/coreos/go-systemd/v22/daemon
 github.com/coreos/go-systemd/v22/dbus
 github.com/coreos/go-systemd/v22/journal
@@ -216,7 +216,7 @@ github.com/coreos/go-systemd/v22/journal
 ## explicit; go 1.21
 github.com/curioswitch/go-reassign
 github.com/curioswitch/go-reassign/internal/analyzer
-# github.com/cyphar/filepath-securejoin v0.6.0
+# github.com/cyphar/filepath-securejoin v0.6.1
 ## explicit; go 1.18
 github.com/cyphar/filepath-securejoin
 github.com/cyphar/filepath-securejoin/internal/consts
@@ -946,7 +946,7 @@ github.com/onsi/gomega/matchers/support/goraph/edge
 github.com/onsi/gomega/matchers/support/goraph/node
 github.com/onsi/gomega/matchers/support/goraph/util
 github.com/onsi/gomega/types
-# github.com/opencontainers/cgroups v0.0.3
+# github.com/opencontainers/cgroups v0.0.6
 ## explicit; go 1.23.0
 github.com/opencontainers/cgroups
 github.com/opencontainers/cgroups/devices/config
@@ -963,13 +963,7 @@ github.com/opencontainers/go-digest
 ## explicit; go 1.18
 github.com/opencontainers/image-spec/specs-go
 github.com/opencontainers/image-spec/specs-go/v1
-# github.com/opencontainers/runc v1.2.5
-## explicit; go 1.22
-github.com/opencontainers/runc/libcontainer/cgroups
-github.com/opencontainers/runc/libcontainer/configs
-github.com/opencontainers/runc/libcontainer/devices
-github.com/opencontainers/runc/libcontainer/utils
-# github.com/opencontainers/runtime-spec v1.2.0
+# github.com/opencontainers/runtime-spec v1.3.0
 ## explicit
 github.com/opencontainers/runtime-spec/specs-go
 # github.com/opencontainers/selinux v1.13.0
@@ -3067,7 +3061,7 @@ k8s.io/kubelet/pkg/cri/streaming
 k8s.io/kubelet/pkg/cri/streaming/portforward
 k8s.io/kubelet/pkg/cri/streaming/remotecommand
 k8s.io/kubelet/pkg/types
-# k8s.io/kubernetes v1.34.1 => github.com/openshift/kubernetes v1.30.1-0.20251027205255-4e0347881cbd
+# k8s.io/kubernetes v1.34.1 => /home/rmanak/work-git/kubernetes
 ## explicit; go 1.24.0
 k8s.io/kubernetes/cmd/kubelet/app
 k8s.io/kubernetes/cmd/kubelet/app/options
@@ -3688,5 +3682,5 @@ sigs.k8s.io/yaml/kyaml
 # github.com/onsi/ginkgo/v2 => github.com/openshift/onsi-ginkgo/v2 v2.6.1-0.20251001123353-fd5b1fb35db1
 # k8s.io/apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/apiserver v0.0.0-20251015171918-61114aa5a292
 # k8s.io/kubelet => github.com/openshift/kubernetes/staging/src/k8s.io/kubelet v0.0.0-20251015171918-61114aa5a292
-# k8s.io/kubernetes => github.com/openshift/kubernetes v1.30.1-0.20251027205255-4e0347881cbd
+# k8s.io/kubernetes => /home/rmanak/work-git/kubernetes
 # github.com/openshift/library-go => github.com/damdo/library-go v0.0.0-20260120133104-12bddc18ba38
