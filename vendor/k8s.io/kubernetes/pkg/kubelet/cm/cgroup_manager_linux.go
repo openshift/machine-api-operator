@@ -25,11 +25,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opencontainers/cgroups"
 	libcontainercgroups "github.com/opencontainers/cgroups"
 	"github.com/opencontainers/cgroups/fscommon"
 	libcontainercgroupmanager "github.com/opencontainers/cgroups/manager"
 	cgroupsystemd "github.com/opencontainers/cgroups/systemd"
-	"github.com/opencontainers/runc/libcontainer/cgroups"
 	"k8s.io/klog/v2"
 	v1helper "k8s.io/kubernetes/pkg/apis/core/v1/helper"
 
@@ -308,7 +308,7 @@ func (m *cgroupCommon) toResources(resourceConfig *ResourceConfig) *libcontainer
 		resources.CpuPeriod = *resourceConfig.CPUPeriod
 	}
 	if resourceConfig.PidsLimit != nil {
-		resources.PidsLimit = *resourceConfig.PidsLimit
+		resources.PidsLimit = resourceConfig.PidsLimit
 	}
 	if !resourceConfig.CPUSet.IsEmpty() {
 		resources.CpusetCpus = resourceConfig.CPUSet.String()
