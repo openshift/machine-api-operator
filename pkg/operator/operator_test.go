@@ -217,9 +217,15 @@ func TestOperatorSync_NoOp(t *testing.T) {
 				},
 			}
 
+			apiServer := &openshiftv1.APIServer{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "cluster",
+				},
+			}
+
 			stopCh := make(chan struct{})
 			defer close(stopCh)
-			optr, err := newFakeOperator(nil, []runtime.Object{infra, proxy}, nil, imagesJSONFile, nil, stopCh)
+			optr, err := newFakeOperator(nil, []runtime.Object{infra, proxy, apiServer}, nil, imagesJSONFile, nil, stopCh)
 			if err != nil {
 				t.Fatal(err)
 			}
