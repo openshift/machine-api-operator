@@ -504,3 +504,103 @@ func TestSyncWebhookConfiguration(t *testing.T) {
 		})
 	}
 }
+
+func TestNewKubeProxyContainer(t *testing.T) {
+	testCases := []struct {
+		name                       string
+		image                      string
+		portName                   string
+		upstreamPort               string
+		exposePort                 int32
+		tlsProfile                 configv1.TLSProfileSpec
+		expectedCipherSuitesInArgs bool
+	}{
+		{
+			name:         "TLS 1.2 Intermediate profile with cipher suites",
+			image:        "test-image:latest",
+			portName:     "test-mtrc",
+			upstreamPort: ":8080",
+			exposePort:   8443,
+			tlsProfile: configv1.TLSProfileSpec{
+				Ciphers: []string{
+					"TLS_AES_128_GCM_SHA256",
+					"TLS_AES_256_GCM_SHA384",
+					"TLS_CHACHA20_POLY1305_SHA256",
+					"ECDHE-ECDSA-AES128-GCM-SHA256",
+					"ECDHE-RSA-AES128-GCM-SHA256",
+				},
+				MinTLSVersion: configv1.VersionTLS12,
+			},
+			expectedCipherSuitesInArgs: true,
+		},
+		{
+			name:         "TLS 1.3 Modern profile without cipher suites",
+			image:        "test-image:latest",
+			portName:     "test-mtrc",
+			upstreamPort: ":8080",
+			exposePort:   8443,
+			tlsProfile: configv1.TLSProfileSpec{
+				Ciphers: []string{
+					"TLS_AES_128_GCM_SHA256",
+					"TLS_AES_256_GCM_SHA384",
+					"TLS_CHACHA20_POLY1305_SHA256",
+				},
+				MinTLSVersion: configv1.VersionTLS13,
+			},
+			expectedCipherSuitesInArgs: false,
+		},
+		{
+			name:         "Empty cipher list",
+			image:        "test-image:latest",
+			portName:     "test-mtrc",
+			upstreamPort: ":8080",
+			exposePort:   8443,
+			tlsProfile: configv1.TLSProfileSpec{
+				Ciphers:       []string{},
+				MinTLSVersion: configv1.VersionTLS13,
+			},
+			expectedCipherSuitesInArgs: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			container := newKubeProxyContainer(tc.image, tc.portName, tc.upstreamPort, tc.exposePort, tc.tlsProfile)
+
+			// Verify basic container properties
+			g.Expect(container.Name).To(Equal("kube-rbac-proxy-" + tc.portName))
+			g.Expect(container.Image).To(Equal(tc.image))
+
+			// Verify ports
+			g.Expect(container.Ports).To(HaveLen(1))
+			g.Expect(container.Ports[0].Name).To(Equal(tc.portName))
+			g.Expect(container.Ports[0].ContainerPort).To(Equal(tc.exposePort))
+
+			// Verify resource requests
+			g.Expect(container.Resources.Requests).To(HaveKey(corev1.ResourceMemory))
+			g.Expect(container.Resources.Requests).To(HaveKey(corev1.ResourceCPU))
+
+			// Verify volume mounts
+			g.Expect(container.VolumeMounts).To(HaveLen(2))
+
+			// Verify args
+			hasCipherSuitesArg := false
+			hasTLSMinVersionArg := false
+			for _, arg := range container.Args {
+				if len(arg) >= len("--tls-cipher-suites=") && arg[:len("--tls-cipher-suites=")] == "--tls-cipher-suites=" {
+					hasCipherSuitesArg = true
+				}
+				if len(arg) >= len("--tls-min-version=") && arg[:len("--tls-min-version=")] == "--tls-min-version=" {
+					hasTLSMinVersionArg = true
+					g.Expect(arg).To(ContainSubstring(string(tc.tlsProfile.MinTLSVersion)))
+				}
+			}
+
+			g.Expect(hasCipherSuitesArg).To(Equal(tc.expectedCipherSuitesInArgs),
+				"cipher suites arg presence mismatch")
+			g.Expect(hasTLSMinVersionArg).To(BeTrue(), "TLS min version arg should be present")
+		})
+	}
+}
