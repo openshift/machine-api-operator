@@ -2,6 +2,7 @@ package operator
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"os"
 	"slices"
@@ -22,6 +23,8 @@ import (
 
 	configv1 "github.com/openshift/api/config/v1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
+	utiltls "github.com/openshift/library-go/pkg/controllerruntime/tls"
+	libgocrypto "github.com/openshift/library-go/pkg/crypto"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 	"github.com/openshift/library-go/pkg/operator/resource/resourcehash"
@@ -875,17 +878,35 @@ func newKubeProxyContainer(image, portName, upstreamPort string, exposePort int3
 			corev1.ResourceCPU:    resource.MustParse("10m"),
 		},
 	}
+
+	tlsConfigFn, unsupportedCiphers := utiltls.NewTLSConfigFromProfile(tlsProfile)
+	if len(unsupportedCiphers) > 0 {
+		klog.V(3).Infof("kube-rbac-proxy-%s: unsupported ciphers ignored: %v", portName, unsupportedCiphers)
+	}
+
+	// Apply the config function to get the validated cipher codes.
+	tlsConf := &tls.Config{}
+	tlsConfigFn(tlsConf)
+
 	args := []string{
 		fmt.Sprintf("--secure-listen-address=0.0.0.0:%d", exposePort),
 		fmt.Sprintf("--upstream=http://localhost%s", upstreamPort),
 		fmt.Sprintf("--config-file=%s/config-file.yaml", configMountPath),
 		fmt.Sprintf("--tls-cert-file=%s/tls.crt", tlsCertMountPath),
 		fmt.Sprintf("--tls-private-key-file=%s/tls.key", tlsCertMountPath),
-		fmt.Sprintf("--tls-cipher-suites=%s", strings.Join(tlsProfile.Ciphers, ",")),
+	}
+
+	// Ciphers are empty when using TLS 1.3, so we don't need to set them.
+	if len(tlsConf.CipherSuites) > 0 {
+		ianaCiphers := libgocrypto.CipherSuitesToNamesOrDie(tlsConf.CipherSuites)
+		args = append(args, fmt.Sprintf("--tls-cipher-suites=%s", strings.Join(ianaCiphers, ",")))
+	}
+
+	args = append(args,
 		fmt.Sprintf("--tls-min-version=%s", tlsProfile.MinTLSVersion),
 		"--logtostderr=true",
 		"--v=3",
-	}
+	)
 	ports := []corev1.ContainerPort{{
 		Name:          portName,
 		ContainerPort: exposePort,
