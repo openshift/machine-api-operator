@@ -4425,11 +4425,21 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 			expectedError: "providerSpec.confidentialCompute: Invalid value: \"invalid-value\": ConfidentialCompute must be Enabled, Disabled, AMDEncryptedVirtualization, AMDEncryptedVirtualizationNestedPaging, or IntelTrustedDomainExtensions",
 		},
 		{
-			testCase: "with ConfidentialCompute enabled while onHostMaintenance is set to Migrate",
+			testCase: "with ConfidentialCompute enabled while onHostMaintenance is set to Migrate on n2d instances",
 			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
 				p.ConfidentialCompute = machinev1beta1.ConfidentialComputePolicyEnabled
 				p.OnHostMaintenance = machinev1beta1.MigrateHostMaintenanceType
 				p.MachineType = "n2d-standard-4"
+				p.GPUs = []machinev1beta1.GCPGPUConfig{}
+			},
+			expectedOk: true,
+		},
+		{
+			testCase: "with ConfidentialCompute enabled while onHostMaintenance is set to Migrate on non n2d instances (c2d)",
+			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
+				p.ConfidentialCompute = machinev1beta1.ConfidentialComputePolicyEnabled
+				p.OnHostMaintenance = machinev1beta1.MigrateHostMaintenanceType
+				p.MachineType = "c2d-standard-4"
 				p.GPUs = []machinev1beta1.GCPGPUConfig{}
 			},
 			expectedOk:    false,
@@ -4497,7 +4507,7 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 			expectedError: "",
 		},
 		{
-			testCase: "with ConfidentialCompute AMDEncryptedVirtualizationNestedPaging and onHostMaintenance set to Migrate",
+			testCase: "with ConfidentialCompute AMDEncryptedVirtualizationNestedPaging and onHostMaintenance set to Migrate on n2d instances",
 			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
 				p.ConfidentialCompute = machinev1beta1.ConfidentialComputePolicySEVSNP
 				p.OnHostMaintenance = machinev1beta1.MigrateHostMaintenanceType
