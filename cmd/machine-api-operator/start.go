@@ -6,15 +6,12 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"net/http"
 	"os"
 	"reflect"
 	"strconv"
 	"sync"
 	"sync/atomic"
 
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	v1 "k8s.io/api/core/v1"
@@ -22,6 +19,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
 	coreclientsetv1 "k8s.io/client-go/kubernetes/typed/core/v1"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/leaderelection"
 	"k8s.io/client-go/tools/record"
@@ -32,18 +30,22 @@ import (
 	osclientset "github.com/openshift/client-go/config/clientset/versioned"
 	utiltls "github.com/openshift/controller-runtime-common/pkg/tls"
 	"github.com/openshift/library-go/pkg/operator/events"
-	"github.com/openshift/machine-api-operator/pkg/metrics"
+	maometrics "github.com/openshift/machine-api-operator/pkg/metrics"
 	"github.com/openshift/machine-api-operator/pkg/operator"
 	"github.com/openshift/machine-api-operator/pkg/util"
 	"github.com/openshift/machine-api-operator/pkg/version"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	ctrlmetrics "sigs.k8s.io/controller-runtime/pkg/metrics"
+	"sigs.k8s.io/controller-runtime/pkg/metrics/filters"
+	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
 )
 
 const (
 	// defaultMetricsPort is the default port to expose metrics.
 	defaultMetricsPort = 8443
-	metricsCertFile    = "/etc/tls/private/tls.crt"
-	metricsKeyFile     = "/etc/tls/private/tls.key"
+	metricsCertDir     = "/etc/tls/private"
+	metricsCertFile    = "tls.crt"
+	metricsKeyFile     = "tls.key"
 )
 
 var (
@@ -209,11 +211,11 @@ func startControllersOrDie(ctx *ControllerContext) {
 func startMetricsCollectionAndServer(ctx *ControllerContext) {
 	machineInformer := ctx.MachineInformerFactory.Machine().V1beta1().Machines()
 	machinesetInformer := ctx.MachineInformerFactory.Machine().V1beta1().MachineSets()
-	machineMetricsCollector := metrics.NewMachineCollector(
+	machineMetricsCollector := maometrics.NewMachineCollector(
 		machineInformer,
 		machinesetInformer,
 		componentNamespace)
-	prometheus.MustRegister(machineMetricsCollector)
+	ctrlmetrics.Registry.MustRegister(machineMetricsCollector)
 	metricsPort := defaultMetricsPort
 	if port, ok := os.LookupEnv("METRICS_PORT"); ok {
 		v, err := strconv.Atoi(port)
@@ -222,15 +224,34 @@ func startMetricsCollectionAndServer(ctx *ControllerContext) {
 		}
 		metricsPort = v
 	}
-	klog.V(4).Info("Starting server to serve prometheus metrics")
-	tlsConfig, err := metricsTLSConfig(ctx)
+	klog.V(4).Info("Starting secure metrics server")
+	tlsOpts, err := metricsTLSOptions(ctx)
 	if err != nil {
 		klog.Fatalf("Unable to configure metrics TLS: %v", err)
 	}
-	go startHTTPSMetricServer(fmt.Sprintf(":%d", metricsPort), tlsConfig)
+	metricsServer, err := newSecureMetricsServer(
+		ctx,
+		fmt.Sprintf(":%d", metricsPort),
+		tlsOpts,
+	)
+	if err != nil {
+		klog.Fatalf("Unable to initialize secure metrics server: %v", err)
+	}
+
+	metricsServerCtx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-ctx.Stop
+		cancel()
+	}()
+
+	go func() {
+		if err := metricsServer.Start(metricsServerCtx); err != nil {
+			klog.Fatalf("Unable to start secure metrics server: %v", err)
+		}
+	}()
 }
 
-func metricsTLSConfig(ctx *ControllerContext) (*tls.Config, error) {
+func metricsTLSOptions(ctx *ControllerContext) ([]func(*tls.Config), error) {
 	scheme := runtime.NewScheme()
 	if err := osconfigv1.Install(scheme); err != nil {
 		return nil, fmt.Errorf("unable to add config.openshift.io scheme: %w", err)
@@ -251,10 +272,24 @@ func metricsTLSConfig(ctx *ControllerContext) (*tls.Config, error) {
 		klog.Infof("TLS configuration contains unsupported ciphers that will be ignored: %v", unsupportedCiphers)
 	}
 
-	tlsConfig := &tls.Config{}
-	tlsConfigFn(tlsConfig)
+	return []func(*tls.Config){tlsConfigFn}, nil
+}
 
-	return tlsConfig, nil
+func newSecureMetricsServer(ctx *ControllerContext, metricsAddr string, tlsOpts []func(*tls.Config)) (metricsserver.Server, error) {
+	httpClient, err := rest.HTTPClientFor(ctx.ClientBuilder.config)
+	if err != nil {
+		return nil, fmt.Errorf("unable to create HTTP client for metrics authn/authz: %w", err)
+	}
+
+	return metricsserver.NewServer(metricsserver.Options{
+		BindAddress:    metricsAddr,
+		SecureServing:  true,
+		FilterProvider: filters.WithAuthenticationAndAuthorization,
+		CertDir:        metricsCertDir,
+		CertName:       metricsCertFile,
+		KeyName:        metricsKeyFile,
+		TLSOpts:        tlsOpts,
+	}, ctx.ClientBuilder.config, httpClient)
 }
 
 func setupTLSProfileWatcher(ctx *ControllerContext, shutdown func()) error {
@@ -321,16 +356,4 @@ func handleTLSProfileEvent(obj interface{}, initialProfile osconfigv1.TLSProfile
 		currentProfile.Ciphers,
 	)
 	shutdown()
-}
-
-func startHTTPSMetricServer(metricsAddr string, tlsConfig *tls.Config) {
-	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.Handler())
-
-	server := &http.Server{
-		Addr:      metricsAddr,
-		Handler:   mux,
-		TLSConfig: tlsConfig,
-	}
-	klog.Fatal(server.ListenAndServeTLS(metricsCertFile, metricsKeyFile))
 }
