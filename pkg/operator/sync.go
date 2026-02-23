@@ -857,19 +857,32 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 }
 
 func newKubeProxyContainers(image string, withMHCProxy bool, tlsProfile configv1.TLSProfileSpec) []corev1.Container {
+	// Compute TLS arguments once from the profile
+	tlsConfigFn, _ := utiltls.NewTLSConfigFromProfile(tlsProfile)
+	tlsConf := &tls.Config{}
+	tlsConfigFn(tlsConf)
+
+	tlsArgs := []string{}
+	// Only set CipherSuites if they are specified.
+	if len(tlsConf.CipherSuites) > 0 {
+		ianaCiphers := libgocrypto.CipherSuitesToNamesOrDie(tlsConf.CipherSuites)
+		tlsArgs = append(tlsArgs, fmt.Sprintf("--tls-cipher-suites=%s", strings.Join(ianaCiphers, ",")))
+	}
+	tlsArgs = append(tlsArgs, fmt.Sprintf("--tls-min-version=%s", tlsProfile.MinTLSVersion))
+
 	proxyContainers := []corev1.Container{
-		newKubeProxyContainer(image, "machineset-mtrc", metrics.DefaultMachineSetMetricsAddress, machineSetExposeMetricsPort, tlsProfile),
-		newKubeProxyContainer(image, "machine-mtrc", metrics.DefaultMachineMetricsAddress, machineExposeMetricsPort, tlsProfile),
+		newKubeProxyContainer(image, "machineset-mtrc", metrics.DefaultMachineSetMetricsAddress, machineSetExposeMetricsPort, tlsArgs),
+		newKubeProxyContainer(image, "machine-mtrc", metrics.DefaultMachineMetricsAddress, machineExposeMetricsPort, tlsArgs),
 	}
 	if withMHCProxy {
 		proxyContainers = append(proxyContainers,
-			newKubeProxyContainer(image, "mhc-mtrc", metrics.DefaultHealthCheckMetricsAddress, machineHealthCheckExposeMetricsPort, tlsProfile),
+			newKubeProxyContainer(image, "mhc-mtrc", metrics.DefaultHealthCheckMetricsAddress, machineHealthCheckExposeMetricsPort, tlsArgs),
 		)
 	}
 	return proxyContainers
 }
 
-func newKubeProxyContainer(image, portName, upstreamPort string, exposePort int32, tlsProfile configv1.TLSProfileSpec) corev1.Container {
+func newKubeProxyContainer(image, portName, upstreamPort string, exposePort int32, tlsArgs []string) corev1.Container {
 	configMountPath := "/etc/kube-rbac-proxy"
 	tlsCertMountPath := "/etc/tls/private"
 	resources := corev1.ResourceRequirements{
@@ -879,12 +892,6 @@ func newKubeProxyContainer(image, portName, upstreamPort string, exposePort int3
 		},
 	}
 
-	tlsConfigFn, _ := utiltls.NewTLSConfigFromProfile(tlsProfile)
-
-	// Apply the config function to get the validated cipher codes.
-	tlsConf := &tls.Config{}
-	tlsConfigFn(tlsConf)
-
 	args := []string{
 		fmt.Sprintf("--secure-listen-address=0.0.0.0:%d", exposePort),
 		fmt.Sprintf("--upstream=http://localhost%s", upstreamPort),
@@ -893,14 +900,8 @@ func newKubeProxyContainer(image, portName, upstreamPort string, exposePort int3
 		fmt.Sprintf("--tls-private-key-file=%s/tls.key", tlsCertMountPath),
 	}
 
-	// Ciphers are empty when using TLS 1.3, so we don't need to set them.
-	if len(tlsConf.CipherSuites) > 0 {
-		ianaCiphers := libgocrypto.CipherSuitesToNamesOrDie(tlsConf.CipherSuites)
-		args = append(args, fmt.Sprintf("--tls-cipher-suites=%s", strings.Join(ianaCiphers, ",")))
-	}
-
+	args = append(args, tlsArgs...)
 	args = append(args,
-		fmt.Sprintf("--tls-min-version=%s", tlsProfile.MinTLSVersion),
 		"--logtostderr=true",
 		"--v=3",
 	)
