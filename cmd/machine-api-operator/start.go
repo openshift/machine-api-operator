@@ -302,10 +302,13 @@ func setupTLSProfileWatcher(ctx *ControllerContext, shutdown func()) error {
 	apiServerInformer := ctx.ConfigInformerFactory.Config().V1().APIServers().Informer()
 	_, err = apiServerInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(obj interface{}) {
-			handleTLSProfileEvent(obj, initialProfile, shutdown)
+			handleTLSProfileEvent(obj, &initialProfile, shutdown)
 		},
 		UpdateFunc: func(_, newObj interface{}) {
-			handleTLSProfileEvent(newObj, initialProfile, shutdown)
+			handleTLSProfileEvent(newObj, &initialProfile, shutdown)
+		},
+		DeleteFunc: func(obj interface{}) {
+			handleTLSProfileEvent(obj, &initialProfile, shutdown)
 		},
 	})
 	if err != nil {
@@ -329,7 +332,7 @@ func fetchAPIServerTLSProfileSpec(ctx context.Context, configClient osclientset.
 	return profile, nil
 }
 
-func handleTLSProfileEvent(obj interface{}, initialProfile osconfigv1.TLSProfileSpec, shutdown func()) {
+func handleTLSProfileEvent(obj interface{}, initialProfile *osconfigv1.TLSProfileSpec, shutdown func()) {
 	apiServer, ok := obj.(*osconfigv1.APIServer)
 	if !ok {
 		return
@@ -344,7 +347,7 @@ func handleTLSProfileEvent(obj interface{}, initialProfile osconfigv1.TLSProfile
 		return
 	}
 
-	if reflect.DeepEqual(initialProfile, currentProfile) {
+	if reflect.DeepEqual(*initialProfile, currentProfile) {
 		klog.V(2).Info("TLS security profile unchanged")
 		return
 	}
@@ -355,5 +358,9 @@ func handleTLSProfileEvent(obj interface{}, initialProfile osconfigv1.TLSProfile
 		initialProfile.Ciphers,
 		currentProfile.Ciphers,
 	)
+
+	// Persist the new profile for future change detection.
+	*initialProfile = currentProfile
+
 	shutdown()
 }
