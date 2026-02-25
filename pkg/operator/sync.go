@@ -511,9 +511,10 @@ func newRBACConfigVolumes() []corev1.Volume {
 }
 
 func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev1.PodTemplateSpec {
-	containers := newContainers(config, features)
+	tlsArgs := getTLSArgs(config.TLSProfile)
+	containers := newContainers(config, features, tlsArgs)
 	withMHCProxy := config.Controllers.MachineHealthCheck != ""
-	proxyContainers := newKubeProxyContainers(config.Controllers.KubeRBACProxy, withMHCProxy, config.TLSProfile)
+	proxyContainers := newKubeProxyContainers(config.Controllers.KubeRBACProxy, withMHCProxy, tlsArgs)
 	tolerations := []corev1.Toleration{
 		{
 			Key:    "node-role.kubernetes.io/master",
@@ -655,7 +656,7 @@ func buildFeatureGatesString(featureGates map[string]bool) string {
 	return "--feature-gates=" + strings.Join(parts, ",")
 }
 
-func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Container {
+func newContainers(config *OperatorConfig, features map[string]bool, tlsArgs []string) []corev1.Container {
 	resources := corev1.ResourceRequirements{
 		Requests: map[corev1.ResourceName]resource.Quantity{
 			corev1.ResourceMemory: resource.MustParse("20Mi"),
@@ -680,6 +681,9 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 		machineControllerArgs = append(machineControllerArgs, "--max-concurrent-reconciles=10")
 	}
 
+	machineSetControllerArgs := append([]string{}, featureGateArgs...)
+	machineSetControllerArgs = append(machineSetControllerArgs, tlsArgs...)
+
 	proxyEnvArgs := getProxyArgs(config)
 
 	containers := []corev1.Container{
@@ -687,7 +691,7 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 			Name:      "machineset-controller",
 			Image:     config.Controllers.MachineSet,
 			Command:   []string{"/machineset-controller"},
-			Args:      featureGateArgs,
+			Args:      machineSetControllerArgs,
 			Resources: resources,
 			Env:       proxyEnvArgs,
 			Ports: []corev1.ContainerPort{
@@ -856,7 +860,7 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 	return containers
 }
 
-func newKubeProxyContainers(image string, withMHCProxy bool, tlsProfile configv1.TLSProfileSpec) []corev1.Container {
+func getTLSArgs(tlsProfile configv1.TLSProfileSpec) []string {
 	// Compute TLS arguments once from the profile
 	tlsConfigFn, _ := utiltls.NewTLSConfigFromProfile(tlsProfile)
 	tlsConf := &tls.Config{}
@@ -870,6 +874,10 @@ func newKubeProxyContainers(image string, withMHCProxy bool, tlsProfile configv1
 	}
 	tlsArgs = append(tlsArgs, fmt.Sprintf("--tls-min-version=%s", tlsProfile.MinTLSVersion))
 
+	return tlsArgs
+}
+
+func newKubeProxyContainers(image string, withMHCProxy bool, tlsArgs []string) []corev1.Container {
 	proxyContainers := []corev1.Container{
 		newKubeProxyContainer(image, "machineset-mtrc", metrics.DefaultMachineSetMetricsAddress, machineSetExposeMetricsPort, tlsArgs),
 		newKubeProxyContainer(image, "machine-mtrc", metrics.DefaultMachineMetricsAddress, machineExposeMetricsPort, tlsArgs),

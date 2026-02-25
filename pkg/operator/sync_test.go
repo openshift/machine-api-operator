@@ -574,7 +574,7 @@ func TestNewKubeProxyContainers(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			containers := newKubeProxyContainers(tc.image, tc.withMHCProxy, tc.tlsProfile)
+			containers := newKubeProxyContainers(tc.image, tc.withMHCProxy, getTLSArgs(tc.tlsProfile))
 
 			// Verify we get the expected number of containers
 			g.Expect(containers).To(HaveLen(len(tc.expectedPorts)))
@@ -613,6 +613,94 @@ func TestNewKubeProxyContainers(t *testing.T) {
 				g.Expect(hasCipherSuitesArg).To(Equal(tc.expectedCipherSuitesInArgs),
 					"cipher suites arg presence mismatch for container %s", container.Name)
 				g.Expect(hasTLSMinVersionArg).To(BeTrue(), "TLS min version arg should be present for container %s", container.Name)
+			}
+		})
+	}
+}
+
+func TestNewContainersTLSArgs(t *testing.T) {
+	testCases := []struct {
+		name       string
+		config     *OperatorConfig
+		tlsProfile configv1.TLSProfileSpec
+	}{
+		{
+			name: "TLS 1.2 with cipher suites",
+			config: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				PlatformType:    configv1.AWSPlatformType,
+				Controllers: Controllers{
+					Provider:           "provider-image:latest",
+					MachineSet:         "machineset-image:latest",
+					NodeLink:           "nodelink-image:latest",
+					MachineHealthCheck: "mhc-image:latest",
+				},
+			},
+			tlsProfile: configv1.TLSProfileSpec{
+				Ciphers: []string{
+					"ECDHE-ECDSA-AES128-GCM-SHA256",
+					"ECDHE-RSA-AES128-GCM-SHA256",
+				},
+				MinTLSVersion: configv1.VersionTLS12,
+			},
+		},
+		{
+			name: "TLS 1.3 without cipher suites",
+			config: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				PlatformType:    configv1.GCPPlatformType,
+				Controllers: Controllers{
+					Provider:           "provider-image:latest",
+					MachineSet:         "machineset-image:latest",
+					NodeLink:           "nodelink-image:latest",
+					MachineHealthCheck: "",
+				},
+			},
+			tlsProfile: configv1.TLSProfileSpec{
+				Ciphers:       []string{},
+				MinTLSVersion: configv1.VersionTLS13,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			tlsArgs := getTLSArgs(tc.tlsProfile)
+			containers := newContainers(tc.config, map[string]bool{}, tlsArgs)
+
+			containerArgs := map[string][]string{}
+			for _, c := range containers {
+				containerArgs[c.Name] = c.Args
+			}
+
+			g.Expect(containerArgs).To(HaveKey("machineset-controller"))
+			g.Expect(containerArgs).To(HaveKey("machine-controller"))
+			g.Expect(containerArgs).To(HaveKey("nodelink-controller"))
+
+			// Only machineset-controller should receive TLS args.
+			machineSetJoined := strings.Join(containerArgs["machineset-controller"], " ")
+			g.Expect(machineSetJoined).To(ContainSubstring("--tls-min-version="+string(tc.tlsProfile.MinTLSVersion)),
+				"machineset-controller should have --tls-min-version")
+			if len(tc.tlsProfile.Ciphers) > 0 {
+				g.Expect(machineSetJoined).To(ContainSubstring("--tls-cipher-suites="),
+					"machineset-controller should have --tls-cipher-suites when ciphers are specified")
+			}
+
+			for _, name := range []string{"machine-controller", "nodelink-controller"} {
+				joined := strings.Join(containerArgs[name], " ")
+				g.Expect(joined).ToNot(ContainSubstring("--tls-min-version="),
+					"%s should not have TLS args", name)
+				g.Expect(joined).ToNot(ContainSubstring("--tls-cipher-suites="),
+					"%s should not have TLS args", name)
+			}
+
+			if tc.config.Controllers.MachineHealthCheck != "" {
+				g.Expect(containerArgs).To(HaveKey("machine-healthcheck-controller"))
+				mhcJoined := strings.Join(containerArgs["machine-healthcheck-controller"], " ")
+				g.Expect(mhcJoined).ToNot(ContainSubstring("--tls-min-version="),
+					"machine-healthcheck-controller should not have TLS args")
 			}
 		})
 	}
