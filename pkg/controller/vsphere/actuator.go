@@ -33,6 +33,7 @@ type Actuator struct {
 	apiReader                runtimeclient.Reader
 	eventRecorder            record.EventRecorder
 	TaskIDCache              map[string]string
+	FailedProvStatusUpdate   map[string]*machinev1.VSphereMachineProviderStatus
 	FeatureGates             featuregate.MutableFeatureGate
 	openshiftConfigNamespace string
 }
@@ -43,6 +44,7 @@ type ActuatorParams struct {
 	APIReader                runtimeclient.Reader
 	EventRecorder            record.EventRecorder
 	TaskIDCache              map[string]string
+	FailedProvStatusUpdate   map[string]*machinev1.VSphereMachineProviderStatus
 	FeatureGates             featuregate.MutableFeatureGate
 	OpenshiftConfigNamespace string
 }
@@ -54,6 +56,7 @@ func NewActuator(params ActuatorParams) *Actuator {
 		apiReader:                params.APIReader,
 		eventRecorder:            params.EventRecorder,
 		TaskIDCache:              params.TaskIDCache,
+		FailedProvStatusUpdate:   params.FailedProvStatusUpdate,
 		FeatureGates:             params.FeatureGates,
 		openshiftConfigNamespace: params.OpenshiftConfigNamespace,
 	}
@@ -90,8 +93,20 @@ func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error
 	// This is a workaround for a cache race condition.
 	if val, ok := a.TaskIDCache[machine.Name]; ok {
 		if val != scope.providerStatus.TaskRef {
-			klog.Errorf("%s: machine object missing expected provider task ID, requeue", machine.GetName())
-			return &machinecontroller.RequeueAfterError{RequeueAfter: requeueAfterSeconds * time.Second}
+			if a.FailedProvStatusUpdate[machine.Name] != nil {
+				// Attempt to update previous status
+				klog.Infof("Attempting to re-patch machine %s", machine.Name)
+				scope.providerStatus = a.FailedProvStatusUpdate[machine.Name]
+				if err := scope.PatchMachine(); err != nil {
+					// Still not having any luck. Return the error and retry later.
+					return err
+				}
+				// Update worked. Clear out the failed patch info.
+				delete(a.FailedProvStatusUpdate, machine.Name)
+			} else {
+				klog.Errorf("%s: machine object missing expected provider task ID, requeue", machine.GetName())
+				return &machinecontroller.RequeueAfterError{RequeueAfter: requeueAfterSeconds * time.Second}
+			}
 		}
 	}
 
@@ -109,6 +124,8 @@ func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error
 	}
 
 	if err := scope.PatchMachine(); err != nil {
+		// An error occurred while saving status fields. Save off and try again later.
+		a.FailedProvStatusUpdate[scope.machine.Name] = scope.providerStatus
 		return err
 	}
 
@@ -135,6 +152,7 @@ func (a *Actuator) Update(ctx context.Context, machine *machinev1.Machine) error
 	klog.Infof("%s: actuator updating machine", machine.GetName())
 	// Cleanup TaskIDCache so we don't continually grow
 	delete(a.TaskIDCache, machine.Name)
+	delete(a.FailedProvStatusUpdate, machine.Name)
 
 	scope, err := newMachineScope(machineScopeParams{
 		Context:                  ctx,
@@ -177,6 +195,7 @@ func (a *Actuator) Delete(ctx context.Context, machine *machinev1.Machine) error
 	// Cleanup TaskIDCache so we don't continually grow
 	// Cleanup here as well in case Update() was never successfully called.
 	delete(a.TaskIDCache, machine.Name)
+	delete(a.FailedProvStatusUpdate, machine.Name)
 
 	scope, err := newMachineScope(machineScopeParams{
 		Context:                  ctx,

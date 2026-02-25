@@ -165,6 +165,7 @@ func main() {
 	// Create a taskIDCache for create task IDs in case they are lost due to
 	// network error or stale cache.
 	taskIDCache := make(map[string]string)
+	failedProvStatusUpdate := make(map[string]*machinev1.VSphereMachineProviderStatus)
 
 	// Initialize machine actuator.
 	machineActuator := machine.NewActuator(machine.ActuatorParams{
@@ -172,6 +173,7 @@ func main() {
 		APIReader:                mgr.GetAPIReader(),
 		EventRecorder:            mgr.GetEventRecorderFor("vspherecontroller"),
 		TaskIDCache:              taskIDCache,
+		FailedProvStatusUpdate:   failedProvStatusUpdate,
 		FeatureGates:             defaultMutableGate,
 		OpenshiftConfigNamespace: vsphere.OpenshiftConfigNamespace,
 	})
