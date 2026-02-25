@@ -109,6 +109,7 @@ func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error
 	}
 
 	if err := scope.PatchMachine(); err != nil {
+		delete(a.TaskIDCache, machine.Name)
 		return err
 	}
 

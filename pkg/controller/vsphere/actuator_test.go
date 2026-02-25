@@ -412,3 +412,254 @@ func TestMachineEvents(t *testing.T) {
 		})
 	}
 }
+
+func TestTaskIDCacheClearedOnPatchMachineFailure(t *testing.T) {
+	g := NewWithT(t)
+
+	model, session, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	host, port, err := net.SplitHostPort(server.URL.Host)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	credentialsSecretUsername := fmt.Sprintf("%s.username", host)
+	credentialsSecretPassword := fmt.Sprintf("%s.password", host)
+	password, _ := server.URL.User.Password()
+
+	vm := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
+	vm.Config.Version = minimumHWVersionString
+
+	testEnv := &envtest.Environment{
+		CRDDirectoryPaths: []string{
+			filepath.Join("..", "..", "..", "install"),
+			filepath.Join("..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1", "zz_generated.crd-manifests"),
+			filepath.Join("..", "..", "..", "third_party", "cluster-api", "crd")},
+	}
+
+	cfg, err := testEnv.Start()
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(cfg).ToNot(BeNil())
+	defer func() {
+		g.Expect(testEnv.Stop()).To(Succeed())
+	}()
+
+	mgr, err := manager.New(cfg, manager.Options{
+		Scheme: scheme.Scheme,
+		Metrics: metricsserver.Options{
+			BindAddress: "0",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mgrCtx, cancel := context.WithCancel(context.Background())
+	go func() {
+		g.Expect(mgr.Start(mgrCtx)).To(Succeed())
+	}()
+	defer cancel()
+
+	k8sClient := mgr.GetClient()
+	eventRecorder := mgr.GetEventRecorderFor("vspherecontroller")
+
+	configNamespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: openshiftConfigNamespaceForTest,
+		},
+	}
+	g.Expect(k8sClient.Create(context.Background(), configNamespace)).To(Succeed())
+	defer func() {
+		g.Expect(k8sClient.Delete(context.Background(), configNamespace)).To(Succeed())
+	}()
+
+	testNamespaceName := "test"
+	testNamespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: testNamespaceName,
+		},
+	}
+	g.Expect(k8sClient.Create(context.Background(), testNamespace)).To(Succeed())
+	defer func() {
+		g.Expect(k8sClient.Delete(context.Background(), testNamespace)).To(Succeed())
+	}()
+
+	credentialsSecretName := "test"
+	credentialsSecret := corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      credentialsSecretName,
+			Namespace: testNamespaceName,
+		},
+		Data: map[string][]byte{
+			credentialsSecretUsername: []byte(server.URL.User.Username()),
+			credentialsSecretPassword: []byte(password),
+		},
+	}
+	g.Expect(k8sClient.Create(context.Background(), &credentialsSecret)).To(Succeed())
+	defer func() {
+		g.Expect(k8sClient.Delete(context.Background(), &credentialsSecret)).To(Succeed())
+	}()
+
+	testConfig := fmt.Sprintf(testConfigFmt, port, credentialsSecretName, testNamespaceName)
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "testname",
+			Namespace: openshiftConfigNamespaceForTest,
+		},
+		Data: map[string]string{
+			"testkey": testConfig,
+		},
+	}
+	g.Expect(k8sClient.Create(context.Background(), configMap)).To(Succeed())
+	defer func() {
+		g.Expect(k8sClient.Delete(context.Background(), configMap)).To(Succeed())
+	}()
+
+	infra := &configv1.Infrastructure{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: globalInfrastuctureName,
+		},
+		Spec: configv1.InfrastructureSpec{
+			CloudConfig: configv1.ConfigMapFileReference{
+				Name: "testname",
+				Key:  "testkey",
+			},
+		},
+	}
+	g.Expect(k8sClient.Create(context.Background(), infra)).To(Succeed())
+	defer func() {
+		g.Expect(k8sClient.Delete(context.Background(), infra)).To(Succeed())
+	}()
+
+	userDataSecretName := "vsphere-ignition"
+	userDataSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      userDataSecretName,
+			Namespace: testNamespaceName,
+		},
+		Data: map[string][]byte{
+			userDataSecretKey: []byte("{}"),
+		},
+	}
+	g.Expect(k8sClient.Create(context.Background(), userDataSecret)).To(Succeed())
+	defer func() {
+		g.Expect(k8sClient.Delete(context.Background(), userDataSecret)).To(Succeed())
+	}()
+
+	_, err = createTagAndCategory(session, tagToCategoryName("CLUSTERID"), "CLUSTERID")
+	g.Expect(err).ToNot(HaveOccurred())
+
+	ctx := context.Background()
+	timeout := 10 * time.Second
+
+	providerSpec, err := RawExtensionFromProviderSpec(&machinev1.VSphereMachineProviderSpec{
+		Template: vm.Name,
+		Workspace: &machinev1.Workspace{
+			Server: host,
+		},
+		CredentialsSecret: &corev1.LocalObjectReference{
+			Name: "test",
+		},
+		UserDataSecret: &corev1.LocalObjectReference{
+			Name: userDataSecretName,
+		},
+		DiskGiB: 10,
+	})
+	g.Expect(err).ToNot(HaveOccurred())
+
+	machine := &machinev1.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "test",
+			Labels: map[string]string{
+				machinev1.MachineClusterIDLabel: "CLUSTERID",
+			},
+		},
+		Spec: machinev1.MachineSpec{
+			ProviderSpec: machinev1.ProviderSpec{
+				Value: providerSpec,
+			},
+		},
+		Status: machinev1.MachineStatus{
+			NodeRef: &corev1.ObjectReference{
+				Name: "test",
+			},
+		},
+	}
+
+	g.Expect(k8sClient.Create(ctx, machine)).To(Succeed())
+
+	getMachine := func() error {
+		machineKey := types.NamespacedName{Namespace: machine.Namespace, Name: machine.Name}
+		return k8sClient.Get(ctx, machineKey, &machinev1.Machine{})
+	}
+	g.Eventually(getMachine, timeout).Should(Succeed())
+
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: "test",
+			Labels: map[string]string{
+				machinev1.MachineClusterIDLabel: "CLUSTERID",
+			},
+		},
+		Spec: corev1.NodeSpec{},
+		Status: corev1.NodeStatus{
+			VolumesAttached: []corev1.AttachedVolume{},
+		},
+	}
+	g.Expect(k8sClient.Create(ctx, node)).To(Succeed())
+	defer func() {
+		g.Expect(k8sClient.Delete(ctx, node)).To(Succeed())
+	}()
+
+	getNode := func() error {
+		nodeKey := types.NamespacedName{Name: node.Name}
+		return k8sClient.Get(ctx, nodeKey, &corev1.Node{})
+	}
+	g.Eventually(getNode, timeout).Should(Succeed())
+
+	gate, err := testutils.NewDefaultMutableFeatureGate()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	taskIDCache := make(map[string]string)
+	params := ActuatorParams{
+		Client:                   k8sClient,
+		EventRecorder:            eventRecorder,
+		APIReader:                k8sClient,
+		TaskIDCache:              taskIDCache,
+		OpenshiftConfigNamespace: openshiftConfigNamespaceForTest,
+		FeatureGates:             gate,
+	}
+	actuator := NewActuator(params)
+
+	// Step 1: Create successfully - the cache should be populated with the task ID.
+	err = actuator.Create(ctx, machine)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(taskIDCache).To(HaveKey(machine.Name))
+	cachedTaskID := taskIDCache[machine.Name]
+	g.Expect(cachedTaskID).ToNot(BeEmpty())
+
+	// Step 2: Delete the machine from the API so that PatchMachine will fail
+	// on the next Create call (the patch target no longer exists).
+	g.Expect(k8sClient.Delete(ctx, machine)).To(Succeed())
+	g.Eventually(func() bool {
+		machineKey := types.NamespacedName{Namespace: machine.Namespace, Name: machine.Name}
+		return k8sClient.Get(ctx, machineKey, &machinev1.Machine{}) != nil
+	}, timeout).Should(BeTrue())
+
+	// Step 3: Call Create again. The in-memory machine still has the TaskRef
+	// from step 1, so the stale cache check passes. But PatchMachine fails
+	// because the machine no longer exists in the API.
+	err = actuator.Create(ctx, machine)
+	g.Expect(err).To(HaveOccurred())
+
+	// Step 4: Verify the cache entry was cleaned up when PatchMachine failed.
+	// Without the fix, the stale cache entry would permanently block the
+	// machine from progressing past the stale check on every future reconcile.
+	g.Expect(taskIDCache).ToNot(HaveKey(machine.Name))
+}
