@@ -774,7 +774,7 @@ func getAddressesFromPool(configIdx int, networkConfig machinev1.NetworkDeviceSp
 			return nil, "", fmt.Errorf("error retrieving bound IP address: %w", err)
 		}
 		ipAddressSpec := ipAddress.Spec
-		addresses = append(addresses, fmt.Sprintf("%s/%d", ipAddressSpec.Address, ipAddressSpec.Prefix))
+		addresses = append(addresses, fmt.Sprintf("%s/%d", ipAddressSpec.Address, *ipAddressSpec.Prefix))
 		if len(ipAddressSpec.Gateway) > 0 {
 			gateway = ipAddressSpec.Gateway
 		}
