@@ -102,22 +102,32 @@ func (optr *Operator) syncAll(config *OperatorConfig) (reconcile.Result, error) 
 
 	if len(errors) > 0 {
 		err := utilerrors.NewAggregate(errors)
-		if err := optr.statusDegraded(err.Error()); err != nil {
-			// Just log the error here.  We still want to
-			// return the outer error.
-			klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
+		if shouldDegraded, checkErr := optr.shouldReportDegraded(); checkErr != nil {
+			klog.Errorf("Error checking upgrade status: %v", checkErr)
+		} else if shouldDegraded {
+			if err := optr.statusDegraded(err.Error()); err != nil {
+				klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
+			}
+		} else {
+			klog.Infof("Suppressing Degraded status during upgrade: %s", err.Error())
 		}
+
 		klog.Errorf("Error syncing machine controller components: %v", err)
 		return reconcile.Result{}, err
 	}
 
 	result, err := optr.checkRolloutStatus(config)
 	if err != nil {
-		if err := optr.statusDegraded(err.Error()); err != nil {
-			// Just log the error here.  We still want to
-			// return the outer error.
-			klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
+		if shouldDegraded, checkErr := optr.shouldReportDegraded(); checkErr != nil {
+			klog.Errorf("Error checking upgrade status: %v", checkErr)
+		} else if shouldDegraded {
+			if err := optr.statusDegraded(err.Error()); err != nil {
+				klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
+			}
+		} else {
+			klog.Infof("Suppressing Degraded status during upgrade: %s", err.Error())
 		}
+
 		klog.Errorf("Error waiting for resource to sync: %v", err)
 		return reconcile.Result{}, err
 	}
@@ -130,21 +140,30 @@ func (optr *Operator) syncAll(config *OperatorConfig) (reconcile.Result, error) 
 
 	initializing, err := optr.isInitializing()
 	if err != nil {
-		if err := optr.statusDegraded(err.Error()); err != nil {
-			// Just log the error here.  We still want to
-			// return the outer error.
-			klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
+		if shouldDegraded, checkErr := optr.shouldReportDegraded(); checkErr != nil {
+			klog.Errorf("Error checking upgrade status: %v", checkErr)
+		} else if shouldDegraded {
+			if err := optr.statusDegraded(err.Error()); err != nil {
+				klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
+			}
+		} else {
+			klog.Infof("Suppressing Degraded status during upgrade: %s", err.Error())
 		}
+
 		klog.Errorf("Error determining state of operator: %v", err)
 		return reconcile.Result{}, err
 	}
 
 	if initializing {
 		if err := optr.checkMinimumWorkerMachines(); err != nil {
-			if err := optr.statusDegraded(err.Error()); err != nil {
-				// Just log the error here.  We still want to
-				// return the outer error.
-				klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
+			if shouldDegraded, checkErr := optr.shouldReportDegraded(); checkErr != nil {
+				klog.Errorf("Error checking upgrade status: %v", checkErr)
+			} else if shouldDegraded {
+				if err := optr.statusDegraded(err.Error()); err != nil {
+					klog.Errorf("Error syncing ClusterOperatorStatus: %v", err)
+				}
+			} else {
+				klog.Infof("Suppressing Degraded status during upgrade: %s", err.Error())
 			}
 
 			klog.Errorf("Cluster is initializing and minimum worker Machine requirements are not met: %v", err)
