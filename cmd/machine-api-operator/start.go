@@ -246,6 +246,10 @@ func startMetricsCollectionAndServer(ctx *ControllerContext) {
 
 	go func() {
 		if err := metricsServer.Start(metricsServerCtx); err != nil {
+			if errors.Is(err, context.Canceled) {
+				klog.V(2).Info("Secure metrics server shutdown complete")
+				return
+			}
 			klog.Fatalf("Unable to start secure metrics server: %v", err)
 		}
 	}()
