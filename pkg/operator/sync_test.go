@@ -620,12 +620,13 @@ func TestNewKubeProxyContainers(t *testing.T) {
 
 func TestNewContainersTLSArgs(t *testing.T) {
 	testCases := []struct {
-		name       string
-		config     *OperatorConfig
-		tlsProfile configv1.TLSProfileSpec
+		name                           string
+		config                         *OperatorConfig
+		tlsProfile                     configv1.TLSProfileSpec
+		expectMachineControllerTLSArgs bool
 	}{
 		{
-			name: "TLS 1.2 with cipher suites",
+			name: "AWS: TLS 1.2 with cipher suites",
 			config: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				PlatformType:    configv1.AWSPlatformType,
@@ -643,9 +644,10 @@ func TestNewContainersTLSArgs(t *testing.T) {
 				},
 				MinTLSVersion: configv1.VersionTLS12,
 			},
+			expectMachineControllerTLSArgs: false,
 		},
 		{
-			name: "TLS 1.3 without cipher suites",
+			name: "GCP: TLS 1.3 without cipher suites",
 			config: &OperatorConfig{
 				TargetNamespace: targetNamespace,
 				PlatformType:    configv1.GCPPlatformType,
@@ -660,6 +662,28 @@ func TestNewContainersTLSArgs(t *testing.T) {
 				Ciphers:       []string{},
 				MinTLSVersion: configv1.VersionTLS13,
 			},
+			expectMachineControllerTLSArgs: false,
+		},
+		{
+			name: "BareMetal: TLS args passed to machine-controller for Metal3Remediation webhooks",
+			config: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				PlatformType:    configv1.BareMetalPlatformType,
+				Controllers: Controllers{
+					Provider:           "provider-image:latest",
+					MachineSet:         "machineset-image:latest",
+					NodeLink:           "nodelink-image:latest",
+					MachineHealthCheck: "mhc-image:latest",
+				},
+			},
+			tlsProfile: configv1.TLSProfileSpec{
+				Ciphers: []string{
+					"ECDHE-ECDSA-AES128-GCM-SHA256",
+					"ECDHE-RSA-AES128-GCM-SHA256",
+				},
+				MinTLSVersion: configv1.VersionTLS12,
+			},
+			expectMachineControllerTLSArgs: true,
 		},
 	}
 
@@ -679,27 +703,47 @@ func TestNewContainersTLSArgs(t *testing.T) {
 			g.Expect(containerArgs).To(HaveKey("machine-controller"))
 			g.Expect(containerArgs).To(HaveKey("nodelink-controller"))
 
-			// Only machineset-controller should receive TLS args.
+			// machineset-controller always receives TLS args.
 			machineSetJoined := strings.Join(containerArgs["machineset-controller"], " ")
 			g.Expect(machineSetJoined).To(ContainSubstring("--tls-min-version="+string(tc.tlsProfile.MinTLSVersion)),
 				"machineset-controller should have --tls-min-version")
 			if len(tc.tlsProfile.Ciphers) > 0 {
 				g.Expect(machineSetJoined).To(ContainSubstring("--tls-cipher-suites="),
 					"machineset-controller should have --tls-cipher-suites when ciphers are specified")
+			} else {
+				g.Expect(machineSetJoined).ToNot(ContainSubstring("--tls-cipher-suites="),
+					"machineset-controller should not have --tls-cipher-suites when ciphers are not specified")
 			}
 
-			for _, name := range []string{"machine-controller", "nodelink-controller"} {
-				joined := strings.Join(containerArgs[name], " ")
-				g.Expect(joined).ToNot(ContainSubstring("--tls-min-version="),
-					"%s should not have TLS args", name)
-				g.Expect(joined).ToNot(ContainSubstring("--tls-cipher-suites="),
-					"%s should not have TLS args", name)
+			// machine-controller receives TLS args only on BareMetal as it's the only platform that serves webhooks.
+			machineControllerJoined := strings.Join(containerArgs["machine-controller"], " ")
+			if tc.expectMachineControllerTLSArgs {
+				g.Expect(machineControllerJoined).To(ContainSubstring("--tls-min-version="+string(tc.tlsProfile.MinTLSVersion)),
+					"machine-controller should have --tls-min-version on BareMetal")
+				if len(tc.tlsProfile.Ciphers) > 0 {
+					g.Expect(machineControllerJoined).To(ContainSubstring("--tls-cipher-suites="),
+						"machine-controller should have --tls-cipher-suites on BareMetal")
+				}
+			} else {
+				g.Expect(machineControllerJoined).ToNot(ContainSubstring("--tls-min-version="),
+					"machine-controller should not have TLS args on %s", tc.config.PlatformType)
+				g.Expect(machineControllerJoined).ToNot(ContainSubstring("--tls-cipher-suites="),
+					"machine-controller should not have TLS args on %s", tc.config.PlatformType)
 			}
+
+			// nodelink-controller never receives TLS args.
+			nodelinkJoined := strings.Join(containerArgs["nodelink-controller"], " ")
+			g.Expect(nodelinkJoined).ToNot(ContainSubstring("--tls-min-version="),
+				"nodelink-controller should not have TLS args")
+			g.Expect(nodelinkJoined).ToNot(ContainSubstring("--tls-cipher-suites="),
+				"nodelink-controller should not have TLS args")
 
 			if tc.config.Controllers.MachineHealthCheck != "" {
 				g.Expect(containerArgs).To(HaveKey("machine-healthcheck-controller"))
 				mhcJoined := strings.Join(containerArgs["machine-healthcheck-controller"], " ")
 				g.Expect(mhcJoined).ToNot(ContainSubstring("--tls-min-version="),
+					"machine-healthcheck-controller should not have TLS args")
+				g.Expect(mhcJoined).ToNot(ContainSubstring("--tls-cipher-suites="),
 					"machine-healthcheck-controller should not have TLS args")
 			}
 		})

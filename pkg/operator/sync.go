@@ -679,6 +679,8 @@ func newContainers(config *OperatorConfig, features map[string]bool, tlsArgs []s
 	switch config.PlatformType {
 	case configv1.AzurePlatformType, configv1.GCPPlatformType:
 		machineControllerArgs = append(machineControllerArgs, "--max-concurrent-reconciles=10")
+	case configv1.BareMetalPlatformType:
+		machineControllerArgs = append(machineControllerArgs, tlsArgs...)
 	}
 
 	machineSetControllerArgs := append([]string{}, featureGateArgs...)
