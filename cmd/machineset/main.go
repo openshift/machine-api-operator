@@ -174,7 +174,10 @@ func main() {
 			tlsProfile.Ciphers = strings.Split(*tlsCipherSuites, ",")
 		}
 
-		tlsOpts, _ := utiltls.NewTLSConfigFromProfile(tlsProfile)
+		tlsOpts, unsupportedCiphers := utiltls.NewTLSConfigFromProfile(tlsProfile)
+		if len(unsupportedCiphers) > 0 {
+			klog.Infof("TLS configuration contains unsupported ciphers that will be ignored: %v", unsupportedCiphers)
+		}
 
 		opts.WebhookServer = webhook.NewServer(webhook.Options{
 			Port:    *webhookPort,
