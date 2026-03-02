@@ -1010,6 +1010,23 @@ func clone(s *machineScope) (string, error) {
 
 	deviceSpecs = append(deviceSpecs, networkDevices...)
 
+	// TODO: Replace this placeholder with actual provider spec field check
+	// When VSphereMachineProviderSpec.VirtualTPM field is added, replace the condition below:
+	// if s.providerSpec.VirtualTPM != nil && s.providerSpec.VirtualTPM.Enabled {
+	// For now, this is a placeholder that hardcodes adding a TPM device.
+	enableVirtualTPM := true
+
+	if enableVirtualTPM {
+		// Add VirtualTPM device if needed (TODO: placeholder for future provider spec field)
+		tpmDeviceSpec, err := addVirtualTPMDevice(s, devices)
+		if err != nil {
+			return "", fmt.Errorf("error getting VirtualTPM specs: %w", err)
+		}
+		if tpmDeviceSpec != nil {
+			deviceSpecs = append(deviceSpecs, tpmDeviceSpec)
+		}
+	}
+
 	extraConfig := []types.BaseOptionValue{}
 
 	extraConfig = append(extraConfig, IgnitionConfig(userData)...)
@@ -1035,20 +1052,24 @@ func clone(s *machineScope) (string, error) {
 		}
 	}
 
+	// Create the VM configuration spec
+	vmConfigSpec := &types.VirtualMachineConfigSpec{
+		Annotation: s.machine.GetName(),
+		// Assign the clone's InstanceUUID the value of the Kubernetes Machine
+		// object's UID. This allows lookup of the cloned VM prior to knowing
+		// the VM's UUID.
+		InstanceUuid:      string(s.machine.UID),
+		Flags:             newVMFlagInfo(),
+		ExtraConfig:       extraConfig,
+		DeviceChange:      deviceSpecs,
+		NumCPUs:           numCPUs,
+		NumCoresPerSocket: numCoresPerSocket,
+		MemoryMB:          s.providerSpec.MemoryMiB,
+		Firmware:          getVMFirmware(enableVirtualTPM),
+	}
+
 	spec := types.VirtualMachineCloneSpec{
-		Config: &types.VirtualMachineConfigSpec{
-			Annotation: s.machine.GetName(),
-			// Assign the clone's InstanceUUID the value of the Kubernetes Machine
-			// object's UID. This allows lookup of the cloned VM prior to knowing
-			// the VM's UUID.
-			InstanceUuid:      string(s.machine.UID),
-			Flags:             newVMFlagInfo(),
-			ExtraConfig:       extraConfig,
-			DeviceChange:      deviceSpecs,
-			NumCPUs:           numCPUs,
-			NumCoresPerSocket: numCoresPerSocket,
-			MemoryMB:          s.providerSpec.MemoryMiB,
-		},
+		Config: vmConfigSpec,
 		Location: types.VirtualMachineRelocateSpec{
 			Datastore:    types.NewReference(datastore.Reference()),
 			Folder:       types.NewReference(folder.Reference()),
@@ -1410,6 +1431,45 @@ func getNetworkDevices(s *machineScope, resourcepool *object.ResourcePool, devic
 	}
 
 	return networkDevices, nil
+}
+
+// addVirtualTPMDevice creates VirtualTPM device specifications for the VM.
+// This function is prepared for future integration with a VirtualTPM field in VSphereMachineProviderSpec.
+func addVirtualTPMDevice(s *machineScope, devices object.VirtualDeviceList) (types.BaseVirtualDeviceConfigSpec, error) {
+	var baseVirtualDeviceConfigSpec types.BaseVirtualDeviceConfigSpec
+	// Check if TPM already exists in template
+	existingTPMs := devices.SelectByType((*types.VirtualTPM)(nil))
+	if len(existingTPMs) > 0 {
+		klog.V(3).Infof("VirtualTPM already exists in template, skipping addition")
+		return baseVirtualDeviceConfigSpec, nil
+	}
+
+	// Create new VirtualTPM device
+	tpmDevice := &types.VirtualTPM{
+		VirtualDevice: types.VirtualDevice{
+			Key: devices.NewKey(),
+			// Note: VirtualTPM doesn't require backing info or controller key
+			// as it's a standalone security device
+		},
+	}
+
+	baseVirtualDeviceConfigSpec = &types.VirtualDeviceConfigSpec{
+		Device:    tpmDevice,
+		Operation: types.VirtualDeviceConfigSpecOperationAdd,
+	}
+
+	klog.V(2).Infof("Adding VirtualTPM device to VM %s", s.machine.GetName())
+
+	return baseVirtualDeviceConfigSpec, nil
+}
+
+// getVMFirmware returns the VM firmware type based on certain factors.
+func getVMFirmware(enableVirtualTPM bool) string {
+	if enableVirtualTPM {
+		// VirtualTPM requires EFI firmware.
+		return string(types.GuestOsDescriptorFirmwareTypeEfi)
+	}
+	return string(types.GuestOsDescriptorFirmwareTypeBios)
 }
 
 func newVMFlagInfo() *types.VirtualMachineFlagInfo {
