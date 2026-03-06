@@ -16,7 +16,6 @@ data:
       "kubeRBACProxy": "quay.io/openshift/origin-kube-rbac-proxy",
       "clusterAPIControllerAWS": "quay.io/openshift/origin-aws-machine-controllers",
       "clusterAPIControllerOpenStack": "quay.io/openshift/origin-openstack-machine-api-provider",
-      "clusterAPIControllerLibvirt": "quay.io/openshift/origin-libvirt-machine-controllers",
       "clusterAPIControllerBareMetal": "quay.io/openshift/origin-baremetal-machine-controllers",
       "clusterAPIControllerAzure": "quay.io/openshift/origin-azure-machine-controllers",
       "clusterAPIControllerGCP": "quay.io/openshift/origin-gcp-machine-controllers",
