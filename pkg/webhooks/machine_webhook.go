@@ -1372,7 +1372,7 @@ func defaultGCPDisks(disks []*machinev1beta1.GCPDisk, clusterID string) []*machi
 			disk.Type = defaultGCPDiskType
 		}
 
-		if disk.Image == "" {
+		if disk.Boot && disk.Image == "" {
 			disk.Image = defaultGCPDiskImage()
 		}
 	}
