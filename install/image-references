@@ -14,10 +14,6 @@ spec:
     from:
       kind: DockerImage
       name: quay.io/openshift/origin-openstack-machine-api-provider
-  - name: libvirt-machine-controllers
-    from:
-      kind: DockerImage
-      name: quay.io/openshift/origin-libvirt-machine-controllers
   - name: baremetal-machine-controllers
     from:
       kind: DockerImage

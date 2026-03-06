@@ -41,7 +41,6 @@ type Images struct {
 	MachineAPIOperator            string `json:"machineAPIOperator"`
 	ClusterAPIControllerAWS       string `json:"clusterAPIControllerAWS"`
 	ClusterAPIControllerOpenStack string `json:"clusterAPIControllerOpenStack"`
-	ClusterAPIControllerLibvirt   string `json:"clusterAPIControllerLibvirt"`
 	ClusterAPIControllerBareMetal string `json:"clusterAPIControllerBareMetal"`
 	ClusterAPIControllerAzure     string `json:"clusterAPIControllerAzure"`
 	ClusterAPIControllerGCP       string `json:"clusterAPIControllerGCP"`
@@ -78,8 +77,6 @@ func getProviderControllerFromImages(platform configv1.PlatformType, images Imag
 	switch platform {
 	case configv1.AWSPlatformType:
 		return images.ClusterAPIControllerAWS, nil
-	case configv1.LibvirtPlatformType:
-		return images.ClusterAPIControllerLibvirt, nil
 	case configv1.OpenStackPlatformType:
 		return images.ClusterAPIControllerOpenStack, nil
 	case configv1.AzurePlatformType:
