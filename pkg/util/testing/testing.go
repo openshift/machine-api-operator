@@ -168,7 +168,7 @@ func NewMachineHealthCheck(name string) *machinev1.MachineHealthCheck {
 
 func NewDefaultMutableFeatureGate() (featuregate.MutableFeatureGate, error) {
 	defaultMutableGate := feature.DefaultMutableFeatureGate
-	_, err := features.NewFeatureGateOptions(defaultMutableGate,
+	_, err := features.NewFeatureGateOptions(defaultMutableGate, 4,
 		openshiftfeatures.SelfManaged,
 		openshiftfeatures.FeatureGateMachineAPIMigration,
 		openshiftfeatures.FeatureGateVSphereHostVMGroupZonal,

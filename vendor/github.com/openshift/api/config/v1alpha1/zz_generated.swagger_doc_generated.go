@@ -179,6 +179,7 @@ var map_ClusterMonitoringSpec = map[string]string{
 	"alertmanagerConfig":       "alertmanagerConfig allows users to configure how the default Alertmanager instance should be deployed in the `openshift-monitoring` namespace. alertmanagerConfig is optional. When omitted, this means no opinion and the platform is left to choose a reasonable default, that is subject to change over time. The current default value is `DefaultConfig`.",
 	"metricsServerConfig":      "metricsServerConfig is an optional field that can be used to configure the Kubernetes Metrics Server that runs in the openshift-monitoring namespace. Specifically, it can configure how the Metrics Server instance is deployed, pod scheduling, its audit policy and log verbosity. When omitted, this means no opinion and the platform is left to choose a reasonable default, which is subject to change over time.",
 	"prometheusOperatorConfig": "prometheusOperatorConfig is an optional field that can be used to configure the Prometheus Operator component. Specifically, it can configure how the Prometheus Operator instance is deployed, pod scheduling, and resource allocation. When omitted, this means no opinion and the platform is left to choose a reasonable default, which is subject to change over time.",
+	"prometheusOperatorAdmissionWebhookConfig": "prometheusOperatorAdmissionWebhookConfig is an optional field that can be used to configure the admission webhook component of Prometheus Operator that runs in the openshift-monitoring namespace. The admission webhook validates PrometheusRule and AlertmanagerConfig objects to ensure they are semantically valid, mutates PrometheusRule annotations, and converts AlertmanagerConfig objects between API versions. When omitted, this means no opinion and the platform is left to choose a reasonable default, which is subject to change over time.",
 }
 
 func (ClusterMonitoringSpec) SwaggerDoc() map[string]string {
@@ -216,6 +217,16 @@ var map_MetricsServerConfig = map[string]string{
 
 func (MetricsServerConfig) SwaggerDoc() map[string]string {
 	return map_MetricsServerConfig
+}
+
+var map_PrometheusOperatorAdmissionWebhookConfig = map[string]string{
+	"":                          "PrometheusOperatorAdmissionWebhookConfig provides configuration options for the admission webhook component of Prometheus Operator that runs in the `openshift-monitoring` namespace. The admission webhook validates PrometheusRule and AlertmanagerConfig objects, mutates PrometheusRule annotations, and converts AlertmanagerConfig objects between API versions.",
+	"resources":                 "resources defines the compute resource requests and limits for the prometheus-operator-admission-webhook container. This includes CPU, memory and HugePages constraints to help control scheduling and resource usage. When not specified, defaults are used by the platform. Requests cannot exceed limits. This field is optional. More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/ This is a simplified API that maps to Kubernetes ResourceRequirements. The current default values are:\n  resources:\n   - name: cpu\n     request: 5m\n     limit: null\n   - name: memory\n     request: 30Mi\n     limit: null\nMaximum length for this list is 10. Minimum length for this list is 1. Each resource name must be unique within this list.",
+	"topologySpreadConstraints": "topologySpreadConstraints defines rules for how admission webhook Pods should be distributed across topology domains such as zones, nodes, or other user-defined labels. topologySpreadConstraints is optional. This helps improve high availability and resource efficiency by avoiding placing too many replicas in the same failure domain.\n\nWhen omitted, this means no opinion and the platform is left to choose a default, which is subject to change over time. This field maps directly to the `topologySpreadConstraints` field in the Pod spec. Default is empty list. Maximum length for this list is 10. Minimum length for this list is 1. Entries must have unique topologyKey and whenUnsatisfiable pairs.",
+}
+
+func (PrometheusOperatorAdmissionWebhookConfig) SwaggerDoc() map[string]string {
+	return map_PrometheusOperatorAdmissionWebhookConfig
 }
 
 var map_PrometheusOperatorConfig = map[string]string{
@@ -484,6 +495,112 @@ var map_Storage = map[string]string{
 
 func (Storage) SwaggerDoc() map[string]string {
 	return map_Storage
+}
+
+var map_CertificateConfig = map[string]string{
+	"":    "CertificateConfig specifies configuration parameters for certificates. At least one property must be specified.",
+	"key": "key specifies the cryptographic parameters for the certificate's key pair. Currently this is the only configurable parameter. When omitted in an overrides entry, the key configuration from defaults is used.",
+}
+
+func (CertificateConfig) SwaggerDoc() map[string]string {
+	return map_CertificateConfig
+}
+
+var map_CustomPKIPolicy = map[string]string{
+	"": "CustomPKIPolicy contains administrator-specified cryptographic configuration. Administrators must specify defaults for all certificates and may optionally override specific categories of certificates.",
+}
+
+func (CustomPKIPolicy) SwaggerDoc() map[string]string {
+	return map_CustomPKIPolicy
+}
+
+var map_DefaultCertificateConfig = map[string]string{
+	"":    "DefaultCertificateConfig specifies the default certificate configuration parameters. All fields are required to ensure that defaults are fully specified for all certificates.",
+	"key": "key specifies the cryptographic parameters for the certificate's key pair. This field is required in defaults to ensure all certificates have a well-defined key configuration.",
+}
+
+func (DefaultCertificateConfig) SwaggerDoc() map[string]string {
+	return map_DefaultCertificateConfig
+}
+
+var map_ECDSAKeyConfig = map[string]string{
+	"":      "ECDSAKeyConfig specifies parameters for ECDSA key generation.",
+	"curve": "curve specifies the NIST elliptic curve for ECDSA keys. Valid values are \"P256\", \"P384\", and \"P521\".\n\nWhen set to P256, the NIST P-256 curve (also known as secp256r1) is used, providing 128-bit security.\n\nWhen set to P384, the NIST P-384 curve (also known as secp384r1) is used, providing 192-bit security.\n\nWhen set to P521, the NIST P-521 curve (also known as secp521r1) is used, providing 256-bit security.",
+}
+
+func (ECDSAKeyConfig) SwaggerDoc() map[string]string {
+	return map_ECDSAKeyConfig
+}
+
+var map_KeyConfig = map[string]string{
+	"":          "KeyConfig specifies cryptographic parameters for key generation.",
+	"algorithm": "algorithm specifies the key generation algorithm. Valid values are \"RSA\" and \"ECDSA\".\n\nWhen set to RSA, the rsa field must be specified and the generated key will be an RSA key with the configured key size.\n\nWhen set to ECDSA, the ecdsa field must be specified and the generated key will be an ECDSA key using the configured elliptic curve.",
+	"rsa":       "rsa specifies RSA key parameters. Required when algorithm is RSA, and forbidden otherwise.",
+	"ecdsa":     "ecdsa specifies ECDSA key parameters. Required when algorithm is ECDSA, and forbidden otherwise.",
+}
+
+func (KeyConfig) SwaggerDoc() map[string]string {
+	return map_KeyConfig
+}
+
+var map_PKI = map[string]string{
+	"":         "PKI configures cryptographic parameters for certificates generated internally by OpenShift components.\n\nCompatibility level 4: No compatibility is provided, the API can change at any point for any reason. These capabilities should not be used by applications needing long term support.",
+	"metadata": "metadata is the standard object's metadata. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
+	"spec":     "spec holds user settable values for configuration",
+}
+
+func (PKI) SwaggerDoc() map[string]string {
+	return map_PKI
+}
+
+var map_PKICertificateManagement = map[string]string{
+	"":       "PKICertificateManagement determines whether components use hardcoded defaults (Unmanaged), follow OpenShift best practices (Default), or use administrator-specified cryptographic parameters (Custom). This provides flexibility for organizations with specific compliance requirements or security policies while maintaining backwards compatibility for existing clusters.",
+	"mode":   "mode determines how PKI configuration is managed. Valid values are \"Unmanaged\", \"Default\", and \"Custom\".\n\nWhen set to Unmanaged, components use their existing hardcoded certificate generation behavior, exactly as if this feature did not exist. Each component generates certificates using whatever parameters it was using before this feature. While most components use RSA 2048, some may use different parameters. Use of this mode might prevent upgrading to the next major OpenShift release.\n\nWhen set to Default, OpenShift-recommended best practices for certificate generation are applied. The specific parameters may evolve across OpenShift releases to adopt improved cryptographic standards. In the initial release, this matches Unmanaged behavior for each component. In future releases, this may adopt ECDSA or larger RSA keys based on industry best practices. Recommended for most customers who want to benefit from security improvements automatically.\n\nWhen set to Custom, the certificate management parameters can be set explicitly. Use the custom field to specify certificate generation parameters.",
+	"custom": "custom contains administrator-specified cryptographic configuration. Use the defaults and category override fields to specify certificate generation parameters. Required when mode is Custom, and forbidden otherwise.",
+}
+
+func (PKICertificateManagement) SwaggerDoc() map[string]string {
+	return map_PKICertificateManagement
+}
+
+var map_PKIList = map[string]string{
+	"":         "PKIList is a collection of PKI resources.\n\nCompatibility level 4: No compatibility is provided, the API can change at any point for any reason. These capabilities should not be used by applications needing long term support.",
+	"metadata": "metadata is the standard list's metadata. More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata",
+	"items":    "items is a list of PKI resources",
+}
+
+func (PKIList) SwaggerDoc() map[string]string {
+	return map_PKIList
+}
+
+var map_PKIProfile = map[string]string{
+	"":                    "PKIProfile defines the certificate generation parameters that OpenShift components use to create certificates. Category overrides take precedence over defaults.",
+	"defaults":            "defaults specifies the default certificate configuration that applies to all certificates unless overridden by a category override.",
+	"signerCertificates":  "signerCertificates optionally overrides certificate parameters for certificate authority (CA) certificates that sign other certificates. When set, these parameters take precedence over defaults for all signer certificates. When omitted, the defaults are used for signer certificates.",
+	"servingCertificates": "servingCertificates optionally overrides certificate parameters for TLS server certificates used to serve HTTPS endpoints. When set, these parameters take precedence over defaults for all serving certificates. When omitted, the defaults are used for serving certificates.",
+	"clientCertificates":  "clientCertificates optionally overrides certificate parameters for client authentication certificates used to authenticate to servers. When set, these parameters take precedence over defaults for all client certificates. When omitted, the defaults are used for client certificates.",
+}
+
+func (PKIProfile) SwaggerDoc() map[string]string {
+	return map_PKIProfile
+}
+
+var map_PKISpec = map[string]string{
+	"":                      "PKISpec holds the specification for PKI configuration.",
+	"certificateManagement": "certificateManagement specifies how PKI configuration is managed for internally-generated certificates. This controls the certificate generation approach for all OpenShift components that create certificates internally, including certificate authorities, serving certificates, and client certificates.",
+}
+
+func (PKISpec) SwaggerDoc() map[string]string {
+	return map_PKISpec
+}
+
+var map_RSAKeyConfig = map[string]string{
+	"":        "RSAKeyConfig specifies parameters for RSA key generation.",
+	"keySize": "keySize specifies the size of RSA keys in bits. Valid values are multiples of 1024 from 2048 to 8192.",
+}
+
+func (RSAKeyConfig) SwaggerDoc() map[string]string {
+	return map_RSAKeyConfig
 }
 
 // AUTO-GENERATED FUNCTIONS END HERE
