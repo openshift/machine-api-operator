@@ -325,7 +325,7 @@ func (r *ReconcileMachineSet) reconcile(ctx context.Context, machineSet *machine
 		updatedMS.Status.ReadyReplicas == replicas &&
 		updatedMS.Status.AvailableReplicas != replicas {
 
-		return reconcile.Result{Requeue: true}, nil
+		return reconcile.Result{RequeueAfter: time.Duration(updatedMS.Spec.MinReadySeconds) * time.Second}, nil
 	}
 
 	return reconcile.Result{}, nil
