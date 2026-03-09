@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 
 	osconfigv1 "github.com/openshift/api/config/v1"
 	"github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers"
@@ -30,6 +31,12 @@ const (
 
 const (
 	clusterOperatorName = "machine-api"
+
+	// upgradeTimeout is the maximum duration an upgrade may take before
+	// the operator should report Degraded. This aligns with the CVO
+	// expectation for how long non-MCO operators may take to complete
+	// version changes.
+	upgradeTimeout = 20 * time.Minute
 )
 
 var (
@@ -356,4 +363,50 @@ func (optr *Operator) isInitializing() (bool, error) {
 	availableCondition := v1helpers.FindStatusCondition(co.Status.Conditions, osconfigv1.OperatorAvailable)
 
 	return availableCondition != nil && availableCondition.Reason == string(ReasonInitializing), nil
+}
+
+// isUpgrading returns true when the operator's desired operand versions
+// differ from the versions currently reported on the ClusterOperator status.
+func (optr *Operator) isUpgrading() (bool, error) {
+	currentVersions, err := optr.getCurrentVersions()
+	if err != nil {
+		return false, fmt.Errorf("could not get current versions: %w", err)
+	}
+	return !reflect.DeepEqual(optr.operandVersions, currentVersions), nil
+}
+
+// upgradeHasTimedOut returns true if the Progressing condition has been True
+// for longer than upgradeTimeout, indicating a stuck upgrade.
+func (optr *Operator) upgradeHasTimedOut() (bool, error) {
+	co, err := optr.getClusterOperator()
+	if err != nil {
+		return false, fmt.Errorf("could not get cluster operator: %w", err)
+	}
+
+	progressingCondition := v1helpers.FindStatusCondition(co.Status.Conditions, osconfigv1.OperatorProgressing)
+	if progressingCondition == nil || progressingCondition.Status != osconfigv1.ConditionTrue {
+		return false, nil
+	}
+
+	return time.Since(progressingCondition.LastTransitionTime.Time) > upgradeTimeout, nil
+}
+
+// shouldReportDegraded returns true if the operator should set Degraded=True.
+// During an upgrade (versions differ), Degraded is suppressed for up to
+// upgradeTimeout to avoid falsely reporting degradation for transient errors.
+func (optr *Operator) shouldReportDegraded() (bool, error) {
+	upgrading, err := optr.isUpgrading()
+	if err != nil {
+		return false, err
+	}
+	if !upgrading {
+		return true, nil
+	}
+
+	timedOut, err := optr.upgradeHasTimedOut()
+	if err != nil {
+		return false, err
+	}
+
+	return timedOut, nil
 }

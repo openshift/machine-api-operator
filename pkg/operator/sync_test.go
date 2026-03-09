@@ -504,3 +504,93 @@ func TestSyncWebhookConfiguration(t *testing.T) {
 		})
 	}
 }
+
+func TestCheckDaemonSetRolloutStatus(t *testing.T) {
+	testCases := []struct {
+		name                 string
+		daemonset            *appsv1.DaemonSet
+		expectedError        error
+		expectedRequeueAfter time.Duration
+	}{
+		{
+			name: "DaemonSet fully rolled out",
+			daemonset: &appsv1.DaemonSet{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "DaemonSet",
+					APIVersion: "apps/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "test-ds",
+					Namespace:  targetNamespace,
+					Generation: 1,
+				},
+				Status: appsv1.DaemonSetStatus{
+					ObservedGeneration:     1,
+					DesiredNumberScheduled: 3,
+					UpdatedNumberScheduled: 3,
+					NumberAvailable:        3,
+					NumberUnavailable:      0,
+				},
+			},
+			expectedError:        nil,
+			expectedRequeueAfter: 0,
+		},
+		{
+			name: "DaemonSet with Generation > ObservedGeneration should requeue",
+			daemonset: &appsv1.DaemonSet{
+				TypeMeta: metav1.TypeMeta{
+					Kind:       "DaemonSet",
+					APIVersion: "apps/v1",
+				},
+				ObjectMeta: metav1.ObjectMeta{
+					Name:       "test-ds",
+					Namespace:  targetNamespace,
+					Generation: 2,
+				},
+				Status: appsv1.DaemonSetStatus{
+					ObservedGeneration:     1,
+					DesiredNumberScheduled: 3,
+					UpdatedNumberScheduled: 3,
+					NumberAvailable:        3,
+					NumberUnavailable:      0,
+				},
+			},
+			expectedError:        nil,
+			expectedRequeueAfter: 5 * time.Second,
+		},
+	}
+
+	imagesJSONFile, err := createImagesJSONFromManifest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := os.Remove(imagesJSONFile); err != nil {
+			t.Fatal(err)
+		}
+	}()
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			stopCh := make(chan struct{})
+			defer close(stopCh)
+			optr, err := newFakeOperator([]runtime.Object{tc.daemonset}, nil, nil, imagesJSONFile, nil, stopCh)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			result, gotErr := optr.checkDaemonSetRolloutStatus(tc.daemonset)
+			if tc.expectedError != nil && gotErr != nil {
+				if tc.expectedError.Error() != gotErr.Error() {
+					t.Errorf("Got error: %v, expected: %v", gotErr, tc.expectedError)
+				}
+			} else if tc.expectedError != gotErr {
+				t.Errorf("Got error: %v, expected: %v", gotErr, tc.expectedError)
+			}
+
+			if tc.expectedRequeueAfter != result.RequeueAfter {
+				t.Errorf("Got requeueAfter: %v, expected: %v", result.RequeueAfter, tc.expectedRequeueAfter)
+			}
+		})
+	}
+}

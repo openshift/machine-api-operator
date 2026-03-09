@@ -444,3 +444,232 @@ func TestIsInitializing(t *testing.T) {
 		})
 	}
 }
+
+func TestIsUpgrading(t *testing.T) {
+	testCases := []struct {
+		name            string
+		desiredVersions []osconfigv1.OperandVersion
+		currentVersions []osconfigv1.OperandVersion
+		expectedResult  bool
+	}{
+		{
+			name: "versions match - not upgrading",
+			desiredVersions: []osconfigv1.OperandVersion{
+				{Name: "operator", Version: "1.0"},
+			},
+			currentVersions: []osconfigv1.OperandVersion{
+				{Name: "operator", Version: "1.0"},
+			},
+			expectedResult: false,
+		},
+		{
+			name: "versions differ - upgrading",
+			desiredVersions: []osconfigv1.OperandVersion{
+				{Name: "operator", Version: "2.0"},
+			},
+			currentVersions: []osconfigv1.OperandVersion{
+				{Name: "operator", Version: "1.0"},
+			},
+			expectedResult: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			co := &osconfigv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: clusterOperatorName,
+				},
+				Status: osconfigv1.ClusterOperatorStatus{
+					Versions: tc.currentVersions,
+				},
+			}
+			optr := Operator{
+				osClient:        fakeconfigclientset.NewSimpleClientset(co),
+				operandVersions: tc.desiredVersions,
+				namespace:       "test",
+			}
+
+			upgrading, err := optr.isUpgrading()
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(upgrading).To(Equal(tc.expectedResult))
+		})
+	}
+}
+
+func TestUpgradeHasTimedOut(t *testing.T) {
+	testCases := []struct {
+		name           string
+		existingCO     *osconfigv1.ClusterOperator
+		expectedResult bool
+	}{
+		{
+			name: "Progressing=True for less than upgradeTimeout - not timed out",
+			existingCO: &osconfigv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: clusterOperatorName,
+				},
+				Status: osconfigv1.ClusterOperatorStatus{
+					Conditions: []osconfigv1.ClusterOperatorStatusCondition{
+						{
+							Type:               osconfigv1.OperatorProgressing,
+							Status:             osconfigv1.ConditionTrue,
+							LastTransitionTime: metav1.NewTime(time.Now().Add(-5 * time.Minute)),
+						},
+					},
+				},
+			},
+			expectedResult: false,
+		},
+		{
+			name: "Progressing=True for more than upgradeTimeout - timed out",
+			existingCO: &osconfigv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: clusterOperatorName,
+				},
+				Status: osconfigv1.ClusterOperatorStatus{
+					Conditions: []osconfigv1.ClusterOperatorStatusCondition{
+						{
+							Type:               osconfigv1.OperatorProgressing,
+							Status:             osconfigv1.ConditionTrue,
+							LastTransitionTime: metav1.NewTime(time.Now().Add(-25 * time.Minute)),
+						},
+					},
+				},
+			},
+			expectedResult: true,
+		},
+		{
+			name: "Progressing=False - not timed out",
+			existingCO: &osconfigv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: clusterOperatorName,
+				},
+				Status: osconfigv1.ClusterOperatorStatus{
+					Conditions: []osconfigv1.ClusterOperatorStatusCondition{
+						{
+							Type:               osconfigv1.OperatorProgressing,
+							Status:             osconfigv1.ConditionFalse,
+							LastTransitionTime: metav1.NewTime(time.Now().Add(-25 * time.Minute)),
+						},
+					},
+				},
+			},
+			expectedResult: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			optr := Operator{
+				osClient: fakeconfigclientset.NewSimpleClientset(tc.existingCO),
+			}
+
+			timedOut, err := optr.upgradeHasTimedOut()
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(timedOut).To(Equal(tc.expectedResult))
+		})
+	}
+}
+
+func TestShouldReportDegraded(t *testing.T) {
+	testCases := []struct {
+		name            string
+		desiredVersions []osconfigv1.OperandVersion
+		existingCO      *osconfigv1.ClusterOperator
+		expectedResult  bool
+	}{
+		{
+			name: "not upgrading - should report degraded",
+			desiredVersions: []osconfigv1.OperandVersion{
+				{Name: "operator", Version: "1.0"},
+			},
+			existingCO: &osconfigv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: clusterOperatorName,
+				},
+				Status: osconfigv1.ClusterOperatorStatus{
+					Versions: []osconfigv1.OperandVersion{
+						{Name: "operator", Version: "1.0"},
+					},
+					Conditions: []osconfigv1.ClusterOperatorStatusCondition{
+						{
+							Type:               osconfigv1.OperatorProgressing,
+							Status:             osconfigv1.ConditionFalse,
+							LastTransitionTime: metav1.NewTime(time.Now()),
+						},
+					},
+				},
+			},
+			expectedResult: true,
+		},
+		{
+			name: "upgrading within timeout - should suppress degraded",
+			desiredVersions: []osconfigv1.OperandVersion{
+				{Name: "operator", Version: "2.0"},
+			},
+			existingCO: &osconfigv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: clusterOperatorName,
+				},
+				Status: osconfigv1.ClusterOperatorStatus{
+					Versions: []osconfigv1.OperandVersion{
+						{Name: "operator", Version: "1.0"},
+					},
+					Conditions: []osconfigv1.ClusterOperatorStatusCondition{
+						{
+							Type:               osconfigv1.OperatorProgressing,
+							Status:             osconfigv1.ConditionTrue,
+							LastTransitionTime: metav1.NewTime(time.Now().Add(-5 * time.Minute)),
+						},
+					},
+				},
+			},
+			expectedResult: false,
+		},
+		{
+			name: "upgrading past timeout - should report degraded",
+			desiredVersions: []osconfigv1.OperandVersion{
+				{Name: "operator", Version: "2.0"},
+			},
+			existingCO: &osconfigv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: clusterOperatorName,
+				},
+				Status: osconfigv1.ClusterOperatorStatus{
+					Versions: []osconfigv1.OperandVersion{
+						{Name: "operator", Version: "1.0"},
+					},
+					Conditions: []osconfigv1.ClusterOperatorStatusCondition{
+						{
+							Type:               osconfigv1.OperatorProgressing,
+							Status:             osconfigv1.ConditionTrue,
+							LastTransitionTime: metav1.NewTime(time.Now().Add(-25 * time.Minute)),
+						},
+					},
+				},
+			},
+			expectedResult: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			optr := Operator{
+				osClient:        fakeconfigclientset.NewSimpleClientset(tc.existingCO),
+				operandVersions: tc.desiredVersions,
+				namespace:       "test",
+			}
+
+			result, err := optr.shouldReportDegraded()
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(result).To(Equal(tc.expectedResult))
+		})
+	}
+}
