@@ -74,8 +74,10 @@ type Resources struct {
 }
 
 type Isolation struct {
-	Mode     string   `json:"mode,omitempty"`
-	Conflict []string `json:"conflict,omitempty"`
+	Mode       string   `json:"mode,omitempty"`
+	Conflict   []string `json:"conflict,omitempty"`
+	Taint      []string `json:"taint,omitempty"`
+	Toleration []string `json:"toleration,omitempty"`
 }
 
 type EnvironmentSelector struct {
