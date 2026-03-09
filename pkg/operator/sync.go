@@ -2,6 +2,7 @@ package operator
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"os"
 	"slices"
@@ -20,8 +21,10 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
-	v1 "github.com/openshift/api/config/v1"
+	configv1 "github.com/openshift/api/config/v1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
+	utiltls "github.com/openshift/controller-runtime-common/pkg/tls"
+	libgocrypto "github.com/openshift/library-go/pkg/crypto"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
 	"github.com/openshift/library-go/pkg/operator/resource/resourcehash"
@@ -237,7 +240,7 @@ func (optr *Operator) syncWebhookConfiguration(config *OperatorConfig) error {
 	if err := optr.syncMachineMutatingWebhook(); err != nil {
 		return err
 	}
-	if config.PlatformType == v1.BareMetalPlatformType {
+	if config.PlatformType == configv1.BareMetalPlatformType {
 		if err := optr.syncMetal3RemediationValidatingWebhook(); err != nil {
 			return err
 		}
@@ -508,9 +511,10 @@ func newRBACConfigVolumes() []corev1.Volume {
 }
 
 func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev1.PodTemplateSpec {
-	containers := newContainers(config, features)
+	tlsArgs := getTLSArgs(config.TLSProfile)
+	containers := newContainers(config, features, tlsArgs)
 	withMHCProxy := config.Controllers.MachineHealthCheck != ""
-	proxyContainers := newKubeProxyContainers(config.Controllers.KubeRBACProxy, withMHCProxy)
+	proxyContainers := newKubeProxyContainers(config.Controllers.KubeRBACProxy, withMHCProxy, tlsArgs)
 	tolerations := []corev1.Toleration{
 		{
 			Key:    "node-role.kubernetes.io/master",
@@ -652,7 +656,7 @@ func buildFeatureGatesString(featureGates map[string]bool) string {
 	return "--feature-gates=" + strings.Join(parts, ",")
 }
 
-func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Container {
+func newContainers(config *OperatorConfig, features map[string]bool, tlsArgs []string) []corev1.Container {
 	resources := corev1.ResourceRequirements{
 		Requests: map[corev1.ResourceName]resource.Quantity{
 			corev1.ResourceMemory: resource.MustParse("20Mi"),
@@ -673,9 +677,14 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 
 	machineControllerArgs := append([]string{}, featureGateArgs...)
 	switch config.PlatformType {
-	case v1.AzurePlatformType, v1.GCPPlatformType:
+	case configv1.AzurePlatformType, configv1.GCPPlatformType:
 		machineControllerArgs = append(machineControllerArgs, "--max-concurrent-reconciles=10")
+	case configv1.BareMetalPlatformType:
+		machineControllerArgs = append(machineControllerArgs, tlsArgs...)
 	}
+
+	machineSetControllerArgs := append([]string{}, featureGateArgs...)
+	machineSetControllerArgs = append(machineSetControllerArgs, tlsArgs...)
 
 	proxyEnvArgs := getProxyArgs(config)
 
@@ -684,7 +693,7 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 			Name:      "machineset-controller",
 			Image:     config.Controllers.MachineSet,
 			Command:   []string{"/machineset-controller"},
-			Args:      featureGateArgs,
+			Args:      machineSetControllerArgs,
 			Resources: resources,
 			Env:       proxyEnvArgs,
 			Ports: []corev1.ContainerPort{
@@ -853,20 +862,37 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 	return containers
 }
 
-func newKubeProxyContainers(image string, withMHCProxy bool) []corev1.Container {
+func getTLSArgs(tlsProfile configv1.TLSProfileSpec) []string {
+	// Compute TLS arguments once from the profile
+	tlsConfigFn, _ := utiltls.NewTLSConfigFromProfile(tlsProfile)
+	tlsConf := &tls.Config{}
+	tlsConfigFn(tlsConf)
+
+	tlsArgs := []string{}
+	// Only set CipherSuites if they are specified.
+	if len(tlsConf.CipherSuites) > 0 {
+		ianaCiphers := libgocrypto.CipherSuitesToNamesOrDie(tlsConf.CipherSuites)
+		tlsArgs = append(tlsArgs, fmt.Sprintf("--tls-cipher-suites=%s", strings.Join(ianaCiphers, ",")))
+	}
+	tlsArgs = append(tlsArgs, fmt.Sprintf("--tls-min-version=%s", tlsProfile.MinTLSVersion))
+
+	return tlsArgs
+}
+
+func newKubeProxyContainers(image string, withMHCProxy bool, tlsArgs []string) []corev1.Container {
 	proxyContainers := []corev1.Container{
-		newKubeProxyContainer(image, "machineset-mtrc", metrics.DefaultMachineSetMetricsAddress, machineSetExposeMetricsPort),
-		newKubeProxyContainer(image, "machine-mtrc", metrics.DefaultMachineMetricsAddress, machineExposeMetricsPort),
+		newKubeProxyContainer(image, "machineset-mtrc", metrics.DefaultMachineSetMetricsAddress, machineSetExposeMetricsPort, tlsArgs),
+		newKubeProxyContainer(image, "machine-mtrc", metrics.DefaultMachineMetricsAddress, machineExposeMetricsPort, tlsArgs),
 	}
 	if withMHCProxy {
 		proxyContainers = append(proxyContainers,
-			newKubeProxyContainer(image, "mhc-mtrc", metrics.DefaultHealthCheckMetricsAddress, machineHealthCheckExposeMetricsPort),
+			newKubeProxyContainer(image, "mhc-mtrc", metrics.DefaultHealthCheckMetricsAddress, machineHealthCheckExposeMetricsPort, tlsArgs),
 		)
 	}
 	return proxyContainers
 }
 
-func newKubeProxyContainer(image, portName, upstreamPort string, exposePort int32) corev1.Container {
+func newKubeProxyContainer(image, portName, upstreamPort string, exposePort int32, tlsArgs []string) corev1.Container {
 	configMountPath := "/etc/kube-rbac-proxy"
 	tlsCertMountPath := "/etc/tls/private"
 	resources := corev1.ResourceRequirements{
@@ -875,16 +901,20 @@ func newKubeProxyContainer(image, portName, upstreamPort string, exposePort int3
 			corev1.ResourceCPU:    resource.MustParse("10m"),
 		},
 	}
+
 	args := []string{
 		fmt.Sprintf("--secure-listen-address=0.0.0.0:%d", exposePort),
 		fmt.Sprintf("--upstream=http://localhost%s", upstreamPort),
 		fmt.Sprintf("--config-file=%s/config-file.yaml", configMountPath),
 		fmt.Sprintf("--tls-cert-file=%s/tls.crt", tlsCertMountPath),
 		fmt.Sprintf("--tls-private-key-file=%s/tls.key", tlsCertMountPath),
-		"--tls-cipher-suites=TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305",
+	}
+
+	args = append(args, tlsArgs...)
+	args = append(args,
 		"--logtostderr=true",
 		"--v=3",
-	}
+	)
 	ports := []corev1.ContainerPort{{
 		Name:          portName,
 		ContainerPort: exposePort,
