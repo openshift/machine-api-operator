@@ -73,7 +73,7 @@ func Add(mgr manager.Manager, opts manager.Options, gate featuregate.MutableFeat
 func newReconciler(mgr manager.Manager, gate featuregate.MutableFeatureGate) *ReconcileMachineSet {
 	return &ReconcileMachineSet{
 		Client: mgr.GetClient(), scheme: mgr.GetScheme(),
-		recorder: mgr.GetEventRecorderFor(controllerName),
+		recorder: mgr.GetEventRecorderFor(controllerName), //nolint:staticcheck
 		gate:     gate,
 	}
 }
