@@ -225,7 +225,10 @@ func registerInSuite(ginkgoCall func(string, ...interface{}) bool, args []interf
 			case "Serial":
 				ginkgoArgs = append(ginkgoArgs, ginkgo.Serial)
 			case "Slow":
-				// SpecPriority is not available in the OpenShift ginkgo fork; skip priority hint.
+				// Start slow tests first. This avoids the risk
+				// that they get started towards the end of a
+				// run and then make the run longer overall.
+				ginkgoArgs = append(ginkgoArgs, ginkgo.SpecPriority(1))
 			}
 		case ginkgo.Offset:
 			offset = arg
