@@ -5095,7 +5095,7 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 						Boot:       false,
 						SizeGB:     32,
 						Type:       defaultGCPDiskType,
-						Image:      defaultGCPDiskImage(),
+						Image:      "",
 					},
 				}
 			},
@@ -5117,6 +5117,39 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 					{
 						Type:  "type",
 						Count: defaultGCPGPUCount,
+					},
+				}
+			},
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: itWarnings,
+		},
+		{
+			testCase: "non-boot disk without image remains empty",
+			providerSpec: &machinev1beta1.GCPMachineProviderSpec{
+				Disks: []*machinev1beta1.GCPDisk{
+					{
+						Boot:  true,
+						Image: "custom-boot-image",
+					},
+					{
+						Boot:   false,
+						SizeGB: 100,
+					},
+				},
+			},
+			modifyDefault: func(p *machinev1beta1.GCPMachineProviderSpec) {
+				p.Disks = []*machinev1beta1.GCPDisk{
+					{
+						Boot:  true,
+						Image: "custom-boot-image",
+						Type:  defaultGCPDiskType,
+					},
+					{
+						Boot:   false,
+						SizeGB: 100,
+						Type:   defaultGCPDiskType,
+						Image:  "",
 					},
 				}
 			},
