@@ -398,7 +398,7 @@ func NewMachineValidator(client client.Client, featureGate featuregate.MutableFe
 		return nil, err
 	}
 
-	return admission.WithCustomValidator(scheme.Scheme, &machinev1beta1.Machine{}, createMachineValidator(infra, client, dns, featureGate)), nil
+	return admission.WithValidator[*machinev1beta1.Machine](scheme.Scheme, createMachineValidator(infra, client, dns, featureGate)), nil
 }
 
 func createMachineValidator(infra *osconfigv1.Infrastructure, client client.Client, dns *osconfigv1.DNS, featureGate featuregate.MutableFeatureGate) *machineValidatorHandler {
@@ -511,12 +511,7 @@ func (h *machineValidatorHandler) validateMachine(m, oldM *machinev1beta1.Machin
 }
 
 // Handle handles HTTP requests for admission webhook servers.
-func (h *machineValidatorHandler) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	m, ok := obj.(*machinev1beta1.Machine)
-	if !ok {
-		return nil, apierrors.NewBadRequest(fmt.Sprintf("expected a Machine but got a %T", obj))
-	}
-
+func (h *machineValidatorHandler) ValidateCreate(ctx context.Context, m *machinev1beta1.Machine) (admission.Warnings, error) {
 	klog.V(3).Infof("Validate webhook called for Machine: %s", m.GetName())
 
 	ok, warnings, errs := h.validateMachine(m, nil)
@@ -528,17 +523,7 @@ func (h *machineValidatorHandler) ValidateCreate(ctx context.Context, obj runtim
 }
 
 // Handle handles HTTP requests for admission webhook servers.
-func (h *machineValidatorHandler) ValidateUpdate(ctx context.Context, oldObj, obj runtime.Object) (admission.Warnings, error) {
-	m, ok := obj.(*machinev1beta1.Machine)
-	if !ok {
-		return nil, apierrors.NewBadRequest(fmt.Sprintf("expected a Machine but got a %T", obj))
-	}
-
-	mOld, ok := oldObj.(*machinev1beta1.Machine)
-	if !ok {
-		return nil, apierrors.NewBadRequest(fmt.Sprintf("expected a Machine but got a %T", oldObj))
-	}
-
+func (h *machineValidatorHandler) ValidateUpdate(ctx context.Context, mOld, m *machinev1beta1.Machine) (admission.Warnings, error) {
 	klog.V(3).Infof("Validate webhook called for Machine: %s", m.GetName())
 
 	ok, warnings, errs := h.validateMachine(m, mOld)
@@ -550,12 +535,7 @@ func (h *machineValidatorHandler) ValidateUpdate(ctx context.Context, oldObj, ob
 }
 
 // Handle handles HTTP requests for admission webhook servers.
-func (h *machineValidatorHandler) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	m, ok := obj.(*machinev1beta1.Machine)
-	if !ok {
-		return nil, apierrors.NewBadRequest(fmt.Sprintf("expected a Machine but got a %T", obj))
-	}
-
+func (h *machineValidatorHandler) ValidateDelete(ctx context.Context, m *machinev1beta1.Machine) (admission.Warnings, error) {
 	klog.V(3).Infof("Validate webhook called for Machine: %s", m.GetName())
 
 	ok, warnings, errs := h.validateMachine(m, nil)
