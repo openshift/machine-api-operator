@@ -94,7 +94,7 @@ func TestOperatorStatusProgressing(t *testing.T) {
 		optr.operandVersions = tc.currentVersion
 		co := optr.defaultClusterOperator()
 		co.Status.Versions = tc.desiredVersion
-		optr.osClient = fakeconfigclientset.NewSimpleClientset(co)
+		optr.osClient = fakeconfigclientset.NewSimpleClientset(co) //nolint:staticcheck
 
 		err := optr.statusProgressing()
 		assert.NoError(t, err)
@@ -330,9 +330,9 @@ func TestGetOrCreateClusterOperator(t *testing.T) {
 	for _, tc := range testCases {
 		var osClient *fakeconfigclientset.Clientset
 		if tc.existingCO != nil {
-			osClient = fakeconfigclientset.NewSimpleClientset(tc.existingCO)
+			osClient = fakeconfigclientset.NewSimpleClientset(tc.existingCO) //nolint:staticcheck
 		} else {
-			osClient = fakeconfigclientset.NewSimpleClientset()
+			osClient = fakeconfigclientset.NewSimpleClientset() //nolint:staticcheck
 		}
 		optr := Operator{
 			osClient:  osClient,
@@ -425,9 +425,9 @@ func TestIsInitializing(t *testing.T) {
 
 			var osClient *fakeconfigclientset.Clientset
 			if tc.existingCO != nil {
-				osClient = fakeconfigclientset.NewSimpleClientset(tc.existingCO)
+				osClient = fakeconfigclientset.NewSimpleClientset(tc.existingCO) //nolint:staticcheck
 			} else {
-				osClient = fakeconfigclientset.NewSimpleClientset()
+				osClient = fakeconfigclientset.NewSimpleClientset() //nolint:staticcheck
 			}
 			optr := Operator{
 				osClient: osClient,

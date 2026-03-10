@@ -94,7 +94,7 @@ func TestMachineEvents(t *testing.T) {
 	defer cancel()
 
 	k8sClient := mgr.GetClient()
-	eventRecorder := mgr.GetEventRecorderFor("vspherecontroller")
+	eventRecorder := mgr.GetEventRecorderFor("vspherecontroller") //nolint:staticcheck
 	configNamespace := &corev1.Namespace{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: openshiftConfigNamespaceForTest,

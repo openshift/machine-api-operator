@@ -86,8 +86,6 @@ func createMachineSetDefaulter(platformStatus *osconfigv1.PlatformStatus, cluste
 
 // Handle handles HTTP requests for admission webhook servers.
 func (h *machineSetValidatorHandler) ValidateCreate(ctx context.Context, ms *machinev1beta1.MachineSet) (admission.Warnings, error) {
-	warnings := admission.Warnings{}
-
 	klog.V(3).Infof("Validate webhook called for MachineSet: %s", ms.GetName())
 
 	ok, warnings, errs := h.validateMachineSet(ms, nil)
@@ -100,8 +98,6 @@ func (h *machineSetValidatorHandler) ValidateCreate(ctx context.Context, ms *mac
 
 // Handle handles HTTP requests for admission webhook servers.
 func (h *machineSetValidatorHandler) ValidateUpdate(ctx context.Context, oldMS, ms *machinev1beta1.MachineSet) (admission.Warnings, error) {
-	warnings := admission.Warnings{}
-
 	klog.V(3).Infof("Validate webhook called for MachineSet: %s", ms.GetName())
 
 	ok, warnings, errs := h.validateMachineSet(ms, oldMS)
@@ -114,8 +110,6 @@ func (h *machineSetValidatorHandler) ValidateUpdate(ctx context.Context, oldMS, 
 
 // Handle handles HTTP requests for admission webhook servers.
 func (h *machineSetValidatorHandler) ValidateDelete(ctx context.Context, ms *machinev1beta1.MachineSet) (admission.Warnings, error) {
-	warnings := admission.Warnings{}
-
 	klog.V(3).Infof("Validate webhook called for MachineSet: %s", ms.GetName())
 
 	ok, warnings, errs := h.validateMachineSet(ms, nil)

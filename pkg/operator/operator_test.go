@@ -58,9 +58,9 @@ var (
 )
 
 func newFakeOperator(kubeObjects, osObjects, machineObjects []runtime.Object, imagesFile string, fg *openshiftv1.FeatureGate, stopCh <-chan struct{}) (*Operator, error) {
-	kubeClient := fakekube.NewSimpleClientset(kubeObjects...)
-	osClient := fakeos.NewSimpleClientset(osObjects...)
-	machineClient := fakemachine.NewSimpleClientset(machineObjects...)
+	kubeClient := fakekube.NewSimpleClientset(kubeObjects...)          //nolint:staticcheck
+	osClient := fakeos.NewSimpleClientset(osObjects...)                //nolint:staticcheck
+	machineClient := fakemachine.NewSimpleClientset(machineObjects...) //nolint:staticcheck
 	dynamicClient := fakedynamic.NewSimpleDynamicClient(scheme.Scheme, kubeObjects...)
 	kubeNamespacedSharedInformer := informers.NewSharedInformerFactoryWithOptions(kubeClient, 2*time.Minute, informers.WithNamespace(targetNamespace))
 	configSharedInformer := configinformersv1.NewSharedInformerFactoryWithOptions(osClient, 2*time.Minute)
