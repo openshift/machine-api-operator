@@ -35,8 +35,6 @@ The Machine API Operator (MAO) deploys and manages platform-specific machine con
 
   - [machine-api-provider-azure](https://github.com/openshift/machine-api-provider-azure)
 
-  - [cluster-api-provider-libvirt](https://github.com/openshift/cluster-api-provider-libvirt)
-
   - [cluster-api-provider-openstack](https://github.com/openshift/cluster-api-provider-openstack)
 
   - [cluster-api-provider-baremetal](https://github.com/openshift/cluster-api-provider-baremetal)
