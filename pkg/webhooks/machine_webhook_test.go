@@ -2203,7 +2203,7 @@ func TestMachineCreation(t *testing.T) {
 				dns.Spec.PublicZone = &osconfigv1.DNSZone{}
 			}
 			machineDefaulter := admission.WithCustomDefaulter(scheme.Scheme, &machinev1beta1.Machine{}, createMachineDefaulter(platformStatus, tc.clusterID))
-			machineValidator := admission.WithCustomValidator(scheme.Scheme, &machinev1beta1.Machine{}, createMachineValidator(infra, c, dns, gate))
+			machineValidator := admission.WithValidator[*machinev1beta1.Machine](scheme.Scheme, createMachineValidator(infra, c, dns, gate))
 			mgr.GetWebhookServer().Register(DefaultMachineMutatingHookPath, &webhook.Admission{Handler: machineDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineValidatingHookPath, &webhook.Admission{Handler: machineValidator})
 
@@ -3058,7 +3058,7 @@ func TestMachineUpdate(t *testing.T) {
 				},
 			}
 			machineDefaulter := admission.WithCustomDefaulter(scheme.Scheme, &machinev1beta1.Machine{}, createMachineDefaulter(platformStatus, tc.clusterID))
-			machineValidator := admission.WithCustomValidator(scheme.Scheme, &machinev1beta1.Machine{}, createMachineValidator(infra, c, plainDNS, gate))
+			machineValidator := admission.WithValidator[*machinev1beta1.Machine](scheme.Scheme, createMachineValidator(infra, c, plainDNS, gate))
 			mgr.GetWebhookServer().Register(DefaultMachineMutatingHookPath, &webhook.Admission{Handler: machineDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineValidatingHookPath, &webhook.Admission{Handler: machineValidator})
 

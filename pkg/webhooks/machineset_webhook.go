@@ -57,7 +57,7 @@ func createMachineSetValidator(infra *osconfigv1.Infrastructure, client client.C
 		featureGates:    featureGate,
 	}
 
-	return admission.WithCustomValidator(scheme.Scheme, &machinev1beta1.MachineSet{}, &machineSetValidatorHandler{
+	return admission.WithValidator[*machinev1beta1.MachineSet](scheme.Scheme, &machineSetValidatorHandler{
 		admissionHandler: &admissionHandler{
 			admissionConfig:   admissionConfig,
 			webhookOperations: getMachineValidatorOperation(infra.Status.PlatformStatus.Type),
@@ -85,14 +85,7 @@ func createMachineSetDefaulter(platformStatus *osconfigv1.PlatformStatus, cluste
 }
 
 // Handle handles HTTP requests for admission webhook servers.
-func (h *machineSetValidatorHandler) ValidateCreate(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	warnings := admission.Warnings{}
-
-	ms, ok := obj.(*machinev1beta1.MachineSet)
-	if !ok {
-		return warnings, apierrors.NewBadRequest(fmt.Sprintf("expected a MachineSet but got a %T", obj))
-	}
-
+func (h *machineSetValidatorHandler) ValidateCreate(ctx context.Context, ms *machinev1beta1.MachineSet) (admission.Warnings, error) {
 	klog.V(3).Infof("Validate webhook called for MachineSet: %s", ms.GetName())
 
 	ok, warnings, errs := h.validateMachineSet(ms, nil)
@@ -104,19 +97,7 @@ func (h *machineSetValidatorHandler) ValidateCreate(ctx context.Context, obj run
 }
 
 // Handle handles HTTP requests for admission webhook servers.
-func (h *machineSetValidatorHandler) ValidateUpdate(ctx context.Context, oldObj, obj runtime.Object) (admission.Warnings, error) {
-	warnings := admission.Warnings{}
-
-	ms, ok := obj.(*machinev1beta1.MachineSet)
-	if !ok {
-		return warnings, apierrors.NewBadRequest(fmt.Sprintf("expected a MachineSet but got a %T", obj))
-	}
-
-	oldMS, ok := oldObj.(*machinev1beta1.MachineSet)
-	if !ok {
-		return warnings, apierrors.NewBadRequest(fmt.Sprintf("expected a MachineSet but got a %T", oldObj))
-	}
-
+func (h *machineSetValidatorHandler) ValidateUpdate(ctx context.Context, oldMS, ms *machinev1beta1.MachineSet) (admission.Warnings, error) {
 	klog.V(3).Infof("Validate webhook called for MachineSet: %s", ms.GetName())
 
 	ok, warnings, errs := h.validateMachineSet(ms, oldMS)
@@ -128,14 +109,7 @@ func (h *machineSetValidatorHandler) ValidateUpdate(ctx context.Context, oldObj,
 }
 
 // Handle handles HTTP requests for admission webhook servers.
-func (h *machineSetValidatorHandler) ValidateDelete(ctx context.Context, obj runtime.Object) (admission.Warnings, error) {
-	warnings := admission.Warnings{}
-
-	ms, ok := obj.(*machinev1beta1.MachineSet)
-	if !ok {
-		return warnings, apierrors.NewBadRequest(fmt.Sprintf("expected a MachineSet but got a %T", obj))
-	}
-
+func (h *machineSetValidatorHandler) ValidateDelete(ctx context.Context, ms *machinev1beta1.MachineSet) (admission.Warnings, error) {
 	klog.V(3).Infof("Validate webhook called for MachineSet: %s", ms.GetName())
 
 	ok, warnings, errs := h.validateMachineSet(ms, nil)

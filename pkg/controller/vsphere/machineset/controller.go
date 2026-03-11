@@ -46,7 +46,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, options controller.Optio
 		return fmt.Errorf("failed setting up with a controller manager: %w", err)
 	}
 
-	r.recorder = mgr.GetEventRecorderFor("machineset-controller")
+	r.recorder = mgr.GetEventRecorderFor("machineset-controller") //nolint:staticcheck
 	r.scheme = mgr.GetScheme()
 	return nil
 }
