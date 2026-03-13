@@ -442,7 +442,7 @@ func NewMachineDefaulter() (*admission.Webhook, error) {
 func createMachineDefaulter(platformStatus *osconfigv1.PlatformStatus, clusterID string) *machineDefaulterHandler {
 	return &machineDefaulterHandler{
 		admissionHandler: &admissionHandler{
-			admissionConfig:   &admissionConfig{clusterID: clusterID},
+			admissionConfig:   &admissionConfig{clusterID: clusterID, platformStatus: platformStatus},
 			webhookOperations: getMachineDefaulterOperation(platformStatus),
 		},
 	}
@@ -920,7 +920,11 @@ func defaultAzure(m *machinev1beta1.Machine, config *admissionConfig) (bool, []s
 	}
 
 	if providerSpec.Image == (machinev1beta1.Image{}) {
-		providerSpec.Image.ResourceID = defaultAzureImageResourceID(config.clusterID, config.platformStatus.Azure.ResourceGroupName)
+		rg := defaultAzureResourceGroup(config.clusterID)
+		if ps := config.platformStatus; ps != nil && ps.Azure != nil && ps.Azure.ResourceGroupName != "" {
+			rg = ps.Azure.ResourceGroupName
+		}
+		providerSpec.Image.ResourceID = defaultAzureImageResourceID(config.clusterID, rg)
 	}
 
 	if providerSpec.UserDataSecret == nil {
