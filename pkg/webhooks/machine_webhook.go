@@ -57,7 +57,7 @@ var (
 	defaultAzureNetworkResourceGroup = func(clusterID string) string {
 		return fmt.Sprintf("%s-rg", clusterID)
 	}
-	defaultAzureImageResourceID = func(clusterID string) string {
+	defaultAzureImageResourceID = func(clusterID, rg string) string {
 		// image gallery names cannot have dashes
 		galleryName := strings.Replace(clusterID, "-", "_", -1)
 		imageName := clusterID
@@ -67,7 +67,7 @@ var (
 			// before that change will have a -gen2 image.
 			imageName = fmt.Sprintf("%s-gen2", clusterID)
 		}
-		return fmt.Sprintf("/resourceGroups/%s/providers/Microsoft.Compute/galleries/gallery_%s/images/%s/versions/%s", clusterID+"-rg", galleryName, imageName, azureRHCOSVersion)
+		return fmt.Sprintf("/resourceGroups/%s/providers/Microsoft.Compute/galleries/gallery_%s/images/%s/versions/%s", rg, galleryName, imageName, azureRHCOSVersion)
 	}
 	defaultAzureManagedIdentiy = func(clusterID string) string {
 		return fmt.Sprintf("%s-identity", clusterID)
@@ -865,7 +865,7 @@ func defaultAzure(m *machinev1beta1.Machine, config *admissionConfig) (bool, []s
 	}
 
 	if providerSpec.Image == (machinev1beta1.Image{}) {
-		providerSpec.Image.ResourceID = defaultAzureImageResourceID(config.clusterID)
+		providerSpec.Image.ResourceID = defaultAzureImageResourceID(config.clusterID, config.platformStatus.Azure.ResourceGroupName)
 	}
 
 	if providerSpec.UserDataSecret == nil {
