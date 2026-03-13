@@ -46,9 +46,9 @@ else
 endif
 
 PROJECT_DIR := $(shell dirname $(abspath $(lastword $(MAKEFILE_LIST))))
-ENVTEST = go run ${PROJECT_DIR}/vendor/sigs.k8s.io/controller-runtime/tools/setup-envtest
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.25
+ENVTEST_K8S_VERSION = 1.28.0
+ENVTEST_ASSETS_DIR ?= /tmp/controller-tools/envtest
 
 .PHONY: vendor
 vendor:
@@ -97,8 +97,19 @@ test: ## Run tests
 	@echo -e "\033[32mTesting...\033[0m"
 	$(DOCKER_CMD) hack/ci-test.sh
 
-unit:
-	$(DOCKER_CMD) KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path --bin-dir $(PROJECT_DIR)/bin)" go test $(GOTEST_FLAGS) ./pkg/... ./cmd/...
+.PHONY: setup-envtest
+setup-envtest: ## Set up envtest (download kubebuilder assets)
+	@[ -f $(ENVTEST_ASSETS_DIR)/kube-apiserver ] || { \
+	set -e ;\
+	ARCH=$$(go env GOARCH) ;\
+	OS=$$(go env GOOS) ;\
+	echo "Downloading envtest binaries for k8s $(ENVTEST_K8S_VERSION) ($${OS}/$${ARCH})..." ;\
+	curl -fSL "https://github.com/kubernetes-sigs/controller-tools/releases/download/envtest-v$(ENVTEST_K8S_VERSION)/envtest-v$(ENVTEST_K8S_VERSION)-$${OS}-$${ARCH}.tar.gz" -o /tmp/envtest.tar.gz ;\
+	tar -xzf /tmp/envtest.tar.gz -C /tmp/ ;\
+	}
+
+unit: setup-envtest
+	$(DOCKER_CMD) KUBEBUILDER_ASSETS="$(ENVTEST_ASSETS_DIR)" go test $(GOTEST_FLAGS) ./pkg/... ./cmd/...
 
 .PHONY: image
 image: ## Build docker image
