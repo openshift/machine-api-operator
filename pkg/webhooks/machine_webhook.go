@@ -920,7 +920,11 @@ func defaultAzure(m *machinev1beta1.Machine, config *admissionConfig) (bool, []s
 	}
 
 	if providerSpec.Image == (machinev1beta1.Image{}) {
-		providerSpec.Image.ResourceID = defaultAzureImageResourceID(config.clusterID, config.platformStatus.Azure.ResourceGroupName)
+		rg := defaultAzureResourceGroup(config.clusterID)
+		if config.platformStatus.Azure != nil && config.platformStatus.Azure.ResourceGroupName != "" {
+			rg = config.platformStatus.Azure.ResourceGroupName
+		}
+		providerSpec.Image.ResourceID = defaultAzureImageResourceID(config.clusterID, rg)
 	}
 
 	if providerSpec.UserDataSecret == nil {
