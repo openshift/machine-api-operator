@@ -123,6 +123,7 @@ func TestMachineCreation(t *testing.T) {
 		platformType      osconfigv1.PlatformType
 		clusterID         string
 		presetClusterID   bool
+		isMasterMachine   bool
 		expectedError     string
 		disconnected      bool
 		providerSpecValue *kruntime.RawExtension
@@ -1027,6 +1028,66 @@ func TestMachineCreation(t *testing.T) {
 									Tags: &[]machinev1beta1.TagSpecification{{Name: "env", Value: "test"}},
 								},
 							},
+						},
+					},
+				},
+			},
+			expectedError: "",
+		},
+		{
+			name:            "control plane machine with dedicated host should fail",
+			platformType:    osconfigv1.AWSPlatformType,
+			clusterID:       "aws-cluster",
+			isMasterMachine: true,
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI:          machinev1beta1.AWSResourceReference{ID: ptr.To[string]("ami")},
+					InstanceType: "test",
+					Placement: machinev1beta1.Placement{
+						Tenancy: machinev1beta1.HostTenancy,
+						Host: &machinev1beta1.HostPlacement{
+							Affinity: ptr.To(machinev1beta1.HostAffinityAnyAvailable),
+						},
+					},
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.tenancy: Forbidden: dedicated host tenancy is not supported for control plane machines",
+		},
+		{
+			name:            "control plane machine with dedicated host and ID should fail",
+			platformType:    osconfigv1.AWSPlatformType,
+			clusterID:       "aws-cluster",
+			isMasterMachine: true,
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI:          machinev1beta1.AWSResourceReference{ID: ptr.To[string]("ami")},
+					InstanceType: "test",
+					Placement: machinev1beta1.Placement{
+						Tenancy: machinev1beta1.HostTenancy,
+						Host: &machinev1beta1.HostPlacement{
+							Affinity: ptr.To(machinev1beta1.HostAffinityDedicatedHost),
+							DedicatedHost: &machinev1beta1.DedicatedHost{
+								ID: "h-1234567890abcdef0",
+							},
+						},
+					},
+				},
+			},
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.tenancy: Forbidden: dedicated host tenancy is not supported for control plane machines",
+		},
+		{
+			name:            "worker machine with dedicated host should succeed",
+			platformType:    osconfigv1.AWSPlatformType,
+			clusterID:       "aws-cluster",
+			isMasterMachine: false,
+			providerSpecValue: &kruntime.RawExtension{
+				Object: &machinev1beta1.AWSMachineProviderConfig{
+					AMI:          machinev1beta1.AWSResourceReference{ID: ptr.To[string]("ami")},
+					InstanceType: "test",
+					Placement: machinev1beta1.Placement{
+						Tenancy: machinev1beta1.HostTenancy,
+						Host: &machinev1beta1.HostPlacement{
+							Affinity: ptr.To(machinev1beta1.HostAffinityAnyAvailable),
 						},
 					},
 				},
@@ -2242,6 +2303,13 @@ func TestMachineCreation(t *testing.T) {
 			if tc.presetClusterID {
 				m.Labels = make(map[string]string)
 				m.Labels[machinev1beta1.MachineClusterIDLabel] = presetClusterID
+			}
+			if tc.isMasterMachine {
+				if m.Labels == nil {
+					m.Labels = make(map[string]string)
+				}
+				m.Labels[machineRoleLabel] = "master"
+				m.Labels[machineTypeLabel] = "master"
 			}
 
 			err = c.Create(ctx, m)
