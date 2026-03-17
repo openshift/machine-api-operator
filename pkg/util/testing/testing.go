@@ -5,6 +5,7 @@ import (
 	"time"
 
 	machinev1 "github.com/openshift/api/machine/v1beta1"
+	"github.com/openshift/machine-api-operator/pkg/version"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
@@ -168,7 +169,7 @@ func NewMachineHealthCheck(name string) *machinev1.MachineHealthCheck {
 
 func NewDefaultMutableFeatureGate() (featuregate.MutableFeatureGate, error) {
 	defaultMutableGate := feature.DefaultMutableFeatureGate
-	_, err := features.NewFeatureGateOptions(defaultMutableGate, 4,
+	_, err := features.NewFeatureGateOptions(defaultMutableGate, version.Version.Major,
 		openshiftfeatures.SelfManaged,
 		openshiftfeatures.FeatureGateMachineAPIMigration,
 		openshiftfeatures.FeatureGateVSphereHostVMGroupZonal,
