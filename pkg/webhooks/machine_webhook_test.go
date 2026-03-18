@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/openshift/api/features"
@@ -1494,7 +1495,7 @@ func TestMachineUpdate(t *testing.T) {
 		Subnet:               defaultAzureSubnet(azureClusterID),
 		NetworkResourceGroup: defaultAzureNetworkResourceGroup(azureClusterID),
 		Image: machinev1beta1.Image{
-			ResourceID: defaultAzureImageResourceID(azureClusterID),
+			ResourceID: defaultAzureImageResourceID(azureClusterID, defaultAzureResourceGroup(azureClusterID)),
 		},
 		ManagedIdentity: defaultAzureManagedIdentiy(azureClusterID),
 		ResourceGroup:   defaultAzureResourceGroup(azureClusterID),
@@ -3399,6 +3400,7 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 		testCase         string
 		providerSpec     *machinev1beta1.AzureMachineProviderSpec
 		modifyDefault    func(*machinev1beta1.AzureMachineProviderSpec)
+		platformStatus   *osconfigv1.PlatformStatus
 		expectedError    string
 		expectedOk       bool
 		expectedWarnings []string
@@ -3442,6 +3444,29 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 			modifyDefault: func(p *machinev1beta1.AzureMachineProviderSpec) {
 				p.Image = machinev1beta1.Image{
 					ResourceID: "rid",
+				}
+			},
+			expectedOk:       true,
+			expectedError:    "",
+			expectedWarnings: itWarnings,
+		},
+		{
+			testCase: "it generates azure image ResourceID with custom resource group",
+			providerSpec: &machinev1beta1.AzureMachineProviderSpec{
+				Image: machinev1beta1.Image{},
+			},
+			platformStatus: &osconfigv1.PlatformStatus{
+				Type: osconfigv1.AzurePlatformType,
+				Azure: &osconfigv1.AzurePlatformStatus{
+					ResourceGroupName: "test-rg",
+				},
+			},
+			modifyDefault: func(p *machinev1beta1.AzureMachineProviderSpec) {
+				// Generate expected image ID with custom resource group from infra config
+				galleryName := strings.Replace(clusterID, "-", "_", -1)
+				imageName := clusterID
+				p.Image = machinev1beta1.Image{
+					ResourceID: fmt.Sprintf("/resourceGroups/%s/providers/Microsoft.Compute/galleries/gallery_%s/images/%s/versions/%s", "test-rg", galleryName, imageName, azureRHCOSVersion),
 				}
 			},
 			expectedOk:       true,
@@ -3494,16 +3519,20 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 		},
 	}
 
-	platformStatus := &osconfigv1.PlatformStatus{Type: osconfigv1.AzurePlatformType}
-	h := createMachineDefaulter(platformStatus, clusterID)
+	defaultPlatformStatus := &osconfigv1.PlatformStatus{Type: osconfigv1.AzurePlatformType}
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
+			platformStatus := defaultPlatformStatus
+			if tc.platformStatus != nil {
+				platformStatus = tc.platformStatus
+			}
+			h := createMachineDefaulter(platformStatus, clusterID)
 			defaultProviderSpec := &machinev1beta1.AzureMachineProviderSpec{
 				VMSize: defaultInstanceType,
 				Vnet:   defaultAzureVnet(clusterID),
 				Subnet: defaultAzureSubnet(clusterID),
 				Image: machinev1beta1.Image{
-					ResourceID: defaultAzureImageResourceID(clusterID),
+					ResourceID: defaultAzureImageResourceID(clusterID, defaultAzureResourceGroup(clusterID)),
 				},
 				UserDataSecret: &corev1.SecretReference{
 					Name: defaultUserDataSecret,
