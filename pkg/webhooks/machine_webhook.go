@@ -60,7 +60,7 @@ var (
 	defaultAzureNetworkResourceGroup = func(clusterID string) string {
 		return fmt.Sprintf("%s-rg", clusterID)
 	}
-	defaultAzureImageResourceID = func(clusterID string) string {
+	defaultAzureImageResourceID = func(clusterID, rg string) string {
 		// image gallery names cannot have dashes
 		galleryName := strings.Replace(clusterID, "-", "_", -1)
 		imageName := clusterID
@@ -70,7 +70,7 @@ var (
 			// before that change will have a -gen2 image.
 			imageName = fmt.Sprintf("%s-gen2", clusterID)
 		}
-		return fmt.Sprintf("/resourceGroups/%s/providers/Microsoft.Compute/galleries/gallery_%s/images/%s/versions/%s", clusterID+"-rg", galleryName, imageName, azureRHCOSVersion)
+		return fmt.Sprintf("/resourceGroups/%s/providers/Microsoft.Compute/galleries/gallery_%s/images/%s/versions/%s", rg, galleryName, imageName, azureRHCOSVersion)
 	}
 	defaultAzureManagedIdentiy = func(clusterID string) string {
 		return fmt.Sprintf("%s-identity", clusterID)
@@ -442,7 +442,7 @@ func NewMachineDefaulter() (*admission.Webhook, error) {
 func createMachineDefaulter(platformStatus *osconfigv1.PlatformStatus, clusterID string) *machineDefaulterHandler {
 	return &machineDefaulterHandler{
 		admissionHandler: &admissionHandler{
-			admissionConfig:   &admissionConfig{clusterID: clusterID},
+			admissionConfig:   &admissionConfig{clusterID: clusterID, platformStatus: platformStatus},
 			webhookOperations: getMachineDefaulterOperation(platformStatus),
 		},
 	}
@@ -920,7 +920,11 @@ func defaultAzure(m *machinev1beta1.Machine, config *admissionConfig) (bool, []s
 	}
 
 	if providerSpec.Image == (machinev1beta1.Image{}) {
-		providerSpec.Image.ResourceID = defaultAzureImageResourceID(config.clusterID)
+		rg := defaultAzureResourceGroup(config.clusterID)
+		if ps := config.platformStatus; ps != nil && ps.Azure != nil && ps.Azure.ResourceGroupName != "" {
+			rg = ps.Azure.ResourceGroupName
+		}
+		providerSpec.Image.ResourceID = defaultAzureImageResourceID(config.clusterID, rg)
 	}
 
 	if providerSpec.UserDataSecret == nil {
