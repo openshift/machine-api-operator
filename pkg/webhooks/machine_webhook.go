@@ -831,7 +831,7 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 		}
 	}
 
-	errs = append(errs, processAWSPlacementTenancy(providerSpec.Placement)...)
+	errs = append(errs, processAWSPlacementTenancy(m, providerSpec.Placement)...)
 
 	if providerSpec.PlacementGroupPartition != nil {
 		partition := *providerSpec.PlacementGroupPartition
@@ -928,9 +928,26 @@ func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []st
 	return true, warnings, nil
 }
 
+const (
+	machineRoleLabel  = "machine.openshift.io/cluster-api-machine-role"
+	machineTypeLabel  = "machine.openshift.io/cluster-api-machine-type"
+	machineMasterRole = "master"
+)
+
+// isControlPlaneMachine checks if a machine is a control plane/master machine by examining its labels.
+func isControlPlaneMachine(m *machinev1beta1.Machine) bool {
+	if m.Labels == nil {
+		return false
+	}
+	role, hasRole := m.Labels[machineRoleLabel]
+	machineType, hasType := m.Labels[machineTypeLabel]
+
+	return (hasRole && role == machineMasterRole) || (hasType && machineType == machineMasterRole)
+}
+
 // processAWSPlacement analyzes the Placement field in relation to Tenancy and host placement.  These are analyzed
 // together based based on their relations to one another.
-func processAWSPlacementTenancy(placement machinev1beta1.Placement) field.ErrorList {
+func processAWSPlacementTenancy(m *machinev1beta1.Machine, placement machinev1beta1.Placement) field.ErrorList {
 	var errs field.ErrorList
 
 	switch placement.Tenancy {
@@ -940,6 +957,12 @@ func processAWSPlacementTenancy(placement machinev1beta1.Placement) field.ErrorL
 			errs = append(errs, field.Forbidden(field.NewPath("spec.placement.host"), "host may only be specified when tenancy is 'host'"))
 		}
 	case machinev1beta1.HostTenancy:
+		// Dedicated hosts are not supported for control plane machines
+		if isControlPlaneMachine(m) {
+			errs = append(errs, field.Forbidden(field.NewPath("spec.placement.tenancy"), "dedicated host tenancy is not supported for control plane machines"))
+			return errs
+		}
+
 		if placement.Host != nil {
 			klog.V(4).Infof("Validating AWS Host Placement")
 
