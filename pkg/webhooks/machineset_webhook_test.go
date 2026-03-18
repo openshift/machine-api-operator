@@ -595,7 +595,7 @@ func TestMachineSetUpdate(t *testing.T) {
 		Subnet:               defaultAzureSubnet(azureClusterID),
 		NetworkResourceGroup: defaultAzureNetworkResourceGroup(azureClusterID),
 		Image: machinev1beta1.Image{
-			ResourceID: defaultAzureImageResourceID(azureClusterID),
+			ResourceID: defaultAzureImageResourceID(azureClusterID, defaultAzureResourceGroup(azureClusterID)),
 		},
 		ManagedIdentity: defaultAzureManagedIdentiy(azureClusterID),
 		ResourceGroup:   defaultAzureResourceGroup(azureClusterID),
