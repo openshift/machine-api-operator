@@ -53,6 +53,9 @@ type testCase struct {
 	expectedStatus              *machinev1.MachineHealthCheckStatus
 	externalRemediationMachine  *unstructured.Unstructured
 	externalRemediationTemplate *unstructured.Unstructured
+	// setup is called immediately before the reconcile to allow time-sensitive
+	// test cases to refresh state (e.g. LastTransitionTime) right before execution.
+	setup func()
 }
 
 type expectedReconcile struct {
@@ -325,6 +328,9 @@ func TestReconcile(t *testing.T) {
 			machine: machineWithNodeRecentlyUnhealthy,
 			node:    nodeRecentlyUnhealthy,
 			mhc:     machineHealthCheck,
+			setup: func() {
+				nodeRecentlyUnhealthy.Status.Conditions[0].LastTransitionTime = metav1.Time{Time: time.Now()}
+			},
 			expected: expectedReconcile{
 				result: reconcile.Result{
 					RequeueAfter: 300 * time.Second,
@@ -488,6 +494,9 @@ func TestReconcile(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			if tc.setup != nil {
+				tc.setup()
+			}
 			recorder := record.NewFakeRecorder(2)
 			r := newFakeReconcilerWithCustomRecorder(recorder, buildRunTimeObjects(tc)...)
 			assertBaseReconcile(t, tc, ctx, r)
