@@ -31,6 +31,14 @@ func (b *PrefixedClaimMappingApplyConfiguration) WithClaim(value string) *Prefix
 	return b
 }
 
+// WithExpression sets the Expression field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Expression field is set to the value of the last call.
+func (b *PrefixedClaimMappingApplyConfiguration) WithExpression(value string) *PrefixedClaimMappingApplyConfiguration {
+	b.TokenClaimMappingApplyConfiguration.Expression = &value
+	return b
+}
+
 // WithPrefix sets the Prefix field in the declarative configuration to the given value
 // and returns the receiver, so that objects can be built by chaining "With" function invocations.
 // If called multiple times, the Prefix field is set to the value of the last call.

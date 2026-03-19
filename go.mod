@@ -17,26 +17,27 @@ require (
 	github.com/go-logr/logr v1.4.3
 	github.com/golangci/golangci-lint v1.64.8
 	github.com/google/uuid v1.6.0
-	github.com/onsi/ginkgo/v2 v2.27.2
-	github.com/onsi/gomega v1.38.2
+	github.com/onsi/ginkgo/v2 v2.28.1
+	github.com/onsi/gomega v1.39.1
 	github.com/openshift-eng/openshift-tests-extension v0.0.0-20260127124016-0fed2b824818
-	github.com/openshift/api v0.0.0-20260305140000-0790d2957f54
-	github.com/openshift/client-go v0.0.0-20260305144912-aba4b273812d
+	github.com/openshift/api v0.0.0-20260317165824-54a3998d81eb
+	github.com/openshift/client-go v0.0.0-20260317180604-743f664b82d1
 	github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20250910145856-21d03d30056d
 	github.com/openshift/cluster-control-plane-machine-set-operator v0.0.0-20251029084908-344babe6a957
-	github.com/openshift/library-go v0.0.0-20260303171201-5d9eb6295ff6
+	github.com/openshift/controller-runtime-common v0.0.0-20260318085703-1812aed6dbd2
+	github.com/openshift/library-go v0.0.0-20260318142011-72bf34f474bc
 	github.com/prometheus/client_golang v1.23.2
 	github.com/spf13/cobra v1.10.1
 	github.com/spf13/pflag v1.0.10
 	github.com/stretchr/testify v1.11.1
 	github.com/vmware/govmomi v0.52.0
-	golang.org/x/net v0.47.0 // indirect
+	golang.org/x/net v0.49.0 // indirect
 	golang.org/x/time v0.14.0
 	gopkg.in/gcfg.v1 v1.2.3 // indirect
-	k8s.io/api v0.35.1
-	k8s.io/apimachinery v0.35.1
+	k8s.io/api v0.35.2
+	k8s.io/apimachinery v0.35.2
 	k8s.io/apiserver v0.35.1
-	k8s.io/client-go v0.35.1
+	k8s.io/client-go v0.35.2
 	k8s.io/cloud-provider-vsphere v1.32.2
 	k8s.io/component-base v0.35.1
 	k8s.io/cri-client v0.35.1 // indirect
@@ -48,7 +49,7 @@ require (
 	k8s.io/kubernetes v1.35.1
 	k8s.io/mount-utils v0.35.1 // indirect
 	k8s.io/sample-apiserver v0.35.1 // indirect
-	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4
+	k8s.io/utils v0.0.0-20260210185600-b8788abfbbc2
 	sigs.k8s.io/cluster-api v1.11.3
 	sigs.k8s.io/controller-runtime v0.23.3
 	sigs.k8s.io/controller-runtime/tools/setup-envtest v0.0.0-20240923090159-236e448db12c
@@ -172,7 +173,7 @@ require (
 	github.com/google/cel-go v0.26.0 // indirect
 	github.com/google/gnostic-models v0.7.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
-	github.com/google/pprof v0.0.0-20250403155104-27863c87afa6 // indirect
+	github.com/google/pprof v0.0.0-20260115054156-294ebfa9ad83 // indirect
 	github.com/gordonklaus/ineffassign v0.1.0 // indirect
 	github.com/gorilla/websocket v1.5.4-0.20250319132907-e064f32e3674 // indirect
 	github.com/gostaticanalysis/analysisutil v0.7.1 // indirect
@@ -322,16 +323,16 @@ require (
 	go.uber.org/zap v1.27.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
-	golang.org/x/crypto v0.45.0 // indirect
+	golang.org/x/crypto v0.47.0 // indirect
 	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20250210185358-939b2ce775ac // indirect
-	golang.org/x/mod v0.29.0 // indirect
+	golang.org/x/mod v0.32.0 // indirect
 	golang.org/x/oauth2 v0.30.0 // indirect
-	golang.org/x/sync v0.18.0 // indirect
-	golang.org/x/sys v0.38.0 // indirect
-	golang.org/x/term v0.37.0 // indirect
-	golang.org/x/text v0.31.0 // indirect
-	golang.org/x/tools v0.38.0 // indirect
+	golang.org/x/sync v0.19.0 // indirect
+	golang.org/x/sys v0.40.0 // indirect
+	golang.org/x/term v0.39.0 // indirect
+	golang.org/x/text v0.33.0 // indirect
+	golang.org/x/tools v0.41.0 // indirect
 	golang.org/x/tools/go/expect v0.1.1-deprecated // indirect
 	gomodules.xyz/jsonpatch/v2 v2.5.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20250303144028-a0af3efb3deb // indirect
