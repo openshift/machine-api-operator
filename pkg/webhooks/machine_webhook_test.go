@@ -1008,7 +1008,7 @@ func TestMachineCreation(t *testing.T) {
 					},
 				},
 			},
-			expectedError: "",
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host.affinity: Forbidden: hostAffinity must be DedicatedHost when using dynamic host allocation",
 		},
 		{
 			name:         "configure Affinity AnyAvailable with AllocationStrategy Dynamic and DynamicHostAllocation",
@@ -1032,7 +1032,7 @@ func TestMachineCreation(t *testing.T) {
 					},
 				},
 			},
-			expectedError: "",
+			expectedError: "admission webhook \"validation.machine.machine.openshift.io\" denied the request: spec.placement.host.affinity: Forbidden: hostAffinity must be DedicatedHost when using dynamic host allocation",
 		},
 		{
 			name:            "control plane machine with dedicated host should fail",
