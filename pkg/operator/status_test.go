@@ -13,6 +13,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
 
+	configv1 "github.com/openshift/api/config/v1"
 	osconfigv1 "github.com/openshift/api/config/v1"
 	fakeconfigclientset "github.com/openshift/client-go/config/clientset/versioned/fake"
 	"github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers"
@@ -94,7 +95,7 @@ func TestOperatorStatusProgressing(t *testing.T) {
 		optr.operandVersions = tc.currentVersion
 		co := optr.defaultClusterOperator()
 		co.Status.Versions = tc.desiredVersion
-		optr.osClient = fakeconfigclientset.NewSimpleClientset(co)
+		optr.osClient = fakeconfigclientset.NewClientset(co)
 
 		err := optr.statusProgressing()
 		assert.NoError(t, err)
@@ -330,9 +331,9 @@ func TestGetOrCreateClusterOperator(t *testing.T) {
 	for _, tc := range testCases {
 		var osClient *fakeconfigclientset.Clientset
 		if tc.existingCO != nil {
-			osClient = fakeconfigclientset.NewSimpleClientset(tc.existingCO)
+			osClient = fakeconfigclientset.NewClientset(tc.existingCO)
 		} else {
-			osClient = fakeconfigclientset.NewSimpleClientset()
+			osClient = fakeconfigclientset.NewClientset()
 		}
 		optr := Operator{
 			osClient:  osClient,
@@ -344,24 +345,36 @@ func TestGetOrCreateClusterOperator(t *testing.T) {
 			t.Fatalf("unexpected error: %v", err)
 		}
 
-		normalizeTransitionTimes(co.Status, tc.expectedCO.Status)
+		normalizeSharedFields(co, tc.expectedCO)
 
 		if !equality.Semantic.DeepEqual(co, tc.expectedCO) {
-			t.Errorf("got: %v, expected: %v", co, tc.expectedCO)
+			t.Errorf("got: %+v, expected: %+v", co, tc.expectedCO)
 		}
 	}
 }
 
-func normalizeTransitionTimes(got, expected osconfigv1.ClusterOperatorStatus) {
+func normalizeSharedFields(got, expected *configv1.ClusterOperator) {
 	now := metav1.NewTime(time.Now())
 
-	for i := range got.Conditions {
-		got.Conditions[i].LastTransitionTime = now
+	for i := range got.Status.Conditions {
+		got.Status.Conditions[i].LastTransitionTime = now
 	}
 
-	for i := range expected.Conditions {
-		expected.Conditions[i].LastTransitionTime = now
+	for i := range expected.Status.Conditions {
+		expected.Status.Conditions[i].LastTransitionTime = now
 	}
+
+	// The NewClientset will populate these fields on the "got" side, but we don't care about those fields
+	// So we make them equal
+	got.Kind = "ClusterOperator"
+	expected.Kind = "ClusterOperator"
+
+	got.APIVersion = "config.openshift.io/v1"
+	expected.APIVersion = "config.openshift.io/v1"
+
+	got.ManagedFields = make([]metav1.ManagedFieldsEntry, 0)
+	expected.ManagedFields = make([]metav1.ManagedFieldsEntry, 0)
+
 }
 
 func TestIsInitializing(t *testing.T) {
@@ -425,9 +438,9 @@ func TestIsInitializing(t *testing.T) {
 
 			var osClient *fakeconfigclientset.Clientset
 			if tc.existingCO != nil {
-				osClient = fakeconfigclientset.NewSimpleClientset(tc.existingCO)
+				osClient = fakeconfigclientset.NewClientset(tc.existingCO)
 			} else {
-				osClient = fakeconfigclientset.NewSimpleClientset()
+				osClient = fakeconfigclientset.NewClientset()
 			}
 			optr := Operator{
 				osClient: osClient,
@@ -487,7 +500,7 @@ func TestIsUpgrading(t *testing.T) {
 				},
 			}
 			optr := Operator{
-				osClient:        fakeconfigclientset.NewSimpleClientset(co),
+				osClient:        fakeconfigclientset.NewClientset(co),
 				operandVersions: tc.desiredVersions,
 				namespace:       "test",
 			}
@@ -566,7 +579,7 @@ func TestUpgradeHasTimedOut(t *testing.T) {
 			g := NewWithT(t)
 
 			optr := Operator{
-				osClient: fakeconfigclientset.NewSimpleClientset(tc.existingCO),
+				osClient: fakeconfigclientset.NewClientset(tc.existingCO),
 			}
 
 			timedOut, err := optr.upgradeHasTimedOut()
@@ -662,7 +675,7 @@ func TestShouldReportDegraded(t *testing.T) {
 			g := NewWithT(t)
 
 			optr := Operator{
-				osClient:        fakeconfigclientset.NewSimpleClientset(tc.existingCO),
+				osClient:        fakeconfigclientset.NewClientset(tc.existingCO),
 				operandVersions: tc.desiredVersions,
 				namespace:       "test",
 			}

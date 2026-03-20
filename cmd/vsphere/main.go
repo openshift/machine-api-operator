@@ -91,9 +91,15 @@ func main() {
 		"The address for health checking.",
 	)
 
+	majorVersion := version.Version.Major
+
+	if majorVersion == 0 {
+		majorVersion = 4
+	}
+
 	// Sets up feature gates
 	defaultMutableGate := feature.DefaultMutableFeatureGate
-	gateOpts, err := features.NewFeatureGateOptions(defaultMutableGate, apifeatures.SelfManaged, apifeatures.FeatureGateMachineAPIMigration, apifeatures.FeatureGateVSphereHostVMGroupZonal, apifeatures.FeatureGateVSphereMultiDisk)
+	gateOpts, err := features.NewFeatureGateOptions(defaultMutableGate, majorVersion, apifeatures.SelfManaged, apifeatures.FeatureGateMachineAPIMigration, apifeatures.FeatureGateVSphereHostVMGroupZonal, apifeatures.FeatureGateVSphereMultiDisk)
 	if err != nil {
 		klog.Fatalf("Error setting up feature gates: %v", err)
 	}
@@ -170,7 +176,7 @@ func main() {
 	machineActuator := machine.NewActuator(machine.ActuatorParams{
 		Client:                   mgr.GetClient(),
 		APIReader:                mgr.GetAPIReader(),
-		EventRecorder:            mgr.GetEventRecorderFor("vspherecontroller"),
+		EventRecorder:            mgr.GetEventRecorderFor("vspherecontroller"), //nolint:staticcheck
 		TaskIDCache:              taskIDCache,
 		FeatureGates:             defaultMutableGate,
 		OpenshiftConfigNamespace: vsphere.OpenshiftConfigNamespace,

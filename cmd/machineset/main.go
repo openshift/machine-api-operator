@@ -29,6 +29,7 @@ import (
 	osconfigv1 "github.com/openshift/api/config/v1"
 	apifeatures "github.com/openshift/api/features"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
+	"github.com/openshift/machine-api-operator/pkg/version"
 	mapiwebhooks "github.com/openshift/machine-api-operator/pkg/webhooks"
 
 	"k8s.io/apiserver/pkg/util/feature"
@@ -110,9 +111,15 @@ func main() {
 		fmt.Sprintf("The duration that non-leader candidates will wait after observing a leadership renewal until attempting to acquire leadership of a led but unrenewed leader slot. This is effectively the maximum duration that a leader can be stopped before it is replaced by another candidate. This is only applicable if leader election is enabled. Default: (%s)", defaultLeaderElectionValues.LeaseDuration.Duration),
 	)
 
+	majorVersion := version.Version.Major
+
+	if majorVersion == 0 {
+		majorVersion = 4
+	}
+
 	// Sets up feature gates
 	defaultMutableGate := feature.DefaultMutableFeatureGate
-	gateOpts, err := features.NewFeatureGateOptions(defaultMutableGate, apifeatures.SelfManaged, apifeatures.FeatureGateMachineAPIMigration, apifeatures.FeatureGateVSphereHostVMGroupZonal, apifeatures.FeatureGateVSphereMultiDisk)
+	gateOpts, err := features.NewFeatureGateOptions(defaultMutableGate, majorVersion, apifeatures.SelfManaged, apifeatures.FeatureGateMachineAPIMigration, apifeatures.FeatureGateVSphereHostVMGroupZonal, apifeatures.FeatureGateVSphereMultiDisk)
 	if err != nil {
 		klog.Fatalf("Error setting up feature gates: %v", err)
 	}

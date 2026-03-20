@@ -103,7 +103,7 @@ func newReconciler(mgr manager.Manager, opts manager.Options) (*ReconcileMachine
 	return &ReconcileMachineHealthCheck{
 		client:   mgr.GetClient(),
 		scheme:   mgr.GetScheme(),
-		recorder: mgr.GetEventRecorderFor(controllerName),
+		recorder: mgr.GetEventRecorderFor(controllerName), //nolint:staticcheck
 	}, nil
 }
 
