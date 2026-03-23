@@ -953,6 +953,14 @@ func processAWSPlacementTenancy(m *machinev1beta1.Machine, placement machinev1be
 				case machinev1beta1.HostAffinityAnyAvailable:
 					// DedicatedHost is optional.  If it is set, make sure it follows conventions
 					if placement.Host.DedicatedHost != nil {
+						// Dynamic Host Allocation (DHA) requires DedicatedHost affinity
+						strategy := machinev1beta1.AllocationStrategyUserProvided
+						if placement.Host.DedicatedHost.AllocationStrategy != nil {
+							strategy = *placement.Host.DedicatedHost.AllocationStrategy
+						}
+						if strategy == machinev1beta1.AllocationStrategyDynamic {
+							errs = append(errs, field.Forbidden(field.NewPath("spec.placement.host.affinity"), "hostAffinity must be DedicatedHost when using dynamic host allocation"))
+						}
 						errs = append(errs, validateDedicatedHost(placement.Host.DedicatedHost)...)
 					}
 				case machinev1beta1.HostAffinityDedicatedHost:
