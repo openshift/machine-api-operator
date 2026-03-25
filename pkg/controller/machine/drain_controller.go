@@ -3,6 +3,7 @@ package machine
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"golang.org/x/time/rate"
@@ -38,6 +39,13 @@ type machineDrainController struct {
 	scheme *runtime.Scheme
 
 	eventRecorder record.EventRecorder
+
+	// controlPlaneDrainLock ensures only one control plane node can pass the
+	// isDrainAllowed check and be cordoned at a time. Without this, concurrent
+	// reconciles of different control plane machines can both pass
+	// isDrainAllowed before either cordons, leading to simultaneous control
+	// plane node drains (TOCTOU race).
+	controlPlaneDrainLock sync.Mutex
 }
 
 // newDrainController returns a new reconcile.Reconciler for machine-drain-controller
@@ -135,10 +143,6 @@ func (d *machineDrainController) drainNode(ctx context.Context, machine *machine
 		return fmt.Errorf("unable to get node %q: %v", machine.Status.NodeRef.Name, err)
 	}
 
-	if err := d.isDrainAllowed(ctx, node); err != nil {
-		return fmt.Errorf("drain not permitted: %w", err)
-	}
-
 	drainer := &drain.Helper{
 		Ctx:                 ctx,
 		Client:              kubeClient,
@@ -170,10 +174,8 @@ func (d *machineDrainController) drainNode(ctx context.Context, machine *machine
 		drainer.GracePeriodSeconds = 1
 	}
 
-	if err := drain.RunCordonOrUncordon(drainer, node, true); err != nil {
-		// Can't cordon a node
-		klog.Warningf("cordon failed for node %q: %v", node.Name, err)
-		return &RequeueAfterError{RequeueAfter: 20 * time.Second}
+	if err := d.cordonNode(ctx, drainer, node); err != nil {
+		return err
 	}
 
 	if err := drain.RunNodeDrain(drainer, node.Name); err != nil {
@@ -189,6 +191,30 @@ func (d *machineDrainController) drainNode(ctx context.Context, machine *machine
 
 	klog.Infof("drain successful for machine %q", machine.Name)
 	d.eventRecorder.Eventf(machine, corev1.EventTypeNormal, "Deleted", "Node %q drained", node.Name)
+
+	return nil
+}
+
+// cordonNode checks whether draining is allowed and cordons the node.
+// For uncordoned control plane nodes, the check and cordon are held under
+// controlPlaneDrainLock so that only one CP node at a time can pass the
+// isDrainAllowed check and get cordoned, preventing a TOCTOU race where
+// concurrent reconciles would each see no other CP node cordoned and then
+// all proceed to drain simultaneously.
+func (d *machineDrainController) cordonNode(ctx context.Context, drainer *drain.Helper, node *corev1.Node) error {
+	if isControlPlaneNode(*node) && !node.Spec.Unschedulable {
+		d.controlPlaneDrainLock.Lock()
+		defer d.controlPlaneDrainLock.Unlock()
+	}
+
+	if err := d.isDrainAllowed(ctx, node); err != nil {
+		return fmt.Errorf("drain not permitted: %w", err)
+	}
+
+	if err := drain.RunCordonOrUncordon(drainer, node, true); err != nil {
+		klog.Warningf("cordon failed for node %q: %v", node.Name, err)
+		return &RequeueAfterError{RequeueAfter: 20 * time.Second}
+	}
 
 	return nil
 }
