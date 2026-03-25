@@ -649,6 +649,14 @@ rules:
       - get
       - list
       - watch
+  - apiGroups:
+      - discovery.k8s.io
+    resources:
+      - endpointslices
+    verbs:
+      - get
+      - list
+      - watch
 ---
 # Cluster-reader extension to view machine machine.openshift.io resources
 apiVersion: rbac.authorization.k8s.io/v1
