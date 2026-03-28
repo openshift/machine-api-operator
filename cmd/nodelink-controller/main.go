@@ -67,6 +67,14 @@ func main() {
 	if err := flag.Set("logtostderr", "true"); err != nil {
 		klog.Fatalf("failed to set logtostderr flag: %v", err)
 	}
+	// Opt into the fixed klog behavior so the --stderrthreshold flag is honored
+	// even when --logtostderr is enabled. See https://github.com/kubernetes/klog/issues/432
+	if err := flag.Set("legacy_stderr_threshold_behavior", "false"); err != nil {
+		klog.Fatalf("failed to set legacy_stderr_threshold_behavior flag: %v", err)
+	}
+	if err := flag.Set("stderrthreshold", "INFO"); err != nil {
+		klog.Fatalf("failed to set stderrthreshold flag: %v", err)
+	}
 	flag.Parse()
 
 	// Get a config to talk to the apiserver
