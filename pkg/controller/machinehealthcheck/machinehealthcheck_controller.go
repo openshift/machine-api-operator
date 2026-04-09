@@ -23,7 +23,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	apimachineryutilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/apimachinery/pkg/util/intstr"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/klog/v2"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -103,7 +103,7 @@ func newReconciler(mgr manager.Manager, opts manager.Options) (*ReconcileMachine
 	return &ReconcileMachineHealthCheck{
 		client:   mgr.GetClient(),
 		scheme:   mgr.GetScheme(),
-		recorder: mgr.GetEventRecorderFor(controllerName), //nolint:staticcheck
+		recorder: mgr.GetEventRecorder(controllerName),
 	}, nil
 }
 
@@ -149,7 +149,7 @@ type ReconcileMachineHealthCheck struct {
 	// that reads objects from the cache and writes to the apiserver
 	client   client.Client
 	scheme   *runtime.Scheme
-	recorder record.EventRecorder
+	recorder events.EventRecorder
 }
 
 type target struct {
@@ -239,8 +239,10 @@ func (r *ReconcileMachineHealthCheck) Reconcile(ctx context.Context, request rec
 
 		r.recorder.Eventf(
 			mhc,
+			nil,
 			corev1.EventTypeWarning,
 			EventRemediationRestricted,
+			"Remediate",
 			"Remediation restricted due to exceeded number of unhealthy machines (total: %v, unhealthy: %v, maxUnhealthy: %v)",
 			totalTargets,
 			unhealthyCount,
@@ -480,8 +482,10 @@ func (r *ReconcileMachineHealthCheck) healthCheckTargets(targets []target, timeo
 			klog.V(3).Infof("Reconciling %s: is likely to go unhealthy in %v", t.string(), nextCheck)
 			r.recorder.Eventf(
 				&t.Machine,
+				nil,
 				corev1.EventTypeNormal,
 				EventDetectedUnhealthy,
+				"HealthCheck",
 				"Machine %v has unhealthy node %v",
 				t.string(),
 				t.nodeName(),
@@ -638,8 +642,10 @@ func (r *ReconcileMachineHealthCheck) internalRemediation(t target) error {
 	if !t.hasControllerOwner() {
 		r.recorder.Eventf(
 			&t.Machine,
+			nil,
 			corev1.EventTypeNormal,
 			EventSkippedNoController,
+			"Remediate",
 			"Machine %v has no controller owner, skipping remediation",
 			t.string(),
 		)
@@ -666,8 +672,10 @@ func (r *ReconcileMachineHealthCheck) internalRemediation(t target) error {
 	if err := r.client.Delete(context.TODO(), &t.Machine); err != nil {
 		r.recorder.Eventf(
 			&t.Machine,
+			nil,
 			corev1.EventTypeWarning,
 			EventMachineDeletionFailed,
+			"Remediate",
 			"Machine %v remediation failed: unable to delete Machine object: %v",
 			t.string(),
 			err,
@@ -676,8 +684,10 @@ func (r *ReconcileMachineHealthCheck) internalRemediation(t target) error {
 	}
 	r.recorder.Eventf(
 		&t.Machine,
+		nil,
 		corev1.EventTypeNormal,
 		EventMachineDeleted,
+		"Remediate",
 		"Machine %v has been remediated by requesting to delete Machine object",
 		t.string(),
 	)
@@ -701,8 +711,10 @@ func (t *target) remediationStrategyExternal(r *ReconcileMachineHealthCheck) err
 	if err := r.client.Update(context.TODO(), &t.Machine); err != nil {
 		r.recorder.Eventf(
 			&t.Machine,
+			nil,
 			corev1.EventTypeWarning,
 			EventExternalAnnotationFailed,
+			"Remediate",
 			"Requesting external remediation of node associated with machine %v failed: %v",
 			t.string(),
 			err,
@@ -711,8 +723,10 @@ func (t *target) remediationStrategyExternal(r *ReconcileMachineHealthCheck) err
 	}
 	r.recorder.Eventf(
 		&t.Machine,
+		nil,
 		corev1.EventTypeNormal,
 		EventExternalAnnotationAdded,
+		"Remediate",
 		"Requesting external remediation of node associated with machine %v",
 		t.string(),
 	)

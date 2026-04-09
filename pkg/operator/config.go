@@ -20,11 +20,13 @@ type Provider string
 
 // OperatorConfig contains configuration for MAO
 type OperatorConfig struct {
-	TargetNamespace string `json:"targetNamespace"`
-	Controllers     Controllers
-	Proxy           *configv1.Proxy
-	PlatformType    configv1.PlatformType
-	Features        map[string]bool
+	TargetNamespace    string `json:"targetNamespace"`
+	Controllers        Controllers
+	Proxy              *configv1.Proxy
+	PlatformType       configv1.PlatformType
+	Features           map[string]bool
+	TLSProfile         configv1.TLSProfileSpec
+	TLSAdherencePolicy configv1.TLSAdherencePolicy
 }
 
 type Controllers struct {

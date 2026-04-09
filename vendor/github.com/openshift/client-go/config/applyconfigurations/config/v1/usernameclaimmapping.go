@@ -9,10 +9,21 @@ import (
 // UsernameClaimMappingApplyConfiguration represents a declarative configuration of the UsernameClaimMapping type for use
 // with apply.
 type UsernameClaimMappingApplyConfiguration struct {
-	// claim is a required field that configures the JWT token claim whose value is assigned to the cluster identity field associated with this mapping.
+	// claim is an optional field that configures the JWT token claim whose value is assigned to the cluster identity field associated with this mapping.
+	// claim is required when the ExternalOIDCWithUpstreamParity feature gate is not enabled.
+	// When the ExternalOIDCWithUpstreamParity feature gate is enabled, claim must not be set when expression is set.
 	//
 	// claim must not be an empty string ("") and must not exceed 256 characters.
 	Claim *string `json:"claim,omitempty"`
+	// expression is an optional CEL expression used to derive
+	// the username from JWT claims.
+	//
+	// CEL expressions have access to the token claims
+	// through a CEL variable, 'claims'.
+	//
+	// expression must be at least 1 character and must not exceed 1024 characters in length.
+	// expression must not be set when claim is set.
+	Expression *string `json:"expression,omitempty"`
 	// prefixPolicy is an optional field that configures how a prefix should be applied to the value of the JWT claim specified in the 'claim' field.
 	//
 	// Allowed values are 'Prefix', 'NoPrefix', and omitted (not provided or an empty string).
@@ -51,6 +62,14 @@ func UsernameClaimMapping() *UsernameClaimMappingApplyConfiguration {
 // If called multiple times, the Claim field is set to the value of the last call.
 func (b *UsernameClaimMappingApplyConfiguration) WithClaim(value string) *UsernameClaimMappingApplyConfiguration {
 	b.Claim = &value
+	return b
+}
+
+// WithExpression sets the Expression field in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Expression field is set to the value of the last call.
+func (b *UsernameClaimMappingApplyConfiguration) WithExpression(value string) *UsernameClaimMappingApplyConfiguration {
+	b.Expression = &value
 	return b
 }
 

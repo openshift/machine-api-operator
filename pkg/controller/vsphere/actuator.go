@@ -12,7 +12,7 @@ import (
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/klog/v2"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -31,7 +31,7 @@ const (
 type Actuator struct {
 	client                   runtimeclient.Client
 	apiReader                runtimeclient.Reader
-	eventRecorder            record.EventRecorder
+	eventRecorder            events.EventRecorder
 	TaskIDCache              map[string]string
 	FeatureGates             featuregate.MutableFeatureGate
 	openshiftConfigNamespace string
@@ -41,7 +41,7 @@ type Actuator struct {
 type ActuatorParams struct {
 	Client                   runtimeclient.Client
 	APIReader                runtimeclient.Reader
-	EventRecorder            record.EventRecorder
+	EventRecorder            events.EventRecorder
 	TaskIDCache              map[string]string
 	FeatureGates             featuregate.MutableFeatureGate
 	OpenshiftConfigNamespace string
@@ -64,7 +64,7 @@ func NewActuator(params ActuatorParams) *Actuator {
 func (a *Actuator) handleMachineError(machine *machinev1.Machine, err error, eventAction string) error {
 	klog.Errorf("%q error: %v", machine.GetName(), err)
 	if eventAction != noEventAction {
-		a.eventRecorder.Eventf(machine, corev1.EventTypeWarning, "Failed"+eventAction, "%v", err)
+		a.eventRecorder.Eventf(machine, nil, corev1.EventTypeWarning, "Failed"+eventAction, eventAction, "%v", err)
 	}
 	return err
 }
@@ -105,7 +105,7 @@ func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error
 		fmtErr := fmt.Errorf(reconcilerFailFmt, machine.GetName(), createEventAction, err)
 		retErr = a.handleMachineError(machine, fmtErr, createEventAction)
 	} else {
-		a.eventRecorder.Eventf(machine, corev1.EventTypeNormal, createEventAction, "Created Machine %v", machine.GetName())
+		a.eventRecorder.Eventf(machine, nil, corev1.EventTypeNormal, createEventAction, createEventAction, "Created Machine %v", machine.GetName())
 	}
 
 	if err := scope.PatchMachine(); err != nil {
@@ -166,7 +166,7 @@ func (a *Actuator) Update(ctx context.Context, machine *machinev1.Machine) error
 
 	// Create event only if machine object was modified
 	if previousResourceVersion != currentResourceVersion {
-		a.eventRecorder.Eventf(machine, corev1.EventTypeNormal, updateEventAction, "Updated Machine %v", machine.GetName())
+		a.eventRecorder.Eventf(machine, nil, corev1.EventTypeNormal, updateEventAction, updateEventAction, "Updated Machine %v", machine.GetName())
 	}
 
 	return nil
@@ -197,6 +197,6 @@ func (a *Actuator) Delete(ctx context.Context, machine *machinev1.Machine) error
 		fmtErr := fmt.Errorf(reconcilerFailFmt, machine.GetName(), deleteEventAction, err)
 		return a.handleMachineError(machine, fmtErr, deleteEventAction)
 	}
-	a.eventRecorder.Eventf(machine, corev1.EventTypeNormal, deleteEventAction, "Deleted machine %v", machine.GetName())
+	a.eventRecorder.Eventf(machine, nil, corev1.EventTypeNormal, deleteEventAction, deleteEventAction, "Deleted machine %v", machine.GetName())
 	return scope.PatchMachine()
 }

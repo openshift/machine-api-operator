@@ -12,7 +12,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -31,7 +31,7 @@ type Reconciler struct {
 	Client client.Client
 	Log    logr.Logger
 
-	recorder record.EventRecorder
+	recorder events.EventRecorder
 	scheme   *runtime.Scheme
 }
 
@@ -46,7 +46,7 @@ func (r *Reconciler) SetupWithManager(mgr ctrl.Manager, options controller.Optio
 		return fmt.Errorf("failed setting up with a controller manager: %w", err)
 	}
 
-	r.recorder = mgr.GetEventRecorderFor("machineset-controller") //nolint:staticcheck
+	r.recorder = mgr.GetEventRecorder("machineset-controller")
 	r.scheme = mgr.GetScheme()
 	return nil
 }
@@ -77,7 +77,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Resu
 	result, err := reconcile(machineSet)
 	if err != nil {
 		logger.Error(err, "Failed to reconcile MachineSet")
-		r.recorder.Eventf(machineSet, corev1.EventTypeWarning, "ReconcileError", "%v", err)
+		r.recorder.Eventf(machineSet, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "%v", err)
 		// we don't return here so we want to attempt to patch the machine regardless of an error.
 	}
 

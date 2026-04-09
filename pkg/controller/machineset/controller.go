@@ -37,7 +37,7 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/validation/field"
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/component-base/featuregate"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -73,7 +73,7 @@ func Add(mgr manager.Manager, opts manager.Options, gate featuregate.MutableFeat
 func newReconciler(mgr manager.Manager, gate featuregate.MutableFeatureGate) *ReconcileMachineSet {
 	return &ReconcileMachineSet{
 		Client: mgr.GetClient(), scheme: mgr.GetScheme(),
-		recorder: mgr.GetEventRecorderFor(controllerName), //nolint:staticcheck
+		recorder: mgr.GetEventRecorder(controllerName),
 		gate:     gate,
 	}
 }
@@ -115,7 +115,7 @@ func addWithOpts(mgr manager.Manager, opts controller.Options, mapFn handler.Typ
 type ReconcileMachineSet struct {
 	client.Client
 	scheme   *runtime.Scheme
-	recorder record.EventRecorder
+	recorder events.EventRecorder
 	gate     featuregate.MutableFeatureGate
 }
 
@@ -234,7 +234,7 @@ func (r *ReconcileMachineSet) Reconcile(ctx context.Context, request reconcile.R
 	result, err := r.reconcile(ctx, machineSet)
 	if err != nil {
 		klog.Errorf("Failed to reconcile MachineSet %q: %v", request.NamespacedName, err)
-		r.recorder.Eventf(machineSet, corev1.EventTypeWarning, "ReconcileError", "%v", err)
+		r.recorder.Eventf(machineSet, nil, corev1.EventTypeWarning, "ReconcileError", "Reconcile", "%v", err)
 	}
 	return result, err
 }
