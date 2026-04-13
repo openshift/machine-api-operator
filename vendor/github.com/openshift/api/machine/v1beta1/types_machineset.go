@@ -17,7 +17,7 @@ import (
 // +openshift:capability=MachineAPI
 // +kubebuilder:metadata:annotations="exclude.release.openshift.io/internal-openshift-hosted=true"
 // +kubebuilder:metadata:annotations="include.release.openshift.io/self-managed-high-availability=true"
-// +kubebuilder:subresource:scale:specpath=.spec.replicas,statuspath=.status.replicas,selectorpath=.status.labelSelector
+// +kubebuilder:subresource:scale:specpath=.spec.replicas,statuspath=.status.replicas,selectorpath=.status.selector
 // +kubebuilder:printcolumn:name="Desired",type="integer",JSONPath=".spec.replicas",description="Desired Replicas"
 // +kubebuilder:printcolumn:name="Current",type="integer",JSONPath=".status.replicas",description="Current Replicas"
 // +kubebuilder:printcolumn:name="Ready",type="integer",JSONPath=".status.readyReplicas",description="Ready Replicas"
@@ -120,6 +120,11 @@ type MachineSetStatus struct {
 	// The number of replicas that have labels matching the labels of the machine template of the MachineSet.
 	// +optional
 	FullyLabeledReplicas int32 `json:"fullyLabeledReplicas,omitempty"`
+	// selector is the string form of the label selector in spec.selector, in the same format as
+	// autoscaling/v1 Scale status.selector (for example "app=myapp,role=worker"). It is written by the
+	// machineset controller so the scale subresource's labelSelectorPath resolves for HPAs and other autoscalers.
+	// +optional
+	Selector string `json:"selector,omitempty"`
 	// The number of ready replicas for this MachineSet. A machine is considered ready when the node has been created and is "Ready".
 	// +optional
 	ReadyReplicas int32 `json:"readyReplicas,omitempty"`

@@ -67,6 +67,7 @@ func (c *ReconcileMachineSet) calculateStatus(ms *machinev1.MachineSet, filtered
 	newStatus.FullyLabeledReplicas = int32(fullyLabeledReplicasCount)
 	newStatus.ReadyReplicas = int32(readyReplicasCount)
 	newStatus.AvailableReplicas = int32(availableReplicasCount)
+	newStatus.Selector = metav1.FormatLabelSelector(&ms.Spec.Selector)
 	return newStatus
 }
 
@@ -80,6 +81,7 @@ func updateMachineSetStatus(c client.Client, ms *machinev1.MachineSet, newStatus
 		ms.Status.FullyLabeledReplicas == newStatus.FullyLabeledReplicas &&
 		ms.Status.ReadyReplicas == newStatus.ReadyReplicas &&
 		ms.Status.AvailableReplicas == newStatus.AvailableReplicas &&
+		ms.Status.Selector == newStatus.Selector &&
 		reflect.DeepEqual(ms.Status.Conditions, newStatus.Conditions) &&
 		ms.Generation == ms.Status.ObservedGeneration {
 		return ms, nil

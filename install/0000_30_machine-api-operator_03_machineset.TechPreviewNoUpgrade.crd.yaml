@@ -660,6 +660,12 @@ spec:
                   labels of the machine template of the MachineSet.
                 format: int32
                 type: integer
+              selector:
+                description: |-
+                  selector is the string form of the label selector in spec.selector, in the same format as
+                  autoscaling/v1 Scale status.selector (for example "app=myapp,role=worker"). It is written by the
+                  machineset controller so the scale subresource's labelSelectorPath resolves for HPAs and other autoscalers.
+                type: string
               observedGeneration:
                 description: observedGeneration reflects the generation of the most
                   recently observed MachineSet.
@@ -708,7 +714,7 @@ spec:
     storage: true
     subresources:
       scale:
-        labelSelectorPath: .status.labelSelector
+        labelSelectorPath: .status.selector
         specReplicasPath: .spec.replicas
         statusReplicasPath: .status.replicas
       status: {}

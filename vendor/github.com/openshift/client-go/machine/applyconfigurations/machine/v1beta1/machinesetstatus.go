@@ -15,6 +15,10 @@ type MachineSetStatusApplyConfiguration struct {
 	Replicas *int32 `json:"replicas,omitempty"`
 	// The number of replicas that have labels matching the labels of the machine template of the MachineSet.
 	FullyLabeledReplicas *int32 `json:"fullyLabeledReplicas,omitempty"`
+	// selector is the string form of the label selector in spec.selector, in the same format as
+	// autoscaling/v1 Scale status.selector (for example "app=myapp,role=worker"). It is written by the
+	// machineset controller so the scale subresource's labelSelectorPath resolves for HPAs and other autoscalers.
+	Selector *string `json:"selector,omitempty"`
 	// The number of ready replicas for this MachineSet. A machine is considered ready when the node has been created and is "Ready".
 	ReadyReplicas *int32 `json:"readyReplicas,omitempty"`
 	// The number of available replicas (ready for at least minReadySeconds) for this MachineSet.
@@ -78,6 +82,14 @@ func (b *MachineSetStatusApplyConfiguration) WithReplicas(value int32) *MachineS
 // If called multiple times, the FullyLabeledReplicas field is set to the value of the last call.
 func (b *MachineSetStatusApplyConfiguration) WithFullyLabeledReplicas(value int32) *MachineSetStatusApplyConfiguration {
 	b.FullyLabeledReplicas = &value
+	return b
+}
+
+// WithSelector sets the selector field (status string for scale subresource) in the declarative configuration to the given value
+// and returns the receiver, so that objects can be built by chaining "With" function invocations.
+// If called multiple times, the Selector field is set to the value of the last call.
+func (b *MachineSetStatusApplyConfiguration) WithSelector(value string) *MachineSetStatusApplyConfiguration {
+	b.Selector = &value
 	return b
 }
 

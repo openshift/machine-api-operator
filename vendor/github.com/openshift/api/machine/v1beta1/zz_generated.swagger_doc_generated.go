@@ -745,6 +745,7 @@ var map_MachineSetStatus = map[string]string{
 	"":                       "MachineSetStatus defines the observed state of MachineSet",
 	"replicas":               "replicas is the most recently observed number of replicas.",
 	"fullyLabeledReplicas":   "The number of replicas that have labels matching the labels of the machine template of the MachineSet.",
+	"selector":               "selector is the string form of the label selector in spec.selector, in the same format as autoscaling/v1 Scale status.selector (for example \"app=myapp,role=worker\"). It is written by the machineset controller so the scale subresource's labelSelectorPath resolves for HPAs and other autoscalers.",
 	"readyReplicas":          "The number of ready replicas for this MachineSet. A machine is considered ready when the node has been created and is \"Ready\".",
 	"availableReplicas":      "The number of available replicas (ready for at least minReadySeconds) for this MachineSet.",
 	"observedGeneration":     "observedGeneration reflects the generation of the most recently observed MachineSet.",
