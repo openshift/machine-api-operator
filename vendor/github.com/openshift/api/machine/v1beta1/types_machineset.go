@@ -129,6 +129,10 @@ type MachineSetStatus struct {
 	// observedGeneration reflects the generation of the most recently observed MachineSet.
 	// +optional
 	ObservedGeneration int64 `json:"observedGeneration,omitempty"`
+	// labelSelector is the serialized label selector in string form that matches the MachineSet's machines.
+	// It is exposed via the scale subresource as status.selector.
+	// +optional
+	LabelSelector string `json:"labelSelector,omitempty"`
 	// In the event that there is a terminal problem reconciling the
 	// replicas, both ErrorReason and ErrorMessage will be set. ErrorReason
 	// will be populated with a succinct value suitable for machine

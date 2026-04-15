@@ -615,6 +615,11 @@ spec:
                   labels of the machine template of the MachineSet.
                 format: int32
                 type: integer
+              labelSelector:
+                description: |-
+                  labelSelector is the serialized label selector in string form that matches the MachineSet's machines.
+                  It is exposed via the scale subresource as status.selector.
+                type: string
               observedGeneration:
                 description: observedGeneration reflects the generation of the most
                   recently observed MachineSet.
