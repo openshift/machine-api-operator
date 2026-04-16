@@ -6,6 +6,8 @@ go 1.25.0
 // an API yet we can leverage so that I do not have to copy what openshift/kubernetes/openshift-hack/cmd/k8s-tests-ext did to initialize.
 replace (
 	github.com/onsi/ginkgo/v2 => github.com/openshift/onsi-ginkgo/v2 v2.6.1-0.20260303184444-1cc650aa0565
+	github.com/openshift/api => ../api
+	github.com/openshift/client-go => ../client-go
 
 	k8s.io/apiserver => github.com/openshift/kubernetes/staging/src/k8s.io/apiserver v0.0.0-20260305123649-d18f3f005eaa // openshift kubernetes has very old copy of k8s.io/kubernetes/pkg/kubelet/server/server.go
 	k8s.io/kubelet => github.com/openshift/kubernetes/staging/src/k8s.io/kubelet v0.0.0-20260305123649-d18f3f005eaa // openshift kubernetes has very old copy of k8s.io/kubernetes/cmd/kubelet/app/options/options.go
@@ -20,7 +22,7 @@ require (
 	github.com/onsi/ginkgo/v2 v2.28.1
 	github.com/onsi/gomega v1.39.1
 	github.com/openshift-eng/openshift-tests-extension v0.0.0-20260127124016-0fed2b824818
-	github.com/openshift/api v0.0.0-20260317165824-54a3998d81eb
+	github.com/openshift/api v0.0.0-20260326111139-30c2ef7a272e
 	github.com/openshift/client-go v0.0.0-20260317180604-743f664b82d1
 	github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20250910145856-21d03d30056d
 	github.com/openshift/cluster-control-plane-machine-set-operator v0.0.0-20251029084908-344babe6a957
