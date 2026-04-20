@@ -295,7 +295,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:NutanixMultiSubnets][pl
 		Expect(err).NotTo(HaveOccurred())
 		Expect(len(infra.Spec.PlatformSpec.Nutanix.FailureDomains)).ShouldNot(Equal(0))
 
-		machineNetworks = append(machineNetworks, infra.Spec.PlatformSpec.Nutanix.FailureDomains...)
+		machineNetworks = infra.Spec.PlatformSpec.Nutanix.FailureDomains
 		Expect(len(machineNetworks)).ShouldNot(Equal(0))
 
 		nodes, err = c.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
