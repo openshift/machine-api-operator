@@ -19,7 +19,6 @@ const (
 	expectedAzureImage     = "quay.io/openshift/origin-azure-machine-controllers"
 	expectedBareMetalImage = "quay.io/openshift/origin-baremetal-machine-controllers"
 	expectedGCPImage       = "quay.io/openshift/origin-gcp-machine-controllers"
-	expectedLibvirtImage   = "quay.io/openshift/origin-libvirt-machine-controllers"
 	expectedOpenstackImage = "quay.io/openshift/origin-openstack-machine-api-provider"
 	expectedPowerVSImage   = "quay.io/openshift/origin-powervs-machine-controllers"
 	expectedVSphereImage   = "quay.io/openshift/origin-machine-api-operator"
@@ -92,15 +91,6 @@ func TestGetProviderFromInfrastructure(t *testing.T) {
 			},
 		},
 		expected: configv1.AWSPlatformType,
-	}, {
-		infra: &configv1.Infrastructure{
-			Status: configv1.InfrastructureStatus{
-				PlatformStatus: &configv1.PlatformStatus{
-					Type: configv1.LibvirtPlatformType,
-				},
-			},
-		},
-		expected: configv1.LibvirtPlatformType,
 	}, {
 		infra: &configv1.Infrastructure{
 			Status: configv1.InfrastructureStatus{
@@ -214,9 +204,6 @@ func TestGetImagesFromJSONFile(t *testing.T) {
 	if img.ClusterAPIControllerAWS != expectedAWSImage {
 		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedAWSImage, img.ClusterAPIControllerAWS)
 	}
-	if img.ClusterAPIControllerLibvirt != expectedLibvirtImage {
-		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedLibvirtImage, img.ClusterAPIControllerLibvirt)
-	}
 	if img.ClusterAPIControllerOpenStack != expectedOpenstackImage {
 		t.Errorf("failed getImagesFromJSONFile. Expected: %s, got: %s", expectedOpenstackImage, img.ClusterAPIControllerOpenStack)
 	}
@@ -250,10 +237,6 @@ func TestGetProviderControllerFromImages(t *testing.T) {
 		{
 			provider:      configv1.AWSPlatformType,
 			expectedImage: expectedAWSImage,
-		},
-		{
-			provider:      configv1.LibvirtPlatformType,
-			expectedImage: expectedLibvirtImage,
 		},
 		{
 			provider:      configv1.OpenStackPlatformType,
@@ -331,10 +314,6 @@ func TestGetTerminationHandlerFromImages(t *testing.T) {
 		{
 			provider:      configv1.AWSPlatformType,
 			expectedImage: expectedAWSImage,
-		},
-		{
-			provider:      configv1.LibvirtPlatformType,
-			expectedImage: clusterAPIControllerNoOp,
 		},
 		{
 			provider:      configv1.OpenStackPlatformType,
