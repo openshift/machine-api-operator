@@ -463,10 +463,10 @@ github.com/opencontainers/selinux v1.13.0 h1:Zza88GWezyT7RLql12URvoxsbLfjFx988+L
 github.com/opencontainers/selinux v1.13.0/go.mod h1:XxWTed+A/s5NNq4GmYScVy+9jzXhGBVEOAyucdRUY8s=
 github.com/openshift-eng/openshift-tests-extension v0.0.0-20260127124016-0fed2b824818 h1:jJLE/aCAqDf8U4wc3bE1IEKgIxbb0ICjCNVFA49x/8s=
 github.com/openshift-eng/openshift-tests-extension v0.0.0-20260127124016-0fed2b824818/go.mod h1:6gkP5f2HL0meusT0Aim8icAspcD1cG055xxBZ9yC68M=
-github.com/openshift/api v0.0.0-20260317165824-54a3998d81eb h1:iwBR3mzmyE3EMFx7R3CQ9lOccTS0dNht8TW82aGITg0=
-github.com/openshift/api v0.0.0-20260317165824-54a3998d81eb/go.mod h1:pyVjK0nZ4sRs4fuQVQ4rubsJdahI1PB94LnQ8sGdvxo=
-github.com/openshift/client-go v0.0.0-20260317180604-743f664b82d1 h1:Hr/R38eg5ZJXfbiaHumjJIN1buDZwhsm4ys4npVCXH0=
-github.com/openshift/client-go v0.0.0-20260317180604-743f664b82d1/go.mod h1:Za51LlH76ALiQ/aKGBYJXmyJNkA//IDJ+I///30CA2M=
+github.com/openshift/api v0.0.0-20260429211050-21ed4c20b122 h1:Lsw4zRFaiYSDpTHaC5V7vDGLJsroJl62HpkZv4AFQfQ=
+github.com/openshift/api v0.0.0-20260429211050-21ed4c20b122/go.mod h1:pyVjK0nZ4sRs4fuQVQ4rubsJdahI1PB94LnQ8sGdvxo=
+github.com/openshift/client-go v0.0.0-20260429123927-c81f86abfa6a h1:4GR6seHvlfv0rADe+LCQx63FqSExx6gaSo8uNiyWq+c=
+github.com/openshift/client-go v0.0.0-20260429123927-c81f86abfa6a/go.mod h1:Lm7X7aYbAaKhGsNhgYaowP7hiLKwfN/w0r+Q6VlQoI8=
 github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20250910145856-21d03d30056d h1:+sqUThLi/lmgT5/scmmjnS6+RZFtbdxRAscNfCPyLPI=
 github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20250910145856-21d03d30056d/go.mod h1:9+FWWWLkVrnBo1eYhA/0Ehlq5JMgIAHtcB0IF+qV1AA=
 github.com/openshift/cluster-control-plane-machine-set-operator v0.0.0-20251029084908-344babe6a957 h1:eVnkMTFnirnoUOlAUT3Hy8WriIi1JoSrilWym3Dl8Q4=
