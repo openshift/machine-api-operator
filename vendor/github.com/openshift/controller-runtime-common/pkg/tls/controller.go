@@ -24,9 +24,11 @@ import (
 	"github.com/go-logr/logr"
 	configv1 "github.com/openshift/api/config/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/utils/ptr"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/event"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/predicate"
@@ -78,6 +80,7 @@ type SecurityProfileWatcher struct {
 func (r *SecurityProfileWatcher) SetupWithManager(mgr ctrl.Manager) error {
 	if err := ctrl.NewControllerManagedBy(mgr).
 		Named("tlssecurityprofilewatcher").
+		WithOptions(controller.Options{NeedLeaderElection: ptr.To(false)}).
 		For(&configv1.APIServer{}, builder.WithPredicates(
 			predicate.Funcs{
 				// Only watch the "cluster" APIServer object.

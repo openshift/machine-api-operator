@@ -471,8 +471,8 @@ github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20250910145856-21
 github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20250910145856-21d03d30056d/go.mod h1:9+FWWWLkVrnBo1eYhA/0Ehlq5JMgIAHtcB0IF+qV1AA=
 github.com/openshift/cluster-control-plane-machine-set-operator v0.0.0-20251029084908-344babe6a957 h1:eVnkMTFnirnoUOlAUT3Hy8WriIi1JoSrilWym3Dl8Q4=
 github.com/openshift/cluster-control-plane-machine-set-operator v0.0.0-20251029084908-344babe6a957/go.mod h1:TBlORAAtNZ/Tl86pO7GjNXKsH/g0QAW5GnvYstdOhYI=
-github.com/openshift/controller-runtime-common v0.0.0-20260318085703-1812aed6dbd2 h1:GrZlVichOCE/lz8fg1+eNrAtkM0VSlqa9buuzN0vnb0=
-github.com/openshift/controller-runtime-common v0.0.0-20260318085703-1812aed6dbd2/go.mod h1:XGabTMnNbz0M5Oa7IbscZp/jmcc7aHobvOCUWwkzKvM=
+github.com/openshift/controller-runtime-common v0.0.0-20260428152732-64ee174f5e2e h1:k89oIo2EjX0PRSdi1kesktCyWp50SC9WwKurvupvRGs=
+github.com/openshift/controller-runtime-common v0.0.0-20260428152732-64ee174f5e2e/go.mod h1:XGabTMnNbz0M5Oa7IbscZp/jmcc7aHobvOCUWwkzKvM=
 github.com/openshift/kubernetes v1.30.1-0.20260305123649-d18f3f005eaa h1:/gPMWR7fdCC3S4wHALD6Em+vztl1q9/cOpdMkFZwDus=
 github.com/openshift/kubernetes v1.30.1-0.20260305123649-d18f3f005eaa/go.mod h1:1r2FIoYrPU0110cjYlWAwNcbiqRPLWAgmZK4d0YeEZw=
 github.com/openshift/kubernetes/staging/src/k8s.io/apiserver v0.0.0-20260305123649-d18f3f005eaa h1:PHXXIj7KPZJevTmdJd4u1NROdvSX2z5v4/1RQpBzqOA=
