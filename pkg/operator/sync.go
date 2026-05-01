@@ -1067,11 +1067,12 @@ func newTerminationContainers(config *OperatorConfig) []corev1.Container {
 
 	return []corev1.Container{
 		{
-			Name:      "termination-handler",
-			Image:     config.Controllers.TerminationHandler,
-			Command:   []string{"/termination-handler"},
-			Args:      terminationArgs,
-			Resources: resources,
+			Name:                    "termination-handler",
+			Image:                   config.Controllers.TerminationHandler,
+			Command:                 []string{"/termination-handler"},
+			Args:                    terminationArgs,
+			Resources:               resources,
+			TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 			Env: append(proxyEnvArgs, corev1.EnvVar{
 				Name:  "KUBECONFIG",
 				Value: hostKubeConfigPath,
