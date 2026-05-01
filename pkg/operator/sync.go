@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -1002,9 +1003,12 @@ func newTerminationDaemonSet(config *OperatorConfig) *appsv1.DaemonSet {
 func newTerminationPodTemplateSpec(config *OperatorConfig) *corev1.PodTemplateSpec {
 	containers := newTerminationContainers(config)
 
+	annotations := maps.Clone(commonPodTemplateAnnotations)
+	annotations["openshift.io/required-scc"] = "machine-api-termination-handler"
+
 	return &corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
-			Annotations: commonPodTemplateAnnotations,
+			Annotations: annotations,
 			Labels: map[string]string{
 				"api":     "clusterapi",
 				"k8s-app": "termination-handler",
