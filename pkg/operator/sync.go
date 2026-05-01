@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"maps"
 	"os"
 	"slices"
 	"strings"
@@ -1002,9 +1003,12 @@ func newTerminationDaemonSet(config *OperatorConfig) *appsv1.DaemonSet {
 func newTerminationPodTemplateSpec(config *OperatorConfig) *corev1.PodTemplateSpec {
 	containers := newTerminationContainers(config)
 
+	annotations := maps.Clone(commonPodTemplateAnnotations)
+	annotations["openshift.io/required-scc"] = "machine-api-termination-handler"
+
 	return &corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
-			Annotations: commonPodTemplateAnnotations,
+			Annotations: annotations,
 			Labels: map[string]string{
 				"api":     "clusterapi",
 				"k8s-app": "termination-handler",
@@ -1067,11 +1071,12 @@ func newTerminationContainers(config *OperatorConfig) []corev1.Container {
 
 	return []corev1.Container{
 		{
-			Name:      "termination-handler",
-			Image:     config.Controllers.TerminationHandler,
-			Command:   []string{"/termination-handler"},
-			Args:      terminationArgs,
-			Resources: resources,
+			Name:                    "termination-handler",
+			Image:                   config.Controllers.TerminationHandler,
+			Command:                 []string{"/termination-handler"},
+			Args:                    terminationArgs,
+			Resources:               resources,
+			TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 			Env: append(proxyEnvArgs, corev1.EnvVar{
 				Name:  "KUBECONFIG",
 				Value: hostKubeConfigPath,
