@@ -85,6 +85,14 @@ func runStartCmd(cmd *cobra.Command, args []string) error {
 	if err := flag.Set("logtostderr", "true"); err != nil {
 		return fmt.Errorf("failed to set logtostderr flag: %v", err)
 	}
+	// Opt into the fixed klog behavior so the --stderrthreshold flag is honored
+	// even when --logtostderr is enabled. See https://github.com/kubernetes/klog/issues/432
+	if err := flag.Set("legacy_stderr_threshold_behavior", "false"); err != nil {
+		return fmt.Errorf("failed to set legacy_stderr_threshold_behavior flag: %v", err)
+	}
+	if err := flag.Set("stderrthreshold", "INFO"); err != nil {
+		return fmt.Errorf("failed to set stderrthreshold flag: %v", err)
+	}
 
 	// To help debugging, immediately log version
 	klog.Infof("Version: %+v", version.Version)
