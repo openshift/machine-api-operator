@@ -19,7 +19,6 @@ package machineset
 import (
 	"context"
 	"errors"
-	"fmt"
 	"reflect"
 
 	machinev1 "github.com/openshift/api/machine/v1beta1"
@@ -67,6 +66,7 @@ func (c *ReconcileMachineSet) calculateStatus(ms *machinev1.MachineSet, filtered
 	newStatus.FullyLabeledReplicas = int32(fullyLabeledReplicasCount)
 	newStatus.ReadyReplicas = int32(readyReplicasCount)
 	newStatus.AvailableReplicas = int32(availableReplicasCount)
+	newStatus.LabelSelector = metav1.FormatLabelSelector(&ms.Spec.Selector)
 	return newStatus
 }
 
@@ -80,6 +80,7 @@ func updateMachineSetStatus(c client.Client, ms *machinev1.MachineSet, newStatus
 		ms.Status.FullyLabeledReplicas == newStatus.FullyLabeledReplicas &&
 		ms.Status.ReadyReplicas == newStatus.ReadyReplicas &&
 		ms.Status.AvailableReplicas == newStatus.AvailableReplicas &&
+		ms.Status.LabelSelector == newStatus.LabelSelector &&
 		reflect.DeepEqual(ms.Status.Conditions, newStatus.Conditions) &&
 		ms.Generation == ms.Status.ObservedGeneration {
 		return ms, nil
@@ -97,13 +98,17 @@ func updateMachineSetStatus(c client.Client, ms *machinev1.MachineSet, newStatus
 		if ms.Spec.Replicas != nil {
 			replicas = *ms.Spec.Replicas
 		}
-		klog.V(4).Infof("%s", fmt.Sprintf("Updating status for %v: %s/%s, ", ms.Kind, ms.Namespace, ms.Name)+
-			fmt.Sprintf("replicas %d->%d (need %d), ", ms.Status.Replicas, newStatus.Replicas, replicas)+
-			fmt.Sprintf("fullyLabeledReplicas %d->%d, ", ms.Status.FullyLabeledReplicas, newStatus.FullyLabeledReplicas)+
-			fmt.Sprintf("readyReplicas %d->%d, ", ms.Status.ReadyReplicas, newStatus.ReadyReplicas)+
-			fmt.Sprintf("availableReplicas %d->%d, ", ms.Status.AvailableReplicas, newStatus.AvailableReplicas)+
-			fmt.Sprintf("sequence No: %v->%v", ms.Status.ObservedGeneration, newStatus.ObservedGeneration)+
-			fmt.Sprintf("conditions: %v->%v", ms.Status.Conditions, newStatus.Conditions))
+		klog.V(4).Infof(
+			"Updating status for %v: %s/%s, replicas %d->%d (need %d), fullyLabeledReplicas %d->%d, readyReplicas %d->%d, availableReplicas %d->%d, labelSelector %q->%q, sequence No: %v->%v, conditions: %v->%v",
+			ms.Kind, ms.Namespace, ms.Name,
+			ms.Status.Replicas, newStatus.Replicas, replicas,
+			ms.Status.FullyLabeledReplicas, newStatus.FullyLabeledReplicas,
+			ms.Status.ReadyReplicas, newStatus.ReadyReplicas,
+			ms.Status.AvailableReplicas, newStatus.AvailableReplicas,
+			ms.Status.LabelSelector, newStatus.LabelSelector,
+			ms.Status.ObservedGeneration, newStatus.ObservedGeneration,
+			ms.Status.Conditions, newStatus.Conditions,
+		)
 
 		ms.Status = newStatus
 		patchErr = c.Status().Patch(context.Background(), ms, client.MergeFrom(machineSetCopy))
