@@ -9,6 +9,9 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	metav1validation "k8s.io/apimachinery/pkg/apis/meta/v1/validation"
+	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
@@ -39,6 +42,7 @@ type ReconcileNodeLink struct {
 	listNodesByFieldFunc    func(ctx context.Context, key, value string) ([]corev1.Node, error)
 	listMachinesByFieldFunc func(ctx context.Context, key, value string) ([]machinev1.Machine, error)
 	nodeReadinessCache      map[string]bool
+	eventRecorder           events.EventRecorder
 }
 
 // Add creates a new Nodelink Controller and adds it to the Manager. The Manager will set fields on the Controller
@@ -149,7 +153,8 @@ func newReconciler(mgr manager.Manager) (*ReconcileNodeLink, error) {
 	}
 
 	r := ReconcileNodeLink{
-		client: mgr.GetClient(),
+		client:        mgr.GetClient(),
+		eventRecorder: mgr.GetEventRecorder("nodelink-controller"),
 	}
 	r.nodeReadinessCache = make(map[string]bool)
 
@@ -248,8 +253,19 @@ func (r *ReconcileNodeLink) Reconcile(ctx context.Context, request reconcile.Req
 
 	if !reflect.DeepEqual(node, modNode) {
 		klog.V(3).Infof("Node %q has changed, updating", modNode.GetName())
+
+		if errs := validateNodeLabels(modNode.Labels); len(errs) > 0 {
+			klog.Errorf("invalid labels on node %q: %s", modNode.GetName(), errs.ToAggregate().Error())
+			r.eventRecorder.Eventf(machine, nil, corev1.EventTypeWarning, "InvalidNodeLabels", "Update",
+				"invalid labels on node %q: %s", modNode.GetName(), errs.ToAggregate().Error())
+			return reconcile.Result{}, fmt.Errorf("invalid labels on node %q: %s", modNode.GetName(), errs.ToAggregate().Error())
+		}
+
 		if err := r.client.Update(context.Background(), modNode); err != nil {
-			return reconcile.Result{}, fmt.Errorf("error updating node: %v", err)
+			klog.Errorf("error updating node %q: %v", modNode.GetName(), err)
+			r.eventRecorder.Eventf(machine, nil, corev1.EventTypeWarning, "FailedUpdateNode", "Update",
+				"error updating node %q: %v", modNode.GetName(), err)
+			return reconcile.Result{}, fmt.Errorf("error updating node %q: %v", modNode.GetName(), err)
 		}
 	}
 
@@ -535,4 +551,9 @@ func isNodeReady(node *corev1.Node) bool {
 		}
 	}
 	return false
+}
+
+// validateNodeLabels validates that all labels on a node conform to Kubernetes label requirements.
+func validateNodeLabels(labels map[string]string) field.ErrorList {
+	return metav1validation.ValidateLabels(labels, field.NewPath("metadata.labels"))
 }
