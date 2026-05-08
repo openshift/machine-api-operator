@@ -10,7 +10,6 @@ import (
 	"time"
 
 	. "github.com/onsi/gomega"
-	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -355,32 +354,16 @@ func TestPatchMachine(t *testing.T) {
 	testConfig := fmt.Sprintf(testConfigFmt, port, credentialsSecretName, testNamespaceName)
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "testname",
+			Name:      OpenshiftConfigManagedConfigMap,
 			Namespace: openshiftConfigNamespaceForTest,
 		},
 		Data: map[string]string{
-			"testkey": testConfig,
+			OpenshiftConfigManagedCloudConfigKey: testConfig,
 		},
 	}
 	g.Expect(k8sClient.Create(ctx, configMap)).To(Succeed())
 	defer func() {
 		g.Expect(k8sClient.Delete(ctx, configMap)).To(Succeed())
-	}()
-
-	infra := &configv1.Infrastructure{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: globalInfrastuctureName,
-		},
-		Spec: configv1.InfrastructureSpec{
-			CloudConfig: configv1.ConfigMapFileReference{
-				Name: "testname",
-				Key:  "testkey",
-			},
-		},
-	}
-	g.Expect(k8sClient.Create(ctx, infra)).To(Succeed())
-	defer func() {
-		g.Expect(k8sClient.Delete(ctx, infra)).To(Succeed())
 	}()
 
 	failedPhase := "Failed"
