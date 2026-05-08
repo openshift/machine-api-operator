@@ -1948,7 +1948,6 @@ func TestConvertUUIDToProviderID(t *testing.T) {
 
 func TestDelete(t *testing.T) {
 	type vCenterSimConfig struct {
-		infra       *configv1.Infrastructure
 		secret      *corev1.Secret
 		configMap   *corev1.ConfigMap
 		featureGate *configv1.FeatureGate
@@ -2000,23 +1999,11 @@ func TestDelete(t *testing.T) {
 		testConfig := fmt.Sprintf(testConfigFmt, port, credentialsSecretName, ns)
 		configMap := &corev1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{
-				Name:      "testName",
+				Name:      OpenshiftConfigManagedConfigMap,
 				Namespace: openshiftConfigNamespaceForTest,
 			},
 			Data: map[string]string{
-				"testKey": testConfig,
-			},
-		}
-
-		infra := &configv1.Infrastructure{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: globalInfrastuctureName,
-			},
-			Spec: configv1.InfrastructureSpec{
-				CloudConfig: configv1.ConfigMapFileReference{
-					Name: "testName",
-					Key:  "testKey",
-				},
+				OpenshiftConfigManagedCloudConfigKey: testConfig,
 			},
 		}
 
@@ -2027,7 +2014,6 @@ func TestDelete(t *testing.T) {
 		}
 
 		return &vCenterSimConfig{
-			infra:       infra,
 			secret:      secret,
 			configMap:   configMap,
 			host:        host,
@@ -2179,7 +2165,6 @@ func TestDelete(t *testing.T) {
 				simParams.secret,
 				tc.machine(t, simParams.host),
 				simParams.configMap,
-				simParams.infra,
 				tc.node(t)).Build()
 			machineScope, err := newMachineScope(machineScopeParams{
 				client:                   client,
@@ -2459,7 +2444,6 @@ func TestDelete(t *testing.T) {
 				simParams.secret,
 				tc.machine(t, simParams.host),
 				simParams.configMap,
-				simParams.infra,
 				tc.node(t),
 			).Build()
 			mScope, err := newMachineScope(machineScopeParams{
@@ -2529,23 +2513,11 @@ func TestCreate(t *testing.T) {
 	testConfig := fmt.Sprintf(testConfigFmt, port, credentialsSecretName, namespace)
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "testName",
+			Name:      OpenshiftConfigManagedConfigMap,
 			Namespace: openshiftConfigNamespaceForTest,
 		},
 		Data: map[string]string{
-			"testKey": testConfig,
-		},
-	}
-
-	infra := &configv1.Infrastructure{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: globalInfrastuctureName,
-		},
-		Spec: configv1.InfrastructureSpec{
-			CloudConfig: configv1.ConfigMapFileReference{
-				Name: "testName",
-				Key:  "testKey",
-			},
+			OpenshiftConfigManagedCloudConfigKey: testConfig,
 		},
 	}
 
@@ -2888,7 +2860,6 @@ func TestCreate(t *testing.T) {
 			builder := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(
 				credentialsSecret,
 				configMap,
-				infra,
 				userDataSecret,
 				machine)
 			if tc.ipAddressClaim != nil {
@@ -3025,23 +2996,11 @@ func TestUpdate(t *testing.T) {
 	testConfig := fmt.Sprintf(testConfigFmt, port, credentialsSecretName, namespace)
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "testName",
+			Name:      OpenshiftConfigManagedConfigMap,
 			Namespace: openshiftConfigNamespaceForTest,
 		},
 		Data: map[string]string{
-			"testKey": testConfig,
-		},
-	}
-
-	infra := &configv1.Infrastructure{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: globalInfrastuctureName,
-		},
-		Spec: configv1.InfrastructureSpec{
-			CloudConfig: configv1.ConfigMapFileReference{
-				Name: "testName",
-				Key:  "testKey",
-			},
+			OpenshiftConfigManagedCloudConfigKey: testConfig,
 		},
 	}
 
@@ -3111,8 +3070,7 @@ func TestUpdate(t *testing.T) {
 
 			client := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(
 				credentialsSecret,
-				configMap,
-				infra).Build()
+				configMap).Build()
 
 			rawProviderSpec, err := RawExtensionFromProviderSpec(&tc.providerSpec)
 			if err != nil {
