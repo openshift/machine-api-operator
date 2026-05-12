@@ -615,6 +615,15 @@ spec:
                   labels of the machine template of the MachineSet.
                 format: int32
                 type: integer
+              labelSelector:
+                description: |-
+                  labelSelector is a label selector, in string format, for Machines corresponding to the MachineSet.
+                  It is exposed via the scale subresource as status.selector.
+                  When omitted, the MachineSet controller has not yet reconciled spec.selector into status.labelSelector.
+                  When present, it must not be empty and must not exceed 4096 characters.
+                maxLength: 4096
+                minLength: 1
+                type: string
               observedGeneration:
                 description: observedGeneration reflects the generation of the most
                   recently observed MachineSet.
