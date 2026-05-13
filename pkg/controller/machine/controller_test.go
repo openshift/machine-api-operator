@@ -370,11 +370,16 @@ func TestReconcileRequest(t *testing.T) {
 		result          reconcile.Result
 		error           bool
 		phase           string
+		errorMessage    *string
 	}
 	testCases := []struct {
-		request     reconcile.Request
-		existsValue bool
-		expected    expected
+		request           reconcile.Request
+		existsValue       bool
+		existsErr         error
+		updateErr         error
+		existsMachineHook func(*machinev1.Machine)
+		updateMachineHook func(*machinev1.Machine)
+		expected          expected
 	}{
 		{
 			request:     reconcile.Request{NamespacedName: types.NamespacedName{Name: machineNoPhase.Name, Namespace: machineNoPhase.Namespace}},
@@ -532,6 +537,42 @@ func TestReconcileRequest(t *testing.T) {
 				phase:           machinev1.PhaseRunning,
 			},
 		},
+		{
+			request:     reconcile.Request{NamespacedName: types.NamespacedName{Name: machineProvisioning.Name, Namespace: machineProvisioning.Namespace}},
+			existsValue: false,
+			existsErr:   errors.New("actuator exists error"),
+			existsMachineHook: func(m *machinev1.Machine) {
+				m.Status.Phase = ptr.To(machinev1.PhaseFailed)
+			},
+			expected: expected{
+				createCallCount: 0,
+				existCallCount:  1,
+				updateCallCount: 0,
+				deleteCallCount: 0,
+				result:          reconcile.Result{},
+				error:           true,
+				phase:           machinev1.PhaseFailed,
+				errorMessage:    ptr.To("actuator exists error"),
+			},
+		},
+		{
+			request:     reconcile.Request{NamespacedName: types.NamespacedName{Name: machineProvisioned.Name, Namespace: machineProvisioned.Namespace}},
+			existsValue: true,
+			updateErr:   errors.New("actuator update error"),
+			updateMachineHook: func(m *machinev1.Machine) {
+				m.Status.Phase = ptr.To(machinev1.PhaseFailed)
+			},
+			expected: expected{
+				createCallCount: 0,
+				existCallCount:  1,
+				updateCallCount: 1,
+				deleteCallCount: 0,
+				result:          reconcile.Result{RequeueAfter: requeueAfter},
+				error:           false,
+				phase:           machinev1.PhaseFailed,
+				errorMessage:    ptr.To("actuator update error"),
+			},
+		},
 	}
 
 	for _, tc := range testCases {
@@ -542,6 +583,10 @@ func TestReconcileRequest(t *testing.T) {
 			}
 			act := newTestActuator()
 			act.ExistsValue = tc.existsValue
+			act.ExistsErr = tc.existsErr
+			act.UpdateErr = tc.updateErr
+			act.ExistsMachineHook = tc.existsMachineHook
+			act.UpdateMachineHook = tc.updateMachineHook
 			r := &ReconcileMachine{
 				Client: fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(
 					&machineNoPhase,
@@ -597,6 +642,14 @@ func TestReconcileRequest(t *testing.T) {
 
 			if tc.expected.phase != ptr.Deref(machine.Status.Phase, "") {
 				t.Errorf("Case %s. Got: %v, expected: %v", tc.request.Name, ptr.Deref(machine.Status.Phase, ""), tc.expected.phase)
+			}
+
+			if tc.expected.errorMessage != nil {
+				if machine.Status.ErrorMessage == nil {
+					t.Errorf("Case %s. Expected errorMessage %q, got nil", tc.request.Name, *tc.expected.errorMessage)
+				} else if *machine.Status.ErrorMessage != *tc.expected.errorMessage {
+					t.Errorf("Case %s. Got errorMessage: %q, expected: %q", tc.request.Name, *machine.Status.ErrorMessage, *tc.expected.errorMessage)
+				}
 			}
 		})
 	}
