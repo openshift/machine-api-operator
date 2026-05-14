@@ -68,6 +68,8 @@ type Suite struct {
 	selectiveLock *sync.Mutex
 
 	client parallel_support.Client
+
+	annotateFn AnnotateFunc
 }
 
 func NewSuite() *Suite {
@@ -114,7 +116,6 @@ func (suite *Suite) Run(description string, suiteLabels Labels, suiteSemVerConst
 	}
 	ApplyNestedFocusPolicyToTree(suite.tree)
 	specs := GenerateSpecsFromTreeRoot(suite.tree)
-<<<<<<< HEAD
 	if suite.annotateFn != nil {
 		for _, spec := range specs {
 			suite.annotateFn(spec.Text(), spec)
@@ -122,9 +123,6 @@ func (suite *Suite) Run(description string, suiteLabels Labels, suiteSemVerConst
 	}
 	specs, hasProgrammaticFocus := ApplyFocusToSpecs(specs, description, suiteLabels, suiteSemVerConstraints, suiteConfig)
 	specs = ComputeAroundNodes(specs)
-=======
-	specs, hasProgrammaticFocus := ApplyFocusToSpecs(specs, description, suiteLabels, suiteConfig)
->>>>>>> c93292b3e (vendor changes)
 
 	suite.phase = PhaseRun
 	suite.client = client

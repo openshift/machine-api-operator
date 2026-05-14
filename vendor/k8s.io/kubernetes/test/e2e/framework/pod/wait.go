@@ -44,10 +44,10 @@ import (
 
 const (
 	// defaultPodDeletionTimeout is the default timeout for deleting pod.
-	defaultPodDeletionTimeout = 10 * time.Minute
+	defaultPodDeletionTimeout = 3 * time.Minute
 
 	// podListTimeout is how long to wait for the pod to be listable.
-	podListTimeout = 5 * time.Minute
+	podListTimeout = time.Minute
 
 	podRespondingTimeout = 15 * time.Minute
 
@@ -55,7 +55,7 @@ const (
 	podScheduledBeforeTimeout = podListTimeout + (20 * time.Second)
 
 	// podStartTimeout is how long to wait for the pod to be started.
-	podStartTimeout = 10 * time.Minute
+	podStartTimeout = 5 * time.Minute
 
 	// singleCallTimeout is how long to try single API calls (like 'get' or 'list'). Used to prevent
 	// transient failures from failing tests.

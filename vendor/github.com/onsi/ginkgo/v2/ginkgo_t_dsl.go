@@ -2,10 +2,7 @@ package ginkgo
 
 import (
 	"context"
-<<<<<<< HEAD
 	"io"
-=======
->>>>>>> c93292b3e (vendor changes)
 	"testing"
 
 	"github.com/onsi/ginkgo/v2/internal/testingtproxy"

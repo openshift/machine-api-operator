@@ -3,10 +3,6 @@ package main
 import (
 	"fmt"
 	"os"
-<<<<<<< HEAD
-=======
-	_ "go.uber.org/automaxprocs"
->>>>>>> c93292b3e (vendor changes)
 	"github.com/onsi/ginkgo/v2/ginkgo/build"
 	"github.com/onsi/ginkgo/v2/ginkgo/command"
 	"github.com/onsi/ginkgo/v2/ginkgo/generators"
