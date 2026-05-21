@@ -8,12 +8,15 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apiserver/pkg/util/feature"
+	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/component-base/featuregate"
 	"k8s.io/klog/v2"
 	ipamv1beta1 "sigs.k8s.io/cluster-api/api/ipam/v1beta1" //nolint:staticcheck
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/controller"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
@@ -25,6 +28,7 @@ import (
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/library-go/pkg/config/leaderelection"
 	"github.com/openshift/library-go/pkg/features"
+	"github.com/openshift/machine-api-operator/pkg/controller/infrastructurevalidation"
 	capimachine "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere"
 	machine "github.com/openshift/machine-api-operator/pkg/controller/vsphere"
@@ -122,7 +126,29 @@ func main() {
 		LeaseDuration: metav1.Duration{Duration: *leaderElectLeaseDuration},
 	})
 
+	// Setup Scheme for all resources - must be done before creating manager
+	// so that cache configuration can reference these types
+	scheme := runtime.NewScheme()
+
+	// Register core Kubernetes types (Secret, ConfigMap, etc.)
+	if err := clientgoscheme.AddToScheme(scheme); err != nil {
+		klog.Fatalf("unable to add client-go scheme: %v", err)
+	}
+
+	if err := configv1.Install(scheme); err != nil {
+		klog.Fatalf("unable to add configv1 to scheme: %v", err)
+	}
+
+	if err := machinev1.Install(scheme); err != nil {
+		klog.Fatalf("unable to add machinev1 to scheme: %v", err)
+	}
+
+	if err := ipamv1beta1.AddToScheme(scheme); err != nil {
+		klog.Fatalf("unable to add ipamv1beta1 to scheme: %v", err)
+	}
+
 	opts := manager.Options{
+		Scheme: scheme,
 		Metrics: server.Options{
 			BindAddress: *metricsAddress,
 		},
@@ -143,6 +169,15 @@ func main() {
 			*watchNamespace: {},
 		}
 		klog.Infof("Watching machine-api objects only in namespace %q for reconciliation.", *watchNamespace)
+	}
+
+	// Infrastructure and ClusterOperator are cluster-scoped resources that need to be watched
+	// regardless of namespace restrictions.
+	// Machines also need to be watched cluster-wide for infrastructure validation.
+	opts.Cache.ByObject = map[client.Object]cache.ByObject{
+		&configv1.Infrastructure{}:  {},
+		&configv1.ClusterOperator{}: {},
+		&machinev1.Machine{}:        {}, // Watch machines cluster-wide for infrastructure validation
 	}
 
 	// Sets feature gates from flags
@@ -182,21 +217,8 @@ func main() {
 		OpenshiftConfigNamespace: vsphere.OpenshiftConfigManagedNamespace,
 	})
 
-	if err := configv1.Install(mgr.GetScheme()); err != nil {
-		klog.Fatal(err)
-	}
-
-	if err := machinev1.Install(mgr.GetScheme()); err != nil {
-		klog.Fatal(err)
-	}
-
-	if err := machinev1.Install(mgr.GetScheme()); err != nil {
-		klog.Fatal(err)
-	}
-
-	if err := ipamv1beta1.AddToScheme(mgr.GetScheme()); err != nil {
-		klog.Fatalf("unable to add ipamv1beta1 to scheme: %v", err)
-	}
+	// Scheme was already installed before manager creation (see above)
+	// This allows cache configuration to reference these types
 
 	if err := capimachine.AddWithActuator(mgr, machineActuator, defaultMutableGate); err != nil {
 		klog.Fatal(err)
@@ -209,6 +231,11 @@ func main() {
 	}).SetupWithManager(mgr, controller.Options{}); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "MachineSet")
 		os.Exit(1)
+	}
+
+	// Setup Infrastructure validation controller
+	if err := infrastructurevalidation.Add(mgr, opts); err != nil {
+		klog.Fatalf("Failed to add infrastructure validation controller: %v", err)
 	}
 
 	if err := mgr.AddReadyzCheck("ping", healthz.Ping); err != nil {

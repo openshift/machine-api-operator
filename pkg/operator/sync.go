@@ -25,6 +25,7 @@ import (
 	configv1 "github.com/openshift/api/config/v1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	utiltls "github.com/openshift/controller-runtime-common/pkg/tls"
+	"github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers"
 	libgocrypto "github.com/openshift/library-go/pkg/crypto"
 	"github.com/openshift/library-go/pkg/operator/events"
 	"github.com/openshift/library-go/pkg/operator/resource/resourceapply"
@@ -88,6 +89,20 @@ func (optr *Operator) syncAll(config *OperatorConfig) (reconcile.Result, error) 
 	}
 
 	errors := []error{}
+
+	// Check infrastructure validation for VSphere
+	if config.PlatformType == configv1.VSpherePlatformType {
+		co, err := optr.getClusterOperator()
+		if err != nil {
+			errors = append(errors, fmt.Errorf("failed to get ClusterOperator for infrastructure validation check: %w", err))
+		} else {
+			// Check if InfrastructureFailureDomainsValid condition is False
+			infraValidCondition := v1helpers.FindStatusCondition(co.Status.Conditions, "InfrastructureFailureDomainsValid")
+			if infraValidCondition != nil && infraValidCondition.Status == configv1.ConditionFalse {
+				errors = append(errors, fmt.Errorf("infrastructure validation failed: %s", infraValidCondition.Message))
+			}
+		}
+	}
 	// Sync webhook configuration
 	if err := optr.syncWebhookConfiguration(config); err != nil {
 		errors = append(errors, fmt.Errorf("error syncing machine API webhook configurations: %w", err))
