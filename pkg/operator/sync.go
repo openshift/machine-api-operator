@@ -41,6 +41,7 @@ const (
 	machineExposeMetricsPort            = 8441
 	machineSetExposeMetricsPort         = 8442
 	machineHealthCheckExposeMetricsPort = 8444
+	pprofPort                           = 6060
 	defaultMachineHealthPort            = 9440
 	defaultMachineSetHealthPort         = 9441
 	defaultMachineHealthCheckHealthPort = 9442
@@ -770,6 +771,10 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 				{
 					Name:          "healthz",
 					ContainerPort: defaultMachineHealthPort,
+				},
+				{
+					Name:          "pprof",
+					ContainerPort: pprofPort,
 				},
 			},
 			ReadinessProbe: &corev1.Probe{
