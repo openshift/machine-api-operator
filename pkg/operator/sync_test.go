@@ -707,6 +707,36 @@ func TestNewKubeProxyContainers(t *testing.T) {
 	}
 }
 
+func TestNewContainersMemoryLimit(t *testing.T) {
+	g := NewWithT(t)
+
+	config := &OperatorConfig{
+		TargetNamespace: targetNamespace,
+		PlatformType:    configv1.AWSPlatformType,
+		Controllers: Controllers{
+			Provider:           "provider-image:latest",
+			MachineSet:         "machineset-image:latest",
+			NodeLink:           "nodelink-image:latest",
+			MachineHealthCheck: "mhc-image:latest",
+		},
+	}
+
+	containers := newContainers(config, nil, nil)
+
+	for _, container := range containers {
+		g.Expect(container.Resources.Requests.Memory().String()).To(Equal("20Mi"),
+			"memory request for %s", container.Name)
+
+		if container.Name == "machine-controller" {
+			g.Expect(container.Resources.Limits.Memory().String()).To(Equal("512Mi"),
+				"memory limit for %s", container.Name)
+		} else {
+			g.Expect(container.Resources.Limits.Memory().IsZero()).To(BeTrue(),
+				"unexpected memory limit on %s", container.Name)
+		}
+	}
+}
+
 func TestNewPodTemplateSpecTLSArgs(t *testing.T) {
 	testCases := []struct {
 		name                                  string
