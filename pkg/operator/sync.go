@@ -659,6 +659,15 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 			corev1.ResourceCPU:    resource.MustParse("10m"),
 		},
 	}
+	machineControllerResources := corev1.ResourceRequirements{
+		Requests: map[corev1.ResourceName]resource.Quantity{
+			corev1.ResourceMemory: resource.MustParse("20Mi"),
+			corev1.ResourceCPU:    resource.MustParse("10m"),
+		},
+		Limits: map[corev1.ResourceName]resource.Quantity{
+			corev1.ResourceMemory: resource.MustParse("512Mi"),
+		},
+	}
 	args := []string{
 		"--logtostderr=true",
 		"--v=3",
@@ -750,7 +759,7 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 			Image:     config.Controllers.Provider,
 			Command:   []string{"/machine-controller-manager"},
 			Args:      machineControllerArgs,
-			Resources: resources,
+			Resources: machineControllerResources,
 			Env: append(proxyEnvArgs, corev1.EnvVar{
 				Name: "NODE_NAME",
 				ValueFrom: &corev1.EnvVarSource{
