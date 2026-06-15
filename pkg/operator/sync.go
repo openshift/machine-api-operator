@@ -23,6 +23,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	configv1 "github.com/openshift/api/config/v1"
+	apifeatures "github.com/openshift/api/features"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	utiltls "github.com/openshift/controller-runtime-common/pkg/tls"
 	libgocrypto "github.com/openshift/library-go/pkg/crypto"
@@ -268,6 +269,57 @@ func (optr *Operator) syncWebhookConfiguration(config *OperatorConfig) error {
 			return err
 		}
 	}
+	if config.PlatformType == configv1.VSpherePlatformType {
+		if err := optr.syncVSphereFailureDomainVAPs(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// syncVSphereFailureDomainVAPs ensures that the ValidatingAdmissionPolicies and their
+// bindings for protecting vSphere failure domains are present and up to date.
+// These policies prevent an administrator from removing a failure domain from the
+// Infrastructure/cluster CR while it is still referenced by Machines or
+// ControlPlaneMachineSets managed by the Machine API Operator.
+func (optr *Operator) syncVSphereFailureDomainVAPs() error {
+	if !optr.featureGates.Enabled(apifeatures.FeatureGateVSphereMultiVCenterDay2) {
+		return nil
+	}
+
+	recorder := events.NewLoggingEventRecorder(optr.name, clock.RealClock{})
+
+	if _, _, err := resourceapply.ApplyValidatingAdmissionPolicyV1(context.TODO(),
+		optr.kubeClient.AdmissionregistrationV1(), recorder,
+		mapiwebhooks.NewVSphereFailureDomainMachineVAP(), optr.cache); err != nil {
+		return fmt.Errorf("failed to apply vSphere failure domain Machine ValidatingAdmissionPolicy: %w", err)
+	}
+	if _, _, err := resourceapply.ApplyValidatingAdmissionPolicyBindingV1(context.TODO(),
+		optr.kubeClient.AdmissionregistrationV1(), recorder,
+		mapiwebhooks.NewVSphereFailureDomainMachineVAPBinding(), optr.cache); err != nil {
+		return fmt.Errorf("failed to apply vSphere failure domain Machine ValidatingAdmissionPolicyBinding: %w", err)
+	}
+	if _, _, err := resourceapply.ApplyValidatingAdmissionPolicyV1(context.TODO(),
+		optr.kubeClient.AdmissionregistrationV1(), recorder,
+		mapiwebhooks.NewVSphereFailureDomainCPMSVAP(), optr.cache); err != nil {
+		return fmt.Errorf("failed to apply vSphere failure domain ControlPlaneMachineSet ValidatingAdmissionPolicy: %w", err)
+	}
+	if _, _, err := resourceapply.ApplyValidatingAdmissionPolicyBindingV1(context.TODO(),
+		optr.kubeClient.AdmissionregistrationV1(), recorder,
+		mapiwebhooks.NewVSphereFailureDomainCPMSVAPBinding(), optr.cache); err != nil {
+		return fmt.Errorf("failed to apply vSphere failure domain ControlPlaneMachineSet ValidatingAdmissionPolicyBinding: %w", err)
+	}
+	if _, _, err := resourceapply.ApplyValidatingAdmissionPolicyV1(context.TODO(),
+		optr.kubeClient.AdmissionregistrationV1(), recorder,
+		mapiwebhooks.NewVSphereFailureDomainMachineSetVAP(), optr.cache); err != nil {
+		return fmt.Errorf("failed to apply vSphere failure domain MachineSet ValidatingAdmissionPolicy: %w", err)
+	}
+	if _, _, err := resourceapply.ApplyValidatingAdmissionPolicyBindingV1(context.TODO(),
+		optr.kubeClient.AdmissionregistrationV1(), recorder,
+		mapiwebhooks.NewVSphereFailureDomainMachineSetVAPBinding(), optr.cache); err != nil {
+		return fmt.Errorf("failed to apply vSphere failure domain MachineSet ValidatingAdmissionPolicyBinding: %w", err)
+	}
+
 	return nil
 }
 
