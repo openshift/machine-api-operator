@@ -3,10 +3,12 @@ package operator
 import (
 	"errors"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
 	. "github.com/onsi/gomega"
+	configv1 "github.com/openshift/api/config/v1"
 	v1 "github.com/openshift/api/config/v1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -501,6 +503,136 @@ func TestSyncWebhookConfiguration(t *testing.T) {
 				"wrong nr of mutating webhooks")
 			g.Expect(nrValidatingWebhooks).To(BeNumerically("==", tc.expectedNrValidatingWebhooks),
 				"wrong nr of validating webhooks")
+		})
+	}
+}
+
+func TestNewKubeProxyContainers(t *testing.T) {
+	testCases := []struct {
+		name                       string
+		image                      string
+		withMHCProxy               bool
+		withPprofProxy             bool
+		expectedCipherSuitesInArgs bool
+		expectedPorts              map[string]int32
+	}{
+		{
+			name:                       "With pprof proxy",
+			image:                      "test-image:latest",
+			withMHCProxy:               false,
+			withPprofProxy:             true,
+			expectedCipherSuitesInArgs: true,
+			expectedPorts: map[string]int32{
+				"kube-rbac-proxy-machineset-mtrc": machineSetExposeMetricsPort,
+				"kube-rbac-proxy-machine-mtrc":    machineExposeMetricsPort,
+				"kube-rbac-proxy-machine-pprof":   machinePprofExposePort,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			containers := newKubeProxyContainers(tc.image, tc.withMHCProxy, tc.withPprofProxy)
+
+			// Verify we get the expected number of containers
+			g.Expect(containers).To(HaveLen(len(tc.expectedPorts)))
+
+			// Verify each container has the correct TLS args and specific ports
+			for _, container := range containers {
+				// Verify basic container properties
+				g.Expect(container.Image).To(Equal(tc.image))
+
+				// Verify ports
+				g.Expect(container.Ports).To(HaveLen(1))
+				expectedPort, ok := tc.expectedPorts[container.Name]
+				g.Expect(ok).To(BeTrue(), "Unexpected container name: %s", container.Name)
+				g.Expect(container.Ports[0].ContainerPort).To(Equal(expectedPort))
+
+				// Verify resource requests
+				g.Expect(container.Resources.Requests).To(HaveKey(corev1.ResourceMemory))
+				g.Expect(container.Resources.Requests).To(HaveKey(corev1.ResourceCPU))
+
+				// Verify volume mounts
+				g.Expect(container.VolumeMounts).To(HaveLen(2))
+			}
+		})
+	}
+}
+
+func TestNewPodTemplateSpecTLSArgs(t *testing.T) {
+	testCases := []struct {
+		name                                  string
+		config                                *OperatorConfig
+		expectMachineControllerTLSOnBareMetal bool
+		expectTLSArgsOnProfileConsumers       bool
+	}{
+		{
+			name: "AWS: pprof enabled adds proxy sidecar and machine-controller args",
+			config: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				PlatformType:    configv1.AWSPlatformType,
+				EnablePprof:     true,
+				Controllers: Controllers{
+					Provider:           "provider-image:latest",
+					MachineSet:         "machineset-image:latest",
+					NodeLink:           "nodelink-image:latest",
+					MachineHealthCheck: "mhc-image:latest",
+					KubeRBACProxy:      "kube-rbac-proxy-image:latest",
+				},
+			},
+			expectMachineControllerTLSOnBareMetal: false,
+			expectTLSArgsOnProfileConsumers:       true,
+		},
+		{
+			name: "AWS: no opinion applies default profile TLS args through pod template",
+			config: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				PlatformType:    configv1.AWSPlatformType,
+				Controllers: Controllers{
+					Provider:           "provider-image:latest",
+					MachineSet:         "machineset-image:latest",
+					NodeLink:           "nodelink-image:latest",
+					MachineHealthCheck: "mhc-image:latest",
+					KubeRBACProxy:      "kube-rbac-proxy-image:latest",
+				},
+			},
+			expectMachineControllerTLSOnBareMetal: false,
+			expectTLSArgsOnProfileConsumers:       true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			configForPodTemplate := *tc.config
+			podTemplate := newPodTemplateSpec(&configForPodTemplate, map[string]bool{})
+
+			containerArgs := map[string][]string{}
+			for _, container := range podTemplate.Spec.Containers {
+				containerArgs[container.Name] = container.Args
+			}
+
+			g.Expect(containerArgs).To(HaveKey("machineset-controller"))
+			g.Expect(containerArgs).To(HaveKey("machine-controller"))
+			g.Expect(containerArgs).To(HaveKey("nodelink-controller"))
+			g.Expect(containerArgs).To(HaveKey("kube-rbac-proxy-machineset-mtrc"))
+			g.Expect(containerArgs).To(HaveKey("kube-rbac-proxy-machine-mtrc"))
+
+			if tc.config.Controllers.MachineHealthCheck != "" {
+				g.Expect(containerArgs).To(HaveKey("machine-healthcheck-controller"))
+				g.Expect(containerArgs).To(HaveKey("kube-rbac-proxy-mhc-mtrc"))
+			}
+
+			if tc.config.EnablePprof && tc.config.PlatformType == configv1.AWSPlatformType {
+				g.Expect(containerArgs).To(HaveKey("kube-rbac-proxy-machine-pprof"))
+				g.Expect(strings.Join(containerArgs["machine-controller"], " ")).To(ContainSubstring("--enable-pprof"))
+			} else {
+				g.Expect(containerArgs).ToNot(HaveKey("kube-rbac-proxy-machine-pprof"))
+				g.Expect(strings.Join(containerArgs["machine-controller"], " ")).ToNot(ContainSubstring("--enable-pprof"))
+			}
 		})
 	}
 }
