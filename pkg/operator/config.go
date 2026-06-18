@@ -25,6 +25,9 @@ type OperatorConfig struct {
 	Proxy           *configv1.Proxy
 	PlatformType    configv1.PlatformType
 	Features        map[string]bool
+	// EnablePprof enables the pprof profiling endpoint on the machine controller.
+	// Currently only supported on AWS.
+	EnablePprof bool
 }
 
 type Controllers struct {
