@@ -600,6 +600,7 @@ func TestNewKubeProxyContainers(t *testing.T) {
 		name                       string
 		image                      string
 		withMHCProxy               bool
+		withPprofProxy             bool
 		tlsProfile                 configv1.TLSProfileSpec
 		expectedCipherSuitesInArgs bool
 		expectedPorts              map[string]int32
@@ -657,13 +658,32 @@ func TestNewKubeProxyContainers(t *testing.T) {
 				"kube-rbac-proxy-machine-mtrc":    machineExposeMetricsPort,
 			},
 		},
+		{
+			name:           "With pprof proxy",
+			image:          "test-image:latest",
+			withMHCProxy:   false,
+			withPprofProxy: true,
+			tlsProfile: configv1.TLSProfileSpec{
+				Ciphers: []string{
+					"ECDHE-ECDSA-AES128-GCM-SHA256",
+					"ECDHE-RSA-AES128-GCM-SHA256",
+				},
+				MinTLSVersion: configv1.VersionTLS12,
+			},
+			expectedCipherSuitesInArgs: true,
+			expectedPorts: map[string]int32{
+				"kube-rbac-proxy-machineset-mtrc": machineSetExposeMetricsPort,
+				"kube-rbac-proxy-machine-mtrc":    machineExposeMetricsPort,
+				"kube-rbac-proxy-machine-pprof":   machinePprofExposePort,
+			},
+		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			g := NewWithT(t)
 
-			containers := newKubeProxyContainers(tc.image, tc.withMHCProxy, getTLSArgs(tc.tlsProfile))
+			containers := newKubeProxyContainers(tc.image, tc.withMHCProxy, tc.withPprofProxy, getTLSArgs(tc.tlsProfile))
 
 			// Verify we get the expected number of containers
 			g.Expect(containers).To(HaveLen(len(tc.expectedPorts)))
@@ -790,6 +810,32 @@ func TestNewPodTemplateSpecTLSArgs(t *testing.T) {
 			expectTLSArgsOnProfileConsumers:       true,
 		},
 		{
+			name: "AWS: pprof enabled adds proxy sidecar and machine-controller args",
+			config: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				PlatformType:    configv1.AWSPlatformType,
+				EnablePprof:     true,
+				Controllers: Controllers{
+					Provider:           "provider-image:latest",
+					MachineSet:         "machineset-image:latest",
+					NodeLink:           "nodelink-image:latest",
+					MachineHealthCheck: "mhc-image:latest",
+					KubeRBACProxy:      "kube-rbac-proxy-image:latest",
+				},
+			},
+			tlsProfile: configv1.TLSProfileSpec{
+				Ciphers: []string{
+					"ECDHE-ECDSA-AES128-GCM-SHA256",
+					"ECDHE-RSA-AES128-GCM-SHA256",
+				},
+				MinTLSVersion: configv1.VersionTLS12,
+			},
+			expectedTLSProfile:                    configv1.TLSProfileSpec{Ciphers: []string{"ECDHE-ECDSA-AES128-GCM-SHA256", "ECDHE-RSA-AES128-GCM-SHA256"}, MinTLSVersion: configv1.VersionTLS12},
+			expectMachineControllerTLSOnBareMetal: false,
+			tlsAdherencePolicy:                    configv1.TLSAdherencePolicyStrictAllComponents,
+			expectTLSArgsOnProfileConsumers:       true,
+		},
+		{
 			name: "AWS: no opinion applies default profile TLS args through pod template",
 			config: &OperatorConfig{
 				TargetNamespace: targetNamespace,
@@ -839,6 +885,14 @@ func TestNewPodTemplateSpecTLSArgs(t *testing.T) {
 			if tc.config.Controllers.MachineHealthCheck != "" {
 				g.Expect(containerArgs).To(HaveKey("machine-healthcheck-controller"))
 				g.Expect(containerArgs).To(HaveKey("kube-rbac-proxy-mhc-mtrc"))
+			}
+
+			if tc.config.EnablePprof && tc.config.PlatformType == configv1.AWSPlatformType {
+				g.Expect(containerArgs).To(HaveKey("kube-rbac-proxy-machine-pprof"))
+				g.Expect(strings.Join(containerArgs["machine-controller"], " ")).To(ContainSubstring("--enable-pprof"))
+			} else {
+				g.Expect(containerArgs).ToNot(HaveKey("kube-rbac-proxy-machine-pprof"))
+				g.Expect(strings.Join(containerArgs["machine-controller"], " ")).ToNot(ContainSubstring("--enable-pprof"))
 			}
 
 			expectedTLSArgs := getTLSArgs(tc.expectedTLSProfile)
