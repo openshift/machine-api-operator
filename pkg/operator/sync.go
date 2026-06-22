@@ -470,8 +470,7 @@ func newDeployment(config *OperatorConfig, features map[string]bool) *appsv1.Dep
 			Name:      "machine-api-controllers",
 			Namespace: config.TargetNamespace,
 			Annotations: map[string]string{
-				maoOwnedAnnotation:          "",
-				"openshift.io/required-scc": "restricted-v2",
+				maoOwnedAnnotation: "",
 			},
 			Labels: map[string]string{
 				"api":     "clusterapi",
@@ -619,9 +618,12 @@ func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev
 	}
 	volumes = append(volumes, newRBACConfigVolumes()...)
 
+	podAnnotations := maps.Clone(commonPodTemplateAnnotations)
+	podAnnotations["openshift.io/required-scc"] = "restricted-v2"
+
 	return &corev1.PodTemplateSpec{
 		ObjectMeta: metav1.ObjectMeta{
-			Annotations: commonPodTemplateAnnotations,
+			Annotations: podAnnotations,
 			Labels: map[string]string{
 				"api":     "clusterapi",
 				"k8s-app": "controller",
