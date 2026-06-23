@@ -2,6 +2,7 @@ package webhooks
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"testing"
@@ -517,7 +518,7 @@ func TestMachineSetCreation(t *testing.T) {
 				t.Errorf("Unexpected error setting up feature gates: %v", err)
 			}
 
-			machineSetDefaulter := createMachineSetDefaulter(platformStatus, tc.clusterID)
+			machineSetDefaulter := createMachineSetDefaulter(platformStatus, tc.clusterID, "")
 			machineSetValidator := createMachineSetValidator(infra, c, dns, gate)
 			mgr.GetWebhookServer().Register(DefaultMachineSetMutatingHookPath, &webhook.Admission{Handler: machineSetDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineSetValidatingHookPath, &webhook.Admission{Handler: machineSetValidator})
@@ -1204,7 +1205,7 @@ func TestMachineSetUpdate(t *testing.T) {
 				t.Errorf("Unexpected error setting up feature gates: %v", err)
 			}
 
-			machineSetDefaulter := createMachineSetDefaulter(platformStatus, tc.clusterID)
+			machineSetDefaulter := createMachineSetDefaulter(platformStatus, tc.clusterID, "")
 			machineSetValidator := createMachineSetValidator(infra, c, plainDNS, gate)
 			mgr.GetWebhookServer().Register(DefaultMachineSetMutatingHookPath, &webhook.Admission{Handler: machineSetDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineSetValidatingHookPath, &webhook.Admission{Handler: machineSetValidator})
@@ -1280,5 +1281,122 @@ func TestMachineSetUpdate(t *testing.T) {
 				gs.Expect(err).To(BeNil())
 			}
 		})
+	}
+}
+
+func TestMachineSetGCPDefaultsWithResolvedBootImage(t *testing.T) {
+	archSuffix := "x86-64"
+	if arch == ARM64 {
+		archSuffix = "aarch64"
+	}
+	resolvedImage := "projects/rhcos-cloud/global/images/rhcos-10-2-current-gcp-" + archSuffix
+	clusterID := "gcp-cluster"
+	platformStatus := &osconfigv1.PlatformStatus{
+		Type: osconfigv1.GCPPlatformType,
+		GCP:  &osconfigv1.GCPPlatformStatus{},
+	}
+
+	providerSpec := &machinev1beta1.GCPMachineProviderSpec{
+		Region: "us-central1",
+		Zone:   "us-central1-a",
+	}
+	rawBytes, err := json.Marshal(providerSpec)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ms := &machinev1beta1.MachineSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: defaultSecretNamespace,
+		},
+		Spec: machinev1beta1.MachineSetSpec{
+			Template: machinev1beta1.MachineTemplateSpec{
+				Spec: machinev1beta1.MachineSpec{
+					ProviderSpec: machinev1beta1.ProviderSpec{
+						Value: &runtime.RawExtension{Raw: rawBytes},
+					},
+				},
+			},
+		},
+	}
+
+	h := &machineSetDefaulterHandler{
+		admissionHandler: &admissionHandler{
+			admissionConfig:   &admissionConfig{clusterID: clusterID, gcpBootImage: resolvedImage},
+			webhookOperations: getMachineDefaulterOperation(platformStatus),
+		},
+	}
+
+	ok, _, errs := h.defaultMachineSet(ms)
+	if !ok {
+		t.Fatalf("expected ok, got errors: %v", errs)
+	}
+
+	var result machinev1beta1.GCPMachineProviderSpec
+	if err := json.Unmarshal(ms.Spec.Template.Spec.ProviderSpec.Value.Raw, &result); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(result.Disks) == 0 {
+		t.Fatal("expected disks to be defaulted")
+	}
+	if result.Disks[0].Image != resolvedImage {
+		t.Errorf("expected disk image %q, got %q", resolvedImage, result.Disks[0].Image)
+	}
+}
+
+func TestMachineSetGCPDefaultsFallbackToHardcodedImage(t *testing.T) {
+	clusterID := "gcp-cluster"
+	platformStatus := &osconfigv1.PlatformStatus{
+		Type: osconfigv1.GCPPlatformType,
+		GCP:  &osconfigv1.GCPPlatformStatus{},
+	}
+
+	providerSpec := &machinev1beta1.GCPMachineProviderSpec{
+		Region: "us-central1",
+		Zone:   "us-central1-a",
+	}
+	rawBytes, err := json.Marshal(providerSpec)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ms := &machinev1beta1.MachineSet{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: defaultSecretNamespace,
+		},
+		Spec: machinev1beta1.MachineSetSpec{
+			Template: machinev1beta1.MachineTemplateSpec{
+				Spec: machinev1beta1.MachineSpec{
+					ProviderSpec: machinev1beta1.ProviderSpec{
+						Value: &runtime.RawExtension{Raw: rawBytes},
+					},
+				},
+			},
+		},
+	}
+
+	h := &machineSetDefaulterHandler{
+		admissionHandler: &admissionHandler{
+			admissionConfig:   &admissionConfig{clusterID: clusterID, gcpBootImage: ""},
+			webhookOperations: getMachineDefaulterOperation(platformStatus),
+		},
+	}
+
+	ok, _, errs := h.defaultMachineSet(ms)
+	if !ok {
+		t.Fatalf("expected ok, got errors: %v", errs)
+	}
+
+	var result machinev1beta1.GCPMachineProviderSpec
+	if err := json.Unmarshal(ms.Spec.Template.Spec.ProviderSpec.Value.Raw, &result); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(result.Disks) == 0 {
+		t.Fatal("expected disks to be defaulted")
+	}
+	if result.Disks[0].Image != defaultGCPDiskImage() {
+		t.Errorf("expected fallback disk image %q, got %q", defaultGCPDiskImage(), result.Disks[0].Image)
 	}
 }

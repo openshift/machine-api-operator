@@ -66,19 +66,14 @@ func createMachineSetValidator(infra *osconfigv1.Infrastructure, client client.C
 }
 
 // NewMachineSetDefaulter returns a new machineSetDefaulterHandler.
-func NewMachineSetDefaulter() (*admission.Webhook, error) {
-	infra, err := getInfra()
-	if err != nil {
-		return nil, err
-	}
-
-	return createMachineSetDefaulter(infra.Status.PlatformStatus, infra.Status.InfrastructureName), nil
+func NewMachineSetDefaulter(dc *DefaulterConfig) *admission.Webhook {
+	return createMachineSetDefaulter(dc.PlatformStatus, dc.ClusterID, dc.GCPBootImage)
 }
 
-func createMachineSetDefaulter(platformStatus *osconfigv1.PlatformStatus, clusterID string) *admission.Webhook {
+func createMachineSetDefaulter(platformStatus *osconfigv1.PlatformStatus, clusterID string, gcpBootImage string) *admission.Webhook {
 	return admission.WithCustomDefaulter(scheme.Scheme, &machinev1beta1.MachineSet{}, &machineSetDefaulterHandler{
 		admissionHandler: &admissionHandler{
-			admissionConfig:   &admissionConfig{clusterID: clusterID},
+			admissionConfig:   &admissionConfig{clusterID: clusterID, gcpBootImage: gcpBootImage},
 			webhookOperations: getMachineDefaulterOperation(platformStatus),
 		},
 	})

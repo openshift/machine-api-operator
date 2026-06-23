@@ -210,20 +210,19 @@ func main() {
 	klog.Infof("FeatureGateMachineAPIMigration initialised: %t", defaultMutableGate.Enabled(featuregate.Feature(apifeatures.FeatureGateMachineAPIMigration)))
 
 	// Enable defaulting and validating webhooks
-	machineDefaulter, err := mapiwebhooks.NewMachineDefaulter()
+	defaulterConfig, err := mapiwebhooks.ResolveDefaulterConfig()
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	machineDefaulter := mapiwebhooks.NewMachineDefaulter(defaulterConfig)
 
 	machineValidator, err := mapiwebhooks.NewMachineValidator(mgr.GetClient(), defaultMutableGate)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	machineSetDefaulter, err := mapiwebhooks.NewMachineSetDefaulter()
-	if err != nil {
-		log.Fatal(err)
-	}
+	machineSetDefaulter := mapiwebhooks.NewMachineSetDefaulter(defaulterConfig)
 
 	machineSetValidator, err := mapiwebhooks.NewMachineSetValidator(mgr.GetClient(), defaultMutableGate)
 	if err != nil {

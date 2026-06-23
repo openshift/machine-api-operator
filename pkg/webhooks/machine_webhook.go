@@ -351,6 +351,44 @@ func getDNS() (*osconfigv1.DNS, error) {
 	return dns, nil
 }
 
+func resolveGCPBootImage(c client.Client) string {
+	archSuffix := "x86-64"
+	if arch == ARM64 {
+		archSuffix = "aarch64"
+	}
+
+	machineList := &machinev1beta1.MachineList{}
+	if err := c.List(context.Background(), machineList,
+		client.InNamespace(defaultSecretNamespace),
+		client.MatchingLabels{machineRoleLabel: "worker"},
+	); err != nil {
+		klog.V(3).Infof("Failed to list worker machines for GCP boot image resolution: %v", err)
+		return ""
+	}
+
+	for _, machine := range machineList.Items {
+		if machine.Spec.ProviderSpec.Value == nil {
+			continue
+		}
+		providerSpec := &machinev1beta1.GCPMachineProviderSpec{}
+		if err := json.Unmarshal(machine.Spec.ProviderSpec.Value.Raw, providerSpec); err != nil {
+			klog.V(4).Infof("Failed to unmarshal providerSpec for machine %s: %v", machine.Name, err)
+			continue
+		}
+		for _, disk := range providerSpec.Disks {
+			if disk == nil {
+				continue
+			}
+			if disk.Boot && disk.Image != "" && strings.Contains(disk.Image, archSuffix) {
+				klog.V(3).Infof("Resolved GCP boot image from worker machine %s: %s", machine.Name, disk.Image)
+				return disk.Image
+			}
+		}
+	}
+
+	return ""
+}
+
 type machineAdmissionFn func(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList)
 
 type admissionConfig struct {
@@ -359,6 +397,7 @@ type admissionConfig struct {
 	dnsDisconnected bool
 	client          client.Client
 	featureGates    featuregate.MutableFeatureGate
+	gcpBootImage    string
 }
 
 type admissionHandler struct {
@@ -440,20 +479,50 @@ func getMachineValidatorOperation(platform osconfigv1.PlatformType) machineAdmis
 	}
 }
 
-// NewDefaulter returns a new machineDefaulterHandler.
-func NewMachineDefaulter() (*admission.Webhook, error) {
+// ResolveDefaulterConfig resolves shared configuration needed by both Machine
+// and MachineSet defaulters. Call once at startup and pass the result to both.
+func ResolveDefaulterConfig() (*DefaulterConfig, error) {
 	infra, err := getInfra()
 	if err != nil {
 		return nil, err
 	}
 
-	return admission.WithCustomDefaulter(scheme.Scheme, &machinev1beta1.Machine{}, createMachineDefaulter(infra.Status.PlatformStatus, infra.Status.InfrastructureName)), nil
+	gcpBootImage := ""
+	if infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.Type == osconfigv1.GCPPlatformType {
+		cfg, err := ctrl.GetConfig()
+		if err != nil {
+			return nil, err
+		}
+		cl, err := client.New(cfg, client.Options{Scheme: scheme.Scheme})
+		if err != nil {
+			return nil, err
+		}
+		gcpBootImage = resolveGCPBootImage(cl)
+	}
+
+	return &DefaulterConfig{
+		PlatformStatus: infra.Status.PlatformStatus,
+		ClusterID:      infra.Status.InfrastructureName,
+		GCPBootImage:   gcpBootImage,
+	}, nil
 }
 
-func createMachineDefaulter(platformStatus *osconfigv1.PlatformStatus, clusterID string) *machineDefaulterHandler {
+// DefaulterConfig holds shared state for Machine and MachineSet defaulters.
+type DefaulterConfig struct {
+	PlatformStatus *osconfigv1.PlatformStatus
+	ClusterID      string
+	GCPBootImage   string
+}
+
+// NewDefaulter returns a new machineDefaulterHandler.
+func NewMachineDefaulter(dc *DefaulterConfig) *admission.Webhook {
+	return admission.WithCustomDefaulter(scheme.Scheme, &machinev1beta1.Machine{}, createMachineDefaulter(dc.PlatformStatus, dc.ClusterID, dc.GCPBootImage))
+}
+
+func createMachineDefaulter(platformStatus *osconfigv1.PlatformStatus, clusterID string, gcpBootImage string) *machineDefaulterHandler {
 	return &machineDefaulterHandler{
 		admissionHandler: &admissionHandler{
-			admissionConfig:   &admissionConfig{clusterID: clusterID},
+			admissionConfig:   &admissionConfig{clusterID: clusterID, gcpBootImage: gcpBootImage},
 			webhookOperations: getMachineDefaulterOperation(platformStatus),
 		},
 	}
@@ -1332,7 +1401,7 @@ func defaultGCP(m *machinev1beta1.Machine, config *admissionConfig) (bool, []str
 		})
 	}
 
-	providerSpec.Disks = defaultGCPDisks(providerSpec.Disks, config.clusterID)
+	providerSpec.Disks = defaultGCPDisks(providerSpec.Disks, config.clusterID, config.gcpBootImage)
 
 	if len(providerSpec.GPUs) != 0 {
 		// In case Count was not set it should default to 1, since there is no valid reason for it to be purposely set to 0.
@@ -1366,7 +1435,13 @@ func defaultGCP(m *machinev1beta1.Machine, config *admissionConfig) (bool, []str
 	return true, warnings, nil
 }
 
-func defaultGCPDisks(disks []*machinev1beta1.GCPDisk, clusterID string) []*machinev1beta1.GCPDisk {
+func defaultGCPDisks(disks []*machinev1beta1.GCPDisk, clusterID string, gcpBootImage string) []*machinev1beta1.GCPDisk {
+	image := gcpBootImage
+	if image == "" {
+		image = defaultGCPDiskImage()
+		klog.Infof("No GCP boot image resolved from worker machines, falling back to default: %s", image)
+	}
+
 	if len(disks) == 0 {
 		return []*machinev1beta1.GCPDisk{
 			{
@@ -1374,7 +1449,7 @@ func defaultGCPDisks(disks []*machinev1beta1.GCPDisk, clusterID string) []*machi
 				Boot:       true,
 				SizeGB:     defaultGCPDiskSizeGb,
 				Type:       defaultGCPDiskType,
-				Image:      defaultGCPDiskImage(),
+				Image:      image,
 			},
 		}
 	}
@@ -1385,7 +1460,7 @@ func defaultGCPDisks(disks []*machinev1beta1.GCPDisk, clusterID string) []*machi
 		}
 
 		if disk.Boot && disk.Image == "" {
-			disk.Image = defaultGCPDiskImage()
+			disk.Image = image
 		}
 	}
 
