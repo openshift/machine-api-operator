@@ -730,7 +730,7 @@ func newContainers(config *OperatorConfig, features map[string]bool, tlsArgs []s
 			StartupProbe: &corev1.Probe{
 				PeriodSeconds:       10,
 				TimeoutSeconds:      10,
-				FailureThreshold:    30,
+				FailureThreshold:    60,
 				SuccessThreshold:    1,
 				InitialDelaySeconds: 0,
 				ProbeHandler: corev1.ProbeHandler{
