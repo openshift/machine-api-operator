@@ -89,7 +89,10 @@ machineset:
 
 .PHONY: machine-api-tests-ext
 machine-api-tests-ext:
-	$(DOCKER_CMD) ./hack/go-build.sh machine-api-tests-ext
+	pushd openshift-tests-extension/cmd && \
+	GO111MODULE=on CGO_ENABLED=0 GOOS=$(GOOS) GOARCH=$(GOARCH) GOPROXY=$(GOPROXY) go build \
+    		${GOFLAGS} -ldflags="${GLDFLAGS}" \
+    		-o=../../bin/machine-api-tests-ext
 
 .PHONY: test-e2e
 test-e2e: ## Run openshift specific e2e tests
