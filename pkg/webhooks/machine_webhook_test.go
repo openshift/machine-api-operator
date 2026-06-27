@@ -2263,7 +2263,7 @@ func TestMachineCreation(t *testing.T) {
 			if !tc.disconnected {
 				dns.Spec.PublicZone = &osconfigv1.DNSZone{}
 			}
-			machineDefaulter := admission.WithCustomDefaulter(scheme.Scheme, &machinev1beta1.Machine{}, createMachineDefaulter(platformStatus, tc.clusterID))
+			machineDefaulter := admission.WithCustomDefaulter(scheme.Scheme, &machinev1beta1.Machine{}, createMachineDefaulter(platformStatus, tc.clusterID, ""))
 			machineValidator := admission.WithValidator[*machinev1beta1.Machine](scheme.Scheme, createMachineValidator(infra, c, dns, gate))
 			mgr.GetWebhookServer().Register(DefaultMachineMutatingHookPath, &webhook.Admission{Handler: machineDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineValidatingHookPath, &webhook.Admission{Handler: machineValidator})
@@ -3125,7 +3125,7 @@ func TestMachineUpdate(t *testing.T) {
 					PlatformStatus:     platformStatus,
 				},
 			}
-			machineDefaulter := admission.WithCustomDefaulter(scheme.Scheme, &machinev1beta1.Machine{}, createMachineDefaulter(platformStatus, tc.clusterID))
+			machineDefaulter := admission.WithCustomDefaulter(scheme.Scheme, &machinev1beta1.Machine{}, createMachineDefaulter(platformStatus, tc.clusterID, ""))
 			machineValidator := admission.WithValidator[*machinev1beta1.Machine](scheme.Scheme, createMachineValidator(infra, c, plainDNS, gate))
 			mgr.GetWebhookServer().Register(DefaultMachineMutatingHookPath, &webhook.Admission{Handler: machineDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineValidatingHookPath, &webhook.Admission{Handler: machineValidator})
@@ -3684,7 +3684,7 @@ func TestDefaultAWSProviderSpec(t *testing.T) {
 			Region: region,
 		},
 	}
-	h := createMachineDefaulter(platformStatus, clusterID)
+	h := createMachineDefaulter(platformStatus, clusterID, "")
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
@@ -4410,7 +4410,7 @@ func TestDefaultAzureProviderSpec(t *testing.T) {
 	}
 
 	platformStatus := &osconfigv1.PlatformStatus{Type: osconfigv1.AzurePlatformType}
-	h := createMachineDefaulter(platformStatus, clusterID)
+	h := createMachineDefaulter(platformStatus, clusterID, "")
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
 			defaultProviderSpec := &machinev1beta1.AzureMachineProviderSpec{
@@ -5233,7 +5233,7 @@ func TestDefaultGCPProviderSpec(t *testing.T) {
 			ProjectID: projectID,
 		},
 	}
-	h := createMachineDefaulter(platformStatus, clusterID)
+	h := createMachineDefaulter(platformStatus, clusterID, "")
 
 	for _, tc := range testCases {
 		defaultProviderSpec := &machinev1beta1.GCPMachineProviderSpec{
@@ -5822,7 +5822,7 @@ func TestDefaultVSphereProviderSpec(t *testing.T) {
 	}
 
 	platformStatus := &osconfigv1.PlatformStatus{Type: osconfigv1.VSpherePlatformType}
-	h := createMachineDefaulter(platformStatus, clusterID)
+	h := createMachineDefaulter(platformStatus, clusterID, "")
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
@@ -5895,7 +5895,7 @@ func TestDefaultNutanixProviderSpec(t *testing.T) {
 	}
 
 	platformStatus := &osconfigv1.PlatformStatus{Type: osconfigv1.NutanixPlatformType}
-	h := createMachineDefaulter(platformStatus, clusterID)
+	h := createMachineDefaulter(platformStatus, clusterID, "")
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
@@ -6505,7 +6505,7 @@ func TestDefaultPowerVSProviderSpec(t *testing.T) {
 	}
 
 	platformStatus := &osconfigv1.PlatformStatus{Type: osconfigv1.PowerVSPlatformType}
-	h := createMachineDefaulter(platformStatus, clusterID)
+	h := createMachineDefaulter(platformStatus, clusterID, "")
 
 	for _, tc := range testCases {
 		t.Run(tc.testCase, func(t *testing.T) {
@@ -6787,5 +6787,289 @@ func TestValidateAzureCapacityReservationGroupID(t *testing.T) {
 				g.Expect(err).ToNot(HaveOccurred())
 			}
 		})
+	}
+}
+
+func TestResolveGCPBootImage(t *testing.T) {
+	matchingSuffix := "x86-64"
+	mismatchSuffix := "aarch64"
+	if arch == ARM64 {
+		matchingSuffix = "aarch64"
+		mismatchSuffix = "x86-64"
+	}
+
+	testCases := []struct {
+		name          string
+		machines      []machinev1beta1.Machine
+		expectedImage string
+	}{
+		{
+			name:          "no worker machines returns empty string",
+			machines:      nil,
+			expectedImage: "",
+		},
+		{
+			name: "worker machine with matching arch boot disk returns its image",
+			machines: []machinev1beta1.Machine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "worker-0",
+						Namespace: defaultSecretNamespace,
+						Labels: map[string]string{
+							machineRoleLabel: "worker",
+						},
+					},
+					Spec: machinev1beta1.MachineSpec{
+						ProviderSpec: machinev1beta1.ProviderSpec{
+							Value: &kruntime.RawExtension{
+								Raw: func() []byte {
+									ps := &machinev1beta1.GCPMachineProviderSpec{
+										Disks: []*machinev1beta1.GCPDisk{
+											{
+												Boot:  true,
+												Image: "projects/rhcos-cloud/global/images/rhcos-10-2-current-gcp-" + matchingSuffix,
+											},
+										},
+									}
+									b, _ := json.Marshal(ps)
+									return b
+								}(),
+							},
+						},
+					},
+				},
+			},
+			expectedImage: "projects/rhcos-cloud/global/images/rhcos-10-2-current-gcp-" + matchingSuffix,
+		},
+		{
+			name: "worker machine with no boot disk image returns empty string",
+			machines: []machinev1beta1.Machine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "worker-0",
+						Namespace: defaultSecretNamespace,
+						Labels: map[string]string{
+							machineRoleLabel: "worker",
+						},
+					},
+					Spec: machinev1beta1.MachineSpec{
+						ProviderSpec: machinev1beta1.ProviderSpec{
+							Value: &kruntime.RawExtension{
+								Raw: func() []byte {
+									ps := &machinev1beta1.GCPMachineProviderSpec{
+										Disks: []*machinev1beta1.GCPDisk{
+											{Boot: true, Image: ""},
+										},
+									}
+									b, _ := json.Marshal(ps)
+									return b
+								}(),
+							},
+						},
+					},
+				},
+			},
+			expectedImage: "",
+		},
+		{
+			name: "master machine is skipped, worker machine is used",
+			machines: []machinev1beta1.Machine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "master-0",
+						Namespace: defaultSecretNamespace,
+						Labels: map[string]string{
+							machineRoleLabel: "master",
+						},
+					},
+					Spec: machinev1beta1.MachineSpec{
+						ProviderSpec: machinev1beta1.ProviderSpec{
+							Value: &kruntime.RawExtension{
+								Raw: func() []byte {
+									ps := &machinev1beta1.GCPMachineProviderSpec{
+										Disks: []*machinev1beta1.GCPDisk{
+											{Boot: true, Image: "projects/rhcos-cloud/global/images/master-image-" + matchingSuffix},
+										},
+									}
+									b, _ := json.Marshal(ps)
+									return b
+								}(),
+							},
+						},
+					},
+				},
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "worker-0",
+						Namespace: defaultSecretNamespace,
+						Labels: map[string]string{
+							machineRoleLabel: "worker",
+						},
+					},
+					Spec: machinev1beta1.MachineSpec{
+						ProviderSpec: machinev1beta1.ProviderSpec{
+							Value: &kruntime.RawExtension{
+								Raw: func() []byte {
+									ps := &machinev1beta1.GCPMachineProviderSpec{
+										Disks: []*machinev1beta1.GCPDisk{
+											{Boot: true, Image: "projects/rhcos-cloud/global/images/worker-image-" + matchingSuffix},
+										},
+									}
+									b, _ := json.Marshal(ps)
+									return b
+								}(),
+							},
+						},
+					},
+				},
+			},
+			expectedImage: "projects/rhcos-cloud/global/images/worker-image-" + matchingSuffix,
+		},
+		{
+			name: "worker with wrong arch image is skipped",
+			machines: []machinev1beta1.Machine{
+				{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:      "worker-0",
+						Namespace: defaultSecretNamespace,
+						Labels: map[string]string{
+							machineRoleLabel: "worker",
+						},
+					},
+					Spec: machinev1beta1.MachineSpec{
+						ProviderSpec: machinev1beta1.ProviderSpec{
+							Value: &kruntime.RawExtension{
+								Raw: func() []byte {
+									ps := &machinev1beta1.GCPMachineProviderSpec{
+										Disks: []*machinev1beta1.GCPDisk{
+											{Boot: true, Image: "projects/rhcos-cloud/global/images/rhcos-10-2-current-gcp-" + mismatchSuffix},
+										},
+									}
+									b, _ := json.Marshal(ps)
+									return b
+								}(),
+							},
+						},
+					},
+				},
+			},
+			expectedImage: "",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			objs := make([]client.Object, len(tc.machines))
+			for i := range tc.machines {
+				objs[i] = &tc.machines[i]
+			}
+
+			c := fake.NewClientBuilder().
+				WithScheme(scheme.Scheme).
+				WithObjects(objs...).
+				Build()
+
+			result := resolveGCPBootImage(c)
+			if result != tc.expectedImage {
+				t.Errorf("expected %q, got %q", tc.expectedImage, result)
+			}
+		})
+	}
+}
+
+func TestGCPDefaultsWithResolvedBootImage(t *testing.T) {
+	archSuffix := "x86-64"
+	if arch == ARM64 {
+		archSuffix = "aarch64"
+	}
+	resolvedImage := "projects/rhcos-cloud/global/images/rhcos-10-2-current-gcp-" + archSuffix
+	clusterID := "gcp-cluster"
+	platformStatus := &osconfigv1.PlatformStatus{
+		Type: osconfigv1.GCPPlatformType,
+		GCP:  &osconfigv1.GCPPlatformStatus{},
+	}
+	h := createMachineDefaulter(platformStatus, clusterID, resolvedImage)
+
+	providerSpec := &machinev1beta1.GCPMachineProviderSpec{
+		Region: "us-central1",
+		Zone:   "us-central1-a",
+	}
+	rawBytes, err := json.Marshal(providerSpec)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m := &machinev1beta1.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: defaultSecretNamespace,
+		},
+		Spec: machinev1beta1.MachineSpec{
+			ProviderSpec: machinev1beta1.ProviderSpec{
+				Value: &kruntime.RawExtension{Raw: rawBytes},
+			},
+		},
+	}
+
+	ok, _, errs := h.webhookOperations(m, h.admissionConfig)
+	if !ok {
+		t.Fatalf("expected ok, got errors: %v", errs)
+	}
+
+	var result machinev1beta1.GCPMachineProviderSpec
+	if err := json.Unmarshal(m.Spec.ProviderSpec.Value.Raw, &result); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(result.Disks) == 0 {
+		t.Fatal("expected disks to be defaulted")
+	}
+	if result.Disks[0].Image != resolvedImage {
+		t.Errorf("expected disk image %q, got %q", resolvedImage, result.Disks[0].Image)
+	}
+}
+
+func TestGCPDefaultsFallbackToHardcodedImage(t *testing.T) {
+	clusterID := "gcp-cluster"
+	platformStatus := &osconfigv1.PlatformStatus{
+		Type: osconfigv1.GCPPlatformType,
+		GCP:  &osconfigv1.GCPPlatformStatus{},
+	}
+	h := createMachineDefaulter(platformStatus, clusterID, "")
+
+	providerSpec := &machinev1beta1.GCPMachineProviderSpec{
+		Region: "us-central1",
+		Zone:   "us-central1-a",
+	}
+	rawBytes, err := json.Marshal(providerSpec)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m := &machinev1beta1.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: defaultSecretNamespace,
+		},
+		Spec: machinev1beta1.MachineSpec{
+			ProviderSpec: machinev1beta1.ProviderSpec{
+				Value: &kruntime.RawExtension{Raw: rawBytes},
+			},
+		},
+	}
+
+	ok, _, errs := h.webhookOperations(m, h.admissionConfig)
+	if !ok {
+		t.Fatalf("expected ok, got errors: %v", errs)
+	}
+
+	var result machinev1beta1.GCPMachineProviderSpec
+	if err := json.Unmarshal(m.Spec.ProviderSpec.Value.Raw, &result); err != nil {
+		t.Fatal(err)
+	}
+
+	if len(result.Disks) == 0 {
+		t.Fatal("expected disks to be defaulted")
+	}
+	if result.Disks[0].Image != defaultGCPDiskImage() {
+		t.Errorf("expected fallback disk image %q, got %q", defaultGCPDiskImage(), result.Disks[0].Image)
 	}
 }
