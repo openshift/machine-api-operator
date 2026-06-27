@@ -66,6 +66,7 @@ var (
 		imagesFile      string
 		tlsMinVersion   string
 		tlsCipherSuites []string
+		enablePprof     bool
 	}
 )
 
@@ -73,6 +74,7 @@ func init() {
 	rootCmd.AddCommand(startCmd)
 	startCmd.PersistentFlags().StringVar(&startOpts.kubeconfig, "kubeconfig", "", "Kubeconfig file to access a remote cluster (testing only)")
 	startCmd.PersistentFlags().StringVar(&startOpts.imagesFile, "images-json", "", "images.json file for MAO.")
+	startCmd.PersistentFlags().BoolVar(&startOpts.enablePprof, "enable-pprof", false, "Enable the pprof profiling endpoint on the machine controller (AWS only).")
 	startCmd.PersistentFlags().StringVar(&startOpts.tlsMinVersion, "tls-min-version", "", "Minimum TLS version supported. When set with --tls-cipher-suites, overrides the cluster-wide TLS profile. Possible values: "+strings.Join(cliflag.TLSPossibleVersions(), ", "))
 	startCmd.PersistentFlags().StringSliceVar(&startOpts.tlsCipherSuites, "tls-cipher-suites", nil, "Comma-separated list of cipher suites for the server. When set with --tls-min-version, overrides the cluster-wide TLS profile. Possible values: "+strings.Join(cliflag.TLSCipherPossibleValues(), ", "))
 
@@ -247,6 +249,7 @@ func startControllers(ctx *ControllerContext) error {
 		componentNamespace, componentName,
 		startOpts.imagesFile,
 		config,
+		startOpts.enablePprof,
 		ctx.KubeNamespacedInformerFactory.Apps().V1().Deployments(),
 		ctx.KubeNamespacedInformerFactory.Apps().V1().DaemonSets(),
 		ctx.ConfigInformerFactory.Config().V1().ClusterOperators(),
