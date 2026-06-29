@@ -1046,7 +1046,7 @@ func clone(s *machineScope) (string, error) {
 			ExtraConfig:       extraConfig,
 			DeviceChange:      deviceSpecs,
 			NumCPUs:           numCPUs,
-			NumCoresPerSocket: numCoresPerSocket,
+			NumCoresPerSocket: &numCoresPerSocket,
 			MemoryMB:          s.providerSpec.MemoryMiB,
 		},
 		Location: types.VirtualMachineRelocateSpec{
