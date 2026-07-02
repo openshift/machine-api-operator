@@ -9,7 +9,7 @@ metadata:
     exclude.release.openshift.io/internal-openshift-hosted: "true"
     include.release.openshift.io/self-managed-high-availability: "true"
     include.release.openshift.io/single-node-developer: "true"
-    service.alpha.openshift.io/serving-cert-secret-name: machine-api-operator-tls
+    service.beta.openshift.io/serving-cert-secret-name: machine-api-operator-tls
   labels:
     k8s-app: machine-api-operator
 spec:
@@ -32,7 +32,7 @@ metadata:
     exclude.release.openshift.io/internal-openshift-hosted: "true"
     include.release.openshift.io/self-managed-high-availability: "true"
     include.release.openshift.io/single-node-developer: "true"
-    service.alpha.openshift.io/serving-cert-secret-name: machine-api-controllers-tls
+    service.beta.openshift.io/serving-cert-secret-name: machine-api-controllers-tls
   labels:
     k8s-app: controller
 spec:
