@@ -4,6 +4,8 @@ package vsphere
 // The lifetime of scope and reconciler is a machine actuator operation.
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"time"
 
@@ -14,6 +16,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/ptr"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -25,7 +28,90 @@ const (
 	deleteEventAction   = "Delete"
 	noEventAction       = ""
 	requeueAfterSeconds = 20
+
+	// lastReconciledProviderSpecHashAnnotation records a hash of the provider spec that was
+	// in effect the last time the machine went through a full reconciliation. It is used,
+	// together with lastFullReconcileTimestampAnnotation, to short-circuit reconciliation of
+	// stable Running machines and avoid unnecessary vCenter API load.
+	lastReconciledProviderSpecHashAnnotation = "machine.openshift.io/last-reconciled-provider-spec-hash"
+
+	// lastFullReconcileTimestampAnnotation records the RFC3339 timestamp of the last full
+	// reconciliation. Once it is older than fullReconcileTTL, the short-circuit no longer
+	// applies and a full reconciliation is forced, guaranteeing drift detection at least
+	// once per TTL window regardless of spec changes.
+	lastFullReconcileTimestampAnnotation = "machine.openshift.io/last-full-reconcile-timestamp"
+
+	// fullReconcileTTL bounds how long a machine can go without a full reconciliation.
+	fullReconcileTTL = time.Hour
 )
+
+// hashProviderSpec returns a short, deterministic hex-encoded SHA-256 hash of the given
+// raw provider spec bytes, used to detect provider spec changes cheaply.
+func hashProviderSpec(raw []byte) string {
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:])[:16]
+}
+
+// canSkipFullReconcile returns true if machine is a stable, Running machine whose provider
+// spec has not changed since the last full reconciliation and whose last full reconciliation
+// happened within fullReconcileTTL. When true, callers may skip vCenter API calls entirely.
+func canSkipFullReconcile(machine *machinev1.Machine) bool {
+	if ptr.Deref(machine.Status.Phase, "") != machinev1.PhaseRunning {
+		return false
+	}
+	if ptr.Deref(machine.Spec.ProviderID, "") == "" {
+		return false
+	}
+	if machine.Status.NodeRef == nil {
+		return false
+	}
+	if len(machine.Status.Addresses) == 0 {
+		return false
+	}
+	if !machine.GetDeletionTimestamp().IsZero() {
+		return false
+	}
+
+	annotations := machine.GetAnnotations()
+
+	raw := providerSpecRawBytes(machine)
+	if raw == nil {
+		return false
+	}
+
+	lastHash, ok := annotations[lastReconciledProviderSpecHashAnnotation]
+	if !ok || lastHash != hashProviderSpec(raw) {
+		return false
+	}
+
+	lastFullReconcile, ok := annotations[lastFullReconcileTimestampAnnotation]
+	if !ok {
+		return false
+	}
+	lastFullReconcileTime, err := time.Parse(time.RFC3339, lastFullReconcile)
+	if err != nil {
+		return false
+	}
+
+	return time.Since(lastFullReconcileTime) < fullReconcileTTL
+}
+
+// markFullReconcileComplete records the current provider spec hash and timestamp on the
+// machine so that subsequent reconciliations can short-circuit via canSkipFullReconcile.
+func markFullReconcileComplete(machine *machinev1.Machine) {
+	if machine.Annotations == nil {
+		machine.Annotations = map[string]string{}
+	}
+	machine.Annotations[lastReconciledProviderSpecHashAnnotation] = hashProviderSpec(providerSpecRawBytes(machine))
+	machine.Annotations[lastFullReconcileTimestampAnnotation] = time.Now().UTC().Format(time.RFC3339)
+}
+
+func providerSpecRawBytes(machine *machinev1.Machine) []byte {
+	if machine.Spec.ProviderSpec.Value == nil {
+		return nil
+	}
+	return machine.Spec.ProviderSpec.Value.Raw
+}
 
 // Actuator is responsible for performing machine reconciliation.
 type Actuator struct {
@@ -116,6 +202,11 @@ func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error
 }
 
 func (a *Actuator) Exists(ctx context.Context, machine *machinev1.Machine) (bool, error) {
+	if canSkipFullReconcile(machine) {
+		klog.V(3).Infof("%s: machine is stable, skipping full reconcile in Exists()", machine.GetName())
+		return true, nil
+	}
+
 	klog.Infof("%s: actuator checking if machine exists", machine.GetName())
 	scope, err := newMachineScope(machineScopeParams{
 		Context:                  ctx,
@@ -132,6 +223,11 @@ func (a *Actuator) Exists(ctx context.Context, machine *machinev1.Machine) (bool
 }
 
 func (a *Actuator) Update(ctx context.Context, machine *machinev1.Machine) error {
+	if canSkipFullReconcile(machine) {
+		klog.V(3).Infof("%s: machine is stable, skipping full reconcile in Update()", machine.GetName())
+		return nil
+	}
+
 	klog.Infof("%s: actuator updating machine", machine.GetName())
 	// Cleanup TaskIDCache so we don't continually grow
 	delete(a.TaskIDCache, machine.Name)
@@ -156,6 +252,12 @@ func (a *Actuator) Update(ctx context.Context, machine *machinev1.Machine) error
 		fmtErr := fmt.Errorf(reconcilerFailFmt, machine.GetName(), updateEventAction, err)
 		return a.handleMachineError(machine, fmtErr, updateEventAction)
 	}
+
+	// A full reconciliation just completed successfully: record the provider spec hash and
+	// timestamp so that future stable reconciliations can short-circuit via
+	// canSkipFullReconcile, avoiding unnecessary vCenter API calls.
+	markFullReconcileComplete(scope.machine)
+
 	previousResourceVersion := scope.machine.ResourceVersion
 
 	if err := scope.PatchMachine(); err != nil {
