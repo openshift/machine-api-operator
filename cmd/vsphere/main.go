@@ -34,7 +34,7 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/version"
 )
 
-const timeout = 10 * time.Minute
+const timeout = 60 * time.Minute
 
 func main() {
 	var printVersion bool
@@ -99,6 +99,14 @@ func main() {
 		"The address for health checking.",
 	)
 
+	syncPeriodFlag := flag.Duration(
+		"sync-period",
+		timeout,
+		"Minimum interval at which cached resources are re-reconciled. This is the only "+
+			"backstop for drift detection once a machine's per-machine reconciliation TTL "+
+			"annotation is honored, so it should not be disabled.",
+	)
+
 	majorVersion := version.Version.Major
 
 	if majorVersion == 0 {
@@ -123,7 +131,7 @@ func main() {
 	}
 
 	cfg := config.GetConfigOrDie()
-	syncPeriod := timeout
+	syncPeriod := *syncPeriodFlag
 
 	le := util.GetLeaderElectionConfig(cfg, configv1.LeaderElection{
 		Disable:       !*leaderElect,
