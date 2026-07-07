@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -185,8 +186,9 @@ func main() {
 	}
 
 	// Create a taskIDCache for create task IDs in case they are lost due to
-	// network error or stale cache.
-	taskIDCache := make(map[string]string)
+	// network error or stale cache. sync.Map is used since concurrent reconciliation is
+	// enabled via --max-concurrent-reconciles.
+	taskIDCache := &sync.Map{}
 
 	// Initialize machine actuator.
 	machineActuator := machine.NewActuator(machine.ActuatorParams{

@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"sync"
 	"time"
 
 	"k8s.io/component-base/featuregate"
@@ -118,9 +119,16 @@ type Actuator struct {
 	client                   runtimeclient.Client
 	apiReader                runtimeclient.Reader
 	eventRecorder            events.EventRecorder
-	TaskIDCache              map[string]string
+	TaskIDCache              *sync.Map
 	FeatureGates             featuregate.MutableFeatureGate
 	openshiftConfigNamespace string
+	// scopeCache holds machineScopes created by Exists(), keyed by machine UID, so that a
+	// subsequent Update() call within the same reconciliation can reuse the scope instead of
+	// creating a new one (which would validate the vCenter session and read the credentials
+	// ConfigMap/Secret again). Entries are removed by Update(), Create(), and Delete() to
+	// avoid leaking scopes. Uses sync.Map (not a plain map) because concurrent reconciliation
+	// of distinct machines is supported.
+	scopeCache sync.Map
 }
 
 // ActuatorParams holds parameter information for Actuator.
@@ -128,21 +136,47 @@ type ActuatorParams struct {
 	Client                   runtimeclient.Client
 	APIReader                runtimeclient.Reader
 	EventRecorder            events.EventRecorder
-	TaskIDCache              map[string]string
+	TaskIDCache              *sync.Map
 	FeatureGates             featuregate.MutableFeatureGate
 	OpenshiftConfigNamespace string
 }
 
 // NewActuator returns an actuator.
 func NewActuator(params ActuatorParams) *Actuator {
+	taskIDCache := params.TaskIDCache
+	if taskIDCache == nil {
+		taskIDCache = &sync.Map{}
+	}
 	return &Actuator{
 		client:                   params.Client,
 		apiReader:                params.APIReader,
 		eventRecorder:            params.EventRecorder,
-		TaskIDCache:              params.TaskIDCache,
+		TaskIDCache:              taskIDCache,
 		FeatureGates:             params.FeatureGates,
 		openshiftConfigNamespace: params.OpenshiftConfigNamespace,
 	}
+}
+
+// getOrCreateScope returns the machineScope cached by a preceding Exists() call for this
+// machine's UID, refreshing its machine and context references, or creates a new one via
+// newMachineScope if no cache entry exists.
+func (a *Actuator) getOrCreateScope(ctx context.Context, machine *machinev1.Machine) (*machineScope, error) {
+	if cached, ok := a.scopeCache.Load(machine.GetUID()); ok {
+		scope := cached.(*machineScope)
+		scope.Context = ctx
+		scope.machine = machine
+		scope.machineToBePatched = runtimeclient.MergeFrom(machine.DeepCopy())
+		return scope, nil
+	}
+
+	return newMachineScope(machineScopeParams{
+		Context:                  ctx,
+		client:                   a.client,
+		machine:                  machine,
+		apiReader:                a.apiReader,
+		featureGates:             a.FeatureGates,
+		openshiftConfigNameSpace: a.openshiftConfigNamespace,
+	})
 }
 
 // Set corresponding event based on error. It also returns the original error
@@ -158,6 +192,9 @@ func (a *Actuator) handleMachineError(machine *machinev1.Machine, err error, eve
 // Create creates a machine and is invoked by the machine controller.
 func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error {
 	klog.Infof("%s: actuator creating machine", machine.GetName())
+	// Create() should not normally follow an Exists() call for the same machine, but clear
+	// any stale scope cache entry defensively to avoid a leak if it does.
+	defer a.scopeCache.Delete(machine.GetUID())
 
 	scope, err := newMachineScope(machineScopeParams{
 		Context:                  ctx,
@@ -174,8 +211,8 @@ func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error
 
 	// Ensure we're not reconciling a stale machine by checking our task-id.
 	// This is a workaround for a cache race condition.
-	if val, ok := a.TaskIDCache[machine.Name]; ok {
-		if val != scope.providerStatus.TaskRef {
+	if val, ok := a.TaskIDCache.Load(machine.Name); ok {
+		if val.(string) != scope.providerStatus.TaskRef {
 			klog.Errorf("%s: machine object missing expected provider task ID, requeue", machine.GetName())
 			return &machinecontroller.RequeueAfterError{RequeueAfter: requeueAfterSeconds * time.Second}
 		}
@@ -185,7 +222,7 @@ func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error
 	err = newReconciler(scope).create()
 	// save the taskRef in our cache in case of any error with patch.
 	if scope.providerStatus.TaskRef != "" {
-		a.TaskIDCache[machine.Name] = scope.providerStatus.TaskRef
+		a.TaskIDCache.Store(machine.Name, scope.providerStatus.TaskRef)
 	}
 	if err != nil {
 		fmtErr := fmt.Errorf(reconcilerFailFmt, machine.GetName(), createEventAction, err)
@@ -219,6 +256,11 @@ func (a *Actuator) Exists(ctx context.Context, machine *machinev1.Machine) (bool
 	if err != nil {
 		return false, fmt.Errorf(scopeFailFmt, machine.GetName(), err)
 	}
+
+	// Cache the scope so a subsequent Update() call within the same reconciliation can reuse
+	// it instead of re-validating the vCenter session and re-reading credentials.
+	a.scopeCache.Store(machine.GetUID(), scope)
+
 	return newReconciler(scope).exists()
 }
 
@@ -230,20 +272,16 @@ func (a *Actuator) Update(ctx context.Context, machine *machinev1.Machine) error
 
 	klog.Infof("%s: actuator updating machine", machine.GetName())
 	// Cleanup TaskIDCache so we don't continually grow
-	delete(a.TaskIDCache, machine.Name)
+	a.TaskIDCache.Delete(machine.Name)
 
-	scope, err := newMachineScope(machineScopeParams{
-		Context:                  ctx,
-		client:                   a.client,
-		machine:                  machine,
-		apiReader:                a.apiReader,
-		featureGates:             a.FeatureGates,
-		openshiftConfigNameSpace: a.openshiftConfigNamespace,
-	})
+	scope, err := a.getOrCreateScope(ctx, machine)
 	if err != nil {
 		fmtErr := fmt.Errorf(scopeFailFmt, machine.GetName(), err)
 		return a.handleMachineError(machine, fmtErr, updateEventAction)
 	}
+	// The scope (if reused from Exists()) is only valid for this single reconciliation.
+	defer a.scopeCache.Delete(machine.GetUID())
+
 	if err := newReconciler(scope).update(); err != nil {
 		// Update machine and machine status in case it was modified
 		if err := scope.PatchMachine(); err != nil {
@@ -278,7 +316,10 @@ func (a *Actuator) Delete(ctx context.Context, machine *machinev1.Machine) error
 	klog.Infof("%s: actuator deleting machine", machine.GetName())
 	// Cleanup TaskIDCache so we don't continually grow
 	// Cleanup here as well in case Update() was never successfully called.
-	delete(a.TaskIDCache, machine.Name)
+	a.TaskIDCache.Delete(machine.Name)
+	// Defensive cleanup: an Exists() call for a machine that is now being deleted may have
+	// cached a scope that Update() never got a chance to consume.
+	defer a.scopeCache.Delete(machine.GetUID())
 
 	scope, err := newMachineScope(machineScopeParams{
 		Context:                  ctx,

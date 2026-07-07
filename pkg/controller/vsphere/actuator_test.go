@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -364,7 +365,7 @@ func TestMachineEvents(t *testing.T) {
 				t.Errorf("Unexpected error setting up feature gates: %v", err)
 			}
 
-			taskIDCache := make(map[string]string)
+			taskIDCache := &sync.Map{}
 			params := ActuatorParams{
 				Client:                   k8sClient,
 				EventRecorder:            eventRecorder,
