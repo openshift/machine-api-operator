@@ -110,7 +110,7 @@ func main() {
 
 	maxConcurrentReconciles := flag.Int(
 		"max-concurrent-reconciles",
-		1,
+		3,
 		"The number of concurrent machine reconciles allowed. Increasing this allows new "+
 			"machines to be processed without waiting behind stable machines in the queue.",
 	)
