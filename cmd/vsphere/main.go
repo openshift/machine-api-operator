@@ -108,6 +108,13 @@ func main() {
 			"annotation is honored, so it should not be disabled.",
 	)
 
+	maxConcurrentReconciles := flag.Int(
+		"max-concurrent-reconciles",
+		1,
+		"The number of concurrent machine reconciles allowed. Increasing this allows new "+
+			"machines to be processed without waiting behind stable machines in the queue.",
+	)
+
 	majorVersion := version.Version.Major
 
 	if majorVersion == 0 {
@@ -216,7 +223,9 @@ func main() {
 		klog.Fatalf("unable to add ipamv1beta1 to scheme: %v", err)
 	}
 
-	if err := capimachine.AddWithActuator(mgr, machineActuator, defaultMutableGate); err != nil {
+	if err := capimachine.AddWithActuatorOpts(mgr, machineActuator, controller.Options{
+		MaxConcurrentReconciles: *maxConcurrentReconciles,
+	}, defaultMutableGate); err != nil {
 		klog.Fatal(err)
 	}
 
