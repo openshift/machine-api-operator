@@ -13,7 +13,8 @@ import (
 func TestVirtualMachineGetUUIDUsesCache(t *testing.T) {
 	g := NewWithT(t)
 
-	vm := &virtualMachine{cachedUUID: "cached-uuid-1234"}
+	cachedUUID := "cached-uuid-1234"
+	vm := &virtualMachine{cachedUUID: &cachedUUID}
 
 	g.Expect(vm.getUUID()).To(Equal("cached-uuid-1234"))
 }

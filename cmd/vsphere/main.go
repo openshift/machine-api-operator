@@ -35,7 +35,7 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/version"
 )
 
-const timeout = 60 * time.Minute
+const defaultSyncPeriod = 60 * time.Minute
 
 func main() {
 	var printVersion bool
@@ -102,7 +102,7 @@ func main() {
 
 	syncPeriodFlag := flag.Duration(
 		"sync-period",
-		timeout,
+		defaultSyncPeriod,
 		"Minimum interval at which cached resources are re-reconciled. This is the only "+
 			"backstop for drift detection once a machine's per-machine reconciliation TTL "+
 			"annotation is honored, so it should not be disabled.",

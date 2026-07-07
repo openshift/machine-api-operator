@@ -1504,16 +1504,17 @@ type virtualMachine struct {
 	// lifetime of this *virtualMachine, since both are fetched more than once per full
 	// reconciliation (reconcileProviderID/reconcilePowerStateAnnontation and
 	// setProviderStatus) via separate vCenter property collector calls.
-	cachedUUID       string
+	cachedUUID       *string
 	cachedPowerState *types.VirtualMachinePowerState
 }
 
 // getUUID returns the VM's instance UUID, caching the result for the lifetime of vm.
 func (vm *virtualMachine) getUUID() string {
-	if vm.cachedUUID == "" {
-		vm.cachedUUID = vm.Obj.UUID(vm.Context)
+	if vm.cachedUUID == nil {
+		uuid := vm.Obj.UUID(vm.Context)
+		vm.cachedUUID = &uuid
 	}
-	return vm.cachedUUID
+	return *vm.cachedUUID
 }
 
 // getHostSystemAncestors looks up and returns vm's host system ancestors, such as "Cluster" and "Datacenter".
