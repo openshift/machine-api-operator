@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/vmware/govmomi/task"
 
@@ -212,7 +213,9 @@ func (r *Reconciler) create() error {
 		if taskIsFinished {
 			klog.V(4).Infof("%v task %v has completed", moTask.Info.DescriptionId, moTask.Reference().Value)
 		} else {
-			return fmt.Errorf("%v task %v has not finished", moTask.Info.DescriptionId, moTask.Reference().Value)
+			klog.V(3).Infof("%s: %v task %v has not finished, requeueing",
+				r.machine.GetName(), moTask.Info.DescriptionId, moTask.Reference().Value)
+			return &machinecontroller.RequeueAfterError{RequeueAfter: requeueAfterSeconds * time.Second}
 		}
 	}
 
@@ -282,12 +285,14 @@ func (r *Reconciler) update() error {
 				})
 				return fmt.Errorf("%v task %v finished with error: %w", moTask.Info.DescriptionId, moTask.Reference().Value, err)
 			} else if !taskIsFinished {
-				return fmt.Errorf("%v task %v has not finished", moTask.Info.DescriptionId, moTask.Reference().Value)
+				klog.V(3).Infof("%s: %v task %v has not finished, requeueing",
+					r.machine.GetName(), moTask.Info.DescriptionId, moTask.Reference().Value)
+				return &machinecontroller.RequeueAfterError{RequeueAfter: requeueAfterSeconds * time.Second}
 			}
 		}
 	}
 
-	vmRef, err := findVM(r.machineScope)
+	vmRef, err := r.getVMRef()
 	if err != nil {
 		metrics.RegisterFailedInstanceUpdate(&metrics.MachineLabels{
 			Name:      r.machine.Name,
@@ -327,6 +332,16 @@ func (r *Reconciler) update() error {
 	return nil
 }
 
+// getVMRef returns the VM reference cached by a preceding exists() call on the same
+// machineScope (see Actuator.scopeCache), if present, avoiding a redundant vCenter lookup.
+// Otherwise it falls back to looking the VM up via findVM().
+func (r *Reconciler) getVMRef() (types.ManagedObjectReference, error) {
+	if r.machineScope.cachedVMRef != nil {
+		return *r.machineScope.cachedVMRef, nil
+	}
+	return findVM(r.machineScope)
+}
+
 // exists returns true if machine exists.
 func (r *Reconciler) exists() (bool, error) {
 	if err := validateMachine(*r.machine); err != nil {
@@ -341,6 +356,11 @@ func (r *Reconciler) exists() (bool, error) {
 		klog.Infof("%v: does not exist", r.machine.GetName())
 		return false, nil
 	}
+
+	// Cache the VM reference on the scope so that, if this scope is reused for a subsequent
+	// update() call within the same reconciliation (see Actuator.scopeCache), it does not
+	// need to perform a redundant findVM() call.
+	r.machineScope.cachedVMRef = &vmRef
 
 	// Check if machine was powered on after clone.
 	// If it is powered off and in "Provisioning" phase, treat machine as non-existed yet and proceed with creation procedure.
@@ -397,7 +417,9 @@ func (r *Reconciler) delete() error {
 					)
 				}
 			} else if !taskIsFinished {
-				return fmt.Errorf("%v task %v has not finished", moTask.Info.DescriptionId, moTask.Reference().Value)
+				klog.V(3).Infof("%s: %v task %v has not finished, requeueing",
+					r.machine.GetName(), moTask.Info.DescriptionId, moTask.Reference().Value)
+				return &machinecontroller.RequeueAfterError{RequeueAfter: requeueAfterSeconds * time.Second}
 			}
 		}
 	}
@@ -613,7 +635,7 @@ func (r *Reconciler) reconcileRegionAndZoneLabels(vm *virtualMachine) error {
 }
 
 func (r *Reconciler) reconcileProviderID(vm *virtualMachine) error {
-	providerID, err := convertUUIDToProviderID(vm.Obj.UUID(vm.Context))
+	providerID, err := convertUUIDToProviderID(vm.getUUID())
 	if err != nil {
 		return err
 	}
@@ -1444,7 +1466,7 @@ func setProviderStatus(taskRef string, condition metav1.Condition, scope *machin
 	klog.Infof("%s: Updating provider status", scope.machine.Name)
 
 	if vm != nil {
-		id := vm.Obj.UUID(scope.Context)
+		id := vm.getUUID()
 		scope.providerStatus.InstanceID = &id
 
 		// This can return an error if machine is being deleted
@@ -1484,6 +1506,22 @@ type virtualMachine struct {
 	context.Context
 	Ref types.ManagedObjectReference
 	Obj *object.VirtualMachine
+
+	// cachedUUID and cachedPowerState memoize getUUID() and getPowerState() for the
+	// lifetime of this *virtualMachine, since both are fetched more than once per full
+	// reconciliation (reconcileProviderID/reconcilePowerStateAnnontation and
+	// setProviderStatus) via separate vCenter property collector calls.
+	cachedUUID       *string
+	cachedPowerState *types.VirtualMachinePowerState
+}
+
+// getUUID returns the VM's instance UUID, caching the result for the lifetime of vm.
+func (vm *virtualMachine) getUUID() string {
+	if vm.cachedUUID == nil {
+		uuid := vm.Obj.UUID(vm.Context)
+		vm.cachedUUID = &uuid
+	}
+	return *vm.cachedUUID
 }
 
 // getHostSystemAncestors looks up and returns vm's host system ancestors, such as "Cluster" and "Datacenter".
@@ -1574,21 +1612,29 @@ func (vm *virtualMachine) powerOffVM() (string, error) {
 }
 
 func (vm *virtualMachine) getPowerState() (types.VirtualMachinePowerState, error) {
+	if vm.cachedPowerState != nil {
+		return *vm.cachedPowerState, nil
+	}
+
 	powerState, err := vm.Obj.PowerState(vm.Context)
 	if err != nil {
 		return "", err
 	}
 
+	var result types.VirtualMachinePowerState
 	switch powerState {
 	case types.VirtualMachinePowerStatePoweredOn:
-		return types.VirtualMachinePowerStatePoweredOn, nil
+		result = types.VirtualMachinePowerStatePoweredOn
 	case types.VirtualMachinePowerStatePoweredOff:
-		return types.VirtualMachinePowerStatePoweredOff, nil
+		result = types.VirtualMachinePowerStatePoweredOff
 	case types.VirtualMachinePowerStateSuspended:
-		return types.VirtualMachinePowerStateSuspended, nil
+		result = types.VirtualMachinePowerStateSuspended
 	default:
 		return "", fmt.Errorf("unexpected power state %q for vm %v", powerState, vm)
 	}
+
+	vm.cachedPowerState = &result
+	return result, nil
 }
 
 // reconcileTags ensures that the required tags are present on the virtual machine, eg the Cluster ID

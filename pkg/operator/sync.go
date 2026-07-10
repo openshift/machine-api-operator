@@ -752,6 +752,12 @@ func newContainers(config *OperatorConfig, features map[string]bool, tlsArgs []s
 	switch config.PlatformType {
 	case configv1.AzurePlatformType, configv1.GCPPlatformType:
 		machineControllerArgs = append(machineControllerArgs, "--max-concurrent-reconciles=10")
+	case configv1.VSpherePlatformType:
+		// vCenter is a shared appliance with lower API throughput than public cloud APIs, so
+		// a smaller worker count is used than Azure/GCP. Combined with the vSphere
+		// controller's stable-machine short-circuit, only new/scaling/changed machines hit
+		// vCenter, so 3 workers comfortably handles typical concurrent creation bursts.
+		machineControllerArgs = append(machineControllerArgs, "--max-concurrent-reconciles=3")
 	case configv1.BareMetalPlatformType:
 		machineControllerArgs = append(machineControllerArgs, tlsArgs...)
 	}

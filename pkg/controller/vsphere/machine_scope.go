@@ -10,6 +10,7 @@ import (
 	machinev1 "github.com/openshift/api/machine/v1beta1"
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
+	"github.com/vmware/govmomi/vim25/types"
 	apicorev1 "k8s.io/api/core/v1"
 	apimachineryerrors "k8s.io/apimachinery/pkg/api/errors"
 	apimachineryutilerrors "k8s.io/apimachinery/pkg/util/errors"
@@ -49,6 +50,10 @@ type machineScope struct {
 	providerStatus     *machinev1.VSphereMachineProviderStatus
 	machineToBePatched runtimeclient.Patch
 	featureGates       featuregate.MutableFeatureGate
+	// cachedVMRef caches the result of findVM() from a preceding exists() call within the
+	// same reconciliation (see Actuator.scopeCache), so that update() can avoid a redundant
+	// vCenter FindByUuid/finder call.
+	cachedVMRef *types.ManagedObjectReference
 }
 
 // newMachineScope creates a new machineScope from the supplied parameters.

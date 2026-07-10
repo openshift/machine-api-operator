@@ -4,7 +4,11 @@ package vsphere
 // The lifetime of scope and reconciler is a machine actuator operation.
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"k8s.io/component-base/featuregate"
@@ -14,6 +18,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/klog/v2"
+	"k8s.io/utils/ptr"
 	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
@@ -25,16 +30,106 @@ const (
 	deleteEventAction   = "Delete"
 	noEventAction       = ""
 	requeueAfterSeconds = 20
+
+	// lastReconciledProviderSpecHashAnnotation records a hash of the provider spec that was
+	// in effect the last time the machine went through a full reconciliation. It is used,
+	// together with lastFullReconcileTimestampAnnotation, to short-circuit reconciliation of
+	// stable Running machines and avoid unnecessary vCenter API load.
+	lastReconciledProviderSpecHashAnnotation = "machine.openshift.io/last-reconciled-provider-spec-hash"
+
+	// lastFullReconcileTimestampAnnotation records the RFC3339 timestamp of the last full
+	// reconciliation. Once it is older than fullReconcileTTL, the short-circuit no longer
+	// applies and a full reconciliation is forced, guaranteeing drift detection at least
+	// once per TTL window regardless of spec changes.
+	lastFullReconcileTimestampAnnotation = "machine.openshift.io/last-full-reconcile-timestamp"
+
+	// fullReconcileTTL bounds how long a machine can go without a full reconciliation.
+	fullReconcileTTL = time.Hour
 )
+
+// hashProviderSpec returns a short, deterministic hex-encoded SHA-256 hash of the given
+// raw provider spec bytes, used to detect provider spec changes cheaply.
+func hashProviderSpec(raw []byte) string {
+	sum := sha256.Sum256(raw)
+	return hex.EncodeToString(sum[:])[:16]
+}
+
+// canSkipFullReconcile returns true if machine is a stable, Running machine whose provider
+// spec has not changed since the last full reconciliation and whose last full reconciliation
+// happened within fullReconcileTTL. When true, callers may skip vCenter API calls entirely.
+func canSkipFullReconcile(machine *machinev1.Machine) bool {
+	if ptr.Deref(machine.Status.Phase, "") != machinev1.PhaseRunning {
+		return false
+	}
+	if ptr.Deref(machine.Spec.ProviderID, "") == "" {
+		return false
+	}
+	if machine.Status.NodeRef == nil {
+		return false
+	}
+	if len(machine.Status.Addresses) == 0 {
+		return false
+	}
+	if !machine.GetDeletionTimestamp().IsZero() {
+		return false
+	}
+
+	annotations := machine.GetAnnotations()
+
+	raw := providerSpecRawBytes(machine)
+	if raw == nil {
+		return false
+	}
+
+	lastHash, ok := annotations[lastReconciledProviderSpecHashAnnotation]
+	if !ok || lastHash != hashProviderSpec(raw) {
+		return false
+	}
+
+	lastFullReconcile, ok := annotations[lastFullReconcileTimestampAnnotation]
+	if !ok {
+		return false
+	}
+	lastFullReconcileTime, err := time.Parse(time.RFC3339, lastFullReconcile)
+	if err != nil {
+		return false
+	}
+
+	return time.Since(lastFullReconcileTime) < fullReconcileTTL
+}
+
+// markFullReconcileComplete records the current provider spec hash and timestamp on the
+// machine so that subsequent reconciliations can short-circuit via canSkipFullReconcile.
+func markFullReconcileComplete(machine *machinev1.Machine) {
+	if machine.Annotations == nil {
+		machine.Annotations = map[string]string{}
+	}
+	machine.Annotations[lastReconciledProviderSpecHashAnnotation] = hashProviderSpec(providerSpecRawBytes(machine))
+	machine.Annotations[lastFullReconcileTimestampAnnotation] = time.Now().UTC().Format(time.RFC3339)
+}
+
+func providerSpecRawBytes(machine *machinev1.Machine) []byte {
+	if machine.Spec.ProviderSpec.Value == nil {
+		return nil
+	}
+	return machine.Spec.ProviderSpec.Value.Raw
+}
 
 // Actuator is responsible for performing machine reconciliation.
 type Actuator struct {
 	client                   runtimeclient.Client
 	apiReader                runtimeclient.Reader
 	eventRecorder            events.EventRecorder
-	TaskIDCache              map[string]string
+	TaskIDCache              *sync.Map
 	FeatureGates             featuregate.MutableFeatureGate
 	openshiftConfigNamespace string
+	// scopeCache holds machineScopes created by Exists(), keyed by machine UID, so that a
+	// subsequent Update() call within the same reconciliation can reuse the scope instead of
+	// creating a new one (which would validate the vCenter session and read the credentials
+	// ConfigMap/Secret again). Entries are removed by Update(), Create(), and Delete() to
+	// avoid leaking scopes. Uses sync.Map (not a plain map) because concurrent reconciliation
+	// of distinct machines is supported.
+	scopeCache sync.Map
 }
 
 // ActuatorParams holds parameter information for Actuator.
@@ -42,21 +137,47 @@ type ActuatorParams struct {
 	Client                   runtimeclient.Client
 	APIReader                runtimeclient.Reader
 	EventRecorder            events.EventRecorder
-	TaskIDCache              map[string]string
+	TaskIDCache              *sync.Map
 	FeatureGates             featuregate.MutableFeatureGate
 	OpenshiftConfigNamespace string
 }
 
 // NewActuator returns an actuator.
 func NewActuator(params ActuatorParams) *Actuator {
+	taskIDCache := params.TaskIDCache
+	if taskIDCache == nil {
+		taskIDCache = &sync.Map{}
+	}
 	return &Actuator{
 		client:                   params.Client,
 		apiReader:                params.APIReader,
 		eventRecorder:            params.EventRecorder,
-		TaskIDCache:              params.TaskIDCache,
+		TaskIDCache:              taskIDCache,
 		FeatureGates:             params.FeatureGates,
 		openshiftConfigNamespace: params.OpenshiftConfigNamespace,
 	}
+}
+
+// getOrCreateScope returns the machineScope cached by a preceding Exists() call for this
+// machine's UID, refreshing its machine and context references, or creates a new one via
+// newMachineScope if no cache entry exists.
+func (a *Actuator) getOrCreateScope(ctx context.Context, machine *machinev1.Machine) (*machineScope, error) {
+	if cached, ok := a.scopeCache.Load(machine.GetUID()); ok {
+		scope := cached.(*machineScope)
+		scope.Context = ctx
+		scope.machine = machine
+		scope.machineToBePatched = runtimeclient.MergeFrom(machine.DeepCopy())
+		return scope, nil
+	}
+
+	return newMachineScope(machineScopeParams{
+		Context:                  ctx,
+		client:                   a.client,
+		machine:                  machine,
+		apiReader:                a.apiReader,
+		featureGates:             a.FeatureGates,
+		openshiftConfigNameSpace: a.openshiftConfigNamespace,
+	})
 }
 
 // Set corresponding event based on error. It also returns the original error
@@ -72,6 +193,9 @@ func (a *Actuator) handleMachineError(machine *machinev1.Machine, err error, eve
 // Create creates a machine and is invoked by the machine controller.
 func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error {
 	klog.Infof("%s: actuator creating machine", machine.GetName())
+	// Create() should not normally follow an Exists() call for the same machine, but clear
+	// any stale scope cache entry defensively to avoid a leak if it does.
+	defer a.scopeCache.Delete(machine.GetUID())
 
 	scope, err := newMachineScope(machineScopeParams{
 		Context:                  ctx,
@@ -88,8 +212,8 @@ func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error
 
 	// Ensure we're not reconciling a stale machine by checking our task-id.
 	// This is a workaround for a cache race condition.
-	if val, ok := a.TaskIDCache[machine.Name]; ok {
-		if val != scope.providerStatus.TaskRef {
+	if val, ok := a.TaskIDCache.Load(machine.Name); ok {
+		if val.(string) != scope.providerStatus.TaskRef {
 			klog.Errorf("%s: machine object missing expected provider task ID, requeue", machine.GetName())
 			return &machinecontroller.RequeueAfterError{RequeueAfter: requeueAfterSeconds * time.Second}
 		}
@@ -99,10 +223,17 @@ func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error
 	err = newReconciler(scope).create()
 	// save the taskRef in our cache in case of any error with patch.
 	if scope.providerStatus.TaskRef != "" {
-		a.TaskIDCache[machine.Name] = scope.providerStatus.TaskRef
+		a.TaskIDCache.Store(machine.Name, scope.providerStatus.TaskRef)
 	}
 	if err != nil {
 		fmtErr := fmt.Errorf(reconcilerFailFmt, machine.GetName(), createEventAction, err)
+		var requeueErr *machinecontroller.RequeueAfterError
+		if errors.As(fmtErr, &requeueErr) {
+			if err := scope.PatchMachine(); err != nil {
+				return err
+			}
+			return fmtErr
+		}
 		retErr = a.handleMachineError(machine, fmtErr, createEventAction)
 	} else {
 		a.eventRecorder.Eventf(machine, nil, corev1.EventTypeNormal, createEventAction, createEventAction, "Created Machine %v", machine.GetName())
@@ -116,6 +247,11 @@ func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error
 }
 
 func (a *Actuator) Exists(ctx context.Context, machine *machinev1.Machine) (bool, error) {
+	if canSkipFullReconcile(machine) {
+		klog.V(3).Infof("%s: machine is stable, skipping full reconcile in Exists()", machine.GetName())
+		return true, nil
+	}
+
 	klog.Infof("%s: actuator checking if machine exists", machine.GetName())
 	scope, err := newMachineScope(machineScopeParams{
 		Context:                  ctx,
@@ -128,34 +264,50 @@ func (a *Actuator) Exists(ctx context.Context, machine *machinev1.Machine) (bool
 	if err != nil {
 		return false, fmt.Errorf(scopeFailFmt, machine.GetName(), err)
 	}
+
+	// Cache the scope so a subsequent Update() call within the same reconciliation can reuse
+	// it instead of re-validating the vCenter session and re-reading credentials.
+	a.scopeCache.Store(machine.GetUID(), scope)
+
 	return newReconciler(scope).exists()
 }
 
 func (a *Actuator) Update(ctx context.Context, machine *machinev1.Machine) error {
+	if canSkipFullReconcile(machine) {
+		klog.V(3).Infof("%s: machine is stable, skipping full reconcile in Update()", machine.GetName())
+		return nil
+	}
+
 	klog.Infof("%s: actuator updating machine", machine.GetName())
 	// Cleanup TaskIDCache so we don't continually grow
-	delete(a.TaskIDCache, machine.Name)
+	a.TaskIDCache.Delete(machine.Name)
 
-	scope, err := newMachineScope(machineScopeParams{
-		Context:                  ctx,
-		client:                   a.client,
-		machine:                  machine,
-		apiReader:                a.apiReader,
-		featureGates:             a.FeatureGates,
-		openshiftConfigNameSpace: a.openshiftConfigNamespace,
-	})
+	scope, err := a.getOrCreateScope(ctx, machine)
 	if err != nil {
 		fmtErr := fmt.Errorf(scopeFailFmt, machine.GetName(), err)
 		return a.handleMachineError(machine, fmtErr, updateEventAction)
 	}
+	// The scope (if reused from Exists()) is only valid for this single reconciliation.
+	defer a.scopeCache.Delete(machine.GetUID())
+
 	if err := newReconciler(scope).update(); err != nil {
 		// Update machine and machine status in case it was modified
 		if err := scope.PatchMachine(); err != nil {
 			return err
 		}
 		fmtErr := fmt.Errorf(reconcilerFailFmt, machine.GetName(), updateEventAction, err)
+		var requeueErr *machinecontroller.RequeueAfterError
+		if errors.As(fmtErr, &requeueErr) {
+			return fmtErr
+		}
 		return a.handleMachineError(machine, fmtErr, updateEventAction)
 	}
+
+	// A full reconciliation just completed successfully: record the provider spec hash and
+	// timestamp so that future stable reconciliations can short-circuit via
+	// canSkipFullReconcile, avoiding unnecessary vCenter API calls.
+	markFullReconcileComplete(scope.machine)
+
 	previousResourceVersion := scope.machine.ResourceVersion
 
 	if err := scope.PatchMachine(); err != nil {
@@ -176,7 +328,10 @@ func (a *Actuator) Delete(ctx context.Context, machine *machinev1.Machine) error
 	klog.Infof("%s: actuator deleting machine", machine.GetName())
 	// Cleanup TaskIDCache so we don't continually grow
 	// Cleanup here as well in case Update() was never successfully called.
-	delete(a.TaskIDCache, machine.Name)
+	a.TaskIDCache.Delete(machine.Name)
+	// Defensive cleanup: an Exists() call for a machine that is now being deleted may have
+	// cached a scope that Update() never got a chance to consume.
+	defer a.scopeCache.Delete(machine.GetUID())
 
 	scope, err := newMachineScope(machineScopeParams{
 		Context:                  ctx,
@@ -195,6 +350,10 @@ func (a *Actuator) Delete(ctx context.Context, machine *machinev1.Machine) error
 			return err
 		}
 		fmtErr := fmt.Errorf(reconcilerFailFmt, machine.GetName(), deleteEventAction, err)
+		var requeueErr *machinecontroller.RequeueAfterError
+		if errors.As(fmtErr, &requeueErr) {
+			return fmtErr
+		}
 		return a.handleMachineError(machine, fmtErr, deleteEventAction)
 	}
 	a.eventRecorder.Eventf(machine, nil, corev1.EventTypeNormal, deleteEventAction, deleteEventAction, "Deleted machine %v", machine.GetName())
