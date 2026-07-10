@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -226,6 +227,13 @@ func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error
 	}
 	if err != nil {
 		fmtErr := fmt.Errorf(reconcilerFailFmt, machine.GetName(), createEventAction, err)
+		var requeueErr *machinecontroller.RequeueAfterError
+		if errors.As(fmtErr, &requeueErr) {
+			if err := scope.PatchMachine(); err != nil {
+				return err
+			}
+			return fmtErr
+		}
 		retErr = a.handleMachineError(machine, fmtErr, createEventAction)
 	} else {
 		a.eventRecorder.Eventf(machine, nil, corev1.EventTypeNormal, createEventAction, createEventAction, "Created Machine %v", machine.GetName())
@@ -288,6 +296,10 @@ func (a *Actuator) Update(ctx context.Context, machine *machinev1.Machine) error
 			return err
 		}
 		fmtErr := fmt.Errorf(reconcilerFailFmt, machine.GetName(), updateEventAction, err)
+		var requeueErr *machinecontroller.RequeueAfterError
+		if errors.As(fmtErr, &requeueErr) {
+			return fmtErr
+		}
 		return a.handleMachineError(machine, fmtErr, updateEventAction)
 	}
 
@@ -338,6 +350,10 @@ func (a *Actuator) Delete(ctx context.Context, machine *machinev1.Machine) error
 			return err
 		}
 		fmtErr := fmt.Errorf(reconcilerFailFmt, machine.GetName(), deleteEventAction, err)
+		var requeueErr *machinecontroller.RequeueAfterError
+		if errors.As(fmtErr, &requeueErr) {
+			return fmtErr
+		}
 		return a.handleMachineError(machine, fmtErr, deleteEventAction)
 	}
 	a.eventRecorder.Eventf(machine, nil, corev1.EventTypeNormal, deleteEventAction, deleteEventAction, "Deleted machine %v", machine.GetName())

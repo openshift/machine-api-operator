@@ -12,6 +12,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/vmware/govmomi/task"
 
@@ -212,7 +213,9 @@ func (r *Reconciler) create() error {
 		if taskIsFinished {
 			klog.V(4).Infof("%v task %v has completed", moTask.Info.DescriptionId, moTask.Reference().Value)
 		} else {
-			return fmt.Errorf("%v task %v has not finished", moTask.Info.DescriptionId, moTask.Reference().Value)
+			klog.V(3).Infof("%s: %v task %v has not finished, requeueing",
+				r.machine.GetName(), moTask.Info.DescriptionId, moTask.Reference().Value)
+			return &machinecontroller.RequeueAfterError{RequeueAfter: requeueAfterSeconds * time.Second}
 		}
 	}
 
@@ -282,7 +285,9 @@ func (r *Reconciler) update() error {
 				})
 				return fmt.Errorf("%v task %v finished with error: %w", moTask.Info.DescriptionId, moTask.Reference().Value, err)
 			} else if !taskIsFinished {
-				return fmt.Errorf("%v task %v has not finished", moTask.Info.DescriptionId, moTask.Reference().Value)
+				klog.V(3).Infof("%s: %v task %v has not finished, requeueing",
+					r.machine.GetName(), moTask.Info.DescriptionId, moTask.Reference().Value)
+				return &machinecontroller.RequeueAfterError{RequeueAfter: requeueAfterSeconds * time.Second}
 			}
 		}
 	}
@@ -412,7 +417,9 @@ func (r *Reconciler) delete() error {
 					)
 				}
 			} else if !taskIsFinished {
-				return fmt.Errorf("%v task %v has not finished", moTask.Info.DescriptionId, moTask.Reference().Value)
+				klog.V(3).Infof("%s: %v task %v has not finished, requeueing",
+					r.machine.GetName(), moTask.Info.DescriptionId, moTask.Reference().Value)
+				return &machinecontroller.RequeueAfterError{RequeueAfter: requeueAfterSeconds * time.Second}
 			}
 		}
 	}

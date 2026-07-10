@@ -2,6 +2,7 @@ package vsphere
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	testutils "github.com/openshift/machine-api-operator/pkg/util/testing"
 
 	. "github.com/onsi/gomega"
@@ -422,4 +424,29 @@ func TestMachineEvents(t *testing.T) {
 			gs.Expect(matchingEvent.Message).To(Equal(tc.event))
 		})
 	}
+}
+
+func TestRequeueAfterErrorShortCircuitsHandleMachineError(t *testing.T) {
+	t.Run("RequeueAfterError unwraps through reconcilerFailFmt", func(t *testing.T) {
+		g := NewWithT(t)
+
+		requeueErr := &machinecontroller.RequeueAfterError{RequeueAfter: requeueAfterSeconds * time.Second}
+		wrappedErr := fmt.Errorf(reconcilerFailFmt, "test-machine", createEventAction, requeueErr)
+
+		var unwrapped *machinecontroller.RequeueAfterError
+		g.Expect(errors.As(wrappedErr, &unwrapped)).To(BeTrue(),
+			"errors.As should unwrap RequeueAfterError through reconcilerFailFmt (%%w)")
+		g.Expect(unwrapped.RequeueAfter).To(Equal(requeueAfterSeconds * time.Second))
+	})
+
+	t.Run("plain error does not match RequeueAfterError", func(t *testing.T) {
+		g := NewWithT(t)
+
+		plainErr := fmt.Errorf("something went wrong")
+		wrappedErr := fmt.Errorf(reconcilerFailFmt, "test-machine", createEventAction, plainErr)
+
+		var unwrapped *machinecontroller.RequeueAfterError
+		g.Expect(errors.As(wrappedErr, &unwrapped)).To(BeFalse(),
+			"plain error should not match RequeueAfterError")
+	})
 }
