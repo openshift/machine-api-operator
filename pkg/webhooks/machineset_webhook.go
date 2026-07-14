@@ -76,7 +76,7 @@ func NewMachineSetDefaulter() (*admission.Webhook, error) {
 func createMachineSetDefaulter(platformStatus *osconfigv1.PlatformStatus, clusterID string) *admission.Webhook {
 	return admission.WithCustomDefaulter(scheme.Scheme, &machinev1beta1.MachineSet{}, &machineSetDefaulterHandler{
 		admissionHandler: &admissionHandler{
-			admissionConfig:   &admissionConfig{clusterID: clusterID},
+			admissionConfig:   &admissionConfig{clusterID: clusterID, platformStatus: platformStatus},
 			webhookOperations: getMachineDefaulterOperation(platformStatus),
 		},
 	})
