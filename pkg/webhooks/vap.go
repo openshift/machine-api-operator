@@ -41,6 +41,11 @@ var (
 	vapParamNotFoundAllow = admissionregistrationv1.AllowAction
 )
 
+func matchPolicyEquivalent() *admissionregistrationv1.MatchPolicyType {
+	p := admissionregistrationv1.Equivalent
+	return &p
+}
+
 // NewVSphereFailureDomainMachineVAP returns a ValidatingAdmissionPolicy that prevents
 // an infrastructure/cluster UPDATE from removing a vSphere failure domain that is still
 // referenced by at least one Machine (identified via machine.openshift.io/region and
@@ -64,6 +69,9 @@ func NewVSphereFailureDomainMachineVAP() *admissionregistrationv1.ValidatingAdmi
 			},
 			// Fire on UPDATE of the Infrastructure CR only.
 			MatchConstraints: &admissionregistrationv1.MatchResources{
+				MatchPolicy:       matchPolicyEquivalent(),
+				NamespaceSelector: &metav1.LabelSelector{},
+				ObjectSelector:    &metav1.LabelSelector{},
 				ResourceRules: []admissionregistrationv1.NamedRuleWithOperations{
 					{
 						RuleWithOperations: admissionregistrationv1.RuleWithOperations{
@@ -172,6 +180,9 @@ func NewVSphereFailureDomainCPMSVAP() *admissionregistrationv1.ValidatingAdmissi
 			},
 			// Fire on UPDATE of the Infrastructure CR only.
 			MatchConstraints: &admissionregistrationv1.MatchResources{
+				MatchPolicy:       matchPolicyEquivalent(),
+				NamespaceSelector: &metav1.LabelSelector{},
+				ObjectSelector:    &metav1.LabelSelector{},
 				ResourceRules: []admissionregistrationv1.NamedRuleWithOperations{
 					{
 						RuleWithOperations: admissionregistrationv1.RuleWithOperations{
@@ -276,6 +287,9 @@ func NewVSphereFailureDomainMachineSetVAP() *admissionregistrationv1.ValidatingA
 			},
 			// Trigger: UPDATE of the Infrastructure CR only.
 			MatchConstraints: &admissionregistrationv1.MatchResources{
+				MatchPolicy:       matchPolicyEquivalent(),
+				NamespaceSelector: &metav1.LabelSelector{},
+				ObjectSelector:    &metav1.LabelSelector{},
 				ResourceRules: []admissionregistrationv1.NamedRuleWithOperations{
 					{
 						RuleWithOperations: admissionregistrationv1.RuleWithOperations{
