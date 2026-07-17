@@ -70,7 +70,7 @@ func (optr *Operator) statusProgressing() error {
 	if !reflect.DeepEqual(desiredVersions, currentVersions) {
 		klog.V(2).Info("Syncing status: progressing")
 		message = fmt.Sprintf("Progressing towards %s", optr.printOperandVersions())
-		optr.eventRecorder.Eventf(co, v1.EventTypeNormal, "Status upgrade", message)
+		optr.eventRecorder.Eventf(co, v1.EventTypeNormal, "Status upgrade", "%s", message)
 		isProgressing = osconfigv1.ConditionTrue
 		reason = string(ReasonSyncing)
 	} else {
@@ -136,7 +136,7 @@ func (optr *Operator) statusDegraded(error string) error {
 	if err != nil {
 		return err
 	}
-	optr.eventRecorder.Eventf(co, v1.EventTypeWarning, "Status degraded", error)
+	optr.eventRecorder.Eventf(co, v1.EventTypeWarning, "Status degraded", "%s", error)
 	klog.V(2).Info("Syncing status: degraded")
 	return optr.syncStatus(co, conds)
 }
