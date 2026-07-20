@@ -11,6 +11,7 @@ replace (
 	k8s.io/cri-streaming => github.com/openshift/kubernetes/staging/src/k8s.io/cri-streaming v0.0.0-20260716191900-78acd4d422b2
 	k8s.io/endpointslice => github.com/openshift/kubernetes/staging/src/k8s.io/endpointslice v0.0.0-20260716191900-78acd4d422b2
 	k8s.io/externaljwt => github.com/openshift/kubernetes/staging/src/k8s.io/externaljwt v0.0.0-20260716191900-78acd4d422b2
+	k8s.io/kube-aggregator => github.com/openshift/kubernetes/staging/src/k8s.io/kube-aggregator v0.0.0-20260716191900-78acd4d422b2
 	k8s.io/kube-controller-manager => github.com/openshift/kubernetes/staging/src/k8s.io/kube-controller-manager v0.0.0-20260716191900-78acd4d422b2
 	k8s.io/kube-proxy => github.com/openshift/kubernetes/staging/src/k8s.io/kube-proxy v0.0.0-20260716191900-78acd4d422b2
 	k8s.io/kubelet => github.com/openshift/kubernetes/staging/src/k8s.io/kubelet v0.0.0-20260716191900-78acd4d422b2 // openshift kubernetes has very old copy of k8s.io/kubernetes/cmd/kubelet/app/options/options.go

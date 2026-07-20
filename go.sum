@@ -520,6 +520,8 @@ github.com/openshift/kubernetes/staging/src/k8s.io/endpointslice v0.0.0-20260716
 github.com/openshift/kubernetes/staging/src/k8s.io/endpointslice v0.0.0-20260716191900-78acd4d422b2/go.mod h1:8tx+NEg+xYnxJC+FdDzkcvJvJ2sdan7nzWTm1BX8VPg=
 github.com/openshift/kubernetes/staging/src/k8s.io/externaljwt v0.0.0-20260716191900-78acd4d422b2 h1:tFZwScuUB8fQc+hpH7h2vIQHuU6d7Freaa9uTkbfmoM=
 github.com/openshift/kubernetes/staging/src/k8s.io/externaljwt v0.0.0-20260716191900-78acd4d422b2/go.mod h1:E1IRU9bxKSupRMgz8MlaD6XKD/XPMzHI3fds58dFFTY=
+github.com/openshift/kubernetes/staging/src/k8s.io/kube-aggregator v0.0.0-20260716191900-78acd4d422b2 h1:iIIHJil7KopM7crn4+aQAwgJAjWc5Gv7rxNJ7tUj9/w=
+github.com/openshift/kubernetes/staging/src/k8s.io/kube-aggregator v0.0.0-20260716191900-78acd4d422b2/go.mod h1:E2yZwg3UGnKqJ62o0OAk+K1hJtL2NFjj26ySFzf0vdI=
 github.com/openshift/kubernetes/staging/src/k8s.io/kube-controller-manager v0.0.0-20260716191900-78acd4d422b2 h1:XN02PqQy+fh0Yc6bXcboRUeMJRn9ShjJ9feKaIYgeoQ=
 github.com/openshift/kubernetes/staging/src/k8s.io/kube-controller-manager v0.0.0-20260716191900-78acd4d422b2/go.mod h1:wGCgLxesjAGh56ojb9YSwKtoEqVhq5ZnkYWDft01Nt0=
 github.com/openshift/kubernetes/staging/src/k8s.io/kube-proxy v0.0.0-20260716191900-78acd4d422b2 h1:Tw9uEENFk3+xLy+cNNSu/FxzdPnAYRuZzUOl0iM/KIQ=
@@ -980,8 +982,6 @@ k8s.io/klog/v2 v2.140.0 h1:Tf+J3AH7xnUzZyVVXhTgGhEKnFqye14aadWv7bzXdzc=
 k8s.io/klog/v2 v2.140.0/go.mod h1:o+/RWfJ6PwpnFn7OyAG3QnO47BFsymfEfrz6XyYSSp0=
 k8s.io/kms v0.36.2 h1:o0l8zMRecm38k5NyRnO/3+2YA/MR6TMGcc3KQZA76hI=
 k8s.io/kms v0.36.2/go.mod h1:g91diTD9h0oJCCHkTb00krlF+Qm5HTnkWLi9Q/TpRoc=
-k8s.io/kube-aggregator v0.36.2 h1:zfeH9Fs16oDquNfBZef3M27dGG3QtJ9/TwkWfBlw1lo=
-k8s.io/kube-aggregator v0.36.2/go.mod h1:UMrB5DfEhznFTf0bqYW2SV26GDy8HNaxoYakvKVWZ8M=
 k8s.io/kube-openapi v0.0.0-20260519202549-bbf5c5577288 h1:A7Lby6ekC6nv+6oO38huCMFBRP0Os+tIeq1GkwxOQes=
 k8s.io/kube-openapi v0.0.0-20260519202549-bbf5c5577288/go.mod h1:V/QaCUYDa+0QpcHhVVc5l99Uz56wEMEXBSj9oCDkNDY=
 k8s.io/kube-scheduler v0.36.2 h1:Lf3j9NGNGA/MBFT11bLAWKZzFDS6IVRxOGP/Hw8YVLU=
