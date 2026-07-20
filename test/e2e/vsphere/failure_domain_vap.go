@@ -47,32 +47,69 @@ func infraWithFDRemoved(infra *configv1.Infrastructure, fdName string) *configv1
 	return copy
 }
 
-// findFDUsedByMachine returns the name and spec of a vSphere failure domain that is referenced
-// by at least one Machine in the list.
-//
-// On single-failure-domain clusters, machines carry empty region/zone labels (the labels are only
-// populated when multiple failure domains are configured). In that case there is exactly one FD and
-// every machine implicitly uses it, so we return it directly without inspecting the labels.
-//
-// On multi-failure-domain clusters the machine's region/zone labels are compared against each FD's
-// Region/Zone fields to find the match.
-//
-// Returns ("", zero-value, false) when no machines exist or no match can be found.
+// getCPMSFailureDomainNames returns the set of failure domain names referenced by the
+// ControlPlaneMachineSet. Returns an empty (non-nil) map and nil error when the CPMS
+// does not exist or has no vSphere failure domain entries. Non-NotFound API errors
+// are propagated so callers can fail loudly instead of silently skipping CPMS exclusion.
+func getCPMSFailureDomainNames(ctx context.Context, mcv1 *machineclientv1.MachineV1Client) (map[string]bool, error) {
+	names := make(map[string]bool)
+	cpms, err := mcv1.ControlPlaneMachineSets(e2eutil.MachineAPINamespace).Get(ctx, "cluster", metav1.GetOptions{})
+	if apierrors.IsNotFound(err) {
+		return names, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ControlPlaneMachineSet: %w", err)
+	}
+	t := cpms.Spec.Template.OpenShiftMachineV1Beta1Machine
+	if t == nil || t.FailureDomains == nil {
+		return names, nil
+	}
+	for _, vfd := range t.FailureDomains.VSphere {
+		names[vfd.Name] = true
+	}
+	return names, nil
+}
+
+// isFDReferencedByMachine reports whether any Machine in the list has region/zone labels
+// matching the given failure domain.
+func isFDReferencedByMachine(fd configv1.VSpherePlatformFailureDomainSpec, machines *machinev1beta1.MachineList) bool {
+	for _, m := range machines.Items {
+		if m.Labels["machine.openshift.io/region"] == fd.Region &&
+			m.Labels["machine.openshift.io/zone"] == fd.Zone {
+			return true
+		}
+	}
+	return false
+}
+
+// isFDReferencedByMachineSet reports whether any MachineSet in the list has template
+// region/zone labels matching the given failure domain.
+func isFDReferencedByMachineSet(fd configv1.VSpherePlatformFailureDomainSpec, machineSets *machinev1beta1.MachineSetList) bool {
+	for _, ms := range machineSets.Items {
+		if ms.Spec.Template.ObjectMeta.Labels["machine.openshift.io/region"] == fd.Region &&
+			ms.Spec.Template.ObjectMeta.Labels["machine.openshift.io/zone"] == fd.Zone {
+			return true
+		}
+	}
+	return false
+}
+
+// findFDUsedByMachine returns a vSphere failure domain referenced by at least one Machine
+// (matched via explicit region/zone labels). It prefers FDs NOT in excludeFDNames so the
+// caller can avoid conflicts with other VAPs (e.g. the CPMS VAP). The exclusive flag
+// indicates whether the returned FD is outside the exclude set.
 func findFDUsedByMachine(
 	machines *machinev1beta1.MachineList,
 	infra *configv1.Infrastructure,
-) (string, configv1.VSpherePlatformFailureDomainSpec, bool) {
+	excludeFDNames map[string]bool,
+) (fdName string, fdSpec configv1.VSpherePlatformFailureDomainSpec, found bool, exclusive bool) {
 	fds := infra.Spec.PlatformSpec.VSphere.FailureDomains
 	if len(machines.Items) == 0 || len(fds) == 0 {
-		return "", configv1.VSpherePlatformFailureDomainSpec{}, false
+		return "", configv1.VSpherePlatformFailureDomainSpec{}, false, false
 	}
 
-	// Single-FD cluster: region/zone labels are empty, but every machine uses the sole FD.
-	if len(fds) == 1 {
-		return fds[0].Name, fds[0], true
-	}
-
-	// Multi-FD cluster: match via region/zone labels that the machine controller stamps on each Machine.
+	var fallbackName string
+	var fallbackSpec configv1.VSpherePlatformFailureDomainSpec
 	for _, m := range machines.Items {
 		region := m.Labels["machine.openshift.io/region"]
 		zone := m.Labels["machine.openshift.io/zone"]
@@ -81,11 +118,20 @@ func findFDUsedByMachine(
 		}
 		for _, fd := range fds {
 			if fd.Region == region && fd.Zone == zone {
-				return fd.Name, fd, true
+				if !excludeFDNames[fd.Name] {
+					return fd.Name, fd, true, true
+				}
+				if fallbackName == "" {
+					fallbackName = fd.Name
+					fallbackSpec = fd
+				}
 			}
 		}
 	}
-	return "", configv1.VSpherePlatformFailureDomainSpec{}, false
+	if fallbackName != "" {
+		return fallbackName, fallbackSpec, true, false
+	}
+	return "", configv1.VSpherePlatformFailureDomainSpec{}, false, false
 }
 
 // findFDUsedByCPMS returns the name of a vSphere failure domain that is referenced by the
@@ -111,26 +157,6 @@ func findFDUsedByCPMS(
 		return "", false, false
 	}
 
-	// Build a set of (region, zone) pairs used by worker Machines and MachineSets so we can
-	// avoid picking an FD that would also trigger the Machine or MachineSet VAP.
-	type regionZone struct{ region, zone string }
-	workerFDs := make(map[regionZone]bool)
-	for _, m := range machines.Items {
-		r := m.Labels["machine.openshift.io/region"]
-		z := m.Labels["machine.openshift.io/zone"]
-		if r != "" && z != "" {
-			workerFDs[regionZone{r, z}] = true
-		}
-	}
-	for _, ms := range machineSets.Items {
-		r := ms.Spec.Template.ObjectMeta.Labels["machine.openshift.io/region"]
-		z := ms.Spec.Template.ObjectMeta.Labels["machine.openshift.io/zone"]
-		if r != "" && z != "" {
-			workerFDs[regionZone{r, z}] = true
-		}
-	}
-
-	// Build a lookup of infra FD name → spec for quick resolution.
 	infraFDByName := make(map[string]configv1.VSpherePlatformFailureDomainSpec)
 	for _, fd := range infra.Spec.PlatformSpec.VSphere.FailureDomains {
 		infraFDByName[fd.Name] = fd
@@ -146,7 +172,7 @@ func findFDUsedByCPMS(
 			firstMatch = infraFD.Name // record the first valid match as fallback
 		}
 		// Prefer an FD not shared with any worker Machine or MachineSet.
-		if !workerFDs[regionZone{infraFD.Region, infraFD.Zone}] {
+		if !isFDReferencedByMachine(infraFD, machines) && !isFDReferencedByMachineSet(infraFD, machineSets) {
 			return infraFD.Name, true, true
 		}
 	}
@@ -308,42 +334,30 @@ var _ = Describe(
 				Skip("skipping — need at least two failure domains to remove one while keeping another")
 			}
 
-			// Find a failure domain not referenced by any Machine or MachineSet.
+			// Find a failure domain not referenced by any Machine, MachineSet, or CPMS.
 			machines, err := mc.Machines(e2eutil.MachineAPINamespace).List(ctx, metav1.ListOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
 			machineSets, err := e2eutil.GetMachineSets(cfg)
 			Expect(err).NotTo(HaveOccurred())
 
+			cpmsFDNames, cpmsErr := getCPMSFailureDomainNames(ctx, mcv1)
+			Expect(cpmsErr).NotTo(HaveOccurred())
+
 			var unusedFDName string
 			for _, fd := range infra.Spec.PlatformSpec.VSphere.FailureDomains {
-				usedByMachine := false
-				for _, m := range machines.Items {
-					if m.Labels["machine.openshift.io/region"] == fd.Region &&
-						m.Labels["machine.openshift.io/zone"] == fd.Zone {
-						usedByMachine = true
-						break
-					}
-				}
-				if usedByMachine {
+				if cpmsFDNames[fd.Name] {
 					continue
 				}
-				usedByMS := false
-				for _, ms := range machineSets.Items {
-					if ms.Spec.Template.ObjectMeta.Labels["machine.openshift.io/region"] == fd.Region &&
-						ms.Spec.Template.ObjectMeta.Labels["machine.openshift.io/zone"] == fd.Zone {
-						usedByMS = true
-						break
-					}
+				if isFDReferencedByMachine(fd, machines) || isFDReferencedByMachineSet(fd, machineSets) {
+					continue
 				}
-				if !usedByMS {
-					unusedFDName = fd.Name
-					break
-				}
+				unusedFDName = fd.Name
+				break
 			}
 
 			if unusedFDName == "" {
-				Skip("skipping — all failure domains are in use by Machines or MachineSets")
+				Skip("skipping — all failure domains are in use by Machines, MachineSets, or ControlPlaneMachineSets")
 			}
 
 			By(fmt.Sprintf("removing unused failure domain %q from Infrastructure", unusedFDName))
@@ -364,7 +378,9 @@ var _ = Describe(
 			machines, err := mc.Machines(e2eutil.MachineAPINamespace).List(ctx, metav1.ListOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-			fdName, _, found := findFDUsedByMachine(machines, infra)
+			cpmsFDNames, cpmsErr := getCPMSFailureDomainNames(ctx, mcv1)
+			Expect(cpmsErr).NotTo(HaveOccurred())
+			fdName, _, found, exclusive := findFDUsedByMachine(machines, infra, cpmsFDNames)
 			if !found {
 				Skip("skipping — no existing Machine with region/zone labels matching a known failure domain")
 			}
@@ -375,8 +391,16 @@ var _ = Describe(
 			Expect(err).To(HaveOccurred(), "expected infra update removing in-use FD %q to be denied", fdName)
 			Expect(apierrors.IsInvalid(err) || apierrors.IsForbidden(err)).To(BeTrue(),
 				"expected a 422/Invalid or 403/Forbidden response, got: %v", err)
-			Expect(err.Error()).To(ContainSubstring("in use by Machine '"),
-				"expected error to mention 'Machine' as the blocking resource")
+
+			if exclusive {
+				Expect(err.Error()).To(ContainSubstring("in use by Machine '"),
+					"expected error to mention 'Machine' as the blocking resource")
+			} else {
+				Expect(err.Error()).To(Or(
+					ContainSubstring("in use by Machine '"),
+					ContainSubstring("in use by ControlPlaneMachineSet '"),
+				), "expected error to mention 'Machine' or 'ControlPlaneMachineSet' as the blocking resource")
+			}
 		})
 
 		It("should block removing a failure domain referenced by a MachineSet [apigroup:machine.openshift.io][Suite:openshift/conformance/serial]", func() {
@@ -386,17 +410,8 @@ var _ = Describe(
 				Skip("skipping — no MachineSets available to clone for this test")
 			}
 
-			// Pick a failure domain that is NOT referenced by the CPMS so
-			// the MachineSet VAP is the one that fires (not the CPMS VAP).
-			cpmsFDNames := make(map[string]bool)
-			cpms, cpmsErr := mcv1.ControlPlaneMachineSets(e2eutil.MachineAPINamespace).Get(ctx, "cluster", metav1.GetOptions{})
-			if cpmsErr == nil {
-				if t := cpms.Spec.Template.OpenShiftMachineV1Beta1Machine; t != nil && t.FailureDomains != nil {
-					for _, vfd := range t.FailureDomains.VSphere {
-						cpmsFDNames[vfd.Name] = true
-					}
-				}
-			}
+			cpmsFDNames, cpmsErr := getCPMSFailureDomainNames(ctx, mcv1)
+			Expect(cpmsErr).NotTo(HaveOccurred())
 
 			var fd configv1.VSpherePlatformFailureDomainSpec
 			fdExclusive := false
@@ -488,15 +503,8 @@ var _ = Describe(
 			machines, err := mc.Machines(e2eutil.MachineAPINamespace).List(ctx, metav1.ListOptions{})
 			Expect(err).NotTo(HaveOccurred())
 
-			cpmsFDNames := make(map[string]bool)
-			cpms, cpmsErr := mcv1.ControlPlaneMachineSets(e2eutil.MachineAPINamespace).Get(ctx, "cluster", metav1.GetOptions{})
-			if cpmsErr == nil {
-				if t := cpms.Spec.Template.OpenShiftMachineV1Beta1Machine; t != nil && t.FailureDomains != nil {
-					for _, vfd := range t.FailureDomains.VSphere {
-						cpmsFDNames[vfd.Name] = true
-					}
-				}
-			}
+			cpmsFDNames, cpmsErr := getCPMSFailureDomainNames(ctx, mcv1)
+			Expect(cpmsErr).NotTo(HaveOccurred())
 
 			var fd *configv1.VSpherePlatformFailureDomainSpec
 			for i := range infra.Spec.PlatformSpec.VSphere.FailureDomains {
@@ -504,29 +512,11 @@ var _ = Describe(
 				if cpmsFDNames[candidate.Name] {
 					continue
 				}
-				usedByMachine := false
-				for _, m := range machines.Items {
-					if m.Labels["machine.openshift.io/region"] == candidate.Region &&
-						m.Labels["machine.openshift.io/zone"] == candidate.Zone {
-						usedByMachine = true
-						break
-					}
-				}
-				if usedByMachine {
+				if isFDReferencedByMachine(*candidate, machines) || isFDReferencedByMachineSet(*candidate, machineSets) {
 					continue
 				}
-				usedByMS := false
-				for _, ms := range machineSets.Items {
-					if ms.Spec.Template.ObjectMeta.Labels["machine.openshift.io/region"] == candidate.Region &&
-						ms.Spec.Template.ObjectMeta.Labels["machine.openshift.io/zone"] == candidate.Zone {
-						usedByMS = true
-						break
-					}
-				}
-				if !usedByMS {
-					fd = candidate
-					break
-				}
+				fd = candidate
+				break
 			}
 			if fd == nil {
 				Skip("skipping — every failure domain is referenced by an existing Machine, MachineSet, or ControlPlaneMachineSet; cannot isolate test MachineSet as the sole blocker")
