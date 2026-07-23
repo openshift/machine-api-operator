@@ -239,6 +239,44 @@ func TestNewVSphereFailureDomainMachineSetVAPBinding(t *testing.T) {
 	g.Expect(spec.ValidationActions).To(ConsistOf(admissionregistrationv1.Deny))
 }
 
+// TestVAPMatchConstraintsServerDefaultedFields ensures that all three VAPs explicitly set
+// MatchPolicy, NamespaceSelector, and ObjectSelector on MatchConstraints. When these fields
+// are nil, the API server defaults them on storage. On the next sync cycle, resourceapply
+// sees a diff between the desired spec (nil) and the stored spec (defaulted), triggering a
+// spurious UPDATE every cycle. See SPLAT-2854.
+func TestVAPMatchConstraintsServerDefaultedFields(t *testing.T) {
+	expectedMatchPolicy := admissionregistrationv1.Equivalent
+	expectedSelector := &metav1.LabelSelector{}
+
+	tests := []struct {
+		name   string
+		policy *admissionregistrationv1.ValidatingAdmissionPolicy
+	}{
+		{"Machine VAP", NewVSphereFailureDomainMachineVAP()},
+		{"CPMS VAP", NewVSphereFailureDomainCPMSVAP()},
+		{"MachineSet VAP", NewVSphereFailureDomainMachineSetVAP()},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			mc := tt.policy.Spec.MatchConstraints
+			g.Expect(mc).NotTo(BeNil(), "MatchConstraints must not be nil")
+
+			g.Expect(mc.MatchPolicy).NotTo(BeNil(),
+				"MatchPolicy must be explicitly set to avoid spurious updates from API server defaulting")
+			g.Expect(*mc.MatchPolicy).To(Equal(expectedMatchPolicy))
+
+			g.Expect(mc.NamespaceSelector).To(Equal(expectedSelector),
+				"NamespaceSelector must be explicitly set to avoid spurious updates from API server defaulting")
+
+			g.Expect(mc.ObjectSelector).To(Equal(expectedSelector),
+				"ObjectSelector must be explicitly set to avoid spurious updates from API server defaulting")
+		})
+	}
+}
+
 // TestVAPNamesAreConsistent ensures the binding policy names match the policy names.
 func TestVAPNamesAreConsistent(t *testing.T) {
 	g := NewWithT(t)
