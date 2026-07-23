@@ -15,6 +15,8 @@ import (
 
 	"slices"
 
+	archtranslater "github.com/coreos/stream-metadata-go/arch"
+	"github.com/coreos/stream-metadata-go/stream"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
@@ -156,6 +158,12 @@ const (
 
 	defaultUserDataSecret  = "worker-user-data"
 	defaultSecretNamespace = "openshift-machine-api"
+
+	bootImagesConfigMapName      = "coreos-bootimages"
+	bootImagesConfigMapNamespace = "openshift-machine-config-operator"
+	bootImagesStreamKey          = "stream"
+	machineArchAnnotationKey     = "capacity.cluster-autoscaler.kubernetes.io/labels"
+	archLabelKey                 = "kubernetes.io/arch="
 
 	// AWS Defaults
 	defaultAWSCredentialsSecret = "aws-cloud-credentials"
@@ -351,44 +359,6 @@ func getDNS() (*osconfigv1.DNS, error) {
 	return dns, nil
 }
 
-func resolveGCPBootImage(c client.Client) string {
-	archSuffix := "x86-64"
-	if arch == ARM64 {
-		archSuffix = "aarch64"
-	}
-
-	machineList := &machinev1beta1.MachineList{}
-	if err := c.List(context.Background(), machineList,
-		client.InNamespace(defaultSecretNamespace),
-		client.MatchingLabels{machineRoleLabel: "worker"},
-	); err != nil {
-		klog.V(3).Infof("Failed to list worker machines for GCP boot image resolution: %v", err)
-		return ""
-	}
-
-	for _, machine := range machineList.Items {
-		if machine.Spec.ProviderSpec.Value == nil {
-			continue
-		}
-		providerSpec := &machinev1beta1.GCPMachineProviderSpec{}
-		if err := json.Unmarshal(machine.Spec.ProviderSpec.Value.Raw, providerSpec); err != nil {
-			klog.V(4).Infof("Failed to unmarshal providerSpec for machine %s: %v", machine.Name, err)
-			continue
-		}
-		for _, disk := range providerSpec.Disks {
-			if disk == nil {
-				continue
-			}
-			if disk.Boot && disk.Image != "" && strings.Contains(disk.Image, archSuffix) {
-				klog.V(3).Infof("Resolved GCP boot image from worker machine %s: %s", machine.Name, disk.Image)
-				return disk.Image
-			}
-		}
-	}
-
-	return ""
-}
-
 type machineAdmissionFn func(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList)
 
 type admissionConfig struct {
@@ -397,7 +367,7 @@ type admissionConfig struct {
 	dnsDisconnected bool
 	client          client.Client
 	featureGates    featuregate.MutableFeatureGate
-	gcpBootImage    string
+	streamData      *stream.Stream
 }
 
 type admissionHandler struct {
@@ -487,42 +457,68 @@ func ResolveDefaulterConfig() (*DefaulterConfig, error) {
 		return nil, err
 	}
 
-	gcpBootImage := ""
-	if infra.Status.PlatformStatus != nil && infra.Status.PlatformStatus.Type == osconfigv1.GCPPlatformType {
-		cfg, err := ctrl.GetConfig()
-		if err != nil {
-			return nil, err
-		}
-		cl, err := client.New(cfg, client.Options{Scheme: scheme.Scheme})
-		if err != nil {
-			return nil, err
-		}
-		gcpBootImage = resolveGCPBootImage(cl)
-	}
+	streamData := resolveStreamData()
 
 	return &DefaulterConfig{
 		PlatformStatus: infra.Status.PlatformStatus,
 		ClusterID:      infra.Status.InfrastructureName,
-		GCPBootImage:   gcpBootImage,
+		StreamData:     streamData,
 	}, nil
+}
+
+func resolveStreamData() *stream.Stream {
+	cfg, err := ctrl.GetConfig()
+	if err != nil {
+		klog.Warningf("Failed to get kubeconfig for boot image resolution: %v", err)
+		return nil
+	}
+	cl, err := client.New(cfg, client.Options{})
+	if err != nil {
+		klog.Warningf("Failed to create client for boot image resolution: %v", err)
+		return nil
+	}
+
+	cm := &corev1.ConfigMap{}
+	key := client.ObjectKey{
+		Namespace: bootImagesConfigMapNamespace,
+		Name:      bootImagesConfigMapName,
+	}
+	if err := cl.Get(context.Background(), key, cm); err != nil {
+		klog.Warningf("Failed to read %s/%s ConfigMap: %v", bootImagesConfigMapNamespace, bootImagesConfigMapName, err)
+		return nil
+	}
+
+	rawStream, ok := cm.Data[bootImagesStreamKey]
+	if !ok {
+		klog.Warningf("ConfigMap %s/%s missing %q key", bootImagesConfigMapNamespace, bootImagesConfigMapName, bootImagesStreamKey)
+		return nil
+	}
+
+	sd := &stream.Stream{}
+	if err := json.Unmarshal([]byte(rawStream), sd); err != nil {
+		klog.Warningf("Failed to parse stream data from ConfigMap: %v", err)
+		return nil
+	}
+
+	return sd
 }
 
 // DefaulterConfig holds shared state for Machine and MachineSet defaulters.
 type DefaulterConfig struct {
 	PlatformStatus *osconfigv1.PlatformStatus
 	ClusterID      string
-	GCPBootImage   string
+	StreamData     *stream.Stream
 }
 
 // NewDefaulter returns a new machineDefaulterHandler.
 func NewMachineDefaulter(dc *DefaulterConfig) *admission.Webhook {
-	return admission.WithCustomDefaulter(scheme.Scheme, &machinev1beta1.Machine{}, createMachineDefaulter(dc.PlatformStatus, dc.ClusterID, dc.GCPBootImage))
+	return admission.WithCustomDefaulter(scheme.Scheme, &machinev1beta1.Machine{}, createMachineDefaulter(dc.PlatformStatus, dc.ClusterID, dc.StreamData))
 }
 
-func createMachineDefaulter(platformStatus *osconfigv1.PlatformStatus, clusterID string, gcpBootImage string) *machineDefaulterHandler {
+func createMachineDefaulter(platformStatus *osconfigv1.PlatformStatus, clusterID string, streamData *stream.Stream) *machineDefaulterHandler {
 	return &machineDefaulterHandler{
 		admissionHandler: &admissionHandler{
-			admissionConfig:   &admissionConfig{clusterID: clusterID, gcpBootImage: gcpBootImage},
+			admissionConfig:   &admissionConfig{clusterID: clusterID, streamData: streamData},
 			webhookOperations: getMachineDefaulterOperation(platformStatus),
 		},
 	}
@@ -1373,6 +1369,36 @@ func validateAzureDiagnostics(diagnosticsSpec machinev1beta1.AzureDiagnostics, p
 	return errs
 }
 
+func getMachineArch(m *machinev1beta1.Machine) string {
+	if m.Annotations != nil {
+		if archLabel, ok := m.Annotations[machineArchAnnotationKey]; ok {
+			for label := range strings.SplitSeq(archLabel, ",") {
+				label = strings.TrimSpace(label)
+				if archValue, found := strings.CutPrefix(label, archLabelKey); found {
+					return archtranslater.RpmArch(archValue)
+				}
+			}
+		}
+	}
+	return archtranslater.CurrentRpmArch()
+}
+
+func getBootImageForGCP(streamData *stream.Stream, arch string) string {
+	if streamData == nil {
+		return ""
+	}
+	archData, ok := streamData.Architectures[arch]
+	if !ok {
+		klog.Warningf("No stream data found for architecture %q", arch)
+		return ""
+	}
+	if archData.Images.Gcp == nil {
+		klog.Warningf("No GCP image found in stream data for architecture %q", arch)
+		return ""
+	}
+	return fmt.Sprintf("projects/%s/global/images/%s", archData.Images.Gcp.Project, archData.Images.Gcp.Name)
+}
+
 func defaultGCP(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
 	klog.V(3).Infof("Defaulting GCP providerSpec")
 
@@ -1401,7 +1427,7 @@ func defaultGCP(m *machinev1beta1.Machine, config *admissionConfig) (bool, []str
 		})
 	}
 
-	providerSpec.Disks = defaultGCPDisks(providerSpec.Disks, config.clusterID, config.gcpBootImage)
+	providerSpec.Disks = defaultGCPDisks(providerSpec.Disks, config.clusterID, config.streamData, m)
 
 	if len(providerSpec.GPUs) != 0 {
 		// In case Count was not set it should default to 1, since there is no valid reason for it to be purposely set to 0.
@@ -1435,11 +1461,12 @@ func defaultGCP(m *machinev1beta1.Machine, config *admissionConfig) (bool, []str
 	return true, warnings, nil
 }
 
-func defaultGCPDisks(disks []*machinev1beta1.GCPDisk, clusterID string, gcpBootImage string) []*machinev1beta1.GCPDisk {
-	image := gcpBootImage
+func defaultGCPDisks(disks []*machinev1beta1.GCPDisk, clusterID string, streamData *stream.Stream, m *machinev1beta1.Machine) []*machinev1beta1.GCPDisk {
+	arch := getMachineArch(m)
+	image := getBootImageForGCP(streamData, arch)
 	if image == "" {
 		image = defaultGCPDiskImage()
-		klog.Infof("No GCP boot image resolved from worker machines, falling back to default: %s", image)
+		klog.Infof("No GCP boot image resolved from coreos-bootimages ConfigMap for arch %s, falling back to default: %s", arch, image)
 	}
 
 	if len(disks) == 0 {

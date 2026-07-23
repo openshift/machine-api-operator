@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 
+	"github.com/coreos/stream-metadata-go/stream"
 	osconfigv1 "github.com/openshift/api/config/v1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -67,13 +68,13 @@ func createMachineSetValidator(infra *osconfigv1.Infrastructure, client client.C
 
 // NewMachineSetDefaulter returns a new machineSetDefaulterHandler.
 func NewMachineSetDefaulter(dc *DefaulterConfig) *admission.Webhook {
-	return createMachineSetDefaulter(dc.PlatformStatus, dc.ClusterID, dc.GCPBootImage)
+	return createMachineSetDefaulter(dc.PlatformStatus, dc.ClusterID, dc.StreamData)
 }
 
-func createMachineSetDefaulter(platformStatus *osconfigv1.PlatformStatus, clusterID string, gcpBootImage string) *admission.Webhook {
+func createMachineSetDefaulter(platformStatus *osconfigv1.PlatformStatus, clusterID string, streamData *stream.Stream) *admission.Webhook {
 	return admission.WithCustomDefaulter(scheme.Scheme, &machinev1beta1.MachineSet{}, &machineSetDefaulterHandler{
 		admissionHandler: &admissionHandler{
-			admissionConfig:   &admissionConfig{clusterID: clusterID, gcpBootImage: gcpBootImage},
+			admissionConfig:   &admissionConfig{clusterID: clusterID, streamData: streamData},
 			webhookOperations: getMachineDefaulterOperation(platformStatus),
 		},
 	})

@@ -212,6 +212,11 @@ github.com/coreos/go-semver/semver
 github.com/coreos/go-systemd/v22/daemon
 github.com/coreos/go-systemd/v22/dbus
 github.com/coreos/go-systemd/v22/journal
+# github.com/coreos/stream-metadata-go v0.4.10-0.20250806142651-4a7d280a6c7b
+## explicit; go 1.18
+github.com/coreos/stream-metadata-go/arch
+github.com/coreos/stream-metadata-go/stream
+github.com/coreos/stream-metadata-go/stream/rhcos
 # github.com/curioswitch/go-reassign v0.3.0
 ## explicit; go 1.21
 github.com/curioswitch/go-reassign

@@ -518,7 +518,7 @@ func TestMachineSetCreation(t *testing.T) {
 				t.Errorf("Unexpected error setting up feature gates: %v", err)
 			}
 
-			machineSetDefaulter := createMachineSetDefaulter(platformStatus, tc.clusterID, "")
+			machineSetDefaulter := createMachineSetDefaulter(platformStatus, tc.clusterID, nil)
 			machineSetValidator := createMachineSetValidator(infra, c, dns, gate)
 			mgr.GetWebhookServer().Register(DefaultMachineSetMutatingHookPath, &webhook.Admission{Handler: machineSetDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineSetValidatingHookPath, &webhook.Admission{Handler: machineSetValidator})
@@ -1205,7 +1205,7 @@ func TestMachineSetUpdate(t *testing.T) {
 				t.Errorf("Unexpected error setting up feature gates: %v", err)
 			}
 
-			machineSetDefaulter := createMachineSetDefaulter(platformStatus, tc.clusterID, "")
+			machineSetDefaulter := createMachineSetDefaulter(platformStatus, tc.clusterID, nil)
 			machineSetValidator := createMachineSetValidator(infra, c, plainDNS, gate)
 			mgr.GetWebhookServer().Register(DefaultMachineSetMutatingHookPath, &webhook.Admission{Handler: machineSetDefaulter})
 			mgr.GetWebhookServer().Register(DefaultMachineSetValidatingHookPath, &webhook.Admission{Handler: machineSetValidator})
@@ -1289,7 +1289,8 @@ func TestMachineSetGCPDefaultsWithResolvedBootImage(t *testing.T) {
 	if arch == ARM64 {
 		archSuffix = "aarch64"
 	}
-	resolvedImage := "projects/rhcos-cloud/global/images/rhcos-10-2-current-gcp-" + archSuffix
+	sd := fakeStreamData("rhcos-cloud", "rhcos-10-2-current-gcp")
+	expectedImage := "projects/rhcos-cloud/global/images/rhcos-10-2-current-gcp-" + archSuffix
 	clusterID := "gcp-cluster"
 	platformStatus := &osconfigv1.PlatformStatus{
 		Type: osconfigv1.GCPPlatformType,
@@ -1322,7 +1323,7 @@ func TestMachineSetGCPDefaultsWithResolvedBootImage(t *testing.T) {
 
 	h := &machineSetDefaulterHandler{
 		admissionHandler: &admissionHandler{
-			admissionConfig:   &admissionConfig{clusterID: clusterID, gcpBootImage: resolvedImage},
+			admissionConfig:   &admissionConfig{clusterID: clusterID, streamData: sd},
 			webhookOperations: getMachineDefaulterOperation(platformStatus),
 		},
 	}
@@ -1340,8 +1341,8 @@ func TestMachineSetGCPDefaultsWithResolvedBootImage(t *testing.T) {
 	if len(result.Disks) == 0 {
 		t.Fatal("expected disks to be defaulted")
 	}
-	if result.Disks[0].Image != resolvedImage {
-		t.Errorf("expected disk image %q, got %q", resolvedImage, result.Disks[0].Image)
+	if result.Disks[0].Image != expectedImage {
+		t.Errorf("expected disk image %q, got %q", expectedImage, result.Disks[0].Image)
 	}
 }
 
@@ -1378,7 +1379,7 @@ func TestMachineSetGCPDefaultsFallbackToHardcodedImage(t *testing.T) {
 
 	h := &machineSetDefaulterHandler{
 		admissionHandler: &admissionHandler{
-			admissionConfig:   &admissionConfig{clusterID: clusterID, gcpBootImage: ""},
+			admissionConfig:   &admissionConfig{clusterID: clusterID, streamData: nil},
 			webhookOperations: getMachineDefaulterOperation(platformStatus),
 		},
 	}
