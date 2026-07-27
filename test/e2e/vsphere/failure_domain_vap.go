@@ -385,22 +385,21 @@ var _ = Describe(
 				Skip("skipping — no existing Machine with region/zone labels matching a known failure domain")
 			}
 
-			By(fmt.Sprintf("attempting to remove failure domain %q that is still in use by a Machine", fdName))
+			By(fmt.Sprintf("attempting to remove failure domain %q that is still in use by a Machine (exclusive=%v)", fdName, exclusive))
 			updatedInfra := infraWithFDRemoved(infra, fdName)
 			_, err = cc.Infrastructures().Update(ctx, updatedInfra, metav1.UpdateOptions{})
 			Expect(err).To(HaveOccurred(), "expected infra update removing in-use FD %q to be denied", fdName)
 			Expect(apierrors.IsInvalid(err) || apierrors.IsForbidden(err)).To(BeTrue(),
 				"expected a 422/Invalid or 403/Forbidden response, got: %v", err)
 
-			if exclusive {
-				Expect(err.Error()).To(ContainSubstring("in use by Machine '"),
-					"expected error to mention 'Machine' as the blocking resource")
-			} else {
-				Expect(err.Error()).To(Or(
-					ContainSubstring("in use by Machine '"),
-					ContainSubstring("in use by ControlPlaneMachineSet '"),
-				), "expected error to mention 'Machine' or 'ControlPlaneMachineSet' as the blocking resource")
-			}
+			// VAP evaluation order is non-deterministic — when the failure domain is
+			// also referenced by a MachineSet or the ControlPlaneMachineSet, any of
+			// those VAPs may deny first.
+			Expect(err.Error()).To(Or(
+				ContainSubstring("in use by Machine '"),
+				ContainSubstring("in use by MachineSet '"),
+				ContainSubstring("referenced by ControlPlaneMachineSet '"),
+			), "expected error to mention 'Machine', 'MachineSet', or 'ControlPlaneMachineSet' as the blocking resource")
 		})
 
 		It("should block removing a failure domain referenced by a MachineSet [apigroup:machine.openshift.io][Suite:openshift/conformance/serial]", func() {
@@ -443,15 +442,13 @@ var _ = Describe(
 			Expect(err).To(HaveOccurred(), "expected infra update removing in-use FD %q to be denied", fd.Name)
 			Expect(apierrors.IsInvalid(err) || apierrors.IsForbidden(err)).To(BeTrue(),
 				"expected a 422/Invalid or 403/Forbidden response, got: %v", err)
-			if fdExclusive {
-				Expect(err.Error()).To(ContainSubstring("in use by MachineSet '"),
-					"expected error to mention 'MachineSet' as the blocking resource")
-			} else {
-				Expect(err.Error()).To(SatisfyAny(
-					ContainSubstring("in use by MachineSet '"),
-					ContainSubstring("ControlPlaneMachineSet"),
-				), "expected error to mention either 'MachineSet' or 'ControlPlaneMachineSet' as the blocking resource")
-			}
+			// VAP evaluation order is non-deterministic — when the failure domain is
+			// also referenced by the CPMS or existing Machines, any of those VAPs may deny first.
+			Expect(err.Error()).To(SatisfyAny(
+				ContainSubstring("in use by MachineSet '"),
+				ContainSubstring("in use by Machine '"),
+				ContainSubstring("referenced by ControlPlaneMachineSet '"),
+			), "expected error to mention 'MachineSet', 'Machine', or 'ControlPlaneMachineSet' as the blocking resource")
 		})
 
 		It("should block removing a failure domain referenced by a ControlPlaneMachineSet [apigroup:machine.openshift.io][Suite:openshift/conformance/serial]", func() {
