@@ -153,6 +153,49 @@ func TestOperatorStatusProgressing(t *testing.T) {
 	}
 }
 
+func TestOperatorStatusProgressingEvents(t *testing.T) {
+	eventRecorder := record.NewFakeRecorder(5)
+	assertEvent := func(expected string) {
+		t.Helper()
+		select {
+		case event := <-eventRecorder.Events:
+			assert.Equal(t, expected, event)
+		case <-time.After(time.Second):
+			t.Fatalf("timed out waiting for event %q", expected)
+		}
+	}
+	optr := Operator{
+		eventRecorder: eventRecorder,
+		operandVersions: []osconfigv1.OperandVersion{
+			{Name: "operator", Version: "2.0"},
+		},
+	}
+	co := optr.defaultClusterOperator()
+	co.Status.Versions = []osconfigv1.OperandVersion{
+		{Name: "operator", Version: "1.0"},
+	}
+	optr.osClient = fakeconfigclientset.NewClientset(co)
+
+	assert.NoError(t, optr.statusProgressing())
+	assertEvent("Normal Status upgrade Progressing towards operator: 2.0")
+
+	assert.NoError(t, optr.statusProgressing())
+	select {
+	case event := <-eventRecorder.Events:
+		t.Fatalf("expected no event for an unchanged Progressing condition, got %q", event)
+	default:
+	}
+
+	optr.operandVersions[0].Version = "3.0"
+	assert.NoError(t, optr.statusProgressing())
+	assertEvent("Normal Status upgrade Progressing towards operator: 3.0")
+
+	assert.NoError(t, optr.statusAvailable(""))
+	optr.operandVersions[0].Version = "4.0"
+	assert.NoError(t, optr.statusProgressing())
+	assertEvent("Normal Status upgrade Progressing towards operator: 4.0")
+}
+
 func TestGetOrCreateClusterOperator(t *testing.T) {
 	var namespace = "some-namespace"
 
