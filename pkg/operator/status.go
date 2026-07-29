@@ -70,7 +70,6 @@ func (optr *Operator) statusProgressing() error {
 	if !reflect.DeepEqual(desiredVersions, currentVersions) {
 		klog.V(2).Info("Syncing status: progressing")
 		message = fmt.Sprintf("Progressing towards %s", optr.printOperandVersions())
-		optr.eventRecorder.Eventf(co, v1.EventTypeNormal, "Status upgrade", "%s", message)
 		isProgressing = osconfigv1.ConditionTrue
 		reason = string(ReasonSyncing)
 	} else {
@@ -79,8 +78,18 @@ func (optr *Operator) statusProgressing() error {
 		isProgressing = osconfigv1.ConditionFalse
 	}
 
+	progressingCondition := newClusterOperatorStatusCondition(osconfigv1.OperatorProgressing, isProgressing, reason, message)
+	currentProgressingCondition := v1helpers.FindStatusCondition(co.Status.Conditions, osconfigv1.OperatorProgressing)
+	if isProgressing == osconfigv1.ConditionTrue &&
+		(currentProgressingCondition == nil ||
+			currentProgressingCondition.Status != progressingCondition.Status ||
+			currentProgressingCondition.Reason != progressingCondition.Reason ||
+			currentProgressingCondition.Message != progressingCondition.Message) {
+		optr.eventRecorder.Eventf(co, v1.EventTypeNormal, "Status upgrade", "%s", message)
+	}
+
 	conds := []osconfigv1.ClusterOperatorStatusCondition{
-		newClusterOperatorStatusCondition(osconfigv1.OperatorProgressing, isProgressing, reason, message),
+		progressingCondition,
 		operatorUpgradeable,
 	}
 
