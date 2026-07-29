@@ -29,6 +29,11 @@ const (
 
 	// vapTestWaitTimeout is the maximum time to wait for a MachineSet to be deleted.
 	vapTestWaitTimeout = 2 * time.Minute
+
+	// vapPollAttemptTimeout bounds each individual dry-run Update call made while polling for
+	// the VAP to catch up, so a single stuck attempt can't block Eventually past the point
+	// where it should give up and report a failure.
+	vapPollAttemptTimeout = 10 * time.Second
 )
 
 // infraWithFDRemoved returns a deep copy of the given Infrastructure with the named failure domain removed
@@ -252,6 +257,41 @@ func createVAPTestMachineSet(
 	return mc.MachineSets(e2eutil.MachineAPINamespace).Create(ctx, ms, metav1.CreateOptions{})
 }
 
+// waitForInfraUpdateToBeDenied polls the given Infrastructure update as a dry-run until it is
+// denied. ValidatingAdmissionPolicyBinding resolves paramRef objects (e.g. a freshly created
+// MachineSet) via an informer-backed cache rather than a live read, so there is a short window
+// right after creating the param object during which the VAP has not yet observed it and would
+// incorrectly allow the update. Using dry-run avoids mutating the Infrastructure while we wait
+// for that cache to catch up.
+func waitForInfraUpdateToBeDenied(ctx context.Context, cc *configclient.ConfigV1Client, updatedInfra *configv1.Infrastructure) {
+	Eventually(func() bool {
+		attemptCtx, cancel := context.WithTimeout(ctx, vapPollAttemptTimeout)
+		defer cancel()
+		_, err := cc.Infrastructures().Update(attemptCtx, updatedInfra, metav1.UpdateOptions{DryRun: []string{metav1.DryRunAll}})
+		return apierrors.IsInvalid(err) || apierrors.IsForbidden(err)
+	}, vapTestWaitTimeout, time.Second).Should(BeTrue(),
+		"expected the VAP to eventually observe the newly created param object and deny a dry-run update with Invalid or Forbidden")
+}
+
+// waitForInfraUpdateToSucceed polls a dry-run Infrastructure update removing the named failure
+// domain until it succeeds, re-fetching the Infrastructure on every attempt so the dry-run always
+// carries a current resourceVersion. This is the mirror image of waitForInfraUpdateToBeDenied:
+// after a param MachineSet is deleted, the VAP's cached view of it may not have caught up yet, so
+// an immediate update can be incorrectly denied.
+func waitForInfraUpdateToSucceed(ctx context.Context, cc *configclient.ConfigV1Client, fdName string) {
+	Eventually(func() error {
+		attemptCtx, cancel := context.WithTimeout(ctx, vapPollAttemptTimeout)
+		defer cancel()
+		current, err := cc.Infrastructures().Get(attemptCtx, "cluster", metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		_, err = cc.Infrastructures().Update(attemptCtx, infraWithFDRemoved(current, fdName), metav1.UpdateOptions{DryRun: []string{metav1.DryRunAll}})
+		return err
+	}, vapTestWaitTimeout, time.Second).Should(Succeed(),
+		"expected the VAP to eventually observe the MachineSet deletion and allow a dry-run update")
+}
+
 var _ = Describe(
 	"[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiVCenterDay2][platform:vsphere] vSphere failure domain ValidatingAdmissionPolicies",
 	Label("Conformance"), Label("Serial"),
@@ -385,22 +425,21 @@ var _ = Describe(
 				Skip("skipping — no existing Machine with region/zone labels matching a known failure domain")
 			}
 
-			By(fmt.Sprintf("attempting to remove failure domain %q that is still in use by a Machine", fdName))
+			By(fmt.Sprintf("attempting to remove failure domain %q that is still in use by a Machine (exclusive=%v)", fdName, exclusive))
 			updatedInfra := infraWithFDRemoved(infra, fdName)
 			_, err = cc.Infrastructures().Update(ctx, updatedInfra, metav1.UpdateOptions{})
 			Expect(err).To(HaveOccurred(), "expected infra update removing in-use FD %q to be denied", fdName)
 			Expect(apierrors.IsInvalid(err) || apierrors.IsForbidden(err)).To(BeTrue(),
 				"expected a 422/Invalid or 403/Forbidden response, got: %v", err)
 
-			if exclusive {
-				Expect(err.Error()).To(ContainSubstring("in use by Machine '"),
-					"expected error to mention 'Machine' as the blocking resource")
-			} else {
-				Expect(err.Error()).To(Or(
-					ContainSubstring("in use by Machine '"),
-					ContainSubstring("in use by ControlPlaneMachineSet '"),
-				), "expected error to mention 'Machine' or 'ControlPlaneMachineSet' as the blocking resource")
-			}
+			// VAP evaluation order is non-deterministic — when the failure domain is
+			// also referenced by a MachineSet or the ControlPlaneMachineSet, any of
+			// those VAPs may deny first.
+			Expect(err.Error()).To(Or(
+				ContainSubstring("in use by Machine '"),
+				ContainSubstring("in use by MachineSet '"),
+				ContainSubstring("referenced by ControlPlaneMachineSet '"),
+			), "expected error to mention 'Machine', 'MachineSet', or 'ControlPlaneMachineSet' as the blocking resource")
 		})
 
 		It("should block removing a failure domain referenced by a MachineSet [apigroup:machine.openshift.io][Suite:openshift/conformance/serial]", func() {
@@ -439,19 +478,18 @@ var _ = Describe(
 
 			By(fmt.Sprintf("attempting to remove failure domain %q while it is referenced by a MachineSet", fd.Name))
 			updatedInfra := infraWithFDRemoved(infra, fd.Name)
+			waitForInfraUpdateToBeDenied(ctx, cc, updatedInfra)
 			_, err = cc.Infrastructures().Update(ctx, updatedInfra, metav1.UpdateOptions{})
 			Expect(err).To(HaveOccurred(), "expected infra update removing in-use FD %q to be denied", fd.Name)
 			Expect(apierrors.IsInvalid(err) || apierrors.IsForbidden(err)).To(BeTrue(),
 				"expected a 422/Invalid or 403/Forbidden response, got: %v", err)
-			if fdExclusive {
-				Expect(err.Error()).To(ContainSubstring("in use by MachineSet '"),
-					"expected error to mention 'MachineSet' as the blocking resource")
-			} else {
-				Expect(err.Error()).To(SatisfyAny(
-					ContainSubstring("in use by MachineSet '"),
-					ContainSubstring("ControlPlaneMachineSet"),
-				), "expected error to mention either 'MachineSet' or 'ControlPlaneMachineSet' as the blocking resource")
-			}
+			// VAP evaluation order is non-deterministic — when the failure domain is
+			// also referenced by the CPMS or existing Machines, any of those VAPs may deny first.
+			Expect(err.Error()).To(SatisfyAny(
+				ContainSubstring("in use by MachineSet '"),
+				ContainSubstring("in use by Machine '"),
+				ContainSubstring("referenced by ControlPlaneMachineSet '"),
+			), "expected error to mention 'MachineSet', 'Machine', or 'ControlPlaneMachineSet' as the blocking resource")
 		})
 
 		It("should block removing a failure domain referenced by a ControlPlaneMachineSet [apigroup:machine.openshift.io][Suite:openshift/conformance/serial]", func() {
@@ -554,6 +592,7 @@ var _ = Describe(
 
 			By("verifying that the MachineSet VAP blocks removal of the failure domain")
 			updatedInfra := infraWithFDRemoved(infra, fd.Name)
+			waitForInfraUpdateToBeDenied(ctx, cc, updatedInfra)
 			_, err = cc.Infrastructures().Update(ctx, updatedInfra, metav1.UpdateOptions{})
 			Expect(err).To(HaveOccurred(), "expected infra update to be denied while MachineSet references FD %q", fd.Name)
 			Expect(apierrors.IsInvalid(err) || apierrors.IsForbidden(err)).To(BeTrue(),
@@ -569,6 +608,7 @@ var _ = Describe(
 			}, vapTestWaitTimeout, 5*time.Second).Should(BeTrue(), "MachineSet %q should be deleted within %s", testMS.Name, vapTestWaitTimeout)
 
 			By(fmt.Sprintf("retrying Infrastructure update to remove failure domain %q — should now succeed", fd.Name))
+			waitForInfraUpdateToSucceed(ctx, cc, fd.Name)
 			// Re-fetch so we have the latest resource version.
 			freshInfra, err := cc.Infrastructures().Get(ctx, "cluster", metav1.GetOptions{})
 			Expect(err).NotTo(HaveOccurred())
