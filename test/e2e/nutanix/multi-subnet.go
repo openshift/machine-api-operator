@@ -298,6 +298,14 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:NutanixMultiSubnets][pl
 		machineNetworks = infra.Spec.PlatformSpec.Nutanix.FailureDomains
 		Expect(len(machineNetworks)).ShouldNot(Equal(0))
 
+		// The NutanixMultiSubnets feature gate is enabled by the TechPreviewNoUpgrade
+		// feature set regardless of whether the cluster is actually provisioned with
+		// multi-subnet infrastructure. When no failure domain defines more than one
+		// subnet there is nothing to validate, so skip rather than fail.
+		if !hasMultiSubnetConfiguration(machineNetworks) {
+			Skip("skipping multi-subnet tests - cluster does not have multi-subnet infrastructure configured")
+		}
+
 		nodes, err = c.CoreV1().Nodes().List(ctx, metav1.ListOptions{})
 		Expect(err).NotTo(HaveOccurred())
 		machines, err = mc.Machines("openshift-machine-api").List(ctx, metav1.ListOptions{})
