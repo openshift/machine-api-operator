@@ -288,6 +288,24 @@ rules:
       - list
       - watch
 
+  - apiGroups:
+      - config.openshift.io
+    resources:
+      - clusteroperators
+    verbs:
+      - get
+      - list
+      - watch
+  - apiGroups:
+      - config.openshift.io
+    resources:
+      - clusteroperators/status
+    verbs:
+      - get
+      - list
+      - watch
+      - update
+
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
