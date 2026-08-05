@@ -177,6 +177,11 @@ func (r *Reconciler) create() error {
 
 	moTask, err := r.session.GetTask(r.Context, r.providerStatus.TaskRef)
 	if err != nil {
+		// Task may have been cleaned up by vCenter. Check if VM exists and needs to be powered on.
+		if isRetrieveMONotFound(r.providerStatus.TaskRef, err) {
+			klog.V(2).Infof("%v: task %s not found, checking if VM exists and needs power-on", r.machine.GetName(), r.providerStatus.TaskRef)
+			return r.handleTaskNotFound()
+		}
 		metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
 			Name:      r.machine.Name,
 			Namespace: r.machine.Namespace,
@@ -186,9 +191,10 @@ func (r *Reconciler) create() error {
 	}
 
 	if moTask == nil {
-		// Possible eventual consistency problem from vsphere
-		// TODO: change error message here to indicate this might be expected.
-		return fmt.Errorf("unexpected moTask nil")
+		// Task object is nil, may indicate eventual consistency or cleanup.
+		// Check if VM exists and needs to be powered on.
+		klog.V(2).Infof("%v: task %s returned nil, checking if VM exists and needs power-on", r.machine.GetName(), r.providerStatus.TaskRef)
+		return r.handleTaskNotFound()
 	}
 
 	if taskIsFinished, err := taskIsFinished(moTask); err != nil {
@@ -246,7 +252,7 @@ func (r *Reconciler) create() error {
 			if statusError != nil {
 				return fmt.Errorf("failed to set provider status: %w", err)
 			}
-			return err
+		return err
 		}
 		return setProviderStatus(task, conditionSuccess(), r.machineScope, nil)
 	}
@@ -254,6 +260,81 @@ func (r *Reconciler) create() error {
 	// If taskIsFinished then next reconcile should result in update.
 	return nil
 }
+
+// handleTaskNotFound handles the case where the task reference exists but the task
+// object is no longer available in vCenter (e.g., cleaned up). It checks if the VM
+// exists and if it's powered off, attempts to power it on. This handles the race
+// condition where clone completes but power-on hasn't been triggered yet.
+
+func (r *Reconciler) handleTaskNotFound() error {
+	// Try to find the VM
+	vmRef, err := findVM(r.machineScope)
+	if err != nil {
+		if isNotFound(err) {
+			// VM doesn't exist yet, this is unexpected if we have a TaskRef
+			// Clear the TaskRef and let the next reconcile attempt to clone
+			klog.V(2).Infof("%v: VM not found after task cleanup, clearing TaskRef and requeuing", r.machine.GetName())
+			r.providerStatus.TaskRef = ""
+			if err := r.machineScope.PatchMachine(); err != nil {
+				return fmt.Errorf("failed to patch machine after clearing TaskRef: %w", err)
+			}
+			return fmt.Errorf("%v: VM not found, will retry clone operation", r.machine.GetName())
+		}
+		return fmt.Errorf("%v: failed to find VM after task cleanup: %w", r.machine.GetName(), err)
+	}
+
+	// VM exists, check its power state
+	vm := &virtualMachine{
+		Context: r.machineScope.Context,
+		Obj:     object.NewVirtualMachine(r.machineScope.session.Client.Client, vmRef),
+		Ref:     vmRef,
+	}
+
+	powerState, err := vm.getPowerState()
+	if err != nil {
+		return fmt.Errorf("%v: failed to get VM power state after task cleanup: %w", r.machine.GetName(), err)
+	}
+
+	klog.V(2).Infof("%v: VM found with power state %s after task cleanup", r.machine.GetName(), powerState)
+
+	// If VM is powered off, we need to power it on
+	if powerState == types.VirtualMachinePowerStatePoweredOff {
+		klog.Infof("%v: VM exists but is powered off after task cleanup, powering on", r.machine.GetName())
+		task, err := vm.powerOnVM()
+		if err != nil {
+			metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
+				Name:      r.machine.Name,
+				Namespace: r.machine.Namespace,
+				Reason:    "PowerOn task finished with error",
+			})
+			conditionFailed := conditionFailed()
+			conditionFailed.Message = err.Error()
+			statusError := setProviderStatus(task, conditionFailed, r.machineScope, vm)
+			if statusError != nil {
+				return fmt.Errorf("failed to set provider status: %w", statusError)
+			}
+			return fmt.Errorf("%v: failed to power on machine: %w", r.machine.GetName(), err)
+		}
+
+		// Clear the old TaskRef and set the new power-on task
+		r.providerStatus.TaskRef = task
+		klog.Infof("%v: Successfully initiated power-on, tracking new task %s", r.machine.GetName(), task)
+		return setProviderStatus(task, conditionSuccess(), r.machineScope, vm)
+	}
+
+	// VM is already powered on (or in another state), clear the old TaskRef
+	// and let the next reconcile proceed to update
+	klog.V(2).Infof("%v: VM is already powered on (%s), clearing old TaskRef", r.machine.GetName(), powerState)
+	r.providerStatus.TaskRef = ""
+	if err := r.machineScope.PatchMachine(); err != nil {
+		return fmt.Errorf("failed to patch machine after clearing TaskRef: %w", err)
+	}
+
+	// Return nil to indicate success, next reconcile will call update()
+	return nil
+}
+
+
 
 // update finds a vm and reconciles the machine resource status against it.
 func (r *Reconciler) update() error {
