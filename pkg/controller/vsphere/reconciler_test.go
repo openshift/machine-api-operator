@@ -25,6 +25,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	. "github.com/onsi/gomega"
 
@@ -37,6 +38,7 @@ import (
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	apimachineryruntime "k8s.io/apimachinery/pkg/runtime"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	vsphere "k8s.io/cloud-provider-vsphere/pkg/common/config"
@@ -2445,6 +2447,439 @@ func TestDelete(t *testing.T) {
 
 			// second reconciliation should block vm destruction with an err
 			g.Expect(reconciler.delete()).To(MatchError(ContainSubstring(tc.errMessage)))
+		})
+	}
+}
+
+func TestDeleteWithVolumeTypeFiltering(t *testing.T) {
+	type vCenterSimConfig struct {
+		secret      *corev1.Secret
+		configMap   *corev1.ConfigMap
+		featureGate *configv1.FeatureGate
+		host        string
+		port        string
+		username    string
+		pwd         string
+		simServer   *simulator.Server
+	}
+
+	namespace := "test"
+	nodeName := "somenodename"
+	instanceUUID := "5001d986-65e4-5598-93d4-6b86b37d4415"
+
+	getVcenterSimParams := func(server *simulator.Server, ns string) (*vCenterSimConfig, error) {
+		host, port, err := net.SplitHostPort(server.URL.Host)
+		if err != nil {
+			return nil, err
+		}
+		unameKey := fmt.Sprintf("%s.username", host)
+		pwdKey := fmt.Sprintf("%s.password", host)
+
+		password, _ := server.URL.User.Password()
+
+		credentialsSecretName := "test"
+		secret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      credentialsSecretName,
+				Namespace: ns,
+			},
+			Data: map[string][]byte{
+				unameKey: []byte(server.URL.User.Username()),
+				pwdKey:   []byte(password),
+			},
+		}
+
+		testConfig := fmt.Sprintf(testConfigFmt, port, credentialsSecretName, ns)
+		configMap := &corev1.ConfigMap{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      OpenshiftConfigManagedConfigMap,
+				Namespace: openshiftConfigNamespaceForTest,
+			},
+			Data: map[string]string{
+				OpenshiftConfigManagedCloudConfigKey: testConfig,
+			},
+		}
+
+		featureGate := &configv1.FeatureGate{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "cluster",
+			},
+		}
+
+		return &vCenterSimConfig{
+			secret:      secret,
+			configMap:   configMap,
+			host:        host,
+			port:        port,
+			username:    server.URL.User.Username(),
+			pwd:         password,
+			simServer:   server,
+			featureGate: featureGate,
+		}, nil
+	}
+
+	getMachineWithStatus := func(t *testing.T, status machinev1.MachineStatus, simHost string) *machinev1.Machine {
+		providerSpec := machinev1.VSphereMachineProviderSpec{
+			CredentialsSecret: &corev1.LocalObjectReference{
+				Name: "test",
+			},
+			Workspace: &machinev1.Workspace{
+				Server: simHost,
+			},
+		}
+		raw, err := RawExtensionFromProviderSpec(&providerSpec)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return &machinev1.Machine{
+			TypeMeta: metav1.TypeMeta{
+				Kind: "Machine",
+			},
+			ObjectMeta: metav1.ObjectMeta{
+				UID:       apimachinerytypes.UID(instanceUUID),
+				Name:      "defaultFolder",
+				Namespace: namespace,
+			},
+			Spec: machinev1.MachineSpec{
+				ProviderSpec: machinev1.ProviderSpec{
+					Value: raw,
+				},
+			},
+			Status: status,
+		}
+	}
+
+	getNodeWithConditions := func(conditions []corev1.NodeCondition) *corev1.Node {
+		return &corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      nodeName,
+				Namespace: metav1.NamespaceNone,
+			},
+			TypeMeta: metav1.TypeMeta{
+				Kind: "Node",
+			},
+			Status: corev1.NodeStatus{
+				Conditions: conditions,
+			},
+		}
+	}
+
+	addDiskToVm := func(ctx context.Context, simVm *simulator.VirtualMachine, diskName string, simClient *vim25.Client) error {
+		managedObjRef := simVm.VirtualMachine.Reference()
+		vmObj := object.NewVirtualMachine(simClient, managedObjRef)
+		devices, err := vmObj.Device(ctx)
+		if err != nil {
+			return err
+		}
+		scsi := devices.SelectByType((*types.VirtualSCSIController)(nil))[0]
+
+		additionalDisk := &types.VirtualDisk{
+			VirtualDevice: types.VirtualDevice{
+				Backing: &types.VirtualDiskFlatVer2BackingInfo{
+					DiskMode:        string(types.VirtualDiskModePersistent),
+					ThinProvisioned: types.NewBool(true),
+					VirtualDeviceFileBackingInfo: types.VirtualDeviceFileBackingInfo{
+						FileName:  fmt.Sprintf("[LocalDS_0] %s/%s.vmdk", simVm.Name, diskName),
+						Datastore: &simVm.Datastore[0],
+					},
+				},
+			},
+		}
+		additionalDisk.CapacityInKB = 1024
+		devices.AssignController(additionalDisk, scsi.(types.BaseVirtualController))
+
+		err = vmObj.AddDevice(ctx, additionalDisk)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	volumeTypeFilteringTestCases := []struct {
+		name                 string
+		machine              func(t *testing.T, simServerHost string) *machinev1.Machine
+		node                 func(t *testing.T) *corev1.Node
+		attachDisks          bool
+		secondReconcileError string
+	}{
+		{
+			name: "NFS CSI volumes attached, deletion proceeds",
+			machine: func(t *testing.T, simServerHost string) *machinev1.Machine {
+				return getMachineWithStatus(t, machinev1.MachineStatus{
+					NodeRef: &corev1.ObjectReference{
+						Name: nodeName,
+					},
+				}, simServerHost)
+			},
+			node: func(t *testing.T) *corev1.Node {
+				node := getNodeWithConditions([]corev1.NodeCondition{
+					{
+						Type:   corev1.NodeReady,
+						Status: corev1.ConditionUnknown,
+					},
+				})
+				node.Status.VolumesAttached = []corev1.AttachedVolume{
+					{
+						Name:       "kubernetes.io/csi/nfs.csi.k8s.io^vol-123",
+						DevicePath: "/dev/sda",
+					},
+				}
+				return node
+			},
+			attachDisks:          false,
+			secondReconcileError: "destroying vm in progress, requeuing",
+		},
+		{
+			name: "vSphere CSI volumes attached, deletion blocked",
+			machine: func(t *testing.T, simServerHost string) *machinev1.Machine {
+				return getMachineWithStatus(t, machinev1.MachineStatus{
+					NodeRef: &corev1.ObjectReference{
+						Name: nodeName,
+					},
+				}, simServerHost)
+			},
+			node: func(t *testing.T) *corev1.Node {
+				node := getNodeWithConditions([]corev1.NodeCondition{
+					{
+						Type:   corev1.NodeReady,
+						Status: corev1.ConditionUnknown,
+					},
+				})
+				node.Status.VolumesAttached = []corev1.AttachedVolume{
+					{
+						Name:       "kubernetes.io/csi/csi.vsphere.vmware.com^pvc-456",
+						DevicePath: "/dev/sdb",
+					},
+				}
+				return node
+			},
+			attachDisks:          true,
+			secondReconcileError: "node somenodename has attached volumes, requeuing",
+		},
+		{
+			name: "vSphere in-tree volumes attached, deletion blocked",
+			machine: func(t *testing.T, simServerHost string) *machinev1.Machine {
+				return getMachineWithStatus(t, machinev1.MachineStatus{
+					NodeRef: &corev1.ObjectReference{
+						Name: nodeName,
+					},
+				}, simServerHost)
+			},
+			node: func(t *testing.T) *corev1.Node {
+				node := getNodeWithConditions([]corev1.NodeCondition{
+					{
+						Type:   corev1.NodeReady,
+						Status: corev1.ConditionUnknown,
+					},
+				})
+				node.Status.VolumesAttached = []corev1.AttachedVolume{
+					{
+						Name:       "kubernetes.io/vsphere-volume/[LocalDS_0] vm/disk.vmdk",
+						DevicePath: "/dev/sdc",
+					},
+				}
+				return node
+			},
+			attachDisks:          true,
+			secondReconcileError: "node somenodename has attached volumes, requeuing",
+		},
+		{
+			name: "Mixed volumes (NFS + vSphere CSI), deletion blocked",
+			machine: func(t *testing.T, simServerHost string) *machinev1.Machine {
+				return getMachineWithStatus(t, machinev1.MachineStatus{
+					NodeRef: &corev1.ObjectReference{
+						Name: nodeName,
+					},
+				}, simServerHost)
+			},
+			node: func(t *testing.T) *corev1.Node {
+				node := getNodeWithConditions([]corev1.NodeCondition{
+					{
+						Type:   corev1.NodeReady,
+						Status: corev1.ConditionUnknown,
+					},
+				})
+				node.Status.VolumesAttached = []corev1.AttachedVolume{
+					{
+						Name:       "kubernetes.io/csi/nfs.csi.k8s.io^vol-123",
+						DevicePath: "/dev/sda",
+					},
+					{
+						Name:       "kubernetes.io/csi/csi.vsphere.vmware.com^pvc-456",
+						DevicePath: "/dev/sdb",
+					},
+				}
+				return node
+			},
+			attachDisks:          true,
+			secondReconcileError: "node somenodename has attached volumes, requeuing",
+		},
+		{
+			name: "Non-vSphere CSI attacher (iSCSI), deletion proceeds",
+			machine: func(t *testing.T, simServerHost string) *machinev1.Machine {
+				return getMachineWithStatus(t, machinev1.MachineStatus{
+					NodeRef: &corev1.ObjectReference{
+						Name: nodeName,
+					},
+				}, simServerHost)
+			},
+			node: func(t *testing.T) *corev1.Node {
+				node := getNodeWithConditions([]corev1.NodeCondition{
+					{
+						Type:   corev1.NodeReady,
+						Status: corev1.ConditionUnknown,
+					},
+				})
+				node.Status.VolumesAttached = []corev1.AttachedVolume{
+					{
+						Name:       "kubernetes.io/csi/iscsi.csi.k8s.io^vol-789",
+						DevicePath: "/dev/sdc",
+					},
+				}
+				return node
+			},
+			attachDisks:          false,
+			secondReconcileError: "destroying vm in progress, requeuing",
+		},
+		{
+			name: "Unrecognized volume name format, deletion blocked conservatively",
+			machine: func(t *testing.T, simServerHost string) *machinev1.Machine {
+				return getMachineWithStatus(t, machinev1.MachineStatus{
+					NodeRef: &corev1.ObjectReference{
+						Name: nodeName,
+					},
+				}, simServerHost)
+			},
+			node: func(t *testing.T) *corev1.Node {
+				node := getNodeWithConditions([]corev1.NodeCondition{
+					{
+						Type:   corev1.NodeReady,
+						Status: corev1.ConditionUnknown,
+					},
+				})
+				node.Status.VolumesAttached = []corev1.AttachedVolume{
+					{
+						Name:       "some-unknown-format-volume",
+						DevicePath: "/dev/sdd",
+					},
+				}
+				return node
+			},
+			attachDisks:          true,
+			secondReconcileError: "node somenodename has attached volumes, requeuing",
+		},
+		{
+			name: "CSI volume name without separator, deletion blocked conservatively",
+			machine: func(t *testing.T, simServerHost string) *machinev1.Machine {
+				return getMachineWithStatus(t, machinev1.MachineStatus{
+					NodeRef: &corev1.ObjectReference{
+						Name: nodeName,
+					},
+				}, simServerHost)
+			},
+			node: func(t *testing.T) *corev1.Node {
+				node := getNodeWithConditions([]corev1.NodeCondition{
+					{
+						Type:   corev1.NodeReady,
+						Status: corev1.ConditionUnknown,
+					},
+				})
+				node.Status.VolumesAttached = []corev1.AttachedVolume{
+					{
+						Name:       "kubernetes.io/csi/malformed-no-separator",
+						DevicePath: "/dev/sde",
+					},
+				}
+				return node
+			},
+			attachDisks:          true,
+			secondReconcileError: "node somenodename has attached volumes, requeuing",
+		},
+	}
+	for _, tc := range volumeTypeFilteringTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			model, sess, srv := initSimulator(t)
+			defer func() {
+				model.Remove()
+				srv.Close()
+			}()
+			simParams, err := getVcenterSimParams(srv, namespace)
+			g.Expect(err).NotTo(HaveOccurred())
+
+			vm := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
+			vm.Config.InstanceUuid = instanceUUID
+
+			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			defer cancel()
+
+			if tc.attachDisks {
+				simClient := sess.Client.Client
+				g.Expect(addDiskToVm(ctx, vm, fmt.Sprintf("%s-%s", vm.Name, tc.name), simClient)).To(Succeed())
+			}
+
+			nodeNameIndexExtractor := func(rawObj runtimeclient.Object) []string {
+				pod := rawObj.(*corev1.Pod)
+				return []string{pod.Spec.NodeName}
+			}
+
+			var objects []apimachineryruntime.Object
+			objects = append(objects,
+				simParams.secret,
+				tc.machine(t, simParams.host),
+				simParams.configMap,
+				tc.node(t),
+			)
+
+			cl := fake.NewClientBuilder().WithScheme(
+				scheme.Scheme,
+			).WithIndex(&corev1.Pod{}, "spec.nodeName", nodeNameIndexExtractor).WithRuntimeObjects(
+				objects...,
+			).Build()
+			mScope, err := newMachineScope(machineScopeParams{
+				client:                   cl,
+				Context:                  ctx,
+				machine:                  tc.machine(t, simParams.host),
+				apiReader:                cl,
+				openshiftConfigNameSpace: openshiftConfigNamespaceForTest,
+			})
+			g.Expect(err).NotTo(HaveOccurred())
+
+			reconciler := newReconciler(mScope)
+
+			// First call powers off the VM
+			g.Expect(reconciler.delete()).To(MatchError(ContainSubstring("powering off vm is in progress, requeuing")))
+
+			// Second reconciliation should behave according to volume types
+			g.Expect(reconciler.delete()).To(MatchError(ContainSubstring(tc.secondReconcileError)))
+		})
+	}
+}
+
+func TestClassifyAttachedVolume(t *testing.T) {
+	tests := []struct {
+		name     string
+		volName  string
+		expected volumeClass
+	}{
+		{"vSphere CSI", "kubernetes.io/csi/csi.vsphere.vmware.com^pvc-abc123", volumeClassVSphere},
+		{"vSphere in-tree", "kubernetes.io/vsphere-volume/[LocalDS_0] vm/disk.vmdk", volumeClassVSphere},
+		{"NFS CSI", "kubernetes.io/csi/nfs.csi.k8s.io^vol-123", volumeClassNonVSphere},
+		{"iSCSI CSI", "kubernetes.io/csi/iscsi.csi.k8s.io^vol-456", volumeClassNonVSphere},
+		{"EBS CSI", "kubernetes.io/csi/ebs.csi.aws.com^vol-789", volumeClassNonVSphere},
+		{"Azure Disk CSI", "kubernetes.io/csi/disk.csi.azure.com^vol-abc", volumeClassNonVSphere},
+		{"GCE PD CSI", "kubernetes.io/csi/pd.csi.storage.gke.io^vol-def", volumeClassNonVSphere},
+		{"Cinder CSI", "kubernetes.io/csi/cinder.csi.openstack.org^vol-ghi", volumeClassNonVSphere},
+		{"unknown format", "some-unknown-format", volumeClassUnknown},
+		{"empty string", "", volumeClassUnknown},
+		{"CSI prefix no separator", "kubernetes.io/csi/malformed", volumeClassUnknown},
+		{"CSI prefix empty driver", "kubernetes.io/csi/^handle", volumeClassUnknown},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			g.Expect(classifyAttachedVolume(tc.volName)).To(Equal(tc.expected))
 		})
 	}
 }
