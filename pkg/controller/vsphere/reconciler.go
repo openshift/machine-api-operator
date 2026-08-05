@@ -27,8 +27,10 @@ import (
 	"github.com/vmware/govmomi/vim25/types"
 
 	corev1 "k8s.io/api/core/v1"
+	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	apimachineryutilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/component-base/featuregate"
@@ -41,6 +43,8 @@ import (
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
 	"github.com/openshift/machine-api-operator/pkg/metrics"
+
+	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -55,6 +59,10 @@ const (
 	// Not all controllers support up to 30, but the maximum is 30.
 	// xref: https://docs.vmware.com/en/VMware-vSphere/8.0/vsphere-vm-administration/GUID-5872D173-A076-42FE-8D0B-9DB0EB0E7362.html#:~:text=If%20you%20add%20a%20hard,values%20from%200%20to%2014.
 	maxUnitNumber = 30
+	// VSphereCSIDriverName is the CSI driver name for vSphere volumes.
+	VSphereCSIDriverName = "csi.vsphere.vmware.com"
+	// VSphereInTreePluginName is the in-tree plugin name for vSphere volumes.
+	VSphereInTreePluginName = "kubernetes.io/vsphere-volume"
 )
 
 // These are the guestinfo variables used by Ignition.
@@ -534,11 +542,11 @@ func (r *Reconciler) delete() error {
 	return fmt.Errorf("destroying vm in progress, requeuing")
 }
 
-// nodeHasVolumesAttached returns true if node status still have volumes attached
-// pod deletion and volume detach happen asynchronously, so pod could be deleted before volume detached from the node
-// this could cause issue for some storage provisioner, for example, vsphere-volume this is problematic
-// because if the node is deleted before detach success, then the underline VMDK will be deleted together with the Machine
-// so after node draining we need to check if all volumes are detached before deleting the node.
+// nodeHasVolumesAttached returns true if node status still has vSphere-backed volumes attached.
+// Pod deletion and volume detach happen asynchronously, so pod could be deleted before volume detached from the node.
+// This is problematic for vSphere volumes because if the node is deleted before detach succeeds,
+// the underlying VMDK will be deleted together with the Machine.
+// Non-vSphere volumes (NFS, iSCSI, etc.) do not have this risk since vSphere Destroy_Task does not affect them.
 func (r *Reconciler) nodeHasVolumesAttached(ctx context.Context, nodeName string, machineName string) (bool, error) {
 	node := &corev1.Node{}
 	if err := r.apiReader.Get(ctx, apimachinerytypes.NamespacedName{Name: nodeName}, node); err != nil {
@@ -549,7 +557,91 @@ func (r *Reconciler) nodeHasVolumesAttached(ctx context.Context, nodeName string
 		return true, err
 	}
 
-	return len(node.Status.VolumesAttached) != 0, nil
+	if len(node.Status.VolumesAttached) == 0 {
+		return false, nil
+	}
+
+	klog.V(3).Infof("Machine %s: checking %d attached volumes on node %s for vSphere-backed volumes", machineName, len(node.Status.VolumesAttached), nodeName)
+
+	var vsphereVolumes []string
+	var nonVSphereVolumes []string
+	var unknownVolumes []string
+
+	for _, vol := range node.Status.VolumesAttached {
+		volName := string(vol.Name)
+		va, err := r.getVolumeAttachmentForAttachedVolume(ctx, volName, nodeName, machineName)
+		if err != nil {
+			klog.Warningf("Machine %s: failed to get VolumeAttachment for %s: %v, conservatively treating as vSphere-backed", machineName, volName, err)
+			vsphereVolumes = append(vsphereVolumes, volName)
+			continue
+		}
+		if va == nil {
+			klog.Warningf("Machine %s: VolumeAttachment for %s not found, conservatively treating as vSphere-backed", machineName, volName)
+			vsphereVolumes = append(vsphereVolumes, volName)
+			continue
+		}
+
+		switch va.Spec.Attacher {
+		case VSphereCSIDriverName, VSphereInTreePluginName:
+			vsphereVolumes = append(vsphereVolumes, volName)
+		case "":
+			unknownVolumes = append(unknownVolumes, fmt.Sprintf("%s (attacher: empty)", volName))
+		case "nfs.csi.k8s.io", "csi.nfs.io", "iscsi.csi.k8s.io", "cinder.csi.openstack.org",
+			"ebs.csi.aws.com", "pd.csi.storage.gke.io", "disk.csi.azure.com":
+			nonVSphereVolumes = append(nonVSphereVolumes, fmt.Sprintf("%s (attacher: %s)", volName, va.Spec.Attacher))
+		default:
+			unknownVolumes = append(unknownVolumes, fmt.Sprintf("%s (attacher: %s)", volName, va.Spec.Attacher))
+		}
+	}
+
+	if len(vsphereVolumes) > 0 {
+		klog.Warningf("Machine %s: vSphere-backed volumes still attached on node %s: %v", machineName, nodeName, vsphereVolumes)
+	}
+	if len(nonVSphereVolumes) > 0 {
+		klog.V(3).Infof("Machine %s: non-vSphere volumes attached (safe to ignore): %v", machineName, nonVSphereVolumes)
+	}
+	if len(unknownVolumes) > 0 {
+		klog.Warningf("Machine %s on node %s: volumes with unknown type attached, conservatively blocking deletion: %v", machineName, nodeName, unknownVolumes)
+	}
+
+	return len(vsphereVolumes) > 0 || len(unknownVolumes) > 0, nil
+}
+
+// getVolumeAttachmentForAttachedVolume retrieves the VolumeAttachment corresponding to an attached volume
+// on a node. It first tries a direct lookup by the volume name, then falls back to listing and
+// correlating VolumeAttachments for the node (needed for CSI volumes with hashed names like
+// csi-<sha256(volumeHandle+driver+nodeName)>).
+func (r *Reconciler) getVolumeAttachmentForAttachedVolume(ctx context.Context, volName, nodeName, machineName string) (*storagev1.VolumeAttachment, error) {
+	va := &storagev1.VolumeAttachment{}
+	if err := r.apiReader.Get(ctx, apimachinerytypes.NamespacedName{Name: volName}, va); err != nil {
+		if !apierrors.IsNotFound(err) {
+			return nil, err
+		}
+		klog.V(4).Infof("Machine %s: VolumeAttachment %s not found by name, attempting correlation via list", machineName, volName)
+	} else {
+		return va, nil
+	}
+
+	fieldSelector, err := fields.ParseSelector("spec.nodeName=" + nodeName)
+	if err != nil {
+		return nil, err
+	}
+
+	vaList := &storagev1.VolumeAttachmentList{}
+	if err := r.apiReader.List(ctx, vaList, &runtimeclient.ListOptions{FieldSelector: fieldSelector}); err != nil {
+		return nil, err
+	}
+
+	for i := range vaList.Items {
+		va := &vaList.Items[i]
+		if va.Name == volName {
+			klog.V(4).Infof("Machine %s: correlated VolumeAttachment %s for node %s", machineName, va.Name, nodeName)
+			return va, nil
+		}
+	}
+
+	klog.V(4).Infof("Machine %s: no VolumeAttachment found for %s on node %s after listing %d attachments", machineName, volName, nodeName, len(vaList.Items))
+	return nil, nil
 }
 
 // reconcileMachineWithCloudState reconcile machineSpec and status with the latest cloud state
