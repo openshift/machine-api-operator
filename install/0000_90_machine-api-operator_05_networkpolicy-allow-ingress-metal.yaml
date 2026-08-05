@@ -30,6 +30,8 @@ spec:
     - protocol: TCP
       port: 9608 # prometheus exporter for ironic
     - protocol: TCP
+      port: 6190 # ironic networking JSON-RPC
+    - protocol: TCP
       port: 9447 # bare metal webhook service
   podSelector: {}
   policyTypes:
