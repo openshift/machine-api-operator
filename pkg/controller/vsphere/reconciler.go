@@ -27,10 +27,8 @@ import (
 	"github.com/vmware/govmomi/vim25/types"
 
 	corev1 "k8s.io/api/core/v1"
-	storagev1 "k8s.io/api/storage/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/fields"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
 	apimachineryutilerrors "k8s.io/apimachinery/pkg/util/errors"
 	"k8s.io/component-base/featuregate"
@@ -43,8 +41,6 @@ import (
 	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere/session"
 	"github.com/openshift/machine-api-operator/pkg/metrics"
-
-	runtimeclient "sigs.k8s.io/controller-runtime/pkg/client"
 )
 
 const (
@@ -63,6 +59,11 @@ const (
 	VSphereCSIDriverName = "csi.vsphere.vmware.com"
 	// VSphereInTreePluginName is the in-tree plugin name for vSphere volumes.
 	VSphereInTreePluginName = "kubernetes.io/vsphere-volume"
+	// csiPluginPrefix is the prefix for CSI volume names in node.Status.VolumesAttached.
+	// Format: kubernetes.io/csi/<driverName>^<volumeHandle>
+	csiPluginPrefix = "kubernetes.io/csi/"
+	// csiVolNameSep separates the driver name from the volume handle in CSI volume names.
+	csiVolNameSep = "^"
 )
 
 // These are the guestinfo variables used by Ignition.
@@ -569,28 +570,14 @@ func (r *Reconciler) nodeHasVolumesAttached(ctx context.Context, nodeName string
 
 	for _, vol := range node.Status.VolumesAttached {
 		volName := string(vol.Name)
-		va, err := r.getVolumeAttachmentForAttachedVolume(ctx, volName, nodeName, machineName)
-		if err != nil {
-			klog.Warningf("Machine %s: failed to get VolumeAttachment for %s: %v, conservatively treating as vSphere-backed", machineName, volName, err)
-			vsphereVolumes = append(vsphereVolumes, volName)
-			continue
-		}
-		if va == nil {
-			klog.Warningf("Machine %s: VolumeAttachment for %s not found, conservatively treating as vSphere-backed", machineName, volName)
-			vsphereVolumes = append(vsphereVolumes, volName)
-			continue
-		}
 
-		switch va.Spec.Attacher {
-		case VSphereCSIDriverName, VSphereInTreePluginName:
+		switch classifyAttachedVolume(volName) {
+		case volumeClassVSphere:
 			vsphereVolumes = append(vsphereVolumes, volName)
-		case "":
-			unknownVolumes = append(unknownVolumes, fmt.Sprintf("%s (attacher: empty)", volName))
-		case "nfs.csi.k8s.io", "csi.nfs.io", "iscsi.csi.k8s.io", "cinder.csi.openstack.org",
-			"ebs.csi.aws.com", "pd.csi.storage.gke.io", "disk.csi.azure.com":
-			nonVSphereVolumes = append(nonVSphereVolumes, fmt.Sprintf("%s (attacher: %s)", volName, va.Spec.Attacher))
-		default:
-			unknownVolumes = append(unknownVolumes, fmt.Sprintf("%s (attacher: %s)", volName, va.Spec.Attacher))
+		case volumeClassNonVSphere:
+			nonVSphereVolumes = append(nonVSphereVolumes, volName)
+		case volumeClassUnknown:
+			unknownVolumes = append(unknownVolumes, volName)
 		}
 	}
 
@@ -601,47 +588,41 @@ func (r *Reconciler) nodeHasVolumesAttached(ctx context.Context, nodeName string
 		klog.V(3).Infof("Machine %s: non-vSphere volumes attached (safe to ignore): %v", machineName, nonVSphereVolumes)
 	}
 	if len(unknownVolumes) > 0 {
-		klog.Warningf("Machine %s on node %s: volumes with unknown type attached, conservatively blocking deletion: %v", machineName, nodeName, unknownVolumes)
+		klog.Warningf("Machine %s on node %s: volumes with unrecognized name format, conservatively blocking deletion: %v", machineName, nodeName, unknownVolumes)
 	}
 
 	return len(vsphereVolumes) > 0 || len(unknownVolumes) > 0, nil
 }
 
-// getVolumeAttachmentForAttachedVolume retrieves the VolumeAttachment corresponding to an attached volume
-// on a node. It first tries a direct lookup by the volume name, then falls back to listing and
-// correlating VolumeAttachments for the node (needed for CSI volumes with hashed names like
-// csi-<sha256(volumeHandle+driver+nodeName)>).
-func (r *Reconciler) getVolumeAttachmentForAttachedVolume(ctx context.Context, volName, nodeName, machineName string) (*storagev1.VolumeAttachment, error) {
-	va := &storagev1.VolumeAttachment{}
-	if err := r.apiReader.Get(ctx, apimachinerytypes.NamespacedName{Name: volName}, va); err != nil {
-		if !apierrors.IsNotFound(err) {
-			return nil, err
-		}
-		klog.V(4).Infof("Machine %s: VolumeAttachment %s not found by name, attempting correlation via list", machineName, volName)
-	} else {
-		return va, nil
+type volumeClass int
+
+const (
+	volumeClassVSphere volumeClass = iota
+	volumeClassNonVSphere
+	volumeClassUnknown
+)
+
+// classifyAttachedVolume determines whether an attached volume is vSphere-backed
+// by parsing the UniqueVolumeName format from node.Status.VolumesAttached.
+// CSI volumes use the format: kubernetes.io/csi/<driverName>^<volumeHandle>
+// In-tree vSphere volumes use the prefix: kubernetes.io/vsphere-volume/
+func classifyAttachedVolume(volName string) volumeClass {
+	if strings.HasPrefix(volName, VSphereInTreePluginName+"/") {
+		return volumeClassVSphere
 	}
 
-	fieldSelector, err := fields.ParseSelector("spec.nodeName=" + nodeName)
-	if err != nil {
-		return nil, err
-	}
-
-	vaList := &storagev1.VolumeAttachmentList{}
-	if err := r.apiReader.List(ctx, vaList, &runtimeclient.ListOptions{FieldSelector: fieldSelector}); err != nil {
-		return nil, err
-	}
-
-	for i := range vaList.Items {
-		va := &vaList.Items[i]
-		if va.Name == volName {
-			klog.V(4).Infof("Machine %s: correlated VolumeAttachment %s for node %s", machineName, va.Name, nodeName)
-			return va, nil
+	if strings.HasPrefix(volName, csiPluginPrefix) {
+		remainder := strings.TrimPrefix(volName, csiPluginPrefix)
+		if sepIdx := strings.Index(remainder, csiVolNameSep); sepIdx > 0 {
+			driver := remainder[:sepIdx]
+			if driver == VSphereCSIDriverName {
+				return volumeClassVSphere
+			}
+			return volumeClassNonVSphere
 		}
 	}
 
-	klog.V(4).Infof("Machine %s: no VolumeAttachment found for %s on node %s after listing %d attachments", machineName, volName, nodeName, len(vaList.Items))
-	return nil, nil
+	return volumeClassUnknown
 }
 
 // reconcileMachineWithCloudState reconcile machineSpec and status with the latest cloud state

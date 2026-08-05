@@ -37,7 +37,6 @@ import (
 	"github.com/vmware/govmomi/vim25/types"
 
 	corev1 "k8s.io/api/core/v1"
-	storagev1 "k8s.io/api/storage/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apimachineryruntime "k8s.io/apimachinery/pkg/runtime"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
@@ -2600,12 +2599,11 @@ func TestDeleteWithVolumeTypeFiltering(t *testing.T) {
 		name                 string
 		machine              func(t *testing.T, simServerHost string) *machinev1.Machine
 		node                 func(t *testing.T) *corev1.Node
-		volumeAttachments    []runtimeclient.Object
 		attachDisks          bool
 		secondReconcileError string
 	}{
 		{
-			name: "NFS volumes attached, deletion proceeds",
+			name: "NFS CSI volumes attached, deletion proceeds",
 			machine: func(t *testing.T, simServerHost string) *machinev1.Machine {
 				return getMachineWithStatus(t, machinev1.MachineStatus{
 					NodeRef: &corev1.ObjectReference{
@@ -2622,22 +2620,11 @@ func TestDeleteWithVolumeTypeFiltering(t *testing.T) {
 				})
 				node.Status.VolumesAttached = []corev1.AttachedVolume{
 					{
-						Name:       "csi-nfs-123",
+						Name:       "kubernetes.io/csi/nfs.csi.k8s.io^vol-123",
 						DevicePath: "/dev/sda",
 					},
 				}
 				return node
-			},
-			volumeAttachments: []runtimeclient.Object{
-				&storagev1.VolumeAttachment{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "csi-nfs-123",
-					},
-					Spec: storagev1.VolumeAttachmentSpec{
-						Attacher: "nfs.csi.k8s.io",
-						NodeName: nodeName,
-					},
-				},
 			},
 			attachDisks:          false,
 			secondReconcileError: "destroying vm in progress, requeuing",
@@ -2660,22 +2647,11 @@ func TestDeleteWithVolumeTypeFiltering(t *testing.T) {
 				})
 				node.Status.VolumesAttached = []corev1.AttachedVolume{
 					{
-						Name:       "csi-vsphere-456",
+						Name:       "kubernetes.io/csi/csi.vsphere.vmware.com^pvc-456",
 						DevicePath: "/dev/sdb",
 					},
 				}
 				return node
-			},
-			volumeAttachments: []runtimeclient.Object{
-				&storagev1.VolumeAttachment{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "csi-vsphere-456",
-					},
-					Spec: storagev1.VolumeAttachmentSpec{
-						Attacher: VSphereCSIDriverName,
-						NodeName: nodeName,
-					},
-				},
 			},
 			attachDisks:          true,
 			secondReconcileError: "node somenodename has attached volumes, requeuing",
@@ -2698,28 +2674,17 @@ func TestDeleteWithVolumeTypeFiltering(t *testing.T) {
 				})
 				node.Status.VolumesAttached = []corev1.AttachedVolume{
 					{
-						Name:       "vsphere-in-tree-789",
+						Name:       "kubernetes.io/vsphere-volume/[LocalDS_0] vm/disk.vmdk",
 						DevicePath: "/dev/sdc",
 					},
 				}
 				return node
 			},
-			volumeAttachments: []runtimeclient.Object{
-				&storagev1.VolumeAttachment{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "vsphere-in-tree-789",
-					},
-					Spec: storagev1.VolumeAttachmentSpec{
-						Attacher: VSphereInTreePluginName,
-						NodeName: nodeName,
-					},
-				},
-			},
 			attachDisks:          true,
 			secondReconcileError: "node somenodename has attached volumes, requeuing",
 		},
 		{
-			name: "Mixed volumes (NFS + vSphere), deletion blocked",
+			name: "Mixed volumes (NFS + vSphere CSI), deletion blocked",
 			machine: func(t *testing.T, simServerHost string) *machinev1.Machine {
 				return getMachineWithStatus(t, machinev1.MachineStatus{
 					NodeRef: &corev1.ObjectReference{
@@ -2736,41 +2701,21 @@ func TestDeleteWithVolumeTypeFiltering(t *testing.T) {
 				})
 				node.Status.VolumesAttached = []corev1.AttachedVolume{
 					{
-						Name:       "csi-nfs-123",
+						Name:       "kubernetes.io/csi/nfs.csi.k8s.io^vol-123",
 						DevicePath: "/dev/sda",
 					},
 					{
-						Name:       "csi-vsphere-456",
+						Name:       "kubernetes.io/csi/csi.vsphere.vmware.com^pvc-456",
 						DevicePath: "/dev/sdb",
 					},
 				}
 				return node
 			},
-			volumeAttachments: []runtimeclient.Object{
-				&storagev1.VolumeAttachment{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "csi-nfs-123",
-					},
-					Spec: storagev1.VolumeAttachmentSpec{
-						Attacher: "nfs.csi.k8s.io",
-						NodeName: nodeName,
-					},
-				},
-				&storagev1.VolumeAttachment{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "csi-vsphere-456",
-					},
-					Spec: storagev1.VolumeAttachmentSpec{
-						Attacher: VSphereCSIDriverName,
-						NodeName: nodeName,
-					},
-				},
-			},
 			attachDisks:          true,
 			secondReconcileError: "node somenodename has attached volumes, requeuing",
 		},
 		{
-			name: "Non-vSphere attacher, deletion proceeds",
+			name: "Non-vSphere CSI attacher (iSCSI), deletion proceeds",
 			machine: func(t *testing.T, simServerHost string) *machinev1.Machine {
 				return getMachineWithStatus(t, machinev1.MachineStatus{
 					NodeRef: &corev1.ObjectReference{
@@ -2787,28 +2732,17 @@ func TestDeleteWithVolumeTypeFiltering(t *testing.T) {
 				})
 				node.Status.VolumesAttached = []corev1.AttachedVolume{
 					{
-						Name:       "csi-iscsi-789",
+						Name:       "kubernetes.io/csi/iscsi.csi.k8s.io^vol-789",
 						DevicePath: "/dev/sdc",
 					},
 				}
 				return node
 			},
-			volumeAttachments: []runtimeclient.Object{
-				&storagev1.VolumeAttachment{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "csi-iscsi-789",
-					},
-					Spec: storagev1.VolumeAttachmentSpec{
-						Attacher: "iscsi.csi.k8s.io",
-						NodeName: nodeName,
-					},
-				},
-			},
 			attachDisks:          false,
 			secondReconcileError: "destroying vm in progress, requeuing",
 		},
 		{
-			name: "Volume attached but no VolumeAttachment, deletion blocked conservatively",
+			name: "Unrecognized volume name format, deletion blocked conservatively",
 			machine: func(t *testing.T, simServerHost string) *machinev1.Machine {
 				return getMachineWithStatus(t, machinev1.MachineStatus{
 					NodeRef: &corev1.ObjectReference{
@@ -2825,18 +2759,17 @@ func TestDeleteWithVolumeTypeFiltering(t *testing.T) {
 				})
 				node.Status.VolumesAttached = []corev1.AttachedVolume{
 					{
-						Name:       "csi-missing-va",
+						Name:       "some-unknown-format-volume",
 						DevicePath: "/dev/sdd",
 					},
 				}
 				return node
 			},
-			volumeAttachments:    []runtimeclient.Object{},
 			attachDisks:          true,
 			secondReconcileError: "node somenodename has attached volumes, requeuing",
 		},
 		{
-			name: "VolumeAttachment with empty attacher, deletion blocked conservatively",
+			name: "CSI volume name without separator, deletion blocked conservatively",
 			machine: func(t *testing.T, simServerHost string) *machinev1.Machine {
 				return getMachineWithStatus(t, machinev1.MachineStatus{
 					NodeRef: &corev1.ObjectReference{
@@ -2853,60 +2786,11 @@ func TestDeleteWithVolumeTypeFiltering(t *testing.T) {
 				})
 				node.Status.VolumesAttached = []corev1.AttachedVolume{
 					{
-						Name:       "csi-empty-attacher",
+						Name:       "kubernetes.io/csi/malformed-no-separator",
 						DevicePath: "/dev/sde",
 					},
 				}
 				return node
-			},
-			volumeAttachments: []runtimeclient.Object{
-				&storagev1.VolumeAttachment{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "csi-empty-attacher",
-					},
-					Spec: storagev1.VolumeAttachmentSpec{
-						Attacher: "",
-						NodeName: nodeName,
-					},
-				},
-			},
-			attachDisks:          true,
-			secondReconcileError: "node somenodename has attached volumes, requeuing",
-		},
-		{
-			name: "VolumeAttachment with unrecognized attacher, deletion blocked conservatively",
-			machine: func(t *testing.T, simServerHost string) *machinev1.Machine {
-				return getMachineWithStatus(t, machinev1.MachineStatus{
-					NodeRef: &corev1.ObjectReference{
-						Name: nodeName,
-					},
-				}, simServerHost)
-			},
-			node: func(t *testing.T) *corev1.Node {
-				node := getNodeWithConditions([]corev1.NodeCondition{
-					{
-						Type:   corev1.NodeReady,
-						Status: corev1.ConditionUnknown,
-					},
-				})
-				node.Status.VolumesAttached = []corev1.AttachedVolume{
-					{
-						Name:       "csi-unknown-attacher",
-						DevicePath: "/dev/sdf",
-					},
-				}
-				return node
-			},
-			volumeAttachments: []runtimeclient.Object{
-				&storagev1.VolumeAttachment{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "csi-unknown-attacher",
-					},
-					Spec: storagev1.VolumeAttachmentSpec{
-						Attacher: "unknown.custom.driver.io",
-						NodeName: nodeName,
-					},
-				},
 			},
 			attachDisks:          true,
 			secondReconcileError: "node somenodename has attached volumes, requeuing",
@@ -2940,11 +2824,6 @@ func TestDeleteWithVolumeTypeFiltering(t *testing.T) {
 				return []string{pod.Spec.NodeName}
 			}
 
-			vaNodeNameIndexExtractor := func(rawObj runtimeclient.Object) []string {
-				va := rawObj.(*storagev1.VolumeAttachment)
-				return []string{va.Spec.NodeName}
-			}
-
 			var objects []apimachineryruntime.Object
 			objects = append(objects,
 				simParams.secret,
@@ -2952,13 +2831,10 @@ func TestDeleteWithVolumeTypeFiltering(t *testing.T) {
 				simParams.configMap,
 				tc.node(t),
 			)
-			for _, va := range tc.volumeAttachments {
-				objects = append(objects, va)
-			}
 
 			cl := fake.NewClientBuilder().WithScheme(
 				scheme.Scheme,
-			).WithIndex(&corev1.Pod{}, "spec.nodeName", nodeNameIndexExtractor).WithIndex(&storagev1.VolumeAttachment{}, "spec.nodeName", vaNodeNameIndexExtractor).WithRuntimeObjects(
+			).WithIndex(&corev1.Pod{}, "spec.nodeName", nodeNameIndexExtractor).WithRuntimeObjects(
 				objects...,
 			).Build()
 			mScope, err := newMachineScope(machineScopeParams{
@@ -2977,6 +2853,33 @@ func TestDeleteWithVolumeTypeFiltering(t *testing.T) {
 
 			// Second reconciliation should behave according to volume types
 			g.Expect(reconciler.delete()).To(MatchError(ContainSubstring(tc.secondReconcileError)))
+		})
+	}
+}
+
+func TestClassifyAttachedVolume(t *testing.T) {
+	tests := []struct {
+		name     string
+		volName  string
+		expected volumeClass
+	}{
+		{"vSphere CSI", "kubernetes.io/csi/csi.vsphere.vmware.com^pvc-abc123", volumeClassVSphere},
+		{"vSphere in-tree", "kubernetes.io/vsphere-volume/[LocalDS_0] vm/disk.vmdk", volumeClassVSphere},
+		{"NFS CSI", "kubernetes.io/csi/nfs.csi.k8s.io^vol-123", volumeClassNonVSphere},
+		{"iSCSI CSI", "kubernetes.io/csi/iscsi.csi.k8s.io^vol-456", volumeClassNonVSphere},
+		{"EBS CSI", "kubernetes.io/csi/ebs.csi.aws.com^vol-789", volumeClassNonVSphere},
+		{"Azure Disk CSI", "kubernetes.io/csi/disk.csi.azure.com^vol-abc", volumeClassNonVSphere},
+		{"GCE PD CSI", "kubernetes.io/csi/pd.csi.storage.gke.io^vol-def", volumeClassNonVSphere},
+		{"Cinder CSI", "kubernetes.io/csi/cinder.csi.openstack.org^vol-ghi", volumeClassNonVSphere},
+		{"unknown format", "some-unknown-format", volumeClassUnknown},
+		{"empty string", "", volumeClassUnknown},
+		{"CSI prefix no separator", "kubernetes.io/csi/malformed", volumeClassUnknown},
+		{"CSI prefix empty driver", "kubernetes.io/csi/^handle", volumeClassUnknown},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+			g.Expect(classifyAttachedVolume(tc.volName)).To(Equal(tc.expected))
 		})
 	}
 }
