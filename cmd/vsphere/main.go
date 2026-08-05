@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,7 +35,7 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/version"
 )
 
-const timeout = 10 * time.Minute
+const defaultSyncPeriod = 60 * time.Minute
 
 func main() {
 	var printVersion bool
@@ -99,6 +100,21 @@ func main() {
 		"The address for health checking.",
 	)
 
+	syncPeriodFlag := flag.Duration(
+		"sync-period",
+		defaultSyncPeriod,
+		"Minimum interval at which cached resources are re-reconciled. This is the only "+
+			"backstop for drift detection once a machine's per-machine reconciliation TTL "+
+			"annotation is honored, so it should not be disabled.",
+	)
+
+	maxConcurrentReconciles := flag.Int(
+		"max-concurrent-reconciles",
+		3,
+		"The number of concurrent machine reconciles allowed. Increasing this allows new "+
+			"machines to be processed without waiting behind stable machines in the queue.",
+	)
+
 	majorVersion := version.Version.Major
 
 	if majorVersion == 0 {
@@ -123,7 +139,7 @@ func main() {
 	}
 
 	cfg := config.GetConfigOrDie()
-	syncPeriod := timeout
+	syncPeriod := *syncPeriodFlag
 
 	le := util.GetLeaderElectionConfig(cfg, configv1.LeaderElection{
 		Disable:       !*leaderElect,
@@ -177,8 +193,9 @@ func main() {
 	}
 
 	// Create a taskIDCache for create task IDs in case they are lost due to
-	// network error or stale cache.
-	taskIDCache := make(map[string]string)
+	// network error or stale cache. sync.Map is used since concurrent reconciliation is
+	// enabled via --max-concurrent-reconciles.
+	taskIDCache := &sync.Map{}
 
 	// Initialize machine actuator.
 	machineActuator := machine.NewActuator(machine.ActuatorParams{
@@ -206,7 +223,9 @@ func main() {
 		klog.Fatalf("unable to add ipamv1beta1 to scheme: %v", err)
 	}
 
-	if err := capimachine.AddWithActuator(mgr, machineActuator, defaultMutableGate); err != nil {
+	if err := capimachine.AddWithActuatorOpts(mgr, machineActuator, controller.Options{
+		MaxConcurrentReconciles: *maxConcurrentReconciles,
+	}, defaultMutableGate); err != nil {
 		klog.Fatal(err)
 	}
 
