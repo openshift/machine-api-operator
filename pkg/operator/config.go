@@ -27,6 +27,9 @@ type OperatorConfig struct {
 	Features           map[string]bool
 	TLSProfile         configv1.TLSProfileSpec
 	TLSAdherencePolicy configv1.TLSAdherencePolicy
+	// EnablePprof enables the pprof profiling endpoint on the machine controller.
+	// Currently only supported on AWS.
+	EnablePprof bool
 }
 
 type Controllers struct {
