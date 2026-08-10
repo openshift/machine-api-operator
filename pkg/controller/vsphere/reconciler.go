@@ -1203,12 +1203,6 @@ func getDiskSpec(s *machineScope, devices object.VirtualDeviceList) (types.BaseV
 func createDataDisks(s *machineScope, devices object.VirtualDeviceList) ([]types.BaseVirtualDeviceConfigSpec, error) {
 	var diskSpecs []types.BaseVirtualDeviceConfigSpec
 
-	// Only add additional disks if the feature gate is enabled.
-	if len(s.providerSpec.DataDisks) > 0 && !s.featureGates.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereMultiDisk)) {
-		return nil, machinecontroller.InvalidMachineConfiguration(
-			"machines cannot contain additional disks due to VSphereMultiDisk feature gate being disabled")
-	}
-
 	// Get primary disk
 	disks := devices.SelectByType((*types.VirtualDisk)(nil))
 	if len(disks) == 0 {

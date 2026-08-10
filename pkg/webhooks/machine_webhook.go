@@ -1763,11 +1763,7 @@ func validateVSphere(m *machinev1beta1.Machine, config *admissionConfig) (bool, 
 	}
 
 	if len(providerSpec.DataDisks) > 0 {
-		if !config.featureGates.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereMultiDisk)) {
-			errs = append(errs, field.Forbidden(field.NewPath("providerSpec", "disks"), "this field is protected by the VSphereMultiDisk feature gate which must be enabled through either the TechPreviewNoUpgrade or CustomNoUpgrade feature set"))
-		} else {
-			errs = append(errs, validateVSphereDataDisks(providerSpec.DataDisks)...)
-		}
+		errs = append(errs, validateVSphereDataDisks(providerSpec.DataDisks)...)
 	}
 
 	if len(errs) > 0 {

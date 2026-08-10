@@ -478,7 +478,6 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 		string(apifeatures.FeatureGateAWSDedicatedHosts):       featureGates.Enabled(apifeatures.FeatureGateAWSDedicatedHosts),
 		string(apifeatures.FeatureGateMachineAPIMigration):     featureGates.Enabled(apifeatures.FeatureGateMachineAPIMigration),
 		string(apifeatures.FeatureGateAzureWorkloadIdentity):   featureGates.Enabled(apifeatures.FeatureGateAzureWorkloadIdentity),
-		string(apifeatures.FeatureGateVSphereMultiDisk):        featureGates.Enabled(apifeatures.FeatureGateVSphereMultiDisk),
 		string(apifeatures.FeatureGateVSphereHostVMGroupZonal): featureGates.Enabled(apifeatures.FeatureGateVSphereHostVMGroupZonal),
 	}
 	if features[string(apifeatures.FeatureGateMachineAPIMigration)] {

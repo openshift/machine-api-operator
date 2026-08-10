@@ -5553,25 +5553,7 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 			}(),
 		},
 		{
-			testCase: "with data disk configured without feature gate enabled",
-			modifySpec: func(p *machinev1beta1.VSphereMachineProviderSpec) {
-				p.DataDisks = []machinev1beta1.VSphereDisk{
-					{
-						Name:    "Disk1",
-						SizeGiB: 10,
-					},
-				}
-			},
-			expectedOk: false,
-			featureGatesEnabled: func() map[string]bool {
-				fg := make(map[string]bool)
-				fg[string(features.FeatureGateVSphereMultiDisk)] = false
-				return fg
-			}(),
-			expectedError: "providerSpec.disks: Forbidden: this field is protected by the VSphereMultiDisk feature gate which must be enabled through either the TechPreviewNoUpgrade or CustomNoUpgrade feature set",
-		},
-		{
-			testCase: "with data disk configured with feature gate enabled",
+			testCase: "with data disk configured",
 			modifySpec: func(p *machinev1beta1.VSphereMachineProviderSpec) {
 				p.DataDisks = []machinev1beta1.VSphereDisk{
 					{
@@ -5581,11 +5563,6 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 				}
 			},
 			expectedOk: true,
-			featureGatesEnabled: func() map[string]bool {
-				fg := make(map[string]bool)
-				fg[string(features.FeatureGateVSphereMultiDisk)] = true
-				return fg
-			}(),
 		},
 		{
 			testCase: "with data disk configured with max size",
@@ -5598,11 +5575,6 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 				}
 			},
 			expectedOk: true,
-			featureGatesEnabled: func() map[string]bool {
-				fg := make(map[string]bool)
-				fg[string(features.FeatureGateVSphereMultiDisk)] = true
-				return fg
-			}(),
 		},
 		{
 			testCase: "with data disk configured with size above max",
@@ -5614,12 +5586,7 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 					},
 				}
 			},
-			expectedOk: false,
-			featureGatesEnabled: func() map[string]bool {
-				fg := make(map[string]bool)
-				fg[string(features.FeatureGateVSphereMultiDisk)] = true
-				return fg
-			}(),
+			expectedOk:    false,
 			expectedError: "providerSpec.disks[0].sizeGiB: Invalid value: 17000: data disk size (GiB) must not exceed 16384",
 		},
 		{
@@ -5631,12 +5598,7 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 					},
 				}
 			},
-			expectedOk: false,
-			featureGatesEnabled: func() map[string]bool {
-				fg := make(map[string]bool)
-				fg[string(features.FeatureGateVSphereMultiDisk)] = true
-				return fg
-			}(),
+			expectedOk:    false,
 			expectedError: "providerSpec.disks[0].sizeGiB: Required value: data disk size must be set",
 		},
 		{
@@ -5648,12 +5610,7 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 					},
 				}
 			},
-			expectedOk: false,
-			featureGatesEnabled: func() map[string]bool {
-				fg := make(map[string]bool)
-				fg[string(features.FeatureGateVSphereMultiDisk)] = true
-				return fg
-			}(),
+			expectedOk:    false,
 			expectedError: "providerSpec.disks[0].name: Required value: data disk name must be set",
 		},
 		{
@@ -5666,12 +5623,7 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 					},
 				}
 			},
-			expectedOk: false,
-			featureGatesEnabled: func() map[string]bool {
-				fg := make(map[string]bool)
-				fg[string(features.FeatureGateVSphereMultiDisk)] = true
-				return fg
-			}(),
+			expectedOk:    false,
 			expectedError: "providerSpec.disks[0].name: Invalid value: \"Bad #Name\": data disk name must consist only of alphanumeric characters, hyphens and underscores, and must start and end with an alphanumeric character.",
 		},
 		{
@@ -5686,11 +5638,6 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 				}
 			},
 			expectedOk: true,
-			featureGatesEnabled: func() map[string]bool {
-				fg := make(map[string]bool)
-				fg[string(features.FeatureGateVSphereMultiDisk)] = true
-				return fg
-			}(),
 		},
 		{
 			testCase: "with data disk configured with invalid provisioning mode",
@@ -5703,12 +5650,7 @@ func TestValidateVSphereProviderSpec(t *testing.T) {
 					},
 				}
 			},
-			expectedOk: false,
-			featureGatesEnabled: func() map[string]bool {
-				fg := make(map[string]bool)
-				fg[string(features.FeatureGateVSphereMultiDisk)] = true
-				return fg
-			}(),
+			expectedOk:    false,
 			expectedError: "providerSpec.disks[0]: Unsupported value: \"Fat\": supported values: \"EagerlyZeroed\", \"Thick\", \"Thin\"",
 		},
 	}
