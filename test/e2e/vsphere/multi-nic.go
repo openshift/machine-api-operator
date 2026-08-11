@@ -149,7 +149,7 @@ func failIfMachineDoesNotHaveAllPortgroups(machine machinev1beta1.Machine, failu
 	Expect(slices.Equal(expectedPortgroups, portgroups)).To(BeTrue())
 }
 
-var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiNetworks][platform:vsphere] Managed cluster should", Label("Conformance"), func() {
+var _ = Describe("[sig-cluster-lifecycle][platform:vsphere] Managed cluster should", Label("Conformance"), func() {
 	defer GinkgoRecover()
 	ctx := context.Background()
 
