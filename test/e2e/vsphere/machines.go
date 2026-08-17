@@ -24,7 +24,7 @@ const (
 	machineReadyTimeout = time.Minute * 6
 )
 
-var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereMultiDisk][platform:vsphere][Disruptive] Managed cluster should", Label("Conformance"), Label("Serial"), func() {
+var _ = Describe("[sig-cluster-lifecycle][platform:vsphere][Disruptive] Managed cluster should", Label("Conformance"), Label("Serial"), func() {
 	defer GinkgoRecover()
 	ctx := context.Background()
 
