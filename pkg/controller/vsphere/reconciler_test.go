@@ -25,6 +25,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	. "github.com/onsi/gomega"
 
@@ -3582,6 +3583,140 @@ func TestReconcilePowerStateAnnontation(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestTaskRunningReturnsRequeueAfterError(t *testing.T) {
+	// Add a delay to clone tasks so we can observe the "task running" state.
+	// The clone task runs asynchronously in the simulator, so the second create() call
+	// will find it still running and return RequeueAfterError.
+	simulator.TaskDelay.MethodDelay = map[string]int{
+		"CloneVM": 500,
+	}
+
+	model, session, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+	host, port, err := net.SplitHostPort(server.URL.Host)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	credentialsSecretUsername := fmt.Sprintf("%s.username", host)
+	credentialsSecretPassword := fmt.Sprintf("%s.password", host)
+	password, _ := server.URL.User.Password()
+	namespace := "test"
+	vmName := "testName"
+	vm := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
+	vm.Name = vmName
+	vm.Config.Version = minimumHWVersionString
+
+	credentialsSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "test",
+			Namespace: namespace,
+		},
+		Data: map[string][]byte{
+			credentialsSecretUsername: []byte(server.URL.User.Username()),
+			credentialsSecretPassword: []byte(password),
+		},
+	}
+
+	testConfig := fmt.Sprintf(testConfigFmt, port, "test", namespace)
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      OpenshiftConfigManagedConfigMap,
+			Namespace: openshiftConfigNamespaceForTest,
+		},
+		Data: map[string]string{
+			OpenshiftConfigManagedCloudConfigKey: testConfig,
+		},
+	}
+
+	userDataSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "vsphere-ignition",
+			Namespace: namespace,
+		},
+		Data: map[string][]byte{
+			userDataSecretKey: []byte("{}"),
+		},
+	}
+
+	providerSpec := machinev1.VSphereMachineProviderSpec{
+		Template: vmName,
+		Workspace: &machinev1.Workspace{
+			Server: host,
+		},
+		CredentialsSecret: &corev1.LocalObjectReference{
+			Name: "test",
+		},
+		DiskGiB: 10,
+		UserDataSecret: &corev1.LocalObjectReference{
+			Name: "vsphere-ignition",
+		},
+	}
+
+	t.Run("create returns RequeueAfterError when clone task is running", func(t *testing.T) {
+		g := NewWithT(t)
+
+		machineName := "test-create-requeue"
+		rawProviderSpec, err := RawExtensionFromProviderSpec(&providerSpec)
+		g.Expect(err).NotTo(HaveOccurred())
+
+		machine := &machinev1.Machine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      machineName,
+				Namespace: namespace,
+				Labels: map[string]string{
+					machinev1.MachineClusterIDLabel: "CLUSTERID",
+				},
+			},
+			Spec: machinev1.MachineSpec{
+				ProviderSpec: machinev1.ProviderSpec{
+					Value: rawProviderSpec,
+				},
+			},
+		}
+
+		client := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(
+			credentialsSecret, configMap, userDataSecret, machine).Build()
+
+		gates, err := testutils.NewDefaultMutableFeatureGate()
+		g.Expect(err).NotTo(HaveOccurred())
+
+		machineScope, err := newMachineScope(machineScopeParams{
+			client:                   client,
+			Context:                  context.Background(),
+			machine:                  machine,
+			apiReader:                client,
+			openshiftConfigNameSpace: openshiftConfigNamespaceForTest,
+			featureGates:             gates,
+		})
+		g.Expect(err).NotTo(HaveOccurred())
+
+		reconciler := newReconciler(machineScope)
+
+		// First create() starts the clone and sets TaskRef
+		err = reconciler.create()
+		g.Expect(err).NotTo(HaveOccurred())
+		g.Expect(reconciler.providerStatus.TaskRef).NotTo(BeEmpty(), "TaskRef should be set after clone")
+
+		// Second create() should find the task still running and return RequeueAfterError
+		err = reconciler.create()
+		g.Expect(err).To(HaveOccurred())
+
+		var requeueErr *machinecontroller.RequeueAfterError
+		g.Expect(errors.As(err, &requeueErr)).To(BeTrue(), "expected RequeueAfterError, got: %v", err)
+		g.Expect(requeueErr.RequeueAfter).To(Equal(time.Duration(requeueAfterSeconds) * time.Second))
+
+		// Wait for the clone task to complete before exiting, so the simulator
+		// goroutine finishes and doesn't race with clearing TaskDelay.
+		g.Expect(waitForTaskToComplete(session, reconciler)).To(Succeed())
+	})
+
+	// Clear TaskDelay after the clone task has completed to avoid data races
+	// with simulator goroutines.
+	simulator.TaskDelay.MethodDelay = nil
 }
 
 // See https://github.com/vmware/govmomi/blob/master/simulator/example_extend_test.go#L33:6 for extending behaviour example

@@ -968,6 +968,72 @@ func TestNewPodTemplateSpecTLSArgs(t *testing.T) {
 	}
 }
 
+func TestMachineControllerConcurrencyArgs(t *testing.T) {
+	testCases := []struct {
+		name         string
+		platformType configv1.PlatformType
+		expectedArg  string
+	}{
+		{
+			name:         "Azure gets concurrency 10",
+			platformType: configv1.AzurePlatformType,
+			expectedArg:  "--max-concurrent-reconciles=10",
+		},
+		{
+			name:         "GCP gets concurrency 10",
+			platformType: configv1.GCPPlatformType,
+			expectedArg:  "--max-concurrent-reconciles=10",
+		},
+		{
+			name:         "VSphere gets concurrency 3",
+			platformType: configv1.VSpherePlatformType,
+			expectedArg:  "--max-concurrent-reconciles=3",
+		},
+		{
+			name:         "BareMetal gets no concurrency flag",
+			platformType: configv1.BareMetalPlatformType,
+		},
+		{
+			name:         "unrecognized platform gets no concurrency flag",
+			platformType: configv1.NonePlatformType,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			config := &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				PlatformType:    tc.platformType,
+				Controllers: Controllers{
+					Provider:      "provider-image:latest",
+					MachineSet:    "machineset-image:latest",
+					NodeLink:      "nodelink-image:latest",
+					KubeRBACProxy: "kube-rbac-proxy-image:latest",
+				},
+			}
+
+			podTemplate := newPodTemplateSpec(config, map[string]bool{})
+
+			var machineControllerArgs []string
+			for _, container := range podTemplate.Spec.Containers {
+				if container.Name == "machine-controller" {
+					machineControllerArgs = container.Args
+				}
+			}
+			g.Expect(machineControllerArgs).ToNot(BeNil())
+
+			joined := strings.Join(machineControllerArgs, " ")
+			if tc.expectedArg == "" {
+				g.Expect(joined).ToNot(ContainSubstring("--max-concurrent-reconciles"))
+			} else {
+				g.Expect(joined).To(ContainSubstring(tc.expectedArg))
+			}
+		})
+	}
+}
+
 func TestResolveTLSProfile(t *testing.T) {
 	g := NewWithT(t)
 
