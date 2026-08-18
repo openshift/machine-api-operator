@@ -2,12 +2,14 @@ package vsphere
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"path/filepath"
 	"testing"
 	"time"
 
+	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	testutils "github.com/openshift/machine-api-operator/pkg/util/testing"
 
 	. "github.com/onsi/gomega"
@@ -421,4 +423,281 @@ func TestMachineEvents(t *testing.T) {
 			gs.Expect(matchingEvent.Message).To(Equal(tc.event))
 		})
 	}
+}
+
+func TestTaskIDCacheBehavior(t *testing.T) {
+	g := NewWithT(t)
+
+	model, session, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	host, port, err := net.SplitHostPort(server.URL.Host)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	credentialsSecretUsername := fmt.Sprintf("%s.username", host)
+	credentialsSecretPassword := fmt.Sprintf("%s.password", host)
+	password, _ := server.URL.User.Password()
+
+	vm := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
+	vm.Config.Version = minimumHWVersionString
+
+	testEnv := &envtest.Environment{
+		CRDDirectoryPaths: []string{
+			filepath.Join("..", "..", "..", "install"),
+			filepath.Join("..", "..", "..", "vendor", "github.com", "openshift", "api", "config", "v1", "zz_generated.crd-manifests"),
+			filepath.Join("..", "..", "..", "third_party", "cluster-api", "crd")},
+	}
+
+	cfg, err := testEnv.Start()
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(cfg).ToNot(BeNil())
+	defer func() {
+		g.Expect(testEnv.Stop()).To(Succeed())
+	}()
+
+	mgr, err := manager.New(cfg, manager.Options{
+		Scheme: scheme.Scheme,
+		Metrics: metricsserver.Options{
+			BindAddress: "0",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mgrCtx, cancel := context.WithCancel(context.Background())
+	go func() {
+		g.Expect(mgr.Start(mgrCtx)).To(Succeed())
+	}()
+	defer cancel()
+
+	k8sClient := mgr.GetClient()
+	eventRecorder := mgr.GetEventRecorder("vspherecontroller")
+
+	configNamespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: openshiftConfigNamespaceForTest,
+		},
+	}
+	g.Expect(k8sClient.Create(context.Background(), configNamespace)).To(Succeed())
+	defer func() {
+		g.Expect(k8sClient.Delete(context.Background(), configNamespace)).To(Succeed())
+	}()
+
+	testNamespaceName := "test-cache"
+	testNamespace := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: testNamespaceName,
+		},
+	}
+	g.Expect(k8sClient.Create(context.Background(), testNamespace)).To(Succeed())
+	defer func() {
+		g.Expect(k8sClient.Delete(context.Background(), testNamespace)).To(Succeed())
+	}()
+
+	credentialsSecretName := "test"
+	credentialsSecret := corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      credentialsSecretName,
+			Namespace: testNamespaceName,
+		},
+		Data: map[string][]byte{
+			credentialsSecretUsername: []byte(server.URL.User.Username()),
+			credentialsSecretPassword: []byte(password),
+		},
+	}
+	g.Expect(k8sClient.Create(context.Background(), &credentialsSecret)).To(Succeed())
+	defer func() {
+		g.Expect(k8sClient.Delete(context.Background(), &credentialsSecret)).To(Succeed())
+	}()
+
+	testConfig := fmt.Sprintf(testConfigFmt, port, credentialsSecretName, testNamespaceName)
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      OpenshiftConfigManagedConfigMap,
+			Namespace: openshiftConfigNamespaceForTest,
+		},
+		Data: map[string]string{
+			OpenshiftConfigManagedCloudConfigKey: testConfig,
+		},
+	}
+	g.Expect(k8sClient.Create(context.Background(), configMap)).To(Succeed())
+	defer func() {
+		g.Expect(k8sClient.Delete(context.Background(), configMap)).To(Succeed())
+	}()
+
+	userDataSecretName := "vsphere-ignition"
+	userDataSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      userDataSecretName,
+			Namespace: testNamespaceName,
+		},
+		Data: map[string][]byte{
+			userDataSecretKey: []byte("{}"),
+		},
+	}
+	g.Expect(k8sClient.Create(context.Background(), userDataSecret)).To(Succeed())
+	defer func() {
+		g.Expect(k8sClient.Delete(context.Background(), userDataSecret)).To(Succeed())
+	}()
+
+	_, err = createTagAndCategory(session, tagToCategoryName("CLUSTERID"), "CLUSTERID")
+	g.Expect(err).ToNot(HaveOccurred())
+
+	ctx := context.Background()
+	timeout := 10 * time.Second
+
+	newProviderSpec := func() *runtime.RawExtension {
+		t.Helper()
+		ps, err := RawExtensionFromProviderSpec(&machinev1.VSphereMachineProviderSpec{
+			Template: vm.Name,
+			Workspace: &machinev1.Workspace{
+				Server: host,
+			},
+			CredentialsSecret: &corev1.LocalObjectReference{
+				Name: "test",
+			},
+			UserDataSecret: &corev1.LocalObjectReference{
+				Name: userDataSecretName,
+			},
+			DiskGiB: 10,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return ps
+	}
+
+	newMachine := func(name string) *machinev1.Machine {
+		return &machinev1.Machine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: testNamespaceName,
+				Labels: map[string]string{
+					machinev1.MachineClusterIDLabel: "CLUSTERID",
+				},
+			},
+			Spec: machinev1.MachineSpec{
+				ProviderSpec: machinev1.ProviderSpec{
+					Value: newProviderSpec(),
+				},
+			},
+		}
+	}
+
+	t.Run("TaskIDCache populated on successful create", func(t *testing.T) {
+		gs := NewWithT(t)
+
+		gate, err := testutils.NewDefaultMutableFeatureGate()
+		gs.Expect(err).ToNot(HaveOccurred())
+
+		taskIDCache := make(map[string]string)
+		actuator := NewActuator(ActuatorParams{
+			Client:                   k8sClient,
+			EventRecorder:            eventRecorder,
+			APIReader:                k8sClient,
+			TaskIDCache:              taskIDCache,
+			OpenshiftConfigNamespace: openshiftConfigNamespaceForTest,
+			FeatureGates:             gate,
+		})
+
+		machine := newMachine("test-cache-populated")
+		gs.Expect(k8sClient.Create(ctx, machine)).To(Succeed())
+		gs.Eventually(func() error {
+			return k8sClient.Get(ctx, types.NamespacedName{Namespace: machine.Namespace, Name: machine.Name}, &machinev1.Machine{})
+		}, timeout).Should(Succeed())
+		defer func() {
+			gs.Expect(k8sClient.Delete(context.Background(), machine)).To(Succeed())
+		}()
+
+		err = actuator.Create(ctx, machine)
+		gs.Expect(err).ToNot(HaveOccurred())
+
+		gs.Expect(taskIDCache).To(HaveKey(machine.Name))
+		gs.Expect(taskIDCache[machine.Name]).ToNot(BeEmpty())
+	})
+
+	t.Run("TaskIDCache cleared when PatchMachine fails", func(t *testing.T) {
+		gs := NewWithT(t)
+
+		gate, err := testutils.NewDefaultMutableFeatureGate()
+		gs.Expect(err).ToNot(HaveOccurred())
+
+		taskIDCache := make(map[string]string)
+		actuator := NewActuator(ActuatorParams{
+			Client:                   k8sClient,
+			EventRecorder:            eventRecorder,
+			APIReader:                k8sClient,
+			TaskIDCache:              taskIDCache,
+			OpenshiftConfigNamespace: openshiftConfigNamespaceForTest,
+			FeatureGates:             gate,
+		})
+
+		machine := newMachine("test-cache-cleared")
+		gs.Expect(k8sClient.Create(ctx, machine)).To(Succeed())
+		gs.Eventually(func() error {
+			return k8sClient.Get(ctx, types.NamespacedName{Namespace: machine.Namespace, Name: machine.Name}, &machinev1.Machine{})
+		}, timeout).Should(Succeed())
+
+		// First Create succeeds, populating the cache with the task ID.
+		err = actuator.Create(ctx, machine)
+		gs.Expect(err).ToNot(HaveOccurred())
+		gs.Expect(taskIDCache).To(HaveKey(machine.Name))
+		cachedTaskID := taskIDCache[machine.Name]
+		gs.Expect(cachedTaskID).ToNot(BeEmpty())
+
+		// Delete the machine from k8s so PatchMachine will fail on the next Create.
+		gs.Expect(k8sClient.Delete(ctx, machine)).To(Succeed())
+		gs.Eventually(func() bool {
+			err := k8sClient.Get(ctx, types.NamespacedName{Namespace: machine.Namespace, Name: machine.Name}, &machinev1.Machine{})
+			return err != nil
+		}, timeout).Should(BeTrue())
+
+		// Second Create: reconciler runs but PatchMachine fails (machine not in k8s).
+		// The fix should clear the cache entry so recovery is possible.
+		err = actuator.Create(ctx, machine)
+		gs.Expect(err).To(HaveOccurred())
+		gs.Expect(taskIDCache).ToNot(HaveKey(machine.Name))
+	})
+
+	t.Run("TaskIDCache mismatch causes requeue", func(t *testing.T) {
+		gs := NewWithT(t)
+
+		gate, err := testutils.NewDefaultMutableFeatureGate()
+		gs.Expect(err).ToNot(HaveOccurred())
+
+		taskIDCache := map[string]string{
+			"test-cache-mismatch": "stale-task-id-from-failed-patch",
+		}
+		actuator := NewActuator(ActuatorParams{
+			Client:                   k8sClient,
+			EventRecorder:            eventRecorder,
+			APIReader:                k8sClient,
+			TaskIDCache:              taskIDCache,
+			OpenshiftConfigNamespace: openshiftConfigNamespaceForTest,
+			FeatureGates:             gate,
+		})
+
+		machine := newMachine("test-cache-mismatch")
+		gs.Expect(k8sClient.Create(ctx, machine)).To(Succeed())
+		gs.Eventually(func() error {
+			return k8sClient.Get(ctx, types.NamespacedName{Namespace: machine.Namespace, Name: machine.Name}, &machinev1.Machine{})
+		}, timeout).Should(Succeed())
+		defer func() {
+			gs.Expect(k8sClient.Delete(context.Background(), machine)).To(Succeed())
+		}()
+
+		// Machine has no TaskRef in providerStatus (empty string), but cache
+		// has "stale-task-id-from-failed-patch". This mismatch should trigger
+		// a RequeueAfterError to avoid racing with a stale cache.
+		err = actuator.Create(ctx, machine)
+		gs.Expect(err).To(HaveOccurred())
+
+		var requeueErr *machinecontroller.RequeueAfterError
+		gs.Expect(errors.As(err, &requeueErr)).To(BeTrue(), "expected RequeueAfterError, got: %v", err)
+		gs.Expect(requeueErr.RequeueAfter).To(Equal(requeueAfterSeconds * time.Second))
+	})
 }
