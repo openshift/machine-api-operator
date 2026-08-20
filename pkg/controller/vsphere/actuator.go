@@ -97,10 +97,6 @@ func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error
 
 	var retErr error
 	err = newReconciler(scope).create()
-	// save the taskRef in our cache in case of any error with patch.
-	if scope.providerStatus.TaskRef != "" {
-		a.TaskIDCache[machine.Name] = scope.providerStatus.TaskRef
-	}
 	if err != nil {
 		fmtErr := fmt.Errorf(reconcilerFailFmt, machine.GetName(), createEventAction, err)
 		retErr = a.handleMachineError(machine, fmtErr, createEventAction)
@@ -110,6 +106,17 @@ func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error
 
 	if err := scope.PatchMachine(); err != nil {
 		return err
+	}
+
+	// Only cache the taskRef once it has been durably persisted on the Machine
+	// object. Caching it before a successful patch can permanently wedge
+	// creation: if the patch fails (for example, a transient admission-webhook
+	// denial) the object never receives the taskRef and the staleness guard
+	// above would requeue forever. create() is idempotent (it looks the VM up
+	// in vCenter before cloning), so a lost taskRef is recovered on the next
+	// reconcile rather than re-cloning.
+	if scope.providerStatus.TaskRef != "" {
+		a.TaskIDCache[machine.Name] = scope.providerStatus.TaskRef
 	}
 
 	return retErr

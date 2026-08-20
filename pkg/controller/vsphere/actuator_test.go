@@ -13,14 +13,18 @@ import (
 	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
 	machinev1 "github.com/openshift/api/machine/v1beta1"
+	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/simulator"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/events"
 	ipamv1beta1 "sigs.k8s.io/cluster-api/api/ipam/v1beta1" //nolint:staticcheck
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/fake"
+	"sigs.k8s.io/controller-runtime/pkg/client/interceptor"
 	"sigs.k8s.io/controller-runtime/pkg/envtest"
 	"sigs.k8s.io/controller-runtime/pkg/manager"
 	metricsserver "sigs.k8s.io/controller-runtime/pkg/metrics/server"
@@ -421,4 +425,133 @@ func TestMachineEvents(t *testing.T) {
 			gs.Expect(matchingEvent.Message).To(Equal(tc.event))
 		})
 	}
+}
+
+// TestActuatorCreateCachesTaskRefOnlyAfterSuccessfulPatch verifies the actuator
+// records a machine's clone TaskRef in its in-memory cache only after that ref
+// has been durably persisted. A denied status patch must not leave a phantom
+// cache entry, which previously wedged every subsequent reconcile via the
+// staleness guard in Create (OCPBUGS-100316).
+func TestActuatorCreateCachesTaskRefOnlyAfterSuccessfulPatch(t *testing.T) {
+	model, session, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	host, port, err := net.SplitHostPort(server.URL.Host)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	credentialsSecretUsername := fmt.Sprintf("%s.username", host)
+	credentialsSecretPassword := fmt.Sprintf("%s.password", host)
+	password, _ := server.URL.User.Password()
+	namespace := "test"
+
+	vm := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
+	vm.Config.Version = minimumHWVersionString
+
+	credentialsSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "test", Namespace: namespace},
+		Data: map[string][]byte{
+			credentialsSecretUsername: []byte(server.URL.User.Username()),
+			credentialsSecretPassword: []byte(password),
+		},
+	}
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{Name: OpenshiftConfigManagedConfigMap, Namespace: openshiftConfigNamespaceForTest},
+		Data:       map[string]string{OpenshiftConfigManagedCloudConfigKey: fmt.Sprintf(testConfigFmt, port, "test", namespace)},
+	}
+	userDataSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Name: "vsphere-ignition", Namespace: namespace},
+		Data:       map[string][]byte{userDataSecretKey: []byte("{}")},
+	}
+
+	newMachine := func(name string) *machinev1.Machine {
+		providerSpec, err := RawExtensionFromProviderSpec(&machinev1.VSphereMachineProviderSpec{
+			Template:          vm.Name,
+			Workspace:         &machinev1.Workspace{Server: host},
+			CredentialsSecret: &corev1.LocalObjectReference{Name: "test"},
+			UserDataSecret:    &corev1.LocalObjectReference{Name: "vsphere-ignition"},
+			DiskGiB:           10,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return &machinev1.Machine{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      name,
+				Namespace: namespace,
+				Labels:    map[string]string{machinev1.MachineClusterIDLabel: "CLUSTERID"},
+			},
+			Spec:   machinev1.MachineSpec{ProviderSpec: machinev1.ProviderSpec{Value: providerSpec}},
+			Status: machinev1.MachineStatus{},
+		}
+	}
+
+	gates, err := testutils.NewDefaultMutableFeatureGate()
+	if err != nil {
+		t.Fatalf("unexpected error setting up feature gates: %v", err)
+	}
+
+	t.Run("denied status patch does not cache the taskRef", func(t *testing.T) {
+		g := NewWithT(t)
+		machine := newMachine("patch-denied")
+
+		base := fake.NewClientBuilder().WithScheme(scheme.Scheme).
+			WithStatusSubresource(machine).
+			WithRuntimeObjects(credentialsSecret, configMap, userDataSecret, machine).
+			Build()
+		denyStatusPatch := interceptor.NewClient(base, interceptor.Funcs{
+			SubResourcePatch: func(_ context.Context, _ client.Client, _ string, _ client.Object, _ client.Patch, _ ...client.SubResourcePatchOption) error {
+				return fmt.Errorf("admission webhook denied the request")
+			},
+		})
+
+		taskIDCache := map[string]string{}
+		actuator := NewActuator(ActuatorParams{
+			Client:                   denyStatusPatch,
+			APIReader:                denyStatusPatch,
+			EventRecorder:            events.NewFakeRecorder(10),
+			TaskIDCache:              taskIDCache,
+			OpenshiftConfigNamespace: openshiftConfigNamespaceForTest,
+			FeatureGates:             gates,
+		})
+
+		err := actuator.Create(context.Background(), machine)
+		g.Expect(err).To(HaveOccurred())
+		// The lost taskRef must not be cached; otherwise the staleness guard in
+		// Create would requeue forever once the object never receives it.
+		g.Expect(taskIDCache).ToNot(HaveKey(machine.Name))
+	})
+
+	t.Run("successful patch caches the taskRef", func(t *testing.T) {
+		g := NewWithT(t)
+		machine := newMachine("patch-ok")
+
+		c := fake.NewClientBuilder().WithScheme(scheme.Scheme).
+			WithStatusSubresource(machine).
+			WithRuntimeObjects(credentialsSecret, configMap, userDataSecret, machine).
+			Build()
+
+		taskIDCache := map[string]string{}
+		actuator := NewActuator(ActuatorParams{
+			Client:                   c,
+			APIReader:                c,
+			EventRecorder:            events.NewFakeRecorder(10),
+			TaskIDCache:              taskIDCache,
+			OpenshiftConfigNamespace: openshiftConfigNamespaceForTest,
+			FeatureGates:             gates,
+		})
+
+		g.Expect(actuator.Create(context.Background(), machine)).To(Succeed())
+		g.Expect(taskIDCache).To(HaveKey(machine.Name))
+		g.Expect(taskIDCache[machine.Name]).ToNot(BeEmpty())
+
+		// Wait on the async clone task so the simulator is not torn down early.
+		moTask, err := session.GetTask(context.TODO(), taskIDCache[machine.Name])
+		g.Expect(err).ToNot(HaveOccurred())
+		if moTask != nil {
+			g.Expect(object.NewTask(session.Client.Client, moTask.Reference()).Wait(context.TODO())).To(Succeed())
+		}
+	})
 }
