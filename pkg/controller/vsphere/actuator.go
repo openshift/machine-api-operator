@@ -83,15 +83,16 @@ func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error
 		return a.handleMachineError(machine, fmtErr, createEventAction)
 	}
 
-	// If we already submitted a task for this machine (tracked in the in-memory
-	// cache) but the Machine object does not yet reflect it, the status patch
-	// that would have persisted the TaskRef may have failed, or the client cache
-	// may be stale. Recover the TaskRef from the cache so we reconcile the task
-	// we already submitted instead of requeueing forever (which permanently
-	// wedged creation) or dropping the task identity (which could submit a
-	// duplicate clone).
-	if cachedTaskRef, ok := a.TaskIDCache[machine.Name]; ok && scope.providerStatus.TaskRef == "" {
-		klog.Infof("%s: recovering task reference %q from cache; Machine status does not reflect it yet", machine.GetName(), cachedTaskRef)
+	// If the task we last submitted for this machine (tracked in the in-memory
+	// cache) differs from what the Machine object reflects, the status patch
+	// that would have persisted it may have failed, or the client cache may be
+	// stale. The cache always holds the most recently submitted task (it is
+	// updated on every reconcile, before the patch), so recover it and reconcile
+	// that task instead of requeueing forever (which permanently wedged
+	// creation) or reprocessing a stale reference (which could submit a
+	// duplicate clone or power-on).
+	if cachedTaskRef, ok := a.TaskIDCache[machine.Name]; ok && cachedTaskRef != scope.providerStatus.TaskRef {
+		klog.Infof("%s: recovering task reference %q from cache; Machine status reflects %q", machine.GetName(), cachedTaskRef, scope.providerStatus.TaskRef)
 		scope.providerStatus.TaskRef = cachedTaskRef
 	}
 

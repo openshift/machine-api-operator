@@ -590,33 +590,110 @@ func TestActuatorCreateTaskRefLifecycle(t *testing.T) {
 		})
 
 		vmCountBefore := len(model.Map().All("VirtualMachine"))
-		cloneTasksBefore := countCloneTasks(model)
+		cloneTasksBefore := countTasksMatching(model, cloneVmTaskDescriptionId)
 
 		// First reconcile submits the clone; the status patch is denied so the
 		// TaskRef lives only in the cache.
 		g.Expect(actuator.Create(context.Background(), machine)).To(HaveOccurred())
 		g.Expect(taskIDCache).To(HaveKey(machine.Name))
-		g.Expect(countCloneTasks(model)).To(Equal(cloneTasksBefore+1), "first reconcile must submit exactly one clone")
+		g.Expect(countTasksMatching(model, cloneVmTaskDescriptionId)).To(Equal(cloneTasksBefore+1), "first reconcile must submit exactly one clone")
 		// The clone is still running, so the VM is not yet discoverable. This
 		// confirms the in-flight window is actually reproduced.
 		g.Expect(model.Map().All("VirtualMachine")).To(HaveLen(vmCountBefore), "clone should still be in-flight (VM not yet created)")
 
-		// Retry while the clone is in-flight: the actuator must reconcile the
-		// cached task, not submit a second clone.
-		g.Expect(actuator.Create(context.Background(), machine)).To(HaveOccurred())
-		g.Expect(countCloneTasks(model)).To(Equal(cloneTasksBefore+1), "retry must not submit a second clone")
+		// Retry the way the machine controller would: with a freshly read
+		// Machine. Because the status patch was denied, the persisted object has
+		// no TaskRef, so the actuator must recover it from the cache rather than
+		// submit a second clone. (Reusing the in-memory pointer would hide the
+		// bug, since PatchMachine mutates it before the failed patch.)
+		fresh := &machinev1.Machine{}
+		g.Expect(base.Get(context.Background(), client.ObjectKeyFromObject(machine), fresh)).To(Succeed())
+		g.Expect(fresh.Status.ProviderStatus).To(BeNil(), "denied status patch must not have persisted a TaskRef")
+		g.Expect(actuator.Create(context.Background(), fresh)).To(HaveOccurred())
+		g.Expect(countTasksMatching(model, cloneVmTaskDescriptionId)).To(Equal(cloneTasksBefore+1), "retry must not submit a second clone")
 
 		// Let the clone finish before teardown.
 		waitForCloneTask(g, taskIDCache[machine.Name])
 	})
+
+	t.Run("a stale nonempty task reference is reconciled from the cache on retry", func(t *testing.T) {
+		g := NewWithT(t)
+
+		machine := newMachine("stale-nonempty")
+		base := fake.NewClientBuilder().WithScheme(scheme.Scheme).
+			WithStatusSubresource(machine).
+			WithRuntimeObjects(credentialsSecret, configMap, userDataSecret, machine).
+			Build()
+
+		taskIDCache := map[string]string{}
+
+		// Clone successfully first, so the Machine object and the cache both
+		// track the clone task and the (powered-off) VM exists.
+		allowActuator := NewActuator(ActuatorParams{
+			Client:                   base,
+			APIReader:                base,
+			EventRecorder:            events.NewFakeRecorder(10),
+			TaskIDCache:              taskIDCache,
+			OpenshiftConfigNamespace: openshiftConfigNamespaceForTest,
+			FeatureGates:             gates,
+		})
+		g.Expect(allowActuator.Create(context.Background(), machine)).To(Succeed())
+		cloneTaskRef := taskIDCache[machine.Name]
+		g.Expect(cloneTaskRef).ToNot(BeEmpty())
+		waitForCloneTask(g, cloneTaskRef)
+
+		// Hold power-on in-flight and deny status patches, so the power-on task
+		// is submitted but never persisted onto the Machine object.
+		simulator.TaskDelay.MethodDelay = map[string]int{"PowerOnMultiVM": 2000, "LockHandoff": 0}
+		defer func() { simulator.TaskDelay = simulator.DelayConfig{} }()
+
+		denyActuator := NewActuator(ActuatorParams{
+			Client:                   denyStatusPatch(base),
+			APIReader:                base,
+			EventRecorder:            events.NewFakeRecorder(10),
+			TaskIDCache:              taskIDCache,
+			OpenshiftConfigNamespace: openshiftConfigNamespaceForTest,
+			FeatureGates:             gates,
+		})
+
+		powerOnBefore := countTasksMatching(model, powerOnTaskDescriptionID)
+
+		// Reconcile the finished clone: submits a power-on task and advances the
+		// cache, but the denied patch leaves the Machine object on the clone task.
+		fresh1 := &machinev1.Machine{}
+		g.Expect(base.Get(context.Background(), client.ObjectKeyFromObject(machine), fresh1)).To(Succeed())
+		g.Expect(denyActuator.Create(context.Background(), fresh1)).To(HaveOccurred())
+		g.Expect(countTasksMatching(model, powerOnTaskDescriptionID)).To(Equal(powerOnBefore+1), "reconciling the finished clone must submit exactly one power-on")
+		g.Expect(taskIDCache[machine.Name]).ToNot(Equal(cloneTaskRef), "cache should have advanced to the power-on task")
+
+		// Retry with a freshly read Machine, which still carries the stale clone
+		// task because the power-on patch was denied. The actuator must recover
+		// the newer power-on task from the cache instead of reprocessing the
+		// clone and submitting a second power-on.
+		fresh2 := &machinev1.Machine{}
+		g.Expect(base.Get(context.Background(), client.ObjectKeyFromObject(machine), fresh2)).To(Succeed())
+		g.Expect(denyActuator.Create(context.Background(), fresh2)).To(HaveOccurred())
+		g.Expect(countTasksMatching(model, powerOnTaskDescriptionID)).To(Equal(powerOnBefore+1), "retry must not submit a second power-on")
+
+		// Let the power-on finish before teardown.
+		moTask, err := session.GetTask(context.TODO(), taskIDCache[machine.Name])
+		g.Expect(err).ToNot(HaveOccurred())
+		if moTask != nil {
+			g.Expect(object.NewTask(session.Client.Client, moTask.Reference()).Wait(context.TODO())).To(Succeed())
+		}
+	})
 }
 
-// countCloneTasks returns the number of VM clone tasks recorded in the
-// simulator's inventory.
-func countCloneTasks(model *simulator.Model) int {
+// powerOnTaskDescriptionID is the DescriptionId of the task issued when powering
+// on a VM via Datacenter.PowerOnVM in the simulator.
+const powerOnTaskDescriptionID = "powerOnMultiVM"
+
+// countTasksMatching returns the number of tasks in the simulator inventory
+// whose DescriptionId contains the given substring.
+func countTasksMatching(model *simulator.Model, descriptionSubstring string) int {
 	count := 0
 	for _, ref := range model.Map().AllReference("") {
-		if task, ok := ref.(*simulator.Task); ok && strings.Contains(task.Info.DescriptionId, cloneVmTaskDescriptionId) {
+		if task, ok := ref.(*simulator.Task); ok && strings.Contains(task.Info.DescriptionId, descriptionSubstring) {
 			count++
 		}
 	}
