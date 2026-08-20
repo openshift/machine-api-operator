@@ -5,12 +5,10 @@ package vsphere
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"k8s.io/component-base/featuregate"
 
 	machinev1 "github.com/openshift/api/machine/v1beta1"
-	machinecontroller "github.com/openshift/machine-api-operator/pkg/controller/machine"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/events"
 	"k8s.io/klog/v2"
@@ -18,13 +16,12 @@ import (
 )
 
 const (
-	scopeFailFmt        = "%s: failed to create scope for machine: %v"
-	reconcilerFailFmt   = "%s: reconciler failed to %s machine: %w"
-	createEventAction   = "Create"
-	updateEventAction   = "Update"
-	deleteEventAction   = "Delete"
-	noEventAction       = ""
-	requeueAfterSeconds = 20
+	scopeFailFmt      = "%s: failed to create scope for machine: %v"
+	reconcilerFailFmt = "%s: reconciler failed to %s machine: %w"
+	createEventAction = "Create"
+	updateEventAction = "Update"
+	deleteEventAction = "Delete"
+	noEventAction     = ""
 )
 
 // Actuator is responsible for performing machine reconciliation.
@@ -86,17 +83,25 @@ func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error
 		return a.handleMachineError(machine, fmtErr, createEventAction)
 	}
 
-	// Ensure we're not reconciling a stale machine by checking our task-id.
-	// This is a workaround for a cache race condition.
-	if val, ok := a.TaskIDCache[machine.Name]; ok {
-		if val != scope.providerStatus.TaskRef {
-			klog.Errorf("%s: machine object missing expected provider task ID, requeue", machine.GetName())
-			return &machinecontroller.RequeueAfterError{RequeueAfter: requeueAfterSeconds * time.Second}
-		}
+	// If we already submitted a task for this machine (tracked in the in-memory
+	// cache) but the Machine object does not yet reflect it, the status patch
+	// that would have persisted the TaskRef may have failed, or the client cache
+	// may be stale. Recover the TaskRef from the cache so we reconcile the task
+	// we already submitted instead of requeueing forever (which permanently
+	// wedged creation) or dropping the task identity (which could submit a
+	// duplicate clone).
+	if cachedTaskRef, ok := a.TaskIDCache[machine.Name]; ok && scope.providerStatus.TaskRef == "" {
+		klog.Infof("%s: recovering task reference %q from cache; Machine status does not reflect it yet", machine.GetName(), cachedTaskRef)
+		scope.providerStatus.TaskRef = cachedTaskRef
 	}
 
 	var retErr error
 	err = newReconciler(scope).create()
+	// Remember the submitted task reference even if the patch below fails, so a
+	// retry reconciles the in-flight task instead of submitting a second clone.
+	if scope.providerStatus.TaskRef != "" {
+		a.TaskIDCache[machine.Name] = scope.providerStatus.TaskRef
+	}
 	if err != nil {
 		fmtErr := fmt.Errorf(reconcilerFailFmt, machine.GetName(), createEventAction, err)
 		retErr = a.handleMachineError(machine, fmtErr, createEventAction)
@@ -106,17 +111,6 @@ func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error
 
 	if err := scope.PatchMachine(); err != nil {
 		return err
-	}
-
-	// Only cache the taskRef once it has been durably persisted on the Machine
-	// object. Caching it before a successful patch can permanently wedge
-	// creation: if the patch fails (for example, a transient admission-webhook
-	// denial) the object never receives the taskRef and the staleness guard
-	// above would requeue forever. create() is idempotent (it looks the VM up
-	// in vCenter before cloning), so a lost taskRef is recovered on the next
-	// reconcile rather than re-cloning.
-	if scope.providerStatus.TaskRef != "" {
-		a.TaskIDCache[machine.Name] = scope.providerStatus.TaskRef
 	}
 
 	return retErr

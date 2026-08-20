@@ -167,10 +167,26 @@ func (r *Reconciler) create() error {
 		}
 
 		// The VM already exists but we have no TaskRef for it: we cloned it
-		// previously and lost the TaskRef. Recover by powering it on and
-		// recording the power-on task so subsequent reconciles can track it,
-		// instead of requeueing forever.
-		klog.Infof("%v: VM already exists without a persisted taskRef, powering on to recover", r.machine.GetName())
+		// previously and lost the TaskRef. Complete the post-clone sequence to
+		// recover — restore VM group membership (if configured) and power the VM
+		// on, recording the power-on task so subsequent reconciles can track it,
+		// instead of requeueing forever. This mirrors the completed-clone path
+		// below so a recovered VM is not left outside its configured VM group.
+		klog.Infof("%v: VM already exists without a persisted taskRef, recovering", r.machine.GetName())
+		if r.machineScope.providerSpec.Workspace.VMGroup != "" {
+			klog.Infof("Adding recovered machine: %s to vm group: %s", r.machine.Name, r.machineScope.providerSpec.Workspace.VMGroup)
+
+			if err := modifyVMGroup(r.machineScope, false); err != nil {
+				var taskError task.Error
+				if errors.As(err, &taskError) {
+					return fmt.Errorf("could not update VM Group membership: %w", taskError)
+				}
+
+				return fmt.Errorf("could not update VM Group membership: %w", err)
+			}
+		}
+
+		klog.Infof("%v: powering on recovered machine", r.machine.GetName())
 		task, err := powerOn(r.machineScope)
 		if err != nil {
 			metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{

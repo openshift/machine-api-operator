@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -427,12 +428,11 @@ func TestMachineEvents(t *testing.T) {
 	}
 }
 
-// TestActuatorCreateCachesTaskRefOnlyAfterSuccessfulPatch verifies the actuator
-// records a machine's clone TaskRef in its in-memory cache only after that ref
-// has been durably persisted. A denied status patch must not leave a phantom
-// cache entry, which previously wedged every subsequent reconcile via the
-// staleness guard in Create (OCPBUGS-100316).
-func TestActuatorCreateCachesTaskRefOnlyAfterSuccessfulPatch(t *testing.T) {
+// TestActuatorCreateTaskRefLifecycle verifies the actuator's clone task
+// reference bookkeeping: the reference is remembered even when the status patch
+// that would persist it is denied, so a retry reconciles the same task instead
+// of requeueing forever or submitting a duplicate clone (OCPBUGS-100316).
+func TestActuatorCreateTaskRefLifecycle(t *testing.T) {
 	model, session, server := initSimulator(t)
 	defer model.Remove()
 	defer server.Close()
@@ -488,12 +488,28 @@ func TestActuatorCreateCachesTaskRefOnlyAfterSuccessfulPatch(t *testing.T) {
 		}
 	}
 
+	denyStatusPatch := func(base client.WithWatch) client.WithWatch {
+		return interceptor.NewClient(base, interceptor.Funcs{
+			SubResourcePatch: func(_ context.Context, _ client.Client, _ string, _ client.Object, _ client.Patch, _ ...client.SubResourcePatchOption) error {
+				return fmt.Errorf("admission webhook denied the request")
+			},
+		})
+	}
+
 	gates, err := testutils.NewDefaultMutableFeatureGate()
 	if err != nil {
 		t.Fatalf("unexpected error setting up feature gates: %v", err)
 	}
 
-	t.Run("denied status patch does not cache the taskRef", func(t *testing.T) {
+	waitForCloneTask := func(g *WithT, taskRef string) {
+		moTask, err := session.GetTask(context.TODO(), taskRef)
+		g.Expect(err).ToNot(HaveOccurred())
+		if moTask != nil {
+			g.Expect(object.NewTask(session.Client.Client, moTask.Reference()).Wait(context.TODO())).To(Succeed())
+		}
+	}
+
+	t.Run("a denied status patch retains the clone task reference", func(t *testing.T) {
 		g := NewWithT(t)
 		machine := newMachine("patch-denied")
 
@@ -501,16 +517,11 @@ func TestActuatorCreateCachesTaskRefOnlyAfterSuccessfulPatch(t *testing.T) {
 			WithStatusSubresource(machine).
 			WithRuntimeObjects(credentialsSecret, configMap, userDataSecret, machine).
 			Build()
-		denyStatusPatch := interceptor.NewClient(base, interceptor.Funcs{
-			SubResourcePatch: func(_ context.Context, _ client.Client, _ string, _ client.Object, _ client.Patch, _ ...client.SubResourcePatchOption) error {
-				return fmt.Errorf("admission webhook denied the request")
-			},
-		})
 
 		taskIDCache := map[string]string{}
 		actuator := NewActuator(ActuatorParams{
-			Client:                   denyStatusPatch,
-			APIReader:                denyStatusPatch,
+			Client:                   denyStatusPatch(base),
+			APIReader:                base,
 			EventRecorder:            events.NewFakeRecorder(10),
 			TaskIDCache:              taskIDCache,
 			OpenshiftConfigNamespace: openshiftConfigNamespaceForTest,
@@ -519,12 +530,15 @@ func TestActuatorCreateCachesTaskRefOnlyAfterSuccessfulPatch(t *testing.T) {
 
 		err := actuator.Create(context.Background(), machine)
 		g.Expect(err).To(HaveOccurred())
-		// The lost taskRef must not be cached; otherwise the staleness guard in
-		// Create would requeue forever once the object never receives it.
-		g.Expect(taskIDCache).ToNot(HaveKey(machine.Name))
+		// The clone identity must survive the failed patch so the next reconcile
+		// reconciles the same task rather than submitting a duplicate clone.
+		g.Expect(taskIDCache).To(HaveKey(machine.Name))
+		g.Expect(taskIDCache[machine.Name]).ToNot(BeEmpty())
+
+		waitForCloneTask(g, taskIDCache[machine.Name])
 	})
 
-	t.Run("successful patch caches the taskRef", func(t *testing.T) {
+	t.Run("a successful patch caches the clone task reference", func(t *testing.T) {
 		g := NewWithT(t)
 		machine := newMachine("patch-ok")
 
@@ -547,11 +561,64 @@ func TestActuatorCreateCachesTaskRefOnlyAfterSuccessfulPatch(t *testing.T) {
 		g.Expect(taskIDCache).To(HaveKey(machine.Name))
 		g.Expect(taskIDCache[machine.Name]).ToNot(BeEmpty())
 
-		// Wait on the async clone task so the simulator is not torn down early.
-		moTask, err := session.GetTask(context.TODO(), taskIDCache[machine.Name])
-		g.Expect(err).ToNot(HaveOccurred())
-		if moTask != nil {
-			g.Expect(object.NewTask(session.Client.Client, moTask.Reference()).Wait(context.TODO())).To(Succeed())
-		}
+		waitForCloneTask(g, taskIDCache[machine.Name])
 	})
+
+	t.Run("a lost task reference is reconciled on retry without a second clone", func(t *testing.T) {
+		g := NewWithT(t)
+
+		// Hold the clone task in-flight so the cloned VM is not yet discoverable
+		// in vCenter - the exact window in which a lost TaskRef previously caused
+		// a duplicate clone submission.
+		simulator.TaskDelay.MethodDelay = map[string]int{"CloneVm": 2000, "LockHandoff": 0}
+		defer func() { simulator.TaskDelay = simulator.DelayConfig{} }()
+
+		machine := newMachine("inflight")
+		base := fake.NewClientBuilder().WithScheme(scheme.Scheme).
+			WithStatusSubresource(machine).
+			WithRuntimeObjects(credentialsSecret, configMap, userDataSecret, machine).
+			Build()
+
+		taskIDCache := map[string]string{}
+		actuator := NewActuator(ActuatorParams{
+			Client:                   denyStatusPatch(base),
+			APIReader:                base,
+			EventRecorder:            events.NewFakeRecorder(10),
+			TaskIDCache:              taskIDCache,
+			OpenshiftConfigNamespace: openshiftConfigNamespaceForTest,
+			FeatureGates:             gates,
+		})
+
+		vmCountBefore := len(model.Map().All("VirtualMachine"))
+		cloneTasksBefore := countCloneTasks(model)
+
+		// First reconcile submits the clone; the status patch is denied so the
+		// TaskRef lives only in the cache.
+		g.Expect(actuator.Create(context.Background(), machine)).To(HaveOccurred())
+		g.Expect(taskIDCache).To(HaveKey(machine.Name))
+		g.Expect(countCloneTasks(model)).To(Equal(cloneTasksBefore+1), "first reconcile must submit exactly one clone")
+		// The clone is still running, so the VM is not yet discoverable. This
+		// confirms the in-flight window is actually reproduced.
+		g.Expect(model.Map().All("VirtualMachine")).To(HaveLen(vmCountBefore), "clone should still be in-flight (VM not yet created)")
+
+		// Retry while the clone is in-flight: the actuator must reconcile the
+		// cached task, not submit a second clone.
+		g.Expect(actuator.Create(context.Background(), machine)).To(HaveOccurred())
+		g.Expect(countCloneTasks(model)).To(Equal(cloneTasksBefore+1), "retry must not submit a second clone")
+
+		// Let the clone finish before teardown.
+		waitForCloneTask(g, taskIDCache[machine.Name])
+	})
+}
+
+// countCloneTasks returns the number of VM clone tasks recorded in the
+// simulator's inventory.
+func countCloneTasks(model *simulator.Model) int {
+	count := 0
+	for _, ref := range model.Map().AllReference("") {
+		if task, ok := ref.(*simulator.Task); ok && strings.Contains(task.Info.DescriptionId, cloneVmTaskDescriptionId) {
+			count++
+		}
+	}
+	return count
 }
