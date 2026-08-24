@@ -34,6 +34,12 @@ const (
 	// the VAP to catch up, so a single stuck attempt can't block Eventually past the point
 	// where it should give up and report a failure.
 	vapPollAttemptTimeout = 10 * time.Second
+
+	// vapCacheSyncWindow bounds how long to keep re-checking a dry-run update after creating a
+	// param object (e.g. a MachineSet), so the assertion is exercised both before and after the
+	// VAP's informer-backed cache has observed the new object, rather than only immediately
+	// after creation while the cache may still be stale.
+	vapCacheSyncWindow = 30 * time.Second
 )
 
 // infraWithFDRemoved returns a deep copy of the given Infrastructure with the named failure domain removed
@@ -615,6 +621,79 @@ var _ = Describe(
 			freshWithFDRemoved := infraWithFDRemoved(freshInfra, fd.Name)
 			_, err = cc.Infrastructures().Update(ctx, freshWithFDRemoved, metav1.UpdateOptions{})
 			Expect(err).NotTo(HaveOccurred(), "expected infra update to succeed after MachineSet referencing FD %q was deleted", fd.Name)
+		})
+
+		It("should allow an unrelated Infrastructure update when a MachineSet's region/zone labels match no failure domain [apigroup:machine.openshift.io][Suite:openshift/conformance/serial]", func() {
+			// Regression test for SPLAT-2826: a MachineSet whose region/zone labels never matched
+			// any failure domain — in the OLD spec or the NEW spec — must not block ANY
+			// Infrastructure update, including a no-op re-apply of the unchanged spec.
+			bogusFD := configv1.VSpherePlatformFailureDomainSpec{
+				Region: "splat-2826-unmatched-region",
+				Zone:   "splat-2826-unmatched-zone",
+			}
+			for _, fd := range infra.Spec.PlatformSpec.VSphere.FailureDomains {
+				Expect(fd.Region == bogusFD.Region && fd.Zone == bogusFD.Zone).To(BeFalse(),
+					"test precondition: bogus region+zone pair must not collide with a real failure domain")
+			}
+
+			By("creating a zero-replica MachineSet whose region/zone labels match no known failure domain")
+			testMS, err := createVAPTestMachineSet(ctx, cfg, mc, infra, bogusFD)
+			Expect(err).NotTo(HaveOccurred(), "expected test MachineSet creation to succeed")
+
+			DeferCleanup(func() {
+				By("cleaning up test MachineSet")
+				delErr := mc.MachineSets(e2eutil.MachineAPINamespace).Delete(ctx, testMS.Name, metav1.DeleteOptions{})
+				if delErr != nil && !apierrors.IsNotFound(delErr) {
+					e2e.Logf("warning: could not delete test MachineSet %q: %v", testMS.Name, delErr)
+					return
+				}
+				// createVAPTestMachineSet always uses the same deterministic name, so a subsequent
+				// test's Create can collide if this one is still terminating — wait for confirmed
+				// absence before cleanup completes.
+				Eventually(func() bool {
+					_, getErr := mc.MachineSets(e2eutil.MachineAPINamespace).Get(ctx, testMS.Name, metav1.GetOptions{})
+					return apierrors.IsNotFound(getErr)
+				}, vapTestWaitTimeout, 5*time.Second).Should(BeTrue(), "MachineSet %q should be deleted within %s", testMS.Name, vapTestWaitTimeout)
+			})
+
+			// The VAP's ParamRef resolves MachineSets via an informer-backed cache, so immediately
+			// after creating testMS the VAP may not yet be evaluating it — a single Update run right
+			// away could pass "by accident" before the fixed oldFds logic is ever exercised against
+			// testMS's mismatched labels. Poll dry-run updates with Consistently across a bounded
+			// window that comfortably covers cache propagation, so the assertion is proven both
+			// before and after testMS is actually observed by the VAP.
+			By("verifying dry-run no-op updates consistently succeed while the MachineSet is observed")
+			Consistently(func() error {
+				attemptCtx, cancel := context.WithTimeout(ctx, vapPollAttemptTimeout)
+				defer cancel()
+				for {
+					latest, getErr := cc.Infrastructures().Get(attemptCtx, "cluster", metav1.GetOptions{})
+					if getErr != nil {
+						return getErr
+					}
+					_, updErr := cc.Infrastructures().Update(attemptCtx, latest, metav1.UpdateOptions{DryRun: []string{metav1.DryRunAll}})
+					if updErr != nil && apierrors.IsConflict(updErr) {
+						// Someone else updated the Infrastructure object between our Get and dry-run
+						// Update (e.g. a status refresh bumping resourceVersion) — retry the whole
+						// sequence with a fresh object rather than treating this as a VAP denial.
+						select {
+						case <-attemptCtx.Done():
+							return updErr
+						default:
+							continue
+						}
+					}
+					return updErr
+				}
+			}, vapCacheSyncWindow, time.Second).Should(Succeed(),
+				"expected the no-op Infrastructure update to remain allowed throughout the VAP cache-sync window, even once the MachineSet with mismatched region/zone labels is observed (SPLAT-2826 regression)")
+
+			By("re-applying the unchanged Infrastructure spec (no-op update)")
+			current, err := cc.Infrastructures().Get(ctx, "cluster", metav1.GetOptions{})
+			Expect(err).NotTo(HaveOccurred())
+			_, err = cc.Infrastructures().Update(ctx, current, metav1.UpdateOptions{})
+			Expect(err).NotTo(HaveOccurred(),
+				"expected a no-op Infrastructure update to succeed even though a MachineSet exists whose region/zone labels match no failure domain (SPLAT-2826 regression)")
 		})
 	},
 )
