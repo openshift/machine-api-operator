@@ -102,6 +102,14 @@ func NewVSphereFailureDomainMachineVAP() *admissionregistrationv1.ValidatingAdmi
 					Expression: `object.?spec.platformSpec.vsphere.failureDomains.orValue([])`,
 				},
 				{
+					// oldFds: the failure domains list from the existing (pre-update) Infrastructure
+					// spec. Used to distinguish "this Machine's failure domain was removed" from
+					// "this Machine's failure domain never existed in the spec to begin with"
+					// (SPLAT-2826).
+					Name:       "oldFds",
+					Expression: `oldObject.?spec.platformSpec.vsphere.failureDomains.orValue([])`,
+				},
+				{
 					// machineRegion: the region label of the Machine param (empty string if absent).
 					Name:       "machineRegion",
 					Expression: `params.?metadata.labels["` + machineRegionLabel + `"].orValue("")`,
@@ -112,13 +120,19 @@ func NewVSphereFailureDomainMachineVAP() *admissionregistrationv1.ValidatingAdmi
 					Expression: `params.?metadata.labels["` + machineZoneLabel + `"].orValue("")`,
 				},
 			},
-			// Core validation: the Machine's region+zone must still exist in the updated infra spec.
+			// Core validation: only deny when the Machine's failure domain existed in the OLD infra
+			// spec (something to protect) and is missing from the NEW spec (it was removed).
 			Validations: []admissionregistrationv1.Validation{
 				{
 					// Pass when:
 					//   - Machine has no region/zone label (not a failure-domain-managed Machine), OR
+					//   - The Machine's region/zone never matched any failure domain in the OLD spec
+					//     (nothing to protect — SPLAT-2826), OR
 					//   - The failure domain is still present in the incoming spec.
 					Expression: `variables.machineRegion == "" || variables.machineZone == "" ||
+!variables.oldFds.exists(fd,
+  fd.region == variables.machineRegion && fd.zone == variables.machineZone
+) ||
 variables.fds.exists(fd,
   fd.region == variables.machineRegion && fd.zone == variables.machineZone
 )`,
@@ -165,6 +179,11 @@ func NewVSphereFailureDomainMachineVAPBinding() *admissionregistrationv1.Validat
 // The CPMS references failure domains by the Name field of VSpherePlatformFailureDomainSpec.
 // The policy fires on every UPDATE of infrastructures.config.openshift.io and is evaluated
 // once per ControlPlaneMachineSet in the openshift-machine-api namespace.
+//
+// Unlike the Machine and MachineSet VAPs, this VAP intentionally does not compare against
+// oldObject (see SPLAT-2826). CPMS matching is by failure domain Name, an unambiguous identity
+// key, rather than by region/zone labels sourced from vCenter tags — so "is this name present
+// in the current spec" is a correct check whether evaluated against the old or the new spec.
 func NewVSphereFailureDomainCPMSVAP() *admissionregistrationv1.ValidatingAdmissionPolicy {
 	failurePolicy := admissionregistrationv1.Fail
 
@@ -320,6 +339,12 @@ func NewVSphereFailureDomainMachineSetVAP() *admissionregistrationv1.ValidatingA
 					Expression: `object.?spec.platformSpec.vsphere.failureDomains.orValue([])`,
 				},
 				{
+					// oldFds: the failure domains list from the existing (pre-update) Infrastructure
+					// spec. See SPLAT-2826.
+					Name:       "oldFds",
+					Expression: `oldObject.?spec.platformSpec.vsphere.failureDomains.orValue([])`,
+				},
+				{
 					// msRegion: the region label of the MachineSet template (empty string if absent).
 					Name:       "msRegion",
 					Expression: `params.?spec.template.metadata.labels["` + machineRegionLabel + `"].orValue("")`,
@@ -330,12 +355,16 @@ func NewVSphereFailureDomainMachineSetVAP() *admissionregistrationv1.ValidatingA
 					Expression: `params.?spec.template.metadata.labels["` + machineZoneLabel + `"].orValue("")`,
 				},
 			},
-			// Core validation: the MachineSet template's region+zone must still exist in the updated infra spec.
+			// Core validation: only deny when the MachineSet's failure domain existed in the OLD
+			// infra spec and is missing from the NEW spec (see SPLAT-2826).
 			Validations: []admissionregistrationv1.Validation{
 				{
 					// MachineSet has no region/zone label in its template (not a failure-domain-managed
-					// MachineSet), OR the failure domain is still present in the incoming spec.
-					Expression:        `variables.msRegion == "" || variables.msZone == "" || variables.fds.exists(fd, fd.region == variables.msRegion && fd.zone == variables.msZone)`,
+					// MachineSet), OR its region/zone never matched any FD in the OLD spec (nothing to
+					// protect), OR the failure domain is still present in the incoming spec.
+					Expression: `variables.msRegion == "" || variables.msZone == "" ||
+!variables.oldFds.exists(fd, fd.region == variables.msRegion && fd.zone == variables.msZone) ||
+variables.fds.exists(fd, fd.region == variables.msRegion && fd.zone == variables.msZone)`,
 					MessageExpression: `"Infrastructure update would remove vSphere failure domain (region=" + variables.msRegion + ", zone=" + variables.msZone + ") that is still in use by MachineSet '" + params.metadata.name + "'"`,
 					Reason:            ptr.To(metav1.StatusReasonInvalid),
 				},

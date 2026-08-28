@@ -36,12 +36,20 @@ func TestNewVSphereFailureDomainMachineVAP(t *testing.T) {
 	g.Expect(spec.MatchConditions[0].Name).To(Equal("is-vsphere-platform"))
 	g.Expect(spec.MatchConditions[0].Expression).To(ContainSubstring(`"VSphere"`))
 
-	// Must define the three CEL variables.
+	// Must define the four CEL variables.
 	varNames := make([]string, 0, len(spec.Variables))
 	for _, v := range spec.Variables {
 		varNames = append(varNames, v.Name)
 	}
-	g.Expect(varNames).To(ConsistOf("fds", "machineRegion", "machineZone"))
+	g.Expect(varNames).To(ConsistOf("fds", "oldFds", "machineRegion", "machineZone"))
+
+	// The oldFds variable must read from oldObject so removal (not mere absence) is what's checked.
+	for _, v := range spec.Variables {
+		if v.Name == "oldFds" {
+			g.Expect(v.Expression).To(ContainSubstring("oldObject"))
+			g.Expect(v.Expression).To(ContainSubstring("failureDomains"))
+		}
+	}
 
 	// Must have exactly one validation rule.
 	g.Expect(spec.Validations).To(HaveLen(1))
@@ -49,6 +57,8 @@ func TestNewVSphereFailureDomainMachineVAP(t *testing.T) {
 	g.Expect(validation.Expression).To(ContainSubstring("variables.machineRegion"))
 	g.Expect(validation.Expression).To(ContainSubstring("variables.machineZone"))
 	g.Expect(validation.Expression).To(ContainSubstring("variables.fds.exists"))
+	g.Expect(validation.Expression).To(ContainSubstring("variables.oldFds.exists"))
+	g.Expect(validation.Expression).To(ContainSubstring("!variables.oldFds.exists"))
 	g.Expect(validation.MessageExpression).To(ContainSubstring("params.metadata.name"))
 	g.Expect(validation.Reason).NotTo(BeNil())
 	g.Expect(*validation.Reason).To(Equal(metav1.StatusReasonInvalid))
@@ -184,16 +194,19 @@ func TestNewVSphereFailureDomainMachineSetVAP(t *testing.T) {
 	g.Expect(spec.MatchConditions[0].Name).To(Equal("is-vsphere-platform"))
 	g.Expect(spec.MatchConditions[0].Expression).To(ContainSubstring(`"VSphere"`))
 
-	// Must define the three CEL variables.
+	// Must define the four CEL variables.
 	varNames := make([]string, 0, len(spec.Variables))
 	for _, v := range spec.Variables {
 		varNames = append(varNames, v.Name)
 	}
-	g.Expect(varNames).To(ConsistOf("fds", "msRegion", "msZone"))
+	g.Expect(varNames).To(ConsistOf("fds", "oldFds", "msRegion", "msZone"))
 
-	// The msRegion and msZone variables must read from the template labels path using optional chaining.
+	// The oldFds, msRegion, and msZone variables must read from the expected paths.
 	for _, v := range spec.Variables {
 		switch v.Name {
+		case "oldFds":
+			g.Expect(v.Expression).To(ContainSubstring("oldObject"))
+			g.Expect(v.Expression).To(ContainSubstring("failureDomains"))
 		case "msRegion":
 			g.Expect(v.Expression).To(ContainSubstring("params.?spec.template.metadata.labels"))
 			g.Expect(v.Expression).To(ContainSubstring(machineRegionLabel))
@@ -209,6 +222,8 @@ func TestNewVSphereFailureDomainMachineSetVAP(t *testing.T) {
 	g.Expect(validation.Expression).To(ContainSubstring("variables.msRegion"))
 	g.Expect(validation.Expression).To(ContainSubstring("variables.msZone"))
 	g.Expect(validation.Expression).To(ContainSubstring("variables.fds.exists"))
+	g.Expect(validation.Expression).To(ContainSubstring("variables.oldFds.exists"))
+	g.Expect(validation.Expression).To(ContainSubstring("!variables.oldFds.exists"))
 	g.Expect(validation.MessageExpression).To(ContainSubstring("params.metadata.name"))
 	g.Expect(validation.Reason).NotTo(BeNil())
 	g.Expect(*validation.Reason).To(Equal(metav1.StatusReasonInvalid))
