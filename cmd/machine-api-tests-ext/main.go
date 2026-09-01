@@ -46,6 +46,14 @@ func main() {
 		Qualifiers: []string{`labels.exists(l, l == "Serial") && labels.exists(l, l == "Conformance")`},
 	})
 
+	kubeTestsExtension.AddSuite(e.Suite{
+		Name: "mao/disruptive-longrunning",
+		Parents: []string{
+			"openshift/disruptive-longrunning",
+		},
+		Qualifiers: []string{`labels.exists(l, l == "Disruptive")`},
+	})
+
 	// Build our specs from ginkgo
 	specs, err := g.BuildExtensionTestSpecsFromOpenShiftGinkgoSuite()
 	if err != nil {
