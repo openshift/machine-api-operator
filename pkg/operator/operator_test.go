@@ -42,7 +42,6 @@ const (
 var (
 	enabledFeatureGates = []openshiftv1.FeatureGateAttributes{
 		{Name: apifeatures.FeatureGateMachineAPIMigration},
-		{Name: apifeatures.FeatureGateAzureWorkloadIdentity},
 		{Name: apifeatures.FeatureGateVSphereHostVMGroupZonal},
 		{Name: apifeatures.FeatureGateAWSDedicatedHosts},
 	}
@@ -54,7 +53,6 @@ var (
 
 	enabledFeatureMap = map[string]bool{
 		"MachineAPIMigration":     true,
-		"AzureWorkloadIdentity":   true,
 		"VSphereHostVMGroupZonal": true,
 		"AWSDedicatedHosts":       true,
 	}
