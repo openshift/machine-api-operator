@@ -130,39 +130,69 @@ func (r *Reconciler) create() error {
 			return fmt.Errorf("%v: not connected to a vCenter", r.machine.GetName())
 		}
 
-		// Attempt to power on instance in situation where we alredy cloned the instance and lost taskRef.
-		klog.V(4).Infof("%v: InstanceState is: %q", r.machine.GetName(), ptr.Deref(r.machineScope.providerStatus.InstanceState, ""))
-		if types.VirtualMachinePowerState(ptr.Deref(r.machineScope.providerStatus.InstanceState, "")) == types.VirtualMachinePowerStatePoweredOff {
-			klog.Infof("Powering on cloned machine without taskID: %v", r.machine.Name)
+		// A missing TaskRef usually means the VM has not been cloned yet. It can
+		// also mean we cloned the VM successfully but lost the TaskRef because
+		// the status patch that would have persisted it failed (for example, a
+		// transient admission-webhook denial during install). Look the VM up
+		// directly in vCenter before cloning so that a lost TaskRef never
+		// results in a duplicate VM: if the VM already exists we adopt it and
+		// power it on, otherwise we clone the template.
+		if _, err := findVM(r.machineScope); err != nil {
+			if !isNotFound(err) {
+				metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
+					Name:      r.machine.Name,
+					Namespace: r.machine.Namespace,
+					Reason:    "FindVM finished with error",
+				})
+				return err
+			}
 
-			task, err := powerOn(r.machineScope)
+			klog.Infof("%v: cloning", r.machine.GetName())
+			task, err := clone(r.machineScope)
 			if err != nil {
 				metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
 					Name:      r.machine.Name,
 					Namespace: r.machine.Namespace,
-					Reason:    "PowerOn task finished with error",
+					Reason:    "Clone task finished with error",
 				})
-
 				conditionFailed := conditionFailed()
 				conditionFailed.Message = err.Error()
 				statusError := setProviderStatus(task, conditionFailed, r.machineScope, nil)
 				if statusError != nil {
 					return fmt.Errorf("failed to set provider status: %w", err)
 				}
-
-				return fmt.Errorf("%v: failed to power on machine: %w", r.machine.GetName(), err)
+				return err
 			}
-
 			return setProviderStatus(task, conditionSuccess(), r.machineScope, nil)
 		}
 
-		klog.Infof("%v: cloning", r.machine.GetName())
-		task, err := clone(r.machineScope)
+		// The VM already exists but we have no TaskRef for it: we cloned it
+		// previously and lost the TaskRef. Complete the post-clone sequence to
+		// recover — restore VM group membership (if configured) and power the VM
+		// on, recording the power-on task so subsequent reconciles can track it,
+		// instead of requeueing forever. This mirrors the completed-clone path
+		// below so a recovered VM is not left outside its configured VM group.
+		klog.Infof("%v: VM already exists without a persisted taskRef, recovering", r.machine.GetName())
+		if r.machineScope.providerSpec.Workspace.VMGroup != "" {
+			klog.Infof("Adding recovered machine: %s to vm group: %s", r.machine.Name, r.machineScope.providerSpec.Workspace.VMGroup)
+
+			if err := modifyVMGroup(r.machineScope, false); err != nil {
+				var taskError task.Error
+				if errors.As(err, &taskError) {
+					return fmt.Errorf("could not update VM Group membership: %w", taskError)
+				}
+
+				return fmt.Errorf("could not update VM Group membership: %w", err)
+			}
+		}
+
+		klog.Infof("%v: powering on recovered machine", r.machine.GetName())
+		task, err := powerOn(r.machineScope)
 		if err != nil {
 			metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
 				Name:      r.machine.Name,
 				Namespace: r.machine.Namespace,
-				Reason:    "Clone task finished with error",
+				Reason:    "PowerOn task finished with error",
 			})
 			conditionFailed := conditionFailed()
 			conditionFailed.Message = err.Error()
@@ -170,7 +200,7 @@ func (r *Reconciler) create() error {
 			if statusError != nil {
 				return fmt.Errorf("failed to set provider status: %w", err)
 			}
-			return err
+			return fmt.Errorf("%v: failed to power on machine: %w", r.machine.GetName(), err)
 		}
 		return setProviderStatus(task, conditionSuccess(), r.machineScope, nil)
 	}

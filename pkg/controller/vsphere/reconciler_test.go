@@ -2945,6 +2945,184 @@ func waitForTaskToComplete(session *session.Session, reconciler *Reconciler) err
 	return nil
 }
 
+// TestCreateRecoversLostTaskRef verifies that create() recovers a VM that was
+// cloned but whose TaskRef was never persisted (for example, because the status
+// patch was denied by an admission webhook during install). Instead of cloning
+// a second VM, create() must find the existing VM and power it on. This is the
+// provider-side defense for OCPBUGS-100316.
+func TestCreateRecoversLostTaskRef(t *testing.T) {
+	g := NewWithT(t)
+
+	// Autostart=false leaves the simulator VMs powered off, mimicking a VM that
+	// was cloned but never powered on.
+	poweredOff := func(m *simulator.Model) { m.Autostart = false }
+	model, server := initSimulatorCustom(t, poweredOff)
+	session := getSimulatorSession(t, server)
+	defer model.Remove()
+	defer server.Close()
+
+	host, _, err := net.SplitHostPort(server.URL.Host)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	vms := model.Map().All("VirtualMachine")
+	g.Expect(vms).ToNot(BeEmpty())
+	existingVM := vms[0].(*simulator.VirtualMachine)
+	vmCountBefore := len(vms)
+
+	provisioning := string(machinev1.PhaseProvisioning)
+	machineObj := &machinev1.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      existingVM.Name,
+			Namespace: "test",
+			Labels:    map[string]string{machinev1.MachineClusterIDLabel: "CLUSTERID"},
+			// The machine UID matches the VM instance UUID so findVM adopts the
+			// already-cloned VM instead of cloning a new one.
+			UID: apimachinerytypes.UID(existingVM.Config.InstanceUuid),
+		},
+		Status: machinev1.MachineStatus{Phase: &provisioning},
+	}
+
+	machineScope := &machineScope{
+		Context:            context.TODO(),
+		machine:            machineObj,
+		machineToBePatched: runtimeclient.MergeFrom(machineObj.DeepCopy()),
+		providerSpec: &machinev1.VSphereMachineProviderSpec{
+			Template:  existingVM.Name,
+			Workspace: &machinev1.Workspace{Server: host},
+		},
+		session: session,
+		// No TaskRef and no InstanceState: the reference to the clone task was lost.
+		providerStatus: &machinev1.VSphereMachineProviderStatus{},
+		client:         fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(machineObj).WithStatusSubresource(machineObj).Build(),
+	}
+
+	reconciler := newReconciler(machineScope)
+
+	g.Expect(reconciler.create()).To(Succeed())
+
+	// A recovery task must have been recorded rather than requeueing forever.
+	g.Expect(reconciler.providerStatus.TaskRef).ToNot(BeEmpty(), "expected a recovery power-on task to be recorded")
+
+	// No new VM must have been cloned.
+	g.Expect(model.Map().All("VirtualMachine")).To(HaveLen(vmCountBefore), "create() must not clone a duplicate VM when one already exists")
+
+	// The recovery task must be a power-on (not a clone) and must succeed.
+	g.Expect(waitForTaskToComplete(session, reconciler)).To(Succeed())
+	moTask, err := session.GetTask(context.TODO(), reconciler.providerStatus.TaskRef)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(moTask).ToNot(BeNil())
+	g.Expect(moTask.Info.DescriptionId).ToNot(ContainSubstring(cloneVmTaskDescriptionId))
+
+	// The existing VM must now be powered on.
+	vmObj := &virtualMachine{
+		Context: context.TODO(),
+		Obj:     object.NewVirtualMachine(session.Client.Client, existingVM.Reference()),
+		Ref:     existingVM.Reference(),
+	}
+	powerState, err := vmObj.getPowerState()
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(powerState).To(Equal(types.VirtualMachinePowerStatePoweredOn))
+}
+
+// TestCreateRecoveryRestoresVMGroup verifies that when create() recovers a VM
+// whose TaskRef was lost, it restores the configured VM-group membership before
+// powering the VM on, matching the normal completed-clone path. Otherwise a
+// recovered VM would be left outside its DRS host-affinity group
+// (OCPBUGS-100316).
+func TestCreateRecoveryRestoresVMGroup(t *testing.T) {
+	g := NewWithT(t)
+
+	poweredOff := func(m *simulator.Model) { m.Autostart = false }
+	model, server := initSimulatorCustom(t, poweredOff)
+	session := getSimulatorSession(t, server)
+	defer model.Remove()
+	defer server.Close()
+
+	host, _, err := net.SplitHostPort(server.URL.Host)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	ctx := context.Background()
+	ccr, err := session.Finder.ClusterComputeResourceOrDefault(ctx, "/...")
+	g.Expect(err).ToNot(HaveOccurred())
+	resourcePool := path.Join(ccr.InventoryPath, "Resources")
+
+	vmGroup := "recovery-vm-group"
+	g.Expect(createVMGroup(ctx, session, ccr.Name(), vmGroup)).To(Succeed())
+
+	// Pick a powered-off VM that belongs to the cluster, standing in for a VM we
+	// cloned but whose TaskRef we lost.
+	var existingVM *simulator.VirtualMachine
+	for _, obj := range model.Map().All("VirtualMachine") {
+		candidate := obj.(*simulator.VirtualMachine)
+		if candidate.Runtime.PowerState == types.VirtualMachinePowerStatePoweredOff && candidate.ResourcePool != nil {
+			existingVM = candidate
+			break
+		}
+	}
+	g.Expect(existingVM).ToNot(BeNil())
+	vmCountBefore := len(model.Map().All("VirtualMachine"))
+
+	gates, err := testutils.NewDefaultMutableFeatureGate()
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(gates.SetFromMap(map[string]bool{string(features.FeatureGateVSphereHostVMGroupZonal): true})).To(Succeed())
+
+	provisioning := string(machinev1.PhaseProvisioning)
+	machineObj := &machinev1.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      existingVM.Name,
+			Namespace: "test",
+			Labels:    map[string]string{machinev1.MachineClusterIDLabel: "CLUSTERID"},
+			UID:       apimachinerytypes.UID(existingVM.Config.InstanceUuid),
+		},
+		Status: machinev1.MachineStatus{Phase: &provisioning},
+	}
+
+	machineScope := &machineScope{
+		Context:            ctx,
+		machine:            machineObj,
+		machineToBePatched: runtimeclient.MergeFrom(machineObj.DeepCopy()),
+		providerSpec: &machinev1.VSphereMachineProviderSpec{
+			Template: existingVM.Name,
+			Workspace: &machinev1.Workspace{
+				Server:       host,
+				VMGroup:      vmGroup,
+				ResourcePool: resourcePool,
+			},
+		},
+		session:        session,
+		providerStatus: &machinev1.VSphereMachineProviderStatus{},
+		featureGates:   gates,
+		client:         fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(machineObj).WithStatusSubresource(machineObj).Build(),
+	}
+
+	reconciler := newReconciler(machineScope)
+
+	g.Expect(reconciler.create()).To(Succeed())
+
+	// No duplicate VM was cloned.
+	g.Expect(model.Map().All("VirtualMachine")).To(HaveLen(vmCountBefore))
+
+	// The recovered VM must have been added to the configured VM group before
+	// power-on.
+	clusterConfig, err := ccr.Configuration(ctx)
+	g.Expect(err).ToNot(HaveOccurred())
+	memberFound := false
+	for _, grp := range clusterConfig.Group {
+		if vmg, ok := grp.(*types.ClusterVmGroup); ok && vmg.Name == vmGroup {
+			for _, ref := range vmg.Vm {
+				if ref.Value == existingVM.Reference().Value {
+					memberFound = true
+				}
+			}
+		}
+	}
+	g.Expect(memberFound).To(BeTrue(), "recovered VM must be a member of its configured VM group")
+
+	// A power-on task must have been recorded for the recovered VM.
+	g.Expect(reconciler.providerStatus.TaskRef).ToNot(BeEmpty())
+	g.Expect(waitForTaskToComplete(session, reconciler)).To(Succeed())
+}
+
 func TestUpdate(t *testing.T) {
 	model, session, server := initSimulator(t)
 	defer model.Remove()
