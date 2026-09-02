@@ -110,13 +110,6 @@ var (
 		return []string{fmt.Sprintf("%s-worker", clusterID)}
 	}
 
-	defaultGCPDiskImage = func() string {
-		if arch == ARM64 {
-			return defaultGCPARMDiskImage
-		}
-		return defaultGCPX86DiskImage
-	}
-
 	// Power VS variables
 
 	//powerVSMachineConfigurations contains the known Power VS system types and their allowed configuration limits
@@ -196,11 +189,7 @@ const (
 	defaultGCPCredentialsSecret = "gcp-cloud-credentials"
 	defaultGCPDiskSizeGb        = 128
 	defaultGCPDiskType          = "pd-standard"
-	// https://releases-rhcos-art.apps.ocp-virt.prod.psi.redhat.com/?stream=prod/streams/4.14-9.2&release=414.92.202307070025-0&arch=x86_64#414.92.202307070025-0
-	// https://github.com/openshift/installer/commit/0cec4e1403d78387729f21f04d0f764f63fc552e
-	defaultGCPX86DiskImage = "projects/rhcos-cloud/global/images/rhcos-414-92-202307070025-0-gcp-x86-64"
-	defaultGCPARMDiskImage = "projects/rhcos-cloud/global/images/rhcos-414-92-202307070025-0-gcp-aarch64"
-	defaultGCPGPUCount     = 1
+	defaultGCPGPUCount          = 1
 
 	// vSphere Defaults
 	defaultVSphereCredentialsSecret = "vsphere-cloud-credentials"
@@ -1385,7 +1374,6 @@ func defaultGCPDisks(disks []*machinev1beta1.GCPDisk, clusterID string) []*machi
 				Boot:       true,
 				SizeGB:     defaultGCPDiskSizeGb,
 				Type:       defaultGCPDiskType,
-				Image:      defaultGCPDiskImage(),
 			},
 		}
 	}
@@ -1393,10 +1381,6 @@ func defaultGCPDisks(disks []*machinev1beta1.GCPDisk, clusterID string) []*machi
 	for _, disk := range disks {
 		if disk.Type == "" {
 			disk.Type = defaultGCPDiskType
-		}
-
-		if disk.Boot && disk.Image == "" {
-			disk.Image = defaultGCPDiskImage()
 		}
 	}
 
