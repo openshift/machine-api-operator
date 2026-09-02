@@ -24,7 +24,7 @@ const (
 	machineReadyTimeout = time.Minute * 6
 )
 
-var _ = Describe("[sig-cluster-lifecycle][platform:vsphere][Disruptive] Managed cluster should", Label("Conformance"), Label("Serial"), func() {
+var _ = Describe("[sig-cluster-lifecycle][platform:vsphere][Suite:openshift/disruptive-longrunning][Disruptive] Managed cluster should", Label("Disruptive"), Label("Serial"), func() {
 	defer GinkgoRecover()
 	ctx := context.Background()
 
@@ -47,7 +47,7 @@ var _ = Describe("[sig-cluster-lifecycle][platform:vsphere][Disruptive] Managed 
 		Expect(err).NotTo(HaveOccurred())
 	})
 
-	It("create machines with data disks [apigroup:machine.openshift.io][Serial][Suite:openshift/conformance/serial]", func() {
+	It("create machines with data disks [apigroup:machine.openshift.io][Serial]", func() {
 		machineName := "machine-multi-test"
 		dataDisks := []v1beta1.VSphereDisk{
 			{
@@ -210,28 +210,28 @@ var _ = Describe("[sig-cluster-lifecycle][platform:vsphere][Disruptive] Managed 
 		}, 10*time.Minute, 5*time.Second).Should(BeTrue(), "number of nodes should be the same as it was before test started")
 
 	},
-		Entry("with thin data disk [apigroup:machine.openshift.io][Serial][Suite:openshift/conformance/serial]", "ms-thin-test", []v1beta1.VSphereDisk{
+		Entry("with thin data disk [apigroup:machine.openshift.io][Serial]", "ms-thin-test", []v1beta1.VSphereDisk{
 			{
 				Name:             "thickDataDisk",
 				SizeGiB:          1,
 				ProvisioningMode: v1beta1.ProvisioningModeThick,
 			},
 		}),
-		Entry("with thick data disk [apigroup:machine.openshift.io][Serial][Suite:openshift/conformance/serial]", "ms-thick-test", []v1beta1.VSphereDisk{
+		Entry("with thick data disk [apigroup:machine.openshift.io][Serial]", "ms-thick-test", []v1beta1.VSphereDisk{
 			{
 				Name:             "thickDataDisk",
 				SizeGiB:          1,
 				ProvisioningMode: v1beta1.ProvisioningModeThick,
 			},
 		}),
-		Entry("with eagerly zeroed data disk [apigroup:machine.openshift.io][Serial][Suite:openshift/conformance/serial]", "ms-zeroed-test", []v1beta1.VSphereDisk{
+		Entry("with eagerly zeroed data disk [apigroup:machine.openshift.io][Serial]", "ms-zeroed-test", []v1beta1.VSphereDisk{
 			{
 				Name:             "zeroedDataDisk",
 				SizeGiB:          1,
 				ProvisioningMode: v1beta1.ProvisioningModeEagerlyZeroed,
 			},
 		}),
-		Entry("with a data disk using each provisioning mode [apigroup:machine.openshift.io][Serial][Suite:openshift/conformance/serial]", "ms-multi-test", []v1beta1.VSphereDisk{
+		Entry("with a data disk using each provisioning mode [apigroup:machine.openshift.io][Serial]", "ms-multi-test", []v1beta1.VSphereDisk{
 			{
 				Name:             "thinDataDisk",
 				SizeGiB:          1,
