@@ -80,6 +80,7 @@ type Operator struct {
 	mutatingWebhookListerSynced   cache.InformerSynced
 
 	featureGateAccessor featuregates.FeatureGateAccess
+	featureGates        featuregates.FeatureGate
 
 	// queue only ever has one item, but it has nice error handling backoff/retry semantics
 	queue           workqueue.TypedRateLimitingInterface[string]
@@ -167,6 +168,7 @@ func New(
 		recorder,
 	)
 	featureGateAccessor.SetChangeHandler(func(featureChange featuregates.FeatureChange) {
+		optr.featureGates = featuregates.NewFeatureGate(featureChange.New.Enabled, featureChange.New.Disabled)
 		if featureChange.Previous == nil {
 			// When the initial featuregate is set, the previous version is nil.
 			// Nothing to do in this case, it's handled by the 1st sync, which only runs after the initial feature set was received.
@@ -176,7 +178,7 @@ func New(
 		klog.V(4).InfoS("FeatureGates changed", "enabled", featureChange.New.Enabled, "disabled", featureChange.New.Disabled)
 		prevDisableMHC := featuregates.NewFeatureGate(featureChange.Previous.Enabled, featureChange.Previous.Disabled).
 			Enabled(apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController)
-		newDisableMHC := featuregates.NewFeatureGate(featureChange.New.Enabled, featureChange.New.Disabled).
+		newDisableMHC := optr.featureGates.
 			Enabled(apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController)
 
 		if prevDisableMHC != newDisableMHC {

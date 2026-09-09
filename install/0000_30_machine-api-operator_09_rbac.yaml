@@ -472,12 +472,28 @@ rules:
     resources:
       - validatingwebhookconfigurations
       - mutatingwebhookconfigurations
+      - validatingadmissionpolicies
+      - validatingadmissionpolicybindings
     verbs:
       - get
       - list
       - watch
       - create
       - update
+
+  # The machine-api-operator service account must be able to read Machines,
+  # ControlPlaneMachineSets, and MachineSets so the kube-apiserver can resolve
+  # them as VAP params when validating Infrastructure/cluster updates.
+  - apiGroups:
+      - machine.openshift.io
+    resources:
+      - machines
+      - controlplanemachinesets
+      - machinesets
+    verbs:
+      - get
+      - list
+      - watch
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1

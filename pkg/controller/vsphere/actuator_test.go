@@ -137,33 +137,17 @@ func TestMachineEvents(t *testing.T) {
 	testConfig := fmt.Sprintf(testConfigFmt, port, credentialsSecretName, testNamespaceName)
 	configMap := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "testname",
+			Name:      OpenshiftConfigManagedConfigMap,
 			Namespace: openshiftConfigNamespaceForTest,
 		},
 		Data: map[string]string{
-			"testkey": testConfig,
+			OpenshiftConfigManagedCloudConfigKey: testConfig,
 		},
 	}
 
 	g.Expect(k8sClient.Create(context.Background(), configMap)).To(Succeed())
 	defer func() {
 		g.Expect(k8sClient.Delete(context.Background(), configMap)).To(Succeed())
-	}()
-
-	infra := &configv1.Infrastructure{
-		ObjectMeta: metav1.ObjectMeta{
-			Name: globalInfrastuctureName,
-		},
-		Spec: configv1.InfrastructureSpec{
-			CloudConfig: configv1.ConfigMapFileReference{
-				Name: "testname",
-				Key:  "testkey",
-			},
-		},
-	}
-	g.Expect(k8sClient.Create(context.Background(), infra)).To(Succeed())
-	defer func() {
-		g.Expect(k8sClient.Delete(context.Background(), infra)).To(Succeed())
 	}()
 
 	userDataSecretName := "vsphere-ignition"
