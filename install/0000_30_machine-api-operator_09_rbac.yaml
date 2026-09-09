@@ -310,6 +310,14 @@ rules:
       - list
       - watch
 
+# The GCP actuator reads the active OS stream to resolve boot disk images
+  - apiGroups:
+      - machineconfiguration.openshift.io
+    resources:
+      - osimagestreams
+    verbs:
+      - get
+
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
