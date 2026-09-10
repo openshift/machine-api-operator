@@ -7,6 +7,7 @@ package ssa
 import (
 	"fmt"
 	"go/types"
+	"slices"
 	"sync"
 )
 
@@ -82,7 +83,7 @@ func createInstance(fn *Function, targs []types.Type) *Function {
 	if prog.mode&InstantiateGenerics != 0 && !prog.isParameterized(targs...) {
 		synthetic = fmt.Sprintf("instance of %s", fn.Name())
 		if fn.syntax != nil {
-			subst = makeSubster(prog.ctxt, obj, fn.typeparams, targs, false)
+			subst = makeSubster(prog.ctxt, obj, fn.typeparams, targs)
 			build = (*builder).buildFromSyntax
 		} else {
 			build = (*builder).buildParamsOnly
@@ -122,10 +123,5 @@ func (prog *Program) isParameterized(ts ...types.Type) bool {
 	// handle the most common but shallow cases such as T, pkg.T,
 	// *T without consulting the cache under the lock.
 
-	for _, t := range ts {
-		if prog.hasParams.Has(t) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(ts, prog.hasParams.Has)
 }
