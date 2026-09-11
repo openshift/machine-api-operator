@@ -157,6 +157,10 @@ func (r *Reconciler) create() error {
 		}
 
 		klog.Infof("%v: cloning", r.machine.GetName())
+		// A new clone has a different identity. Clear values from a VM that
+		// may have disappeared so the next update records the new VM identity.
+		r.machine.Spec.ProviderID = nil
+		r.providerStatus.InstanceID = nil
 		task, err := clone(r.machineScope)
 		if err != nil {
 			metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{

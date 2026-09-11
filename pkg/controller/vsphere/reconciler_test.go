@@ -1466,6 +1466,40 @@ func createDataDiskDefinitions(numOfDataDisks int) []machinev1.VSphereDisk {
 	return disks
 }
 
+func TestSetProviderStatusPreservesExistingInstanceID(t *testing.T) {
+	model, sess, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	managedObj := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
+	vmRef := managedObj.Reference()
+	vm := &virtualMachine{
+		Context: context.Background(),
+		Obj:     object.NewVirtualMachine(sess.Client.Client, vmRef),
+		Ref:     vmRef,
+	}
+
+	const existingInstanceID = "existing-instance-id"
+	scope := &machineScope{
+		Context: context.Background(),
+		machine: &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{Name: "test-machine"}},
+		providerStatus: &machinev1.VSphereMachineProviderStatus{
+			InstanceID: func() *string { v := existingInstanceID; return &v }(),
+		},
+	}
+
+	if err := setProviderStatus("", conditionSuccess(), scope, vm); err != nil {
+		t.Fatal(err)
+	}
+	got := ""
+	if scope.providerStatus.InstanceID != nil {
+		got = *scope.providerStatus.InstanceID
+	}
+	if got != existingInstanceID {
+		t.Errorf("InstanceID changed from %q to %q", existingInstanceID, got)
+	}
+}
+
 func TestGetNetworkStatusList(t *testing.T) {
 	model, session, server := initSimulator(t)
 	defer model.Remove()
