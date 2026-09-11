@@ -3697,3 +3697,33 @@ func TestUpdateClearsFinishedTaskRef(t *testing.T) {
 		})
 	}
 }
+
+func TestReconcileRegionAndZoneLabelsSkipsWhenSet(t *testing.T) {
+	machine := &machinev1.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test",
+			Labels: map[string]string{
+				machinecontroller.MachineRegionLabelName: "east",
+				machinecontroller.MachineAZLabelName:     "a",
+			},
+		},
+	}
+	r := &Reconciler{
+		machineScope: &machineScope{
+			machine:        machine,
+			providerStatus: &machinev1.VSphereMachineProviderStatus{},
+			vSphereConfig: &vsphere.Config{
+				Labels: vsphere.Labels{Region: "region", Zone: "zone"},
+			},
+		},
+	}
+	// No session: if the function touches the session it panics; the
+	// guard must return before any vCenter call.
+	if err := r.reconcileRegionAndZoneLabels(nil); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+	if machine.Labels[machinecontroller.MachineRegionLabelName] != "east" ||
+		machine.Labels[machinecontroller.MachineAZLabelName] != "a" {
+		t.Errorf("labels were modified: %v", machine.Labels)
+	}
+}

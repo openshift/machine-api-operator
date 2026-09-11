@@ -601,6 +601,14 @@ func (r *Reconciler) reconcileRegionAndZoneLabels(vm *virtualMachine) error {
 		return nil
 	}
 
+	// Region/zone come from tags on the VM's ancestry and are immutable
+	// after provisioning. If the labels are already set, skip the tag
+	// traversal (HostSystem + Ancestors + N REST tag calls per resync).
+	if r.machine.Labels[machinecontroller.MachineRegionLabelName] != "" &&
+		r.machine.Labels[machinecontroller.MachineAZLabelName] != "" {
+		return nil
+	}
+
 	regionLabel := r.vSphereConfig.Labels.Region
 	zoneLabel := r.vSphereConfig.Labels.Zone
 
