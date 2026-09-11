@@ -289,6 +289,9 @@ func (r *Reconciler) update() error {
 					Namespace: r.machine.Namespace,
 					Reason:    "Task finished with error",
 				})
+				// A terminally failed task cannot transition to success. Clear
+				// its ref so retries reconcile the VM instead of polling it forever.
+				r.providerStatus.TaskRef = ""
 				return fmt.Errorf("%v task %v finished with error: %w", moTask.Info.DescriptionId, moTask.Reference().Value, err)
 			} else if !taskIsFinished {
 				return fmt.Errorf("%v task %v has not finished", moTask.Info.DescriptionId, moTask.Reference().Value)

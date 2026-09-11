@@ -3673,6 +3673,12 @@ func TestUpdateClearsFinishedTaskRef(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	failedTask := simulator.CreateTask(vm, "failedTask", func(*simulator.Task) (types.AnyType, types.BaseMethodFault) {
+		return nil, &types.InvalidArgument{}
+	})
+	failedTaskRef := failedTask.Run(model.Service.Context)
+	failedTask.Wait()
+
 	rawProviderSpec, err := RawExtensionFromProviderSpec(&machinev1.VSphereMachineProviderSpec{
 		Workspace: &machinev1.Workspace{Server: host},
 		CredentialsSecret: &corev1.LocalObjectReference{
@@ -3688,11 +3694,13 @@ func TestUpdateClearsFinishedTaskRef(t *testing.T) {
 	}
 
 	for _, tc := range []struct {
-		name    string
-		taskRef string
+		name        string
+		taskRef     string
+		expectError bool
 	}{
 		{name: "finished task", taskRef: task.Reference().Value},
 		{name: "stale missing task", taskRef: "task-99999"},
+		{name: "failed task", taskRef: failedTaskRef.Value, expectError: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			machineObj := &machinev1.Machine{
@@ -3722,7 +3730,12 @@ func TestUpdateClearsFinishedTaskRef(t *testing.T) {
 			}
 			scope.providerStatus.TaskRef = tc.taskRef
 
-			if err := newReconciler(scope).update(); err != nil {
+			err = newReconciler(scope).update()
+			if tc.expectError {
+				if err == nil {
+					t.Fatal("update() succeeded for failed task")
+				}
+			} else if err != nil {
 				t.Fatalf("update() error: %v", err)
 			}
 			if scope.providerStatus.TaskRef != "" {
