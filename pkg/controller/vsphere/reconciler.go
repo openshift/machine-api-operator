@@ -272,6 +272,11 @@ func (r *Reconciler) update() error {
 				})
 				return err
 			}
+			// Task history eviction or a session restart can make a task
+			// ref permanently unavailable. Clear it so future resyncs do
+			// not keep issuing the same GetTask request.
+			klog.Infof("%v: task %s no longer found, clearing TaskRef", r.machine.GetName(), r.providerStatus.TaskRef)
+			r.providerStatus.TaskRef = ""
 		}
 		if moTask != nil {
 			if taskIsFinished, err := taskIsFinished(moTask); err != nil {
@@ -283,6 +288,11 @@ func (r *Reconciler) update() error {
 				return fmt.Errorf("%v task %v finished with error: %w", moTask.Info.DescriptionId, moTask.Reference().Value, err)
 			} else if !taskIsFinished {
 				return fmt.Errorf("%v task %v has not finished", moTask.Info.DescriptionId, moTask.Reference().Value)
+			} else {
+				// A completed task can never transition again. Clear its ref
+				// so steady-state resyncs skip GetTask entirely.
+				klog.Infof("%v: task %v has completed, clearing TaskRef", r.machine.GetName(), moTask.Reference().Value)
+				r.providerStatus.TaskRef = ""
 			}
 		}
 	}
@@ -856,7 +866,12 @@ func constructKargsFromNetworkConfig(s *machineScope) (string, error) {
 }
 
 func isRetrieveMONotFound(taskRef string, err error) bool {
-	return err.Error() == fmt.Sprintf("ServerFaultCode: The object 'vim.Task:%v' has already been deleted or has not been completely created", taskRef)
+	if err == nil {
+		return false
+	}
+	errMessage := err.Error()
+	return errMessage == fmt.Sprintf("ServerFaultCode: The object 'vim.Task:%v' has already been deleted or has not been completely created", taskRef) ||
+		errMessage == "ServerFaultCode: The object has already been deleted or has not been completely created"
 }
 
 func getHwVersion(ctx context.Context, vm *object.VirtualMachine) (int, error) {

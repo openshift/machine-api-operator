@@ -3585,3 +3585,115 @@ func TestReconcilePowerStateAnnontation(t *testing.T) {
 }
 
 // See https://github.com/vmware/govmomi/blob/master/simulator/example_extend_test.go#L33:6 for extending behaviour example
+
+func TestUpdateClearsFinishedTaskRef(t *testing.T) {
+	model, sess, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	host, port, err := net.SplitHostPort(server.URL.Host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	password, _ := server.URL.User.Password()
+	namespace := "test"
+	credentialsSecretName := "test"
+	credentialsSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      credentialsSecretName,
+			Namespace: namespace,
+		},
+		Data: map[string][]byte{
+			fmt.Sprintf("%s.username", host): []byte(server.URL.User.Username()),
+			fmt.Sprintf("%s.password", host): []byte(password),
+		},
+	}
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      OpenshiftConfigManagedConfigMap,
+			Namespace: openshiftConfigNamespaceForTest,
+		},
+		Data: map[string]string{
+			OpenshiftConfigManagedCloudConfigKey: fmt.Sprintf(testConfigFmt, port, credentialsSecretName, namespace),
+		},
+	}
+	if _, err := createTagAndCategory(sess, tagToCategoryName("CLUSTERID"), "CLUSTERID"); err != nil {
+		t.Fatalf("cannot create tag and category: %v", err)
+	}
+
+	vm := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
+	vm.Config.InstanceUuid = "a5764857-ae35-34dc-8f25-a9c9e73aa898"
+	vmObj := object.NewVirtualMachine(sess.Client.Client, vm.Reference())
+	powerOffTask, err := vmObj.PowerOff(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := object.NewTask(sess.Client.Client, powerOffTask.Reference()).Wait(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	task, err := vmObj.PowerOn(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := object.NewTask(sess.Client.Client, task.Reference()).Wait(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	rawProviderSpec, err := RawExtensionFromProviderSpec(&machinev1.VSphereMachineProviderSpec{
+		Workspace: &machinev1.Workspace{Server: host},
+		CredentialsSecret: &corev1.LocalObjectReference{
+			Name: credentialsSecretName,
+		},
+		Template: vm.Name,
+		Network: machinev1.NetworkSpec{
+			Devices: []machinev1.NetworkDeviceSpec{{NetworkName: "test"}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct {
+		name    string
+		taskRef string
+	}{
+		{name: "finished task", taskRef: task.Reference().Value},
+		{name: "stale missing task", taskRef: "task-99999"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			machineObj := &machinev1.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-" + strings.ReplaceAll(tc.name, " ", "-"),
+					Namespace: namespace,
+					Labels: map[string]string{
+						machinev1.MachineClusterIDLabel: "CLUSTERID",
+					},
+					UID: apimachinerytypes.UID(vm.Config.InstanceUuid),
+				},
+				Spec: machinev1.MachineSpec{
+					ProviderSpec: machinev1.ProviderSpec{Value: rawProviderSpec},
+				},
+			}
+			client := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(
+				credentialsSecret, configMap).Build()
+			scope, err := newMachineScope(machineScopeParams{
+				client:                   client,
+				Context:                  context.Background(),
+				machine:                  machineObj,
+				apiReader:                client,
+				openshiftConfigNameSpace: openshiftConfigNamespaceForTest,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			scope.providerStatus.TaskRef = tc.taskRef
+
+			if err := newReconciler(scope).update(); err != nil {
+				t.Fatalf("update() error: %v", err)
+			}
+			if scope.providerStatus.TaskRef != "" {
+				t.Errorf("TaskRef not cleared after finished/stale task, got %q", scope.providerStatus.TaskRef)
+			}
+		})
+	}
+}
