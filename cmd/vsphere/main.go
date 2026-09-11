@@ -34,7 +34,15 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/version"
 )
 
-const timeout = 10 * time.Minute
+const syncPeriod = 30 * time.Minute
+
+// registerControllerFlags registers machine controller tuning flags on fs.
+func registerControllerFlags(fs *flag.FlagSet) *int {
+	return fs.Int("max-concurrent-reconciles", 10,
+		"Maximum number of parallel Machine reconciles. Higher values drain a "+
+			"cluster faster but issue the same vCenter calls faster; keep 10 for "+
+			"shared vCenter environments.")
+}
 
 func main() {
 	var printVersion bool
@@ -99,6 +107,8 @@ func main() {
 		"The address for health checking.",
 	)
 
+	maxConcurrentReconciles := registerControllerFlags(flag.CommandLine)
+
 	majorVersion := version.Version.Major
 
 	if majorVersion == 0 {
@@ -123,7 +133,7 @@ func main() {
 	}
 
 	cfg := config.GetConfigOrDie()
-	syncPeriod := timeout
+	syncPeriodRef := syncPeriod
 
 	le := util.GetLeaderElectionConfig(cfg, configv1.LeaderElection{
 		Disable:       !*leaderElect,
@@ -136,7 +146,7 @@ func main() {
 		},
 		HealthProbeBindAddress: *healthAddr,
 		Cache: cache.Options{
-			SyncPeriod: &syncPeriod,
+			SyncPeriod: &syncPeriodRef,
 		},
 		LeaderElection:          *leaderElect,
 		LeaderElectionNamespace: *leaderElectResourceNamespace,
@@ -203,7 +213,8 @@ func main() {
 		klog.Fatalf("unable to add ipamv1beta1 to scheme: %v", err)
 	}
 
-	if err := capimachine.AddWithActuator(mgr, machineActuator, defaultMutableGate); err != nil {
+	if err := capimachine.AddWithActuatorOpts(mgr, machineActuator,
+		controller.Options{MaxConcurrentReconciles: *maxConcurrentReconciles}, defaultMutableGate); err != nil {
 		klog.Fatal(err)
 	}
 

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -421,4 +422,24 @@ func TestMachineEvents(t *testing.T) {
 			gs.Expect(matchingEvent.Message).To(Equal(tc.event))
 		})
 	}
+}
+
+func TestTaskIDCacheConcurrentAccess(t *testing.T) {
+	actuator := &Actuator{TaskIDCache: make(map[string]string)}
+
+	const workers = 100
+	var wg sync.WaitGroup
+	wg.Add(workers)
+	for i := 0; i < workers; i++ {
+		go func(i int) {
+			defer wg.Done()
+			machineName := fmt.Sprintf("machine-%d", i)
+			actuator.setTaskID(machineName, "task")
+			if taskID, ok := actuator.getTaskID(machineName); !ok || taskID != "task" {
+				t.Errorf("getTaskID(%q) = %q, %t; want task, true", machineName, taskID, ok)
+			}
+			actuator.clearTaskID(machineName)
+		}(i)
+	}
+	wg.Wait()
 }

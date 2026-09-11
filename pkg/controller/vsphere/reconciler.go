@@ -157,6 +157,10 @@ func (r *Reconciler) create() error {
 		}
 
 		klog.Infof("%v: cloning", r.machine.GetName())
+		// A new clone has a different identity. Clear values from a VM that
+		// may have disappeared so the next update records the new VM identity.
+		r.machine.Spec.ProviderID = nil
+		r.providerStatus.InstanceID = nil
 		task, err := clone(r.machineScope)
 		if err != nil {
 			metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
@@ -272,6 +276,11 @@ func (r *Reconciler) update() error {
 				})
 				return err
 			}
+			// Task history eviction or a session restart can make a task
+			// ref permanently unavailable. Clear it so future resyncs do
+			// not keep issuing the same GetTask request.
+			klog.Infof("%v: task %s no longer found, clearing TaskRef", r.machine.GetName(), r.providerStatus.TaskRef)
+			r.providerStatus.TaskRef = ""
 		}
 		if moTask != nil {
 			if taskIsFinished, err := taskIsFinished(moTask); err != nil {
@@ -280,9 +289,19 @@ func (r *Reconciler) update() error {
 					Namespace: r.machine.Namespace,
 					Reason:    "Task finished with error",
 				})
+				if taskIsFinished {
+					// A terminally failed task cannot transition to success. Clear
+					// its ref so retries reconcile the VM instead of polling it forever.
+					r.providerStatus.TaskRef = ""
+				}
 				return fmt.Errorf("%v task %v finished with error: %w", moTask.Info.DescriptionId, moTask.Reference().Value, err)
 			} else if !taskIsFinished {
 				return fmt.Errorf("%v task %v has not finished", moTask.Info.DescriptionId, moTask.Reference().Value)
+			} else {
+				// A completed task can never transition again. Clear its ref
+				// so steady-state resyncs skip GetTask entirely.
+				klog.Infof("%v: task %v has completed, clearing TaskRef", r.machine.GetName(), moTask.Reference().Value)
+				r.providerStatus.TaskRef = ""
 			}
 		}
 	}
@@ -591,6 +610,14 @@ func (r *Reconciler) reconcileRegionAndZoneLabels(vm *virtualMachine) error {
 		return nil
 	}
 
+	// Region/zone come from tags on the VM's ancestry and are immutable
+	// after provisioning. If the labels are already set, skip the tag
+	// traversal (HostSystem + Ancestors + N REST tag calls per resync).
+	if r.machine.Labels[machinecontroller.MachineRegionLabelName] != "" &&
+		r.machine.Labels[machinecontroller.MachineAZLabelName] != "" {
+		return nil
+	}
+
 	regionLabel := r.vSphereConfig.Labels.Region
 	zoneLabel := r.vSphereConfig.Labels.Zone
 
@@ -613,6 +640,10 @@ func (r *Reconciler) reconcileRegionAndZoneLabels(vm *virtualMachine) error {
 }
 
 func (r *Reconciler) reconcileProviderID(vm *virtualMachine) error {
+	if r.machine.Spec.ProviderID != nil && *r.machine.Spec.ProviderID != "" {
+		return nil
+	}
+
 	providerID, err := convertUUIDToProviderID(vm.Obj.UUID(vm.Context))
 	if err != nil {
 		return err
@@ -631,7 +662,7 @@ func convertUUIDToProviderID(UUID string) (string, error) {
 }
 
 func (r *Reconciler) reconcileNetwork(vm *virtualMachine) error {
-	currentNetworkStatusList, err := vm.getNetworkStatusList(r.session.Client.Client)
+	currentNetworkStatusList, vmName, err := vm.getNetworkStatusList(r.session.Client.Client)
 	if err != nil {
 		return fmt.Errorf("error getting network status: %v", err)
 	}
@@ -651,15 +682,6 @@ func (r *Reconciler) reconcileNetwork(vm *virtualMachine) error {
 				Address: ip,
 			})
 		}
-	}
-
-	// Using Name() if InventoryPath is empty will return empty name
-	// see: https://github.com/vmware/govmomi/blob/master/object/common.go#L66-L75
-	// Using ObjectName() as it will query from VirtualMachine properties
-
-	vmName, err := vm.Obj.ObjectName(vm.Context)
-	if err != nil {
-		return fmt.Errorf("error getting virtual machine name: %v", err)
 	}
 
 	ipAddrs = append(ipAddrs, corev1.NodeAddress{
@@ -856,7 +878,12 @@ func constructKargsFromNetworkConfig(s *machineScope) (string, error) {
 }
 
 func isRetrieveMONotFound(taskRef string, err error) bool {
-	return err.Error() == fmt.Sprintf("ServerFaultCode: The object 'vim.Task:%v' has already been deleted or has not been completely created", taskRef)
+	if err == nil {
+		return false
+	}
+	errMessage := err.Error()
+	return errMessage == fmt.Sprintf("ServerFaultCode: The object 'vim.Task:%v' has already been deleted or has not been completely created", taskRef) ||
+		errMessage == "ServerFaultCode: The object has already been deleted or has not been completely created"
 }
 
 func getHwVersion(ctx context.Context, vm *object.VirtualMachine) (int, error) {
@@ -1438,8 +1465,10 @@ func setProviderStatus(taskRef string, condition metav1.Condition, scope *machin
 	klog.Infof("%s: Updating provider status", scope.machine.Name)
 
 	if vm != nil {
-		id := vm.Obj.UUID(scope.Context)
-		scope.providerStatus.InstanceID = &id
+		if scope.providerStatus.InstanceID == nil || *scope.providerStatus.InstanceID == "" {
+			id := vm.Obj.UUID(scope.Context)
+			scope.providerStatus.InstanceID = &id
+		}
 
 		// This can return an error if machine is being deleted
 		powerState, err := vm.getPowerState()
@@ -1478,6 +1507,12 @@ type virtualMachine struct {
 	context.Context
 	Ref types.ManagedObjectReference
 	Obj *object.VirtualMachine
+
+	// powerState cache: one PowerState call per reconcile pass.
+	// The struct is built fresh per reconcile (see update()/exists()),
+	// so the cache never leaks across passes.
+	ps      types.VirtualMachinePowerState
+	psKnown bool
 }
 
 // getHostSystemAncestors looks up and returns vm's host system ancestors, such as "Cluster" and "Datacenter".
@@ -1568,18 +1603,20 @@ func (vm *virtualMachine) powerOffVM() (string, error) {
 }
 
 func (vm *virtualMachine) getPowerState() (types.VirtualMachinePowerState, error) {
+	if vm.psKnown {
+		return vm.ps, nil
+	}
+
 	powerState, err := vm.Obj.PowerState(vm.Context)
 	if err != nil {
 		return "", err
 	}
 
 	switch powerState {
-	case types.VirtualMachinePowerStatePoweredOn:
-		return types.VirtualMachinePowerStatePoweredOn, nil
-	case types.VirtualMachinePowerStatePoweredOff:
-		return types.VirtualMachinePowerStatePoweredOff, nil
-	case types.VirtualMachinePowerStateSuspended:
-		return types.VirtualMachinePowerStateSuspended, nil
+	case types.VirtualMachinePowerStatePoweredOn, types.VirtualMachinePowerStatePoweredOff, types.VirtualMachinePowerStateSuspended:
+		vm.ps = powerState
+		vm.psKnown = true
+		return powerState, nil
 	default:
 		return "", fmt.Errorf("unexpected power state %q for vm %v", powerState, vm)
 	}
@@ -1706,20 +1743,21 @@ type NetworkStatus struct {
 	NetworkName string
 }
 
-func (vm *virtualMachine) getNetworkStatusList(client *vim25.Client) ([]NetworkStatus, error) {
+func (vm *virtualMachine) getNetworkStatusList(client *vim25.Client) ([]NetworkStatus, string, error) {
 	var obj mo.VirtualMachine
 	var pc = property.DefaultCollector(client)
 	var props = []string{
 		"config.hardware.device",
 		"guest.net",
+		"name",
 	}
 
 	if err := pc.RetrieveOne(vm.Context, vm.Ref, props, &obj); err != nil {
-		return nil, fmt.Errorf("unable to fetch props %v for vm %v: %w", props, vm.Ref, err)
+		return nil, "", fmt.Errorf("unable to fetch props %v for vm %v: %w", props, vm.Ref, err)
 	}
 	klog.V(3).Infof("Getting network status: object reference: %v", obj.Reference().Value)
 	if obj.Config == nil {
-		return nil, errors.New("config.hardware.device is nil")
+		return nil, "", errors.New("config.hardware.device is nil")
 	}
 
 	var networkStatusList []NetworkStatus
@@ -1746,7 +1784,7 @@ func (vm *virtualMachine) getNetworkStatusList(client *vim25.Client) ([]NetworkS
 		}
 	}
 
-	return networkStatusList, nil
+	return networkStatusList, obj.Name, nil
 }
 
 type attachedDisk struct {

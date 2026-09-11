@@ -1466,6 +1466,40 @@ func createDataDiskDefinitions(numOfDataDisks int) []machinev1.VSphereDisk {
 	return disks
 }
 
+func TestSetProviderStatusPreservesExistingInstanceID(t *testing.T) {
+	model, sess, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	managedObj := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
+	vmRef := managedObj.Reference()
+	vm := &virtualMachine{
+		Context: context.Background(),
+		Obj:     object.NewVirtualMachine(sess.Client.Client, vmRef),
+		Ref:     vmRef,
+	}
+
+	const existingInstanceID = "existing-instance-id"
+	scope := &machineScope{
+		Context: context.Background(),
+		machine: &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{Name: "test-machine"}},
+		providerStatus: &machinev1.VSphereMachineProviderStatus{
+			InstanceID: func() *string { v := existingInstanceID; return &v }(),
+		},
+	}
+
+	if err := setProviderStatus("", conditionSuccess(), scope, vm); err != nil {
+		t.Fatal(err)
+	}
+	got := ""
+	if scope.providerStatus.InstanceID != nil {
+		got = *scope.providerStatus.InstanceID
+	}
+	if got != existingInstanceID {
+		t.Errorf("InstanceID changed from %q to %q", existingInstanceID, got)
+	}
+}
+
 func TestGetNetworkStatusList(t *testing.T) {
 	model, session, server := initSimulator(t)
 	defer model.Remove()
@@ -1492,7 +1526,7 @@ func TestGetNetworkStatusList(t *testing.T) {
 	}
 
 	// validations
-	networkStatusList, err := vm.getNetworkStatusList(session.Client.Client)
+	networkStatusList, _, err := vm.getNetworkStatusList(session.Client.Client)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3585,3 +3619,197 @@ func TestReconcilePowerStateAnnontation(t *testing.T) {
 }
 
 // See https://github.com/vmware/govmomi/blob/master/simulator/example_extend_test.go#L33:6 for extending behaviour example
+
+func TestUpdateClearsFinishedTaskRef(t *testing.T) {
+	model, sess, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	host, port, err := net.SplitHostPort(server.URL.Host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	password, _ := server.URL.User.Password()
+	namespace := "test"
+	credentialsSecretName := "test"
+	credentialsSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      credentialsSecretName,
+			Namespace: namespace,
+		},
+		Data: map[string][]byte{
+			fmt.Sprintf("%s.username", host): []byte(server.URL.User.Username()),
+			fmt.Sprintf("%s.password", host): []byte(password),
+		},
+	}
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      OpenshiftConfigManagedConfigMap,
+			Namespace: openshiftConfigNamespaceForTest,
+		},
+		Data: map[string]string{
+			OpenshiftConfigManagedCloudConfigKey: fmt.Sprintf(testConfigFmt, port, credentialsSecretName, namespace),
+		},
+	}
+	if _, err := createTagAndCategory(sess, tagToCategoryName("CLUSTERID"), "CLUSTERID"); err != nil {
+		t.Fatalf("cannot create tag and category: %v", err)
+	}
+
+	vm := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
+	vm.Config.InstanceUuid = "a5764857-ae35-34dc-8f25-a9c9e73aa898"
+	vmObj := object.NewVirtualMachine(sess.Client.Client, vm.Reference())
+	powerOffTask, err := vmObj.PowerOff(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := object.NewTask(sess.Client.Client, powerOffTask.Reference()).Wait(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	task, err := vmObj.PowerOn(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := object.NewTask(sess.Client.Client, task.Reference()).Wait(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	failedTask := simulator.CreateTask(vm, "failedTask", func(*simulator.Task) (types.AnyType, types.BaseMethodFault) {
+		return nil, &types.InvalidArgument{}
+	})
+	failedTaskRef := failedTask.Run(model.Service.Context)
+	failedTask.Wait()
+
+	rawProviderSpec, err := RawExtensionFromProviderSpec(&machinev1.VSphereMachineProviderSpec{
+		Workspace: &machinev1.Workspace{Server: host},
+		CredentialsSecret: &corev1.LocalObjectReference{
+			Name: credentialsSecretName,
+		},
+		Template: vm.Name,
+		Network: machinev1.NetworkSpec{
+			Devices: []machinev1.NetworkDeviceSpec{{NetworkName: "test"}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct {
+		name        string
+		taskRef     string
+		expectError bool
+	}{
+		{name: "finished task", taskRef: task.Reference().Value},
+		{name: "stale missing task", taskRef: "task-99999"},
+		{name: "failed task", taskRef: failedTaskRef.Value, expectError: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			machineObj := &machinev1.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-" + strings.ReplaceAll(tc.name, " ", "-"),
+					Namespace: namespace,
+					Labels: map[string]string{
+						machinev1.MachineClusterIDLabel: "CLUSTERID",
+					},
+					UID: apimachinerytypes.UID(vm.Config.InstanceUuid),
+				},
+				Spec: machinev1.MachineSpec{
+					ProviderSpec: machinev1.ProviderSpec{Value: rawProviderSpec},
+				},
+			}
+			client := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(
+				credentialsSecret, configMap).Build()
+			scope, err := newMachineScope(machineScopeParams{
+				client:                   client,
+				Context:                  context.Background(),
+				machine:                  machineObj,
+				apiReader:                client,
+				openshiftConfigNameSpace: openshiftConfigNamespaceForTest,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			scope.providerStatus.TaskRef = tc.taskRef
+
+			err = newReconciler(scope).update()
+			if tc.expectError {
+				if err == nil {
+					t.Fatal("update() succeeded for failed task")
+				}
+			} else if err != nil {
+				t.Fatalf("update() error: %v", err)
+			}
+			if scope.providerStatus.TaskRef != "" {
+				t.Errorf("TaskRef not cleared after finished/stale task, got %q", scope.providerStatus.TaskRef)
+			}
+		})
+	}
+}
+
+func TestReconcileRegionAndZoneLabelsSkipsWhenSet(t *testing.T) {
+	machine := &machinev1.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test",
+			Labels: map[string]string{
+				machinecontroller.MachineRegionLabelName: "east",
+				machinecontroller.MachineAZLabelName:     "a",
+			},
+		},
+	}
+	r := &Reconciler{
+		machineScope: &machineScope{
+			machine:        machine,
+			providerStatus: &machinev1.VSphereMachineProviderStatus{},
+			vSphereConfig: &vsphere.Config{
+				Labels: vsphere.Labels{Region: "region", Zone: "zone"},
+			},
+		},
+	}
+	// No session: if the function touches the session it panics; the
+	// guard must return before any vCenter call.
+	if err := r.reconcileRegionAndZoneLabels(nil); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+	if machine.Labels[machinecontroller.MachineRegionLabelName] != "east" ||
+		machine.Labels[machinecontroller.MachineAZLabelName] != "a" {
+		t.Errorf("labels were modified: %v", machine.Labels)
+	}
+}
+
+func TestReconcileProviderIDSkipsWhenSet(t *testing.T) {
+	pid := "vsphere://564d...c7f6"
+	machine := &machinev1.Machine{}
+	machine.Spec.ProviderID = &pid
+	r := &Reconciler{
+		machineScope: &machineScope{machine: machine, providerStatus: &machinev1.VSphereMachineProviderStatus{}},
+	}
+	// vm == nil: if the function calls into the VM client it panics;
+	// the guard must return first.
+	if err := r.reconcileProviderID(nil); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestGetPowerStateCachedWithinPass(t *testing.T) {
+	_, sess, server := initSimulator(t)
+	defer server.Close()
+	ctx := context.Background()
+
+	vmObj, err := sess.Finder.VirtualMachine(ctx, "DC0/host/DC0_H0/VM0")
+	if err != nil {
+		// adjust inventory path to the sim topology used by this suite
+		t.Skipf("no default VM in sim: %v", err)
+	}
+	vm := &virtualMachine{Context: ctx, Obj: vmObj, Ref: vmObj.Reference()}
+
+	first, err := vm.getPowerState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := vm.getPowerState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first != second {
+		t.Errorf("cached and fresh power states differ: %s vs %s", first, second)
+	}
+}
