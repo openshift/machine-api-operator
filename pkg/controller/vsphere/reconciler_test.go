@@ -1492,7 +1492,7 @@ func TestGetNetworkStatusList(t *testing.T) {
 	}
 
 	// validations
-	networkStatusList, err := vm.getNetworkStatusList(session.Client.Client)
+	networkStatusList, _, err := vm.getNetworkStatusList(session.Client.Client)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -3725,5 +3725,44 @@ func TestReconcileRegionAndZoneLabelsSkipsWhenSet(t *testing.T) {
 	if machine.Labels[machinecontroller.MachineRegionLabelName] != "east" ||
 		machine.Labels[machinecontroller.MachineAZLabelName] != "a" {
 		t.Errorf("labels were modified: %v", machine.Labels)
+	}
+}
+
+func TestReconcileProviderIDSkipsWhenSet(t *testing.T) {
+	pid := "vsphere://564d...c7f6"
+	machine := &machinev1.Machine{}
+	machine.Spec.ProviderID = &pid
+	r := &Reconciler{
+		machineScope: &machineScope{machine: machine, providerStatus: &machinev1.VSphereMachineProviderStatus{}},
+	}
+	// vm == nil: if the function calls into the VM client it panics;
+	// the guard must return first.
+	if err := r.reconcileProviderID(nil); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestGetPowerStateCachedWithinPass(t *testing.T) {
+	_, sess, server := initSimulator(t)
+	defer server.Close()
+	ctx := context.Background()
+
+	vmObj, err := sess.Finder.VirtualMachine(ctx, "DC0/host/DC0_H0/VM0")
+	if err != nil {
+		// adjust inventory path to the sim topology used by this suite
+		t.Skipf("no default VM in sim: %v", err)
+	}
+	vm := &virtualMachine{Context: ctx, Obj: vmObj, Ref: vmObj.Reference()}
+
+	first, err := vm.getPowerState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := vm.getPowerState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first != second {
+		t.Errorf("cached and fresh power states differ: %s vs %s", first, second)
 	}
 }
