@@ -5,6 +5,7 @@ package vsphere
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"k8s.io/component-base/featuregate"
@@ -33,6 +34,7 @@ type Actuator struct {
 	apiReader                runtimeclient.Reader
 	eventRecorder            events.EventRecorder
 	TaskIDCache              map[string]string
+	taskIDCacheMu            sync.Mutex
 	FeatureGates             featuregate.MutableFeatureGate
 	openshiftConfigNamespace string
 }
@@ -57,6 +59,28 @@ func NewActuator(params ActuatorParams) *Actuator {
 		FeatureGates:             params.FeatureGates,
 		openshiftConfigNamespace: params.OpenshiftConfigNamespace,
 	}
+}
+
+func (a *Actuator) getTaskID(machineName string) (string, bool) {
+	a.taskIDCacheMu.Lock()
+	defer a.taskIDCacheMu.Unlock()
+	value, ok := a.TaskIDCache[machineName]
+	return value, ok
+}
+
+func (a *Actuator) setTaskID(machineName, taskID string) {
+	a.taskIDCacheMu.Lock()
+	defer a.taskIDCacheMu.Unlock()
+	if a.TaskIDCache == nil {
+		a.TaskIDCache = make(map[string]string)
+	}
+	a.TaskIDCache[machineName] = taskID
+}
+
+func (a *Actuator) clearTaskID(machineName string) {
+	a.taskIDCacheMu.Lock()
+	defer a.taskIDCacheMu.Unlock()
+	delete(a.TaskIDCache, machineName)
 }
 
 // Set corresponding event based on error. It also returns the original error
@@ -88,7 +112,7 @@ func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error
 
 	// Ensure we're not reconciling a stale machine by checking our task-id.
 	// This is a workaround for a cache race condition.
-	if val, ok := a.TaskIDCache[machine.Name]; ok {
+	if val, ok := a.getTaskID(machine.Name); ok {
 		if val != scope.providerStatus.TaskRef {
 			klog.Errorf("%s: machine object missing expected provider task ID, requeue", machine.GetName())
 			return &machinecontroller.RequeueAfterError{RequeueAfter: requeueAfterSeconds * time.Second}
@@ -99,7 +123,7 @@ func (a *Actuator) Create(ctx context.Context, machine *machinev1.Machine) error
 	err = newReconciler(scope).create()
 	// save the taskRef in our cache in case of any error with patch.
 	if scope.providerStatus.TaskRef != "" {
-		a.TaskIDCache[machine.Name] = scope.providerStatus.TaskRef
+		a.setTaskID(machine.Name, scope.providerStatus.TaskRef)
 	}
 	if err != nil {
 		fmtErr := fmt.Errorf(reconcilerFailFmt, machine.GetName(), createEventAction, err)
@@ -134,7 +158,7 @@ func (a *Actuator) Exists(ctx context.Context, machine *machinev1.Machine) (bool
 func (a *Actuator) Update(ctx context.Context, machine *machinev1.Machine) error {
 	klog.Infof("%s: actuator updating machine", machine.GetName())
 	// Cleanup TaskIDCache so we don't continually grow
-	delete(a.TaskIDCache, machine.Name)
+	a.clearTaskID(machine.Name)
 
 	scope, err := newMachineScope(machineScopeParams{
 		Context:                  ctx,
@@ -176,7 +200,7 @@ func (a *Actuator) Delete(ctx context.Context, machine *machinev1.Machine) error
 	klog.Infof("%s: actuator deleting machine", machine.GetName())
 	// Cleanup TaskIDCache so we don't continually grow
 	// Cleanup here as well in case Update() was never successfully called.
-	delete(a.TaskIDCache, machine.Name)
+	a.clearTaskID(machine.Name)
 
 	scope, err := newMachineScope(machineScopeParams{
 		Context:                  ctx,
