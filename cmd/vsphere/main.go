@@ -36,6 +36,14 @@ import (
 
 const syncPeriod = 30 * time.Minute
 
+// registerControllerFlags registers machine controller tuning flags on fs.
+func registerControllerFlags(fs *flag.FlagSet) *int {
+	return fs.Int("max-concurrent-reconciles", 10,
+		"Maximum number of parallel Machine reconciles. Higher values drain a "+
+			"cluster faster but issue the same vCenter calls faster; keep 10 for "+
+			"shared vCenter environments.")
+}
+
 func main() {
 	var printVersion bool
 	flag.BoolVar(&printVersion, "version", false, "print version and exit")
@@ -98,6 +106,8 @@ func main() {
 		":9440",
 		"The address for health checking.",
 	)
+
+	maxConcurrentReconciles := registerControllerFlags(flag.CommandLine)
 
 	majorVersion := version.Version.Major
 
@@ -203,7 +213,8 @@ func main() {
 		klog.Fatalf("unable to add ipamv1beta1 to scheme: %v", err)
 	}
 
-	if err := capimachine.AddWithActuator(mgr, machineActuator, defaultMutableGate); err != nil {
+	if err := capimachine.AddWithActuatorOpts(mgr, machineActuator,
+		controller.Options{MaxConcurrentReconciles: *maxConcurrentReconciles}, defaultMutableGate); err != nil {
 		klog.Fatal(err)
 	}
 
