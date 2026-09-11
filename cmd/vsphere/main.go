@@ -34,7 +34,7 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/version"
 )
 
-const timeout = 10 * time.Minute
+const syncPeriod = 30 * time.Minute
 
 func main() {
 	var printVersion bool
@@ -123,7 +123,7 @@ func main() {
 	}
 
 	cfg := config.GetConfigOrDie()
-	syncPeriod := timeout
+	syncPeriodRef := syncPeriod
 
 	le := util.GetLeaderElectionConfig(cfg, configv1.LeaderElection{
 		Disable:       !*leaderElect,
@@ -136,7 +136,7 @@ func main() {
 		},
 		HealthProbeBindAddress: *healthAddr,
 		Cache: cache.Options{
-			SyncPeriod: &syncPeriod,
+			SyncPeriod: &syncPeriodRef,
 		},
 		LeaderElection:          *leaderElect,
 		LeaderElectionNamespace: *leaderElectResourceNamespace,
