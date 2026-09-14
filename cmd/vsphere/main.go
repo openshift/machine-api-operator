@@ -173,7 +173,7 @@ func main() {
 		EventRecorder:            mgr.GetEventRecorderFor("vspherecontroller"),
 		TaskIDCache:              taskIDCache,
 		FeatureGates:             defaultMutableGate,
-		OpenshiftConfigNamespace: vsphere.OpenshiftConfigNamespace,
+		OpenshiftConfigNamespace: vsphere.OpenshiftConfigManagedNamespace,
 	})
 
 	if err := configv1.Install(mgr.GetScheme()); err != nil {
