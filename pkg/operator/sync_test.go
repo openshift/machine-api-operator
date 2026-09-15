@@ -800,6 +800,77 @@ func TestNewKubeProxyContainers(t *testing.T) {
 	}
 }
 
+func TestNewContainersMaxConcurrentReconciles(t *testing.T) {
+	const maxConcurrentReconcilesArg = "--max-concurrent-reconciles=10"
+
+	baseControllers := Controllers{
+		Provider:           "provider-image:latest",
+		MachineSet:         "machineset-image:latest",
+		NodeLink:           "nodelink-image:latest",
+		MachineHealthCheck: "mhc-image:latest",
+		KubeRBACProxy:      "kube-rbac-proxy-image:latest",
+	}
+
+	testCases := []struct {
+		name                          string
+		platformType                  configv1.PlatformType
+		expectMaxConcurrentReconciles bool
+	}{
+		{
+			name:                          "AWS enables max concurrent reconciles",
+			platformType:                  configv1.AWSPlatformType,
+			expectMaxConcurrentReconciles: true,
+		},
+		{
+			name:                          "Azure enables max concurrent reconciles",
+			platformType:                  configv1.AzurePlatformType,
+			expectMaxConcurrentReconciles: true,
+		},
+		{
+			name:                          "GCP enables max concurrent reconciles",
+			platformType:                  configv1.GCPPlatformType,
+			expectMaxConcurrentReconciles: true,
+		},
+		{
+			name:                          "BareMetal does not enable max concurrent reconciles",
+			platformType:                  configv1.BareMetalPlatformType,
+			expectMaxConcurrentReconciles: false,
+		},
+		{
+			name:                          "vSphere does not enable max concurrent reconciles",
+			platformType:                  configv1.VSpherePlatformType,
+			expectMaxConcurrentReconciles: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			config := &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				PlatformType:    tc.platformType,
+				Controllers:     baseControllers,
+			}
+
+			var machineControllerArgs []string
+			for _, container := range newContainers(config, map[string]bool{}, nil) {
+				if container.Name == "machine-controller" {
+					machineControllerArgs = container.Args
+					break
+				}
+			}
+			g.Expect(machineControllerArgs).ToNot(BeEmpty(), "machine-controller container should exist")
+
+			if tc.expectMaxConcurrentReconciles {
+				g.Expect(machineControllerArgs).To(ContainElement(maxConcurrentReconcilesArg))
+			} else {
+				g.Expect(machineControllerArgs).ToNot(ContainElement(maxConcurrentReconcilesArg))
+			}
+		})
+	}
+}
+
 func TestNewPodTemplateSpecTLSArgs(t *testing.T) {
 	testCases := []struct {
 		name                                  string
