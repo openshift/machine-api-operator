@@ -9,6 +9,7 @@ import (
 
 	. "github.com/onsi/gomega"
 	configv1 "github.com/openshift/api/config/v1"
+	apifeatures "github.com/openshift/api/features"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -502,6 +503,98 @@ func TestSyncWebhookConfiguration(t *testing.T) {
 				"wrong nr of mutating webhooks")
 			g.Expect(nrValidatingWebhooks).To(BeNumerically("==", tc.expectedNrValidatingWebhooks),
 				"wrong nr of validating webhooks")
+		})
+	}
+}
+
+func TestSyncVSphereFailureDomainVAPs(t *testing.T) {
+	vsphereMultiVCenterDay2Enabled := &configv1.FeatureGate{
+		ObjectMeta: metav1.ObjectMeta{Name: "cluster"},
+		Status: configv1.FeatureGateStatus{
+			FeatureGates: []configv1.FeatureGateDetails{
+				{
+					Enabled:  append(enabledFeatureGates, configv1.FeatureGateAttributes{Name: apifeatures.FeatureGateVSphereMultiVCenterDay2}),
+					Disabled: []configv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+				},
+			},
+		},
+	}
+
+	testCases := []struct {
+		name                             string
+		platformType                     configv1.PlatformType
+		featureGate                      *configv1.FeatureGate
+		expectedNrValidatingAdmPolicies  int
+		expectedNrValidatingAdmPBindings int
+		expectedPolicyNames              []string
+	}{
+		{
+			name:                             "no VAPs on non-vSphere platform",
+			platformType:                     configv1.AWSPlatformType,
+			expectedNrValidatingAdmPolicies:  0,
+			expectedNrValidatingAdmPBindings: 0,
+		},
+		{
+			name:                             "no VAPs on vSphere platform when VSphereMultiVCenterDay2 is disabled",
+			platformType:                     configv1.VSpherePlatformType,
+			expectedNrValidatingAdmPolicies:  0,
+			expectedNrValidatingAdmPBindings: 0,
+		},
+		{
+			name:                             "three VAPs and three bindings on vSphere platform when VSphereMultiVCenterDay2 is enabled",
+			platformType:                     configv1.VSpherePlatformType,
+			featureGate:                      vsphereMultiVCenterDay2Enabled,
+			expectedNrValidatingAdmPolicies:  3,
+			expectedNrValidatingAdmPBindings: 3,
+			expectedPolicyNames: []string{
+				"vsphere-failure-domain-in-use-by-machine",
+				"vsphere-failure-domain-in-use-by-cpms",
+				"vsphere-failure-domain-in-use-by-machineset",
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			stopCh := make(chan struct{})
+			defer close(stopCh)
+			optr, err := newFakeOperator(nil, nil, nil, "", tc.featureGate, stopCh)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			err = optr.syncWebhookConfiguration(&OperatorConfig{PlatformType: tc.platformType})
+			g.Expect(err).ToNot(HaveOccurred())
+
+			policies, err := optr.kubeClient.AdmissionregistrationV1().
+				ValidatingAdmissionPolicies().List(t.Context(), metav1.ListOptions{})
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(policies.Items).To(HaveLen(tc.expectedNrValidatingAdmPolicies),
+				"unexpected number of ValidatingAdmissionPolicies")
+
+			bindings, err := optr.kubeClient.AdmissionregistrationV1().
+				ValidatingAdmissionPolicyBindings().List(t.Context(), metav1.ListOptions{})
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(bindings.Items).To(HaveLen(tc.expectedNrValidatingAdmPBindings),
+				"unexpected number of ValidatingAdmissionPolicyBindings")
+
+			if len(tc.expectedPolicyNames) > 0 {
+				policyNames := make([]string, 0, len(policies.Items))
+				for _, p := range policies.Items {
+					policyNames = append(policyNames, p.Name)
+				}
+				g.Expect(policyNames).To(ConsistOf(tc.expectedPolicyNames),
+					"unexpected ValidatingAdmissionPolicy names")
+
+				bindingPolicyRefs := make([]string, 0, len(bindings.Items))
+				for _, b := range bindings.Items {
+					bindingPolicyRefs = append(bindingPolicyRefs, b.Spec.PolicyName)
+				}
+				g.Expect(bindingPolicyRefs).To(ConsistOf(tc.expectedPolicyNames),
+					"binding PolicyNames must reference the created policies")
+			}
 		})
 	}
 }
