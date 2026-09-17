@@ -1513,8 +1513,8 @@ github.com/uudashr/iface/identical
 github.com/uudashr/iface/internal/directive
 github.com/uudashr/iface/opaque
 github.com/uudashr/iface/unused
-# github.com/vmware/govmomi v0.52.0
-## explicit; go 1.23.0
+# github.com/vmware/govmomi v0.53.0
+## explicit; go 1.24.13
 github.com/vmware/govmomi
 github.com/vmware/govmomi/cli/esx
 github.com/vmware/govmomi/crypto
