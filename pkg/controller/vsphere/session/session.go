@@ -30,6 +30,7 @@ import (
 	"github.com/vmware/govmomi/vim25/types"
 
 	"github.com/google/uuid"
+	maometrics "github.com/openshift/machine-api-operator/pkg/metrics"
 	"github.com/vmware/govmomi"
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
@@ -37,7 +38,21 @@ import (
 	"k8s.io/klog/v2"
 )
 
-var sessionCache = map[string]Session{}
+// sessionValidationTTL is how long we trust a cached session without
+// re-running the SOAP SessionIsActive + REST session check pair.
+// vCenter SOAP/REST sessions live far longer than this (hours), and
+// every operation on a dead session returns an auth error, forcing a
+// re-login on the next GetOrCreate anyway.
+var sessionValidationTTL = 5 * time.Minute
+
+// sessionEntry wraps a cached Session with the time it was last validated.
+type sessionEntry struct {
+	session       Session
+	lastValidated time.Time
+}
+
+// sessionCache is a cache of sessions keyed by server, username, and datacenter.
+var sessionCache = map[string]sessionEntry{}
 var sessionMU sync.Mutex
 
 const (
@@ -55,10 +70,7 @@ type Session struct {
 	Datacenter *object.Datacenter
 	TagManager *tags.Manager
 
-	username string
-	password string
-
-	sessionKey string
+	cachingTagManager *CachingTagsManager // per-session caching wrapper around TagManager
 }
 
 func newClientWithTimeout(ctx context.Context, u *url.URL, insecure bool, timeout time.Duration) (*govmomi.Client, error) {
@@ -73,6 +85,24 @@ func newClientWithTimeout(ctx context.Context, u *url.URL, insecure bool, timeou
 	return client, nil
 }
 
+// dropCachedSession evicts the cached session for key so the next GetOrCreate
+// creates a fresh one. It is invoked from the transport layers when an
+// operation reports the session was invalidated (auth failure), so a dead
+// session is not reused during the validation TTL.
+//
+// GetOrCreate holds sessionMU across its SOAP/REST validation and login calls,
+// so those calls can trigger this very callback while the lock is already held.
+// TryLock (not Lock) avoids the resulting deadlock: when the lock is held,
+// GetOrCreate is already re-validating and replacing the session, so skipping
+// the delete here is safe.
+func dropCachedSession(key string) {
+	if !sessionMU.TryLock() {
+		return
+	}
+	defer sessionMU.Unlock()
+	delete(sessionCache, key)
+}
+
 // GetOrCreate gets a cached session or creates a new one if one does not
 // already exist.
 func GetOrCreate(
@@ -83,7 +113,13 @@ func GetOrCreate(
 	defer sessionMU.Unlock()
 
 	sessionKey := server + username + datacenter
-	if session, ok := sessionCache[sessionKey]; ok {
+	if entry, ok := sessionCache[sessionKey]; ok {
+		if time.Since(entry.lastValidated) < sessionValidationTTL {
+			klog.V(4).Infof("Reusing cached vSphere session within validation TTL")
+			return &entry.session, nil
+		}
+		session := entry.session
+
 		// Check both SOAP and REST session validity before reusing cached session.
 		// This prevents reusing sessions where one connection type has expired.
 		// Pattern adapted from cluster-api-provider-vsphere:
@@ -104,6 +140,8 @@ func GetOrCreate(
 
 		if sessionActive && restSessionActive {
 			klog.V(3).Infof("Found active cached vSphere session with valid SOAP and REST connections")
+			entry.lastValidated = time.Now()
+			sessionCache[sessionKey] = entry
 			return &session, nil
 		}
 
@@ -136,6 +174,11 @@ func GetOrCreate(
 	if err != nil {
 		return nil, fmt.Errorf("error setting up new vSphere SOAP client: %w", err)
 	}
+	soapTransport := &metricRoundTripper{
+		roundTripper: client.RoundTripper,
+		histogram:    maometrics.VsphereRequestDurationSeconds,
+	}
+	client.RoundTripper = soapTransport
 	// Set up user agent before login for being able to track mapi component in vcenter sessions list
 	client.UserAgent = "machineAPIvSphereProvider"
 	if err := client.Login(ctx, url.UserPassword(username, password)); err != nil {
@@ -143,10 +186,7 @@ func GetOrCreate(
 	}
 
 	session := Session{
-		Client:     client,
-		username:   username,
-		password:   password,
-		sessionKey: sessionKey,
+		Client: client,
 	}
 
 	session.Finder = find.NewFinder(session.Client.Client, false)
@@ -163,6 +203,11 @@ func GetOrCreate(
 	// Pattern adapted from cluster-api-provider-vsphere:
 	// https://github.com/kubernetes-sigs/cluster-api-provider-vsphere/blob/main/pkg/session/session.go#L196-L205
 	restClient := rest.NewClient(session.Client.Client)
+	restTransport := &metricHTTPTransport{
+		roundTripper: restClient.Transport,
+		histogram:    maometrics.VsphereRequestDurationSeconds,
+	}
+	restClient.Transport = restTransport
 	if err := restClient.Login(ctx, url.UserPassword(username, password)); err != nil {
 		// Cleanup SOAP session on REST login failure
 		if logoutErr := client.Logout(ctx); logoutErr != nil {
@@ -171,9 +216,17 @@ func GetOrCreate(
 		return nil, fmt.Errorf("unable to login REST client to vCenter: %w", err)
 	}
 	session.TagManager = tags.NewManager(restClient)
+	session.cachingTagManager = newTagsCachingClient(session.TagManager)
+
+	// Arm session-invalidation handling only once the session is fully
+	// established. The login and datacenter calls above ran while sessionMU was
+	// held, so the callbacks must be nil during them: a re-entrant
+	// dropCachedSession would otherwise try to take the lock we already hold.
+	soapTransport.onSessionInvalid = func() { dropCachedSession(sessionKey) }
+	restTransport.onSessionInvalid = func() { dropCachedSession(sessionKey) }
 
 	// Cache the session.
-	sessionCache[sessionKey] = session
+	sessionCache[sessionKey] = sessionEntry{session: session, lastValidated: time.Now()}
 
 	return &session, nil
 }
@@ -251,59 +304,9 @@ func (s *Session) GetTask(ctx context.Context, taskRef string) (*mo.Task, error)
 	return &obj, nil
 }
 
-// GetCachingTagsManager returns a CachingTagsManager that wraps the cached TagManager.
-// This replaces the previous WithCachingTagsManager pattern which created new sessions
-// on every call. The returned manager uses the session's cached REST client.
+// GetCachingTagsManager returns the per-session CachingTagsManager that wraps
+// the cached TagManager. It is created once when the session is created,
+// so no new vCenter login/logout happens on access.
 func (s *Session) GetCachingTagsManager() *CachingTagsManager {
-	return newTagsCachingClient(s.TagManager, s.sessionKey)
-}
-
-// WithRestClient is deprecated. Use s.TagManager directly instead.
-// This function is maintained for backward compatibility but creates excessive
-// vCenter login/logout cycles. Migration path: replace callback pattern with
-// direct access to s.TagManager.
-//
-// Deprecated: Use s.TagManager for direct REST client access.
-func (s *Session) WithRestClient(ctx context.Context, f func(c *rest.Client) error) error {
-	klog.Warning("WithRestClient is deprecated and causes excessive vCenter logouts. Use s.TagManager directly instead.")
-	c := rest.NewClient(s.Client.Client)
-
-	user := url.UserPassword(s.username, s.password)
-	if err := c.Login(ctx, user); err != nil {
-		return err
-	}
-
-	defer func() {
-		if err := c.Logout(ctx); err != nil {
-			klog.Errorf("Failed to logout: %v", err)
-		}
-	}()
-
-	return f(c)
-}
-
-// WithCachingTagsManager is deprecated. Use s.GetCachingTagsManager() instead.
-// This function is maintained for backward compatibility but creates excessive
-// vCenter login/logout cycles. Migration path: replace callback pattern with
-// direct call to s.GetCachingTagsManager().
-//
-// Deprecated: Use s.GetCachingTagsManager() for cached tag manager access.
-func (s *Session) WithCachingTagsManager(ctx context.Context, f func(m *CachingTagsManager) error) error {
-	klog.Warning("WithCachingTagsManager is deprecated and causes excessive vCenter logouts. Use s.GetCachingTagsManager() instead.")
-	c := rest.NewClient(s.Client.Client)
-
-	user := url.UserPassword(s.username, s.password)
-	if err := c.Login(ctx, user); err != nil {
-		return err
-	}
-
-	defer func() {
-		if err := c.Logout(ctx); err != nil {
-			klog.Errorf("Failed to logout: %v", err)
-		}
-	}()
-
-	m := newTagsCachingClient(tags.NewManager(c), s.sessionKey)
-
-	return f(m)
+	return s.cachingTagManager
 }
