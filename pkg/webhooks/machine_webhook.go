@@ -109,6 +109,8 @@ var (
 	defaultGCPTags = func(clusterID string) []string {
 		return []string{fmt.Sprintf("%s-worker", clusterID)}
 	}
+	// gcpDiskLicensePattern matches the full URI and short self-link forms accepted by GCP.
+	gcpDiskLicensePattern = regexp.MustCompile(`^(https://www\.googleapis\.com/compute/v1/)?projects/[a-z][a-z0-9-]{4,28}[a-z0-9]/global/licenses/[a-z]([-a-z0-9]{0,61}[a-z0-9])?$`)
 
 	defaultGCPDiskImage = func() string {
 		if arch == ARM64 {
@@ -1610,6 +1612,12 @@ func validateGCPDisks(disks []*machinev1beta1.GCPDisk, parentPath *field.Path) f
 			diskTypes := sets.NewString("pd-standard", "pd-ssd", "pd-balanced", "hyperdisk-balanced")
 			if !diskTypes.Has(disk.Type) {
 				errs = append(errs, field.NotSupported(fldPath.Child("type"), disk.Type, diskTypes.List()))
+			}
+		}
+
+		for j, license := range disk.Licenses {
+			if !gcpDiskLicensePattern.MatchString(license) {
+				errs = append(errs, field.Invalid(fldPath.Child("licenses").Index(j), license, "must be a valid GCP license URL"))
 			}
 		}
 	}
