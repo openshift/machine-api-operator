@@ -34,8 +34,6 @@ import (
 	"github.com/openshift/machine-api-operator/pkg/version"
 )
 
-const timeout = 10 * time.Minute
-
 func main() {
 	var printVersion bool
 	flag.BoolVar(&printVersion, "version", false, "print version and exit")
@@ -91,6 +89,15 @@ func main() {
 		"The address for health checking.",
 	)
 
+	maxConcurrentReconciles := flag.Int("max-concurrent-reconciles", 10,
+		"Maximum number of parallel Machine reconciles. Higher values drain a "+
+			"cluster faster but issue the same vCenter calls faster; keep 10 for "+
+			"shared vCenter environments.")
+	syncPeriod := flag.Duration("sync-period", 30*time.Minute,
+		"Resync period for the machine controller cache. Larger values reduce steady-state "+
+			"vCenter API load; in-progress machines are requeued every 20s and do not depend "+
+			"on this. Values below 10m multiply vCenter load with no latency benefit.")
+
 	majorVersion := version.Version.Major
 
 	if majorVersion == 0 {
@@ -109,13 +116,20 @@ func main() {
 
 	flag.Parse()
 
+	if *maxConcurrentReconciles < 1 || *maxConcurrentReconciles > 100 {
+		klog.Fatalf("--max-concurrent-reconciles must be in [1, 100]; got %d", *maxConcurrentReconciles)
+	}
+	if *syncPeriod < time.Minute || *syncPeriod > time.Hour {
+		klog.Fatalf("--sync-period must be in [1m, 1h]; got %s", *syncPeriod)
+	}
+
 	if printVersion {
 		fmt.Println(version.String)
 		os.Exit(0)
 	}
 
 	cfg := config.GetConfigOrDie()
-	syncPeriod := timeout
+	syncPeriodRef := *syncPeriod
 
 	le := util.GetLeaderElectionConfig(cfg, configv1.LeaderElection{
 		Disable:       !*leaderElect,
@@ -128,7 +142,7 @@ func main() {
 		},
 		HealthProbeBindAddress: *healthAddr,
 		Cache: cache.Options{
-			SyncPeriod: &syncPeriod,
+			SyncPeriod: &syncPeriodRef,
 		},
 		LeaderElection:          *leaderElect,
 		LeaderElectionNamespace: *leaderElectResourceNamespace,
@@ -168,16 +182,11 @@ func main() {
 		klog.Fatalf("Failed to set up overall controller manager: %v", err)
 	}
 
-	// Create a taskIDCache for create task IDs in case they are lost due to
-	// network error or stale cache.
-	taskIDCache := make(map[string]string)
-
 	// Initialize machine actuator.
 	machineActuator := machine.NewActuator(machine.ActuatorParams{
 		Client:                   mgr.GetClient(),
 		APIReader:                mgr.GetAPIReader(),
 		EventRecorder:            mgr.GetEventRecorder("vspherecontroller"),
-		TaskIDCache:              taskIDCache,
 		FeatureGates:             defaultMutableGate,
 		OpenshiftConfigNamespace: vsphere.OpenshiftConfigManagedNamespace,
 	})
@@ -198,7 +207,8 @@ func main() {
 		klog.Fatalf("unable to add ipamv1beta1 to scheme: %v", err)
 	}
 
-	if err := capimachine.AddWithActuator(mgr, machineActuator, defaultMutableGate); err != nil {
+	if err := capimachine.AddWithActuatorOpts(mgr, machineActuator,
+		controller.Options{MaxConcurrentReconciles: *maxConcurrentReconciles}, defaultMutableGate); err != nil {
 		klog.Fatal(err)
 	}
 
