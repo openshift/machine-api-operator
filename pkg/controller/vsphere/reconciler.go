@@ -85,6 +85,39 @@ func newReconciler(scope *machineScope) *Reconciler {
 	}
 }
 
+// addVMGroupAndPowerOn restores VM group membership (if configured) and
+// powers the machine on, persisting the power-on task ref in the provider
+// status. Shared by the recovered-VM path and the completed-clone path in
+// create() so the two cannot drift apart.
+func (r *Reconciler) addVMGroupAndPowerOn(kind string) error {
+	if r.machineScope.providerSpec.Workspace.VMGroup != "" {
+		klog.Infof("Adding %s machine: %s to vm group: %s", kind, r.machine.Name, r.machineScope.providerSpec.Workspace.VMGroup)
+		if err := modifyVMGroup(r.machineScope, false); err != nil {
+			var taskError task.Error
+			if errors.As(err, &taskError) {
+				return fmt.Errorf("could not update VM Group membership: %w", taskError)
+			}
+			return fmt.Errorf("could not update VM Group membership: %w", err)
+		}
+	}
+	klog.Infof("Powering on %s machine: %v", kind, r.machine.Name)
+	task, err := powerOn(r.machineScope)
+	if err != nil {
+		metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
+			Name:      r.machine.Name,
+			Namespace: r.machine.Namespace,
+			Reason:    "PowerOn task finished with error",
+		})
+		conditionFailed := conditionFailed()
+		conditionFailed.Message = err.Error()
+		if statusError := setProviderStatus(task, conditionFailed, r.machineScope, nil); statusError != nil {
+			return fmt.Errorf("failed to set provider status: %w", err)
+		}
+		return fmt.Errorf("%v: failed to power on machine: %w", r.machine.GetName(), err)
+	}
+	return setProviderStatus(task, conditionSuccess(), r.machineScope, nil)
+}
+
 // create creates machine if it does not exists.
 func (r *Reconciler) create() error {
 	if err := validateMachine(*r.machine); err != nil {
@@ -130,62 +163,84 @@ func (r *Reconciler) create() error {
 			return fmt.Errorf("%v: not connected to a vCenter", r.machine.GetName())
 		}
 
-		// Attempt to power on instance in situation where we alredy cloned the instance and lost taskRef.
-		klog.V(4).Infof("%v: InstanceState is: %q", r.machine.GetName(), ptr.Deref(r.machineScope.providerStatus.InstanceState, ""))
-		if types.VirtualMachinePowerState(ptr.Deref(r.machineScope.providerStatus.InstanceState, "")) == types.VirtualMachinePowerStatePoweredOff {
-			klog.Infof("Powering on cloned machine without taskID: %v", r.machine.Name)
+		// A missing TaskRef usually means the VM has not been cloned yet. It can
+		// also mean we cloned the VM successfully but lost the TaskRef because
+		// the status patch that would have persisted it failed (for example, a
+		// transient admission-webhook denial during install). Look the VM up
+		// directly in vCenter before cloning so that a lost TaskRef never
+		// results in a duplicate VM: if the VM already exists we adopt it and
+		// power it on, otherwise we clone the template.
+		if _, err := findVM(r.machineScope); err != nil {
+			if !isNotFound(err) {
+				metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
+					Name:      r.machine.Name,
+					Namespace: r.machine.Namespace,
+					Reason:    "FindVM finished with error",
+				})
+				return err
+			}
 
-			task, err := powerOn(r.machineScope)
+			klog.Infof("%v: cloning", r.machine.GetName())
+			// A new clone has a different identity. Clear values from a VM that
+			// may have disappeared so the next update records the new VM identity.
+			r.machine.Spec.ProviderID = nil
+			r.providerStatus.InstanceID = nil
+			task, err := clone(r.machineScope)
 			if err != nil {
 				metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
 					Name:      r.machine.Name,
 					Namespace: r.machine.Namespace,
-					Reason:    "PowerOn task finished with error",
+					Reason:    "Clone task finished with error",
 				})
-
 				conditionFailed := conditionFailed()
 				conditionFailed.Message = err.Error()
 				statusError := setProviderStatus(task, conditionFailed, r.machineScope, nil)
 				if statusError != nil {
 					return fmt.Errorf("failed to set provider status: %w", err)
 				}
-
-				return fmt.Errorf("%v: failed to power on machine: %w", r.machine.GetName(), err)
+				return err
 			}
-
 			return setProviderStatus(task, conditionSuccess(), r.machineScope, nil)
 		}
 
-		klog.Infof("%v: cloning", r.machine.GetName())
-		task, err := clone(r.machineScope)
-		if err != nil {
-			metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
-				Name:      r.machine.Name,
-				Namespace: r.machine.Namespace,
-				Reason:    "Clone task finished with error",
-			})
-			conditionFailed := conditionFailed()
-			conditionFailed.Message = err.Error()
-			statusError := setProviderStatus(task, conditionFailed, r.machineScope, nil)
-			if statusError != nil {
-				return fmt.Errorf("failed to set provider status: %w", err)
-			}
-			return err
-		}
-		return setProviderStatus(task, conditionSuccess(), r.machineScope, nil)
+		// The VM already exists but we have no TaskRef for it: we cloned it
+		// previously and lost the TaskRef. Complete the post-clone sequence to
+		// recover — restore VM group membership (if configured) and power the VM
+		// on, recording the power-on task so subsequent reconciles can track it,
+		// instead of requeueing forever. This mirrors the completed-clone path
+		// below so a recovered VM is not left outside its configured VM group.
+		klog.Infof("%v: VM already exists without a persisted taskRef, recovering", r.machine.GetName())
+		return r.addVMGroupAndPowerOn("recovered")
 	}
 
 	moTask, err := r.session.GetTask(r.Context, r.providerStatus.TaskRef)
 	if err != nil {
-		metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
-			Name:      r.machine.Name,
-			Namespace: r.machine.Namespace,
-			Reason:    "GetTask finished with error",
-		})
-		return err
+		if !isRetrieveMONotFound(r.providerStatus.TaskRef, err) {
+			metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
+				Name:      r.machine.Name,
+				Namespace: r.machine.Namespace,
+				Reason:    "GetTask finished with error",
+			})
+			return err
+		}
+		// Task history eviction or a session restart can make the clone
+		// task ref permanently unavailable. Clear it; the moTask == nil
+		// block below probes for the VM instead of failing forever.
+		klog.Infof("%v: task %s no longer found, clearing TaskRef", r.machine.GetName(), r.providerStatus.TaskRef)
+		r.providerStatus.TaskRef = ""
 	}
 
 	if moTask == nil {
+		// The clone task is gone from vCenter. If the VM exists the clone
+		// succeeded; reconcile it into steady state instead of failing on
+		// the missing task.
+		if vmRef, err := findVM(r.machineScope); err != nil {
+			return err
+		} else if vmRef != (types.ManagedObjectReference{}) {
+			klog.Infof("%v: clone task gone but VM found, reconciling VM state", r.machine.GetName())
+			vm := r.machineScope.newVM(r.machineScope.Context, vmRef)
+			return r.reconcileMachineWithCloudState(vm, r.providerStatus.TaskRef)
+		}
 		// Possible eventual consistency problem from vsphere
 		// TODO: change error message here to indicate this might be expected.
 		return fmt.Errorf("unexpected moTask nil")
@@ -219,36 +274,7 @@ func (r *Reconciler) create() error {
 	// if clone task finished successfully, power on the vm
 	// The simulator task.Info.DescriptionId is different (VirtualMachine.cloneVM)
 	if strings.Contains(moTask.Info.DescriptionId, cloneVmTaskDescriptionId) {
-		if r.machineScope.providerSpec.Workspace.VMGroup != "" {
-			klog.Infof("Adding on cloned machine: %s to vm group: %s", r.machine.Name, r.machineScope.providerSpec.Workspace.VMGroup)
-
-			if err := modifyVMGroup(r.machineScope, false); err != nil {
-				var taskError task.Error
-				if errors.As(err, &taskError) {
-					return fmt.Errorf("could not update VM Group membership: %w", taskError)
-				}
-
-				return fmt.Errorf("could not update VM Group membership: %w", err)
-			}
-		}
-
-		klog.Infof("Powering on cloned machine: %v", r.machine.Name)
-		task, err := powerOn(r.machineScope)
-		if err != nil {
-			metrics.RegisterFailedInstanceCreate(&metrics.MachineLabels{
-				Name:      r.machine.Name,
-				Namespace: r.machine.Namespace,
-				Reason:    "PowerOn task finished with error",
-			})
-			conditionFailed := conditionFailed()
-			conditionFailed.Message = err.Error()
-			statusError := setProviderStatus(task, conditionFailed, r.machineScope, nil)
-			if statusError != nil {
-				return fmt.Errorf("failed to set provider status: %w", err)
-			}
-			return err
-		}
-		return setProviderStatus(task, conditionSuccess(), r.machineScope, nil)
+		return r.addVMGroupAndPowerOn("cloned")
 	}
 
 	// If taskIsFinished then next reconcile should result in update.
@@ -272,6 +298,11 @@ func (r *Reconciler) update() error {
 				})
 				return err
 			}
+			// Task history eviction or a session restart can make a task
+			// ref permanently unavailable. Clear it so future resyncs do
+			// not keep issuing the same GetTask request.
+			klog.Infof("%v: task %s no longer found, clearing TaskRef", r.machine.GetName(), r.providerStatus.TaskRef)
+			r.providerStatus.TaskRef = ""
 		}
 		if moTask != nil {
 			if taskIsFinished, err := taskIsFinished(moTask); err != nil {
@@ -280,9 +311,19 @@ func (r *Reconciler) update() error {
 					Namespace: r.machine.Namespace,
 					Reason:    "Task finished with error",
 				})
+				if taskIsFinished {
+					// A terminally failed task cannot transition to success. Clear
+					// its ref so retries reconcile the VM instead of polling it forever.
+					r.providerStatus.TaskRef = ""
+				}
 				return fmt.Errorf("%v task %v finished with error: %w", moTask.Info.DescriptionId, moTask.Reference().Value, err)
 			} else if !taskIsFinished {
 				return fmt.Errorf("%v task %v has not finished", moTask.Info.DescriptionId, moTask.Reference().Value)
+			} else {
+				// A completed task can never transition again. Clear its ref
+				// so steady-state resyncs skip GetTask entirely.
+				klog.Infof("%v: task %v has completed, clearing TaskRef", r.machine.GetName(), moTask.Reference().Value)
+				r.providerStatus.TaskRef = ""
 			}
 		}
 	}
@@ -300,13 +341,9 @@ func (r *Reconciler) update() error {
 		return fmt.Errorf("vm not found on update: %w", err)
 	}
 
-	vm := &virtualMachine{
-		Context: r.machineScope.Context,
-		Obj:     object.NewVirtualMachine(r.machineScope.session.Client.Client, vmRef),
-		Ref:     vmRef,
-	}
+	vm := r.machineScope.newVM(r.machineScope.Context, vmRef)
 
-	if err := vm.reconcileTags(r.Context, r.session, r.machine, r.providerSpec); err != nil {
+	if err := vm.reconcileTags(r.Context, r.session.GetCachingTagsManager(), r.machine, r.providerSpec); err != nil {
 		metrics.RegisterFailedInstanceUpdate(&metrics.MachineLabels{
 			Name:      r.machine.Name,
 			Namespace: r.machine.Namespace,
@@ -346,11 +383,7 @@ func (r *Reconciler) exists() (bool, error) {
 	// If it is powered off and in "Provisioning" phase, treat machine as non-existed yet and proceed with creation procedure.
 	powerState := types.VirtualMachinePowerState(ptr.Deref(r.machineScope.providerStatus.InstanceState, ""))
 	if powerState == "" || ptr.Deref(r.machine.Status.Phase, "") == machinev1.PhaseProvisioning {
-		vm := &virtualMachine{
-			Context: r.machineScope.Context,
-			Obj:     object.NewVirtualMachine(r.machineScope.session.Client.Client, vmRef),
-			Ref:     vmRef,
-		}
+		vm := r.machineScope.newVM(r.machineScope.Context, vmRef)
 		powerState, err = vm.getPowerState()
 		if err != nil {
 			return false, fmt.Errorf("%v: failed checking machine's power state: %w", r.machine.GetName(), err)
@@ -423,11 +456,7 @@ func (r *Reconciler) delete() error {
 		return nil
 	}
 
-	vm := &virtualMachine{
-		Context: r.Context,
-		Obj:     object.NewVirtualMachine(r.machineScope.session.Client.Client, vmRef),
-		Ref:     vmRef,
-	}
+	vm := r.machineScope.newVM(r.Context, vmRef)
 
 	powerState, err := vm.getPowerState()
 	if err != nil {
@@ -591,6 +620,14 @@ func (r *Reconciler) reconcileRegionAndZoneLabels(vm *virtualMachine) error {
 		return nil
 	}
 
+	// Region/zone come from tags on the VM's ancestry and are immutable
+	// after provisioning. If the labels are already set, skip the tag
+	// traversal (HostSystem + Ancestors + N REST tag calls per resync).
+	if r.machine.Labels[machinecontroller.MachineRegionLabelName] != "" &&
+		r.machine.Labels[machinecontroller.MachineAZLabelName] != "" {
+		return nil
+	}
+
 	regionLabel := r.vSphereConfig.Labels.Region
 	zoneLabel := r.vSphereConfig.Labels.Zone
 
@@ -613,6 +650,10 @@ func (r *Reconciler) reconcileRegionAndZoneLabels(vm *virtualMachine) error {
 }
 
 func (r *Reconciler) reconcileProviderID(vm *virtualMachine) error {
+	if r.machine.Spec.ProviderID != nil && *r.machine.Spec.ProviderID != "" {
+		return nil
+	}
+
 	providerID, err := convertUUIDToProviderID(vm.Obj.UUID(vm.Context))
 	if err != nil {
 		return err
@@ -631,7 +672,8 @@ func convertUUIDToProviderID(UUID string) (string, error) {
 }
 
 func (r *Reconciler) reconcileNetwork(vm *virtualMachine) error {
-	currentNetworkStatusList, err := vm.getNetworkStatusList(r.session.Client.Client)
+	// The same property call also seeds the power-state cache.
+	currentNetworkStatusList, vmName, err := vm.getNetworkAndPowerStatus(r.session.Client.Client)
 	if err != nil {
 		return fmt.Errorf("error getting network status: %v", err)
 	}
@@ -651,15 +693,6 @@ func (r *Reconciler) reconcileNetwork(vm *virtualMachine) error {
 				Address: ip,
 			})
 		}
-	}
-
-	// Using Name() if InventoryPath is empty will return empty name
-	// see: https://github.com/vmware/govmomi/blob/master/object/common.go#L66-L75
-	// Using ObjectName() as it will query from VirtualMachine properties
-
-	vmName, err := vm.Obj.ObjectName(vm.Context)
-	if err != nil {
-		return fmt.Errorf("error getting virtual machine name: %v", err)
 	}
 
 	ipAddrs = append(ipAddrs, corev1.NodeAddress{
@@ -856,7 +889,12 @@ func constructKargsFromNetworkConfig(s *machineScope) (string, error) {
 }
 
 func isRetrieveMONotFound(taskRef string, err error) bool {
-	return err.Error() == fmt.Sprintf("ServerFaultCode: The object 'vim.Task:%v' has already been deleted or has not been completely created", taskRef)
+	if err == nil {
+		return false
+	}
+	errMessage := err.Error()
+	return errMessage == fmt.Sprintf("ServerFaultCode: The object 'vim.Task:%v' has already been deleted or has not been completely created", taskRef) ||
+		errMessage == "ServerFaultCode: The object has already been deleted or has not been completely created"
 }
 
 func getHwVersion(ctx context.Context, vm *object.VirtualMachine) (int, error) {
@@ -1068,6 +1106,15 @@ func clone(s *machineScope) (string, error) {
 	return taskVal, nil
 }
 
+// newVM builds a virtualMachine for the given managed object reference.
+func (s *machineScope) newVM(ctx context.Context, vmRef types.ManagedObjectReference) *virtualMachine {
+	return &virtualMachine{
+		Context: ctx,
+		Obj:     object.NewVirtualMachine(s.session.Client.Client, vmRef),
+		Ref:     vmRef,
+	}
+}
+
 func modifyVMGroup(s *machineScope, delete bool) error {
 	vmRef, err := findVM(s)
 	if err != nil {
@@ -1159,11 +1206,7 @@ func powerOn(s *machineScope) (string, error) {
 
 	datacenter := s.session.Datacenter
 	if datacenter == nil { // if there is no dataceneter, fallback to old powerOn method via vm object
-		vm := &virtualMachine{
-			Context: s.Context,
-			Obj:     object.NewVirtualMachine(s.session.Client.Client, vmRef),
-			Ref:     vmRef,
-		}
+		vm := s.newVM(s.Context, vmRef)
 
 		return vm.powerOnVM()
 	}
@@ -1434,12 +1477,17 @@ func taskIsFinished(task *mo.Task) (bool, error) {
 	}
 }
 
+// setProviderStatus updates the Machine's ProviderStatus with a task reference,
+// a condition, and (optionally) instance metadata. It is called from create(),
+// update(), and delete() flows; pass "" for taskRef when there is no active task.
 func setProviderStatus(taskRef string, condition metav1.Condition, scope *machineScope, vm *virtualMachine) error {
 	klog.Infof("%s: Updating provider status", scope.machine.Name)
 
 	if vm != nil {
-		id := vm.Obj.UUID(scope.Context)
-		scope.providerStatus.InstanceID = &id
+		if scope.providerStatus.InstanceID == nil || *scope.providerStatus.InstanceID == "" {
+			id := vm.Obj.UUID(scope.Context)
+			scope.providerStatus.InstanceID = &id
+		}
 
 		// This can return an error if machine is being deleted
 		powerState, err := vm.getPowerState()
@@ -1478,6 +1526,12 @@ type virtualMachine struct {
 	context.Context
 	Ref types.ManagedObjectReference
 	Obj *object.VirtualMachine
+
+	// powerState cache: one PowerState call per reconcile pass.
+	// The struct is built fresh per reconcile (see update()/exists()),
+	// so the cache never leaks across passes.
+	ps      types.VirtualMachinePowerState
+	psKnown bool
 }
 
 // getHostSystemAncestors looks up and returns vm's host system ancestors, such as "Cluster" and "Datacenter".
@@ -1552,6 +1606,9 @@ func (vm *virtualMachine) getRegionAndZone(tagsMgr *session.CachingTagsManager, 
 }
 
 func (vm *virtualMachine) powerOnVM() (string, error) {
+	// Invalidate the power-state cache so a subsequent getPowerState in
+	// the same reconcile pass observes the new state, not the stale one.
+	vm.psKnown = false
 	task, err := vm.Obj.PowerOn(vm.Context)
 	if err != nil {
 		return "", err
@@ -1560,6 +1617,9 @@ func (vm *virtualMachine) powerOnVM() (string, error) {
 }
 
 func (vm *virtualMachine) powerOffVM() (string, error) {
+	// Invalidate the power-state cache so a subsequent getPowerState in
+	// the same reconcile pass observes the new state, not the stale one.
+	vm.psKnown = false
 	task, err := vm.Obj.PowerOff(vm.Context)
 	if err != nil {
 		return "", err
@@ -1568,127 +1628,97 @@ func (vm *virtualMachine) powerOffVM() (string, error) {
 }
 
 func (vm *virtualMachine) getPowerState() (types.VirtualMachinePowerState, error) {
+	if vm.psKnown {
+		return vm.ps, nil
+	}
+
 	powerState, err := vm.Obj.PowerState(vm.Context)
 	if err != nil {
 		return "", err
 	}
 
-	switch powerState {
-	case types.VirtualMachinePowerStatePoweredOn:
-		return types.VirtualMachinePowerStatePoweredOn, nil
-	case types.VirtualMachinePowerStatePoweredOff:
-		return types.VirtualMachinePowerStatePoweredOff, nil
-	case types.VirtualMachinePowerStateSuspended:
-		return types.VirtualMachinePowerStateSuspended, nil
-	default:
+	if powerState == "" {
 		return "", fmt.Errorf("unexpected power state %q for vm %v", powerState, vm)
 	}
+	vm.ps = powerState
+	vm.psKnown = true
+	return powerState, nil
 }
 
 // reconcileTags ensures that the required tags are present on the virtual machine, eg the Cluster ID
 // that is used by the installer on cluster deletion to ensure ther are no leaked resources.
-func (vm *virtualMachine) reconcileTags(ctx context.Context, sessionInstance *session.Session, machine *machinev1.Machine, providerSpec *machinev1.VSphereMachineProviderSpec) error {
-	// Use cached tag manager to avoid creating new REST sessions.
-	// This eliminates excessive vCenter login/logout cycles.
-	tagManager := sessionInstance.GetCachingTagsManager()
-	klog.Infof("%v: Reconciling attached tags", machine.GetName())
-
+// The attached-tag list is fetched once per reconcile via the batch
+// list-attached-on-objects endpoint (the per-object list-attached action is
+// documented as much slower at scale, per the Broadcom vCenter tagging
+// performance white paper); every required tag is checked against it in
+// memory, and any missing tags are attached in one attach-multiple call.
+func (vm *virtualMachine) reconcileTags(ctx context.Context, tagManager *session.CachingTagsManager, machine *machinev1.Machine, providerSpec *machinev1.VSphereMachineProviderSpec) error {
 	clusterID := machine.Labels[machinev1.MachineClusterIDLabel]
-	tagIDs := []string{clusterID}
-	tagIDs = append(tagIDs, providerSpec.TagIDs...)
+	tagIDs := append([]string{clusterID}, providerSpec.TagIDs...)
 	klog.Infof("%v: Reconciling %s tags to vm", machine.GetName(), tagIDs)
+
+	var toAttach []string
+
+	objs, err := tagManager.ListAttachedTagsOnObjects(ctx, []mo.Reference{vm.Ref})
+	if err != nil {
+		return fmt.Errorf("failed to list attached tags for vm %v: %w", vm.Ref, err)
+	}
+	// The list may be empty (unrecognized reference) or contain more
+	// entries than requested; iterate defensively instead of assuming
+	// objs[0] exists.
+	attachedIDs := make(map[string]bool)
+	for _, obj := range objs {
+		for _, id := range obj.TagIDs {
+			attachedIDs[id] = true
+		}
+	}
+
 	for _, tagID := range tagIDs {
-		attached, err := vm.checkAttachedTag(ctx, tagID, tagManager)
-		if err != nil {
-			return err
+		if tagID == "" {
+			continue
+		}
+		if attachedIDs[tagID] {
+			continue
 		}
 
-		if !attached {
-			klog.Infof("%v: Attaching %s tag to vm", machine.GetName(), tagID)
-			// the tag should already be created by installer or the administrator
-			if err := tagManager.AttachTag(ctx, tagID, vm.Ref); err != nil {
+		if session.IsName(tagID) {
+			// Resolve the name to an ID. A missing tag is not an error:
+			// clusters may run without the cluster-ID tag, and attaching
+			// would fail anyway.
+			tag, err := tagManager.GetTag(ctx, tagID)
+			if err != nil {
+				if isNotFoundErr(err) {
+					klog.V(3).Infof("%v: tag %q not found in vCenter, skipping attach", machine.GetName(), tagID)
+					continue
+				}
 				return err
 			}
+			if attachedIDs[tag.ID] {
+				continue
+			}
+			// Mark the queued ID so duplicate entries (repeated cluster-ID
+			// or providerSpec.TagIDs) are not attached twice.
+			attachedIDs[tag.ID] = true
+			toAttach = append(toAttach, tag.ID)
+		} else if _, err := tagManager.GetTag(ctx, tagID); err != nil {
+			// Unknown tag ID: fail loudly, matching previous behavior.
+			return err
+		} else {
+			attachedIDs[tagID] = true
+			toAttach = append(toAttach, tagID)
+		}
+	}
+
+	// One batched attach for everything missing (white paper:
+	// attach-multiple-tags-to-object has flat latency; per-tag attach()
+	// scales linearly with tag count).
+	if len(toAttach) > 0 {
+		klog.Infof("%v: Attaching %d tag(s) to vm", machine.GetName(), len(toAttach))
+		if err := tagManager.AttachMultipleTagsToObject(ctx, toAttach, vm.Ref); err != nil {
+			return err
 		}
 	}
 	return nil
-}
-
-// checkAttachedTag returns true if tag is already attached to a vm or tag doesn't exist
-func (vm *virtualMachine) checkAttachedTag(ctx context.Context, tagName string, m *session.CachingTagsManager) (bool, error) {
-	// cluster ID tag doesn't exists in UPI, we should skip tag attachment if it's not found
-	foundTag, err := vm.foundTag(ctx, tagName, m)
-	if err != nil {
-		return false, err
-	}
-
-	if !foundTag {
-		return true, nil
-	}
-
-	tags, err := m.GetAttachedTags(ctx, vm.Ref)
-	if err != nil {
-		return false, err
-	}
-
-	for _, tag := range tags {
-		if session.IsName(tagName) {
-			if tag.Name == tagName {
-				return true, nil
-			}
-		} else {
-			if tag.ID == tagName {
-				return true, nil
-			}
-		}
-
-	}
-
-	return false, nil
-}
-
-// tagToCategoryName converts the tag name to the category name based upon the format set up by the installer.
-// Note this is only valid in IPI clusters as typically a UPI cluster won't have the cluster ID tag, in which case the
-// controller skips tag creation.
-// Ref: https://github.com/openshift/installer/blob/f912534f12491721e3874e2bf64f7fa8d44aa7f5/data/data/vsphere/pre-bootstrap/main.tf#L57
-// Ref: https://github.com/openshift/installer/blob/f912534f12491721e3874e2bf64f7fa8d44aa7f5/pkg/destroy/vsphere/vsphere.go#L231
-func tagToCategoryName(tagName string) string {
-	return fmt.Sprintf("openshift-%s", tagName)
-}
-
-func (vm *virtualMachine) foundTag(ctx context.Context, tagName string, m *session.CachingTagsManager) (bool, error) {
-	var tags []string
-	var err error
-
-	if session.IsName(tagName) {
-		tags, err = m.ListTagsForCategory(ctx, tagToCategoryName(tagName))
-		if err != nil {
-			if isNotFoundErr(err) {
-				return false, nil
-			}
-			return false, err
-		}
-	} else {
-		tags = []string{tagName}
-	}
-	klog.V(4).Infof("validating the presence of tags: %+v", tags)
-	for _, id := range tags {
-		tag, err := m.GetTag(ctx, id)
-		if err != nil {
-			return false, err
-		}
-		if session.IsName(tagName) {
-			if tag.Name == tagName {
-				return true, nil
-			}
-		} else {
-			if tag.ID == tagName {
-				return true, nil
-			}
-		}
-	}
-
-	return false, nil
 }
 
 type NetworkStatus struct {
@@ -1706,20 +1736,33 @@ type NetworkStatus struct {
 	NetworkName string
 }
 
-func (vm *virtualMachine) getNetworkStatusList(client *vim25.Client) ([]NetworkStatus, error) {
+// getNetworkAndPowerStatus fetches the VM's network status, name, and power state
+// in a single property call, seeding the power-state cache for the reconcile pass.
+func (vm *virtualMachine) getNetworkAndPowerStatus(client *vim25.Client) ([]NetworkStatus, string, error) {
 	var obj mo.VirtualMachine
 	var pc = property.DefaultCollector(client)
 	var props = []string{
 		"config.hardware.device",
 		"guest.net",
+		"name",
+		"runtime.powerState",
 	}
 
 	if err := pc.RetrieveOne(vm.Context, vm.Ref, props, &obj); err != nil {
-		return nil, fmt.Errorf("unable to fetch props %v for vm %v: %w", props, vm.Ref, err)
+		return nil, "", fmt.Errorf("unable to fetch props %v for vm %v: %w", props, vm.Ref, err)
 	}
+
+	// Seed the power-state cache so a subsequent getPowerState in the same
+	// reconcile pass does not issue a second property call. Missing states
+	// are left uncached so getPowerState() still re-fetches and errors.
+	if obj.Runtime.PowerState != "" {
+		vm.ps = obj.Runtime.PowerState
+		vm.psKnown = true
+	}
+
 	klog.V(3).Infof("Getting network status: object reference: %v", obj.Reference().Value)
 	if obj.Config == nil {
-		return nil, errors.New("config.hardware.device is nil")
+		return nil, "", errors.New("config.hardware.device is nil")
 	}
 
 	var networkStatusList []NetworkStatus
@@ -1746,7 +1789,7 @@ func (vm *virtualMachine) getNetworkStatusList(client *vim25.Client) ([]NetworkS
 		}
 	}
 
-	return networkStatusList, nil
+	return networkStatusList, obj.Name, nil
 }
 
 type attachedDisk struct {
