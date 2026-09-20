@@ -3584,4 +3584,25 @@ func TestReconcilePowerStateAnnontation(t *testing.T) {
 	}
 }
 
+func TestCoresPerSocketForClone(t *testing.T) {
+	t.Parallel()
+
+	if got := coresPerSocketForClone(0); got != nil {
+		t.Fatalf("omitted numCoresPerSocket should leave clone spec unset, got %v", *got)
+	}
+
+	got := coresPerSocketForClone(4)
+	if got == nil {
+		t.Fatal("explicit numCoresPerSocket should be set on the clone spec")
+	}
+	if *got != 4 {
+		t.Fatalf("explicit numCoresPerSocket: got %d, want 4", *got)
+	}
+
+	got = coresPerSocketForClone(8)
+	if got == nil || *got != 8 {
+		t.Fatal("explicit numCoresPerSocket must not be rewritten")
+	}
+}
+
 // See https://github.com/vmware/govmomi/blob/master/simulator/example_extend_test.go#L33:6 for extending behaviour example

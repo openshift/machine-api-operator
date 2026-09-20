@@ -973,11 +973,6 @@ func clone(s *machineScope) (string, error) {
 
 	numCPUs := s.providerSpec.NumCPUs
 
-	numCoresPerSocket := s.providerSpec.NumCoresPerSocket
-	if numCoresPerSocket == 0 {
-		numCoresPerSocket = numCPUs
-	}
-
 	devices, err := vmTemplate.Device(s.Context)
 	if err != nil {
 		return "", fmt.Errorf("error getting devices %v", err)
@@ -1046,7 +1041,7 @@ func clone(s *machineScope) (string, error) {
 			ExtraConfig:       extraConfig,
 			DeviceChange:      deviceSpecs,
 			NumCPUs:           numCPUs,
-			NumCoresPerSocket: &numCoresPerSocket,
+			NumCoresPerSocket: coresPerSocketForClone(s.providerSpec.NumCoresPerSocket),
 			MemoryMB:          s.providerSpec.MemoryMiB,
 		},
 		Location: types.VirtualMachineRelocateSpec{
@@ -1066,6 +1061,18 @@ func clone(s *machineScope) (string, error) {
 	taskVal := task.Reference().Value
 	klog.V(3).Infof("%v: running task: %+v", s.machine.GetName(), taskVal)
 	return taskVal, nil
+}
+
+// coresPerSocketForClone returns the clone ConfigSpec NumCoresPerSocket.
+// A nil result leaves the field unset so vCenter keeps the template analogue,
+// which is what VSphereMachineProviderSpec documents for an omitted value.
+// Defaulting 0 to numCPUs forced a single socket with all vCPUs and can fail
+// clone on hosts whose cores-per-socket is less than numCPUs.
+func coresPerSocketForClone(numCoresPerSocket int32) *int32 {
+	if numCoresPerSocket == 0 {
+		return nil
+	}
+	return ptr.To(numCoresPerSocket)
 }
 
 func modifyVMGroup(s *machineScope, delete bool) error {
