@@ -207,8 +207,6 @@ rules:
       - coreos-bootimages
     verbs:
       - get
-      - list
-      - watch
 
 ---
 apiVersion: rbac.authorization.k8s.io/v1
@@ -315,6 +313,8 @@ rules:
       - machineconfiguration.openshift.io
     resources:
       - osimagestreams
+    resourceNames:
+      - cluster
     verbs:
       - get
 
