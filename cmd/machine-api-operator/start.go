@@ -50,8 +50,9 @@ var (
 	}
 
 	startOpts struct {
-		kubeconfig string
-		imagesFile string
+		kubeconfig  string
+		imagesFile  string
+		enablePprof bool
 	}
 )
 
@@ -59,6 +60,7 @@ func init() {
 	rootCmd.AddCommand(startCmd)
 	startCmd.PersistentFlags().StringVar(&startOpts.kubeconfig, "kubeconfig", "", "Kubeconfig file to access a remote cluster (testing only)")
 	startCmd.PersistentFlags().StringVar(&startOpts.imagesFile, "images-json", "", "images.json file for MAO.")
+	startCmd.PersistentFlags().BoolVar(&startOpts.enablePprof, "enable-pprof", false, "Enable the pprof profiling endpoint on the machine controller (AWS only).")
 
 	klog.InitFlags(nil)
 	flag.Parse()
@@ -157,6 +159,7 @@ func startControllersOrDie(ctx *ControllerContext) {
 		componentNamespace, componentName,
 		startOpts.imagesFile,
 		config,
+		startOpts.enablePprof,
 		ctx.KubeNamespacedInformerFactory.Apps().V1().Deployments(),
 		ctx.KubeNamespacedInformerFactory.Apps().V1().DaemonSets(),
 		ctx.ConfigInformerFactory.Config().V1().ClusterOperators(),
