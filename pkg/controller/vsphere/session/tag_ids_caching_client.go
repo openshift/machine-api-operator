@@ -219,27 +219,13 @@ func (t *CachingTagsManager) GetTag(ctx context.Context, id string) (*tags.Tag, 
 
 // GetTagForCategory fetches a tag by ID or name within a category. The
 // category-scoped name cache avoids repeating list-tags-for-category calls.
-func (t *CachingTagsManager) GetTagForCategory(ctx context.Context, id, category string) (*tags.Tag, error) {
-	if category == "" {
-		return t.GetTag(ctx, id)
-	}
-
+func (t *CachingTagsManager) GetTagForCategory(ctx context.Context, name, category string) (*tags.Tag, error) {
 	categoryObj, err := t.GetCategory(ctx, category)
 	if err != nil {
 		return nil, err
 	}
-	if !IsName(id) {
-		tag, err := t.GetTag(ctx, id)
-		if err != nil {
-			return nil, err
-		}
-		if tag.CategoryID != categoryObj.ID {
-			return nil, fmt.Errorf("tag %q not found in category %q", id, category)
-		}
-		return tag, nil
-	}
 
-	cacheKey := categoryObj.ID + "\x00" + id
+	cacheKey := categoryObj.ID + "\x00" + name
 	if cachedID, found := t.categoryTags.Get(cacheKey); found {
 		tagID := cachedID.(string)
 		if tagID == notFoundValue {
@@ -247,7 +233,7 @@ func (t *CachingTagsManager) GetTagForCategory(ctx context.Context, id, category
 		}
 		tag, err := t.GetTag(ctx, tagID)
 		if err == nil {
-			if tag.Name == id && tag.CategoryID == categoryObj.ID {
+			if tag.Name == name && tag.CategoryID == categoryObj.ID {
 				return tag, nil
 			}
 			t.categoryTags.Delete(cacheKey)
@@ -270,7 +256,7 @@ func (t *CachingTagsManager) GetTagForCategory(ctx context.Context, id, category
 		if err != nil {
 			return nil, fmt.Errorf("get tag for category %s %s: %w", categoryObj.ID, tagID, err)
 		}
-		if tag.Name == id {
+		if tag.Name == name {
 			t.categoryTags.Set(cacheKey, tag.ID)
 			return tag, nil
 		}
