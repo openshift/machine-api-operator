@@ -1699,6 +1699,38 @@ func (vm *virtualMachine) reconcileTags(ctx context.Context, tagManager *session
 				}
 				return err
 			}
+			if tagID == clusterID {
+				category, err := tagManager.GetCategory(ctx, fmt.Sprintf("openshift-%s", clusterID))
+				if err != nil {
+					if isNotFoundErr(err) {
+						klog.V(3).Infof("%v: cluster-ID category for %q not found in vCenter, skipping attach", machine.GetName(), tagID)
+						continue
+					}
+					return err
+				}
+				if tag.CategoryID != category.ID {
+					categoryTagIDs, err := tagManager.ListTagsForCategory(ctx, category.ID)
+					if err != nil {
+						return err
+					}
+					found := false
+					for _, categoryTagID := range categoryTagIDs {
+						candidate, err := tagManager.GetTag(ctx, categoryTagID)
+						if err != nil {
+							return err
+						}
+						if candidate.Name == tagID {
+							tag = candidate
+							found = true
+							break
+						}
+					}
+					if !found {
+						klog.V(3).Infof("%v: cluster-ID tag %q not found in its category, skipping attach", machine.GetName(), tagID)
+						continue
+					}
+				}
+			}
 			if attachedIDs[tag.ID] {
 				continue
 			}
