@@ -62,6 +62,34 @@ func (c *countingRoundTripper) RoundTrip(req *http.Request) (*http.Response, err
 	return c.next.RoundTrip(req)
 }
 
+func TestGetTagForCategoryAcceptsTagIDOnlyInRequestedCategory(t *testing.T) {
+	model, sessionObj, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	ctx := context.Background()
+	m := newTagsCachingClient(sessionObj.TagManager)
+	categoryID, err := m.CreateCategory(ctx, &tags.Category{
+		AssociableTypes: []string{"VirtualMachine"},
+		Cardinality:     "SINGLE",
+		Name:            "expected-category",
+	})
+	requireNoErr(t, err)
+	tagID, err := m.CreateTag(ctx, &tags.Tag{CategoryID: categoryID, Name: "tag"})
+	requireNoErr(t, err)
+	defer cleanupTagsAndCategories(ctx, m, NewWithT(t))
+
+	got, err := m.GetTagForCategory(ctx, tagID, "expected-category")
+	requireNoErr(t, err)
+	if got.ID != tagID {
+		t.Fatalf("expected tag ID %q, got %q", tagID, got.ID)
+	}
+
+	if _, err := m.GetTagForCategory(ctx, tagID, "other-category"); err == nil {
+		t.Fatal("expected lookup to reject a tag ID from another category")
+	}
+}
+
 func TestGetTagForCategoryCachesScopedLookup(t *testing.T) {
 	model, sessionObj, server := initSimulator(t)
 	defer model.Remove()
