@@ -1653,6 +1653,61 @@ func TestReconcileNetwork(t *testing.T) {
 	// TODO: add more cases by adding network devices to the NewVirtualMachine() object
 }
 
+func TestReconcileTagsUsesClusterIDCategory(t *testing.T) {
+	model, sessionObj, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	clusterID := "duplicate-name"
+	unrelatedTagID, err := createTagAndCategory(sessionObj, "unrelated-category", clusterID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	clusterTagID, err := createTagAndCategory(sessionObj, tagToCategoryName(clusterID), clusterID)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	firstMatch, err := sessionObj.GetCachingTagsManager().GetTag(context.TODO(), clusterID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if firstMatch.ID != unrelatedTagID {
+		t.Fatalf("expected unqualified lookup to return unrelated tag %q first, got %q", unrelatedTagID, firstMatch.ID)
+	}
+
+	managedObj := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
+	managedObjRef := object.NewVirtualMachine(sessionObj.Client.Client, managedObj.Reference()).Reference()
+	vm := &virtualMachine{
+		Context: context.TODO(),
+		Obj:     object.NewVirtualMachine(sessionObj.Client.Client, managedObjRef),
+		Ref:     managedObjRef,
+	}
+
+	machine := &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{
+		Labels: map[string]string{machinev1.MachineClusterIDLabel: clusterID},
+	}}
+	if err := vm.reconcileTags(context.TODO(), sessionObj.GetCachingTagsManager(), machine, &machinev1.VSphereMachineProviderSpec{}); err != nil {
+		t.Fatal(err)
+	}
+
+	attached, err := sessionObj.GetCachingTagsManager().ListAttachedTagsOnObjects(context.TODO(), []mo.Reference{managedObjRef})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var attachedClusterTag, attachedUnrelatedTag bool
+	for _, tagID := range attached[0].TagIDs {
+		attachedClusterTag = attachedClusterTag || tagID == clusterTagID
+		attachedUnrelatedTag = attachedUnrelatedTag || tagID == unrelatedTagID
+	}
+	if !attachedClusterTag {
+		t.Errorf("expected cluster-ID tag %q from its category to be attached", clusterTagID)
+	}
+	if attachedUnrelatedTag {
+		t.Errorf("unrelated same-name tag %q must not be attached", unrelatedTagID)
+	}
+}
+
 func TestReconcileTags(t *testing.T) {
 	model, sessionObj, server := initSimulator(t)
 	defer model.Remove()

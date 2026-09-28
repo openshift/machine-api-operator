@@ -2,6 +2,7 @@ package session
 
 import (
 	"context"
+	"net/http"
 	"testing"
 	"time"
 
@@ -48,6 +49,80 @@ func cleanupTagsAndCategories(ctx context.Context, m *CachingTagsManager, g Gome
 	g.Expect(err).To(Succeed())
 	for _, catID := range categoriesList {
 		g.Expect(m.DeleteCategory(ctx, &tags.Category{ID: catID.ID})).To(Succeed())
+	}
+}
+
+type countingRoundTripper struct {
+	next  http.RoundTripper
+	calls int
+}
+
+func (c *countingRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	c.calls++
+	return c.next.RoundTrip(req)
+}
+
+func TestGetTagForCategoryCachesScopedLookup(t *testing.T) {
+	model, sessionObj, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	g := NewWithT(t)
+	ctx := context.Background()
+	m := newTagsCachingClient(sessionObj.TagManager)
+	createTag := func(categoryName, tagName string) (string, error) {
+		categoryID, err := m.CreateCategory(ctx, &tags.Category{
+			AssociableTypes: []string{"VirtualMachine"},
+			Cardinality:     "SINGLE",
+			Name:            categoryName,
+		})
+		if err != nil {
+			return "", err
+		}
+		return m.CreateTag(ctx, &tags.Tag{CategoryID: categoryID, Name: tagName})
+	}
+
+	tagName := "duplicate-name"
+	unrelatedID, err := createTag("unrelated-category", tagName)
+	requireNoErr(t, err)
+	clusterID, err := createTag("openshift-cluster", tagName)
+	requireNoErr(t, err)
+	defer cleanupTagsAndCategories(ctx, m, g)
+
+	next := m.Manager.Client.Transport
+	if next == nil {
+		next = http.DefaultTransport
+	}
+	counter := &countingRoundTripper{next: next}
+	m.Manager.Client.Transport = counter
+
+	before := counter.calls
+	got, err := m.GetTagForCategory(ctx, tagName, "openshift-cluster")
+	requireNoErr(t, err)
+	g.Expect(got.ID).To(Equal(clusterID))
+	coldCalls := counter.calls - before
+	if coldCalls == 0 {
+		t.Fatal("expected category-scoped cache miss to make vCenter calls")
+	}
+
+	before = counter.calls
+	got, err = m.GetTagForCategory(ctx, tagName, "openshift-cluster")
+	requireNoErr(t, err)
+	g.Expect(got.ID).To(Equal(clusterID))
+	if counter.calls != before {
+		t.Fatalf("warm category-scoped lookup made %d vCenter calls", counter.calls-before)
+	}
+
+	got, err = m.GetTagForCategory(ctx, tagName, "unrelated-category")
+	requireNoErr(t, err)
+	g.Expect(got.ID).To(Equal(unrelatedID))
+
+	before = counter.calls
+	got, err = m.GetTagForCategory(ctx, tagName, "openshift-cluster")
+	requireNoErr(t, err)
+	g.Expect(got.ID).To(Equal(clusterID))
+	if counter.calls != before {
+		t.Fatalf("lookup in another category evicted the warm scoped entry: %d vCenter calls", counter.calls-before)
 	}
 }
 
