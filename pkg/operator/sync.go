@@ -20,6 +20,7 @@ import (
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
+	configv1 "github.com/openshift/api/config/v1"
 	v1 "github.com/openshift/api/config/v1"
 	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
 	"github.com/openshift/library-go/pkg/operator/events"
@@ -41,6 +42,8 @@ const (
 	machineExposeMetricsPort            = 8441
 	machineSetExposeMetricsPort         = 8442
 	machineHealthCheckExposeMetricsPort = 8444
+	machinePprofExposePort              = 6060
+	machinePprofUpstreamPort            = 6061
 	defaultMachineHealthPort            = 9440
 	defaultMachineSetHealthPort         = 9441
 	defaultMachineHealthCheckHealthPort = 9442
@@ -510,7 +513,8 @@ func newRBACConfigVolumes() []corev1.Volume {
 func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev1.PodTemplateSpec {
 	containers := newContainers(config, features)
 	withMHCProxy := config.Controllers.MachineHealthCheck != ""
-	proxyContainers := newKubeProxyContainers(config.Controllers.KubeRBACProxy, withMHCProxy)
+	withPprofProxy := config.EnablePprof && config.PlatformType == configv1.AWSPlatformType
+	proxyContainers := newKubeProxyContainers(config.Controllers.KubeRBACProxy, withMHCProxy, withPprofProxy)
 	tolerations := []corev1.Toleration{
 		{
 			Key:    "node-role.kubernetes.io/master",
@@ -672,6 +676,16 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 	featureGateArgs := append(args, buildFeatureGatesString(features))
 
 	machineControllerArgs := append([]string{}, featureGateArgs...)
+	// Pprof is gated on AWS because machine-api-provider-aws is the only provider
+	// whose machine controller binary exposes --enable-pprof today. To enable pprof
+	// for another provider, add the flag to that provider's binary first.
+	// See: https://github.com/openshift/machine-api-provider-aws/pull/189
+	if config.EnablePprof && config.PlatformType == configv1.AWSPlatformType {
+		machineControllerArgs = append(machineControllerArgs,
+			"--enable-pprof",
+			fmt.Sprintf("--pprof-bind-address=127.0.0.1:%d", machinePprofUpstreamPort),
+		)
+	}
 	switch config.PlatformType {
 	case v1.AzurePlatformType, v1.GCPPlatformType:
 		machineControllerArgs = append(machineControllerArgs, "--max-concurrent-reconciles=10")
@@ -853,7 +867,7 @@ func newContainers(config *OperatorConfig, features map[string]bool) []corev1.Co
 	return containers
 }
 
-func newKubeProxyContainers(image string, withMHCProxy bool) []corev1.Container {
+func newKubeProxyContainers(image string, withMHCProxy bool, withPprofProxy bool) []corev1.Container {
 	proxyContainers := []corev1.Container{
 		newKubeProxyContainer(image, "machineset-mtrc", metrics.DefaultMachineSetMetricsAddress, machineSetExposeMetricsPort),
 		newKubeProxyContainer(image, "machine-mtrc", metrics.DefaultMachineMetricsAddress, machineExposeMetricsPort),
@@ -861,6 +875,11 @@ func newKubeProxyContainers(image string, withMHCProxy bool) []corev1.Container 
 	if withMHCProxy {
 		proxyContainers = append(proxyContainers,
 			newKubeProxyContainer(image, "mhc-mtrc", metrics.DefaultHealthCheckMetricsAddress, machineHealthCheckExposeMetricsPort),
+		)
+	}
+	if withPprofProxy {
+		proxyContainers = append(proxyContainers,
+			newKubeProxyContainer(image, "machine-pprof", fmt.Sprintf(":%d", machinePprofUpstreamPort), machinePprofExposePort),
 		)
 	}
 	return proxyContainers

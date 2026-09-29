@@ -51,8 +51,9 @@ const (
 type Operator struct {
 	namespace, name string
 
-	imagesFile string
-	config     string
+	imagesFile  string
+	config      string
+	enablePprof bool
 
 	kubeClient    kubernetes.Interface
 	osClient      osclientset.Interface
@@ -93,6 +94,7 @@ func New(
 	imagesFile string,
 
 	config string,
+	enablePprof bool,
 
 	deployInformer appsinformersv1.DeploymentInformer,
 	daemonsetInformer appsinformersv1.DaemonSetInformer,
@@ -125,6 +127,7 @@ func New(
 		namespace:     namespace,
 		name:          name,
 		imagesFile:    imagesFile,
+		enablePprof:   enablePprof,
 		kubeClient:    kubeClient,
 		osClient:      osClient,
 		machineClient: machineClient,
@@ -495,5 +498,6 @@ func (optr *Operator) maoConfigFromInfrastructure() (*OperatorConfig, error) {
 		},
 		PlatformType: provider,
 		Features:     features,
+		EnablePprof:  optr.enablePprof,
 	}, nil
 }
