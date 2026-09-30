@@ -1574,7 +1574,7 @@ go.uber.org/zap/internal/pool
 go.uber.org/zap/internal/stacktrace
 go.uber.org/zap/zapcore
 go.uber.org/zap/zapgrpc
-# golang.org/x/crypto v0.41.0
+# golang.org/x/crypto v0.41.0 => github.com/openshift-sustaining/crypto v0.41.0-sec.4
 ## explicit; go 1.23.0
 golang.org/x/crypto/blowfish
 golang.org/x/crypto/chacha20
@@ -3651,3 +3651,4 @@ sigs.k8s.io/yaml/goyaml.v3
 # k8s.io/sample-controller => github.com/openshift/kubernetes/staging/src/k8s.io/sample-controller v0.0.0-20250131233843-55625722a4b8
 # github.com/containerd/errdefs => github.com/containerd/errdefs v0.1.0
 # golang.org/x/net => github.com/openshift-sustaining/net v0.43.0-sec.4
+# golang.org/x/crypto => github.com/openshift-sustaining/crypto v0.41.0-sec.4
