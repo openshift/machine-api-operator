@@ -180,7 +180,7 @@ var _ = Describe("[sig-cluster-lifecycle][platform:vsphere] Managed cluster shou
 		infra, err = cc.Infrastructures().Get(ctx, "cluster", metav1.GetOptions{})
 		Expect(err).NotTo(HaveOccurred())
 
-		vsphereCreds, err = c.CoreV1().Secrets("kube-system").Get(ctx, "vsphere-creds", v1.GetOptions{})
+		vsphereCreds, err = getVSphereCredentialsSecret(ctx, c)
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(len(infra.Spec.PlatformSpec.VSphere.FailureDomains)).ShouldNot(Equal(0))
