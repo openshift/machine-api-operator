@@ -40,6 +40,16 @@ func EnsureIPAddressClaim(
 	klog.Infof("creating IPAddressClaim %s", claimName)
 	gv := machinev1.SchemeGroupVersion
 	machineRef := metav1.NewControllerRef(machine, gv.WithKind("Machine"))
+
+	// The Machine API permits an empty pool group, historically meaning the
+	// built-in in-cluster IPAM provider. The v1beta2 IPAddressClaim CRD
+	// requires spec.poolRef.apiGroup to be non-empty, so preserve that
+	// meaning explicitly instead of sending an empty/omitted apiGroup.
+	apiGroup := pool.Group
+	if apiGroup == "" {
+		apiGroup = ipamv1.GroupVersion.Group
+	}
+
 	ipAddressClaim = &ipamv1.IPAddressClaim{
 		ObjectMeta: metav1.ObjectMeta{
 			OwnerReferences: []metav1.OwnerReference{
@@ -53,7 +63,7 @@ func EnsureIPAddressClaim(
 		},
 		Spec: ipamv1.IPAddressClaimSpec{
 			PoolRef: ipamv1.IPPoolReference{
-				APIGroup: pool.Group,
+				APIGroup: apiGroup,
 				Kind:     pool.Resource,
 				Name:     pool.Name,
 			},
