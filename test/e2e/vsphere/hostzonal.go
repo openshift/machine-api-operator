@@ -59,7 +59,7 @@ var _ = Describe("[sig-cluster-lifecycle][OCPFeatureGate:VSphereHostVMGroupZonal
 		}
 
 		By("Get vSphere Credentials")
-		vsphereCreds, err = c.CoreV1().Secrets("kube-system").Get(ctx, "vsphere-creds", v1.GetOptions{})
+		vsphereCreds, err = getVSphereCredentialsSecret(ctx, c)
 		Expect(err).NotTo(HaveOccurred(), "expected vSphere creds secret to exist")
 
 		By("Expect Failure Domains to be greater than one")

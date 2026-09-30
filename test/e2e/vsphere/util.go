@@ -26,11 +26,15 @@ import (
 	"github.com/vmware/govmomi/vim25/soap"
 	"github.com/vmware/govmomi/vim25/types"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
 	"github.com/openshift/machine-api-operator/pkg/controller/vsphere"
 	util "github.com/openshift/machine-api-operator/test/e2e"
 )
+
+const vSphereCredentialsSecretName = "vsphere-cloud-credentials"
 
 func isIpInCidrRange(ip string, cidr string) (bool, error) {
 	parsed := net.ParseIP(ip)
@@ -252,6 +256,10 @@ func getCredentialsForVCenter(ctx context.Context, vsphereCreds *corev1.Secret, 
 	}
 
 	return username, password, nil
+}
+
+func getVSphereCredentialsSecret(ctx context.Context, client kubernetes.Interface) (*corev1.Secret, error) {
+	return client.CoreV1().Secrets(util.MachineAPINamespace).Get(ctx, vSphereCredentialsSecretName, metav1.GetOptions{})
 }
 
 func GetPortGroupsAttachedToVMsInFailureDomain(
