@@ -30,6 +30,8 @@ spec:
       containers:
       - name: machine-api-operator
         image: quay.io/openshift/origin-machine-api-operator
+        securityContext:
+          readOnlyRootFilesystem: true
         command:
         - "/machine-api-operator"
         args:
