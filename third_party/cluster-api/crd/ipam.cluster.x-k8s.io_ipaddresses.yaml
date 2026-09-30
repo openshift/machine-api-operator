@@ -219,7 +219,7 @@ spec:
               type: object
           type: object
       served: true
-      storage: false
+      storage: true
       subresources: {}
     - additionalPrinterColumns:
         - description: Address
@@ -338,5 +338,5 @@ spec:
             - spec
           type: object
       served: true
-      storage: true
+      storage: false
       subresources: {}
