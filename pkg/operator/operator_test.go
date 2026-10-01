@@ -48,6 +48,11 @@ var (
 		{Name: apifeatures.FeatureGateAWSDedicatedHosts},
 	}
 
+	disabledFeatureGates = []openshiftv1.FeatureGateAttributes{
+		{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController},
+		{Name: apifeatures.FeatureGateVSphereMultiVCenterDay2},
+	}
+
 	enabledFeatureMap = map[string]bool{
 		"MachineAPIMigration":     true,
 		"AzureWorkloadIdentity":   true,
@@ -80,7 +85,7 @@ func newFakeOperator(kubeObjects, osObjects, machineObjects []runtime.Object, im
 					{
 						Version:  "",
 						Enabled:  enabledFeatureGates,
-						Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+						Disabled: disabledFeatureGates,
 					},
 				},
 			},
@@ -89,6 +94,11 @@ func newFakeOperator(kubeObjects, osObjects, machineObjects []runtime.Object, im
 	featureGateAccessor, err := featuregates.NewHardcodedFeatureGateAccessFromFeatureGate(fg, "")
 	if err != nil {
 		return nil, fmt.Errorf("error adding event handler to deployments informer: %v", err)
+	}
+
+	featureGates, err := featureGateAccessor.CurrentFeatureGates()
+	if err != nil {
+		return nil, fmt.Errorf("error getting current feature gates: %v", err)
 	}
 
 	optr := &Operator{
@@ -102,6 +112,7 @@ func newFakeOperator(kubeObjects, osObjects, machineObjects []runtime.Object, im
 		mutatingWebhookLister:   mutatingWebhookInformer.Lister(),
 		validatingWebhookLister: validatingWebhookInformer.Lister(),
 		featureGateAccessor:     featureGateAccessor,
+		featureGates:            featureGates,
 		imagesFile:              imagesFile,
 		namespace:               targetNamespace,
 		eventRecorder:           record.NewFakeRecorder(50),
@@ -373,7 +384,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 						{
 							Version:  "",
 							Enabled:  enabledFeatureGates,
-							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+							Disabled: disabledFeatureGates,
 						},
 					},
 				},
@@ -407,7 +418,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 						{
 							Version:  "",
 							Enabled:  enabledFeatureGates,
-							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+							Disabled: disabledFeatureGates,
 						},
 					},
 				},
@@ -441,7 +452,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 						{
 							Version:  "",
 							Enabled:  enabledFeatureGates,
-							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+							Disabled: disabledFeatureGates,
 						},
 					},
 				},
@@ -475,7 +486,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 						{
 							Version:  "",
 							Enabled:  enabledFeatureGates,
-							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+							Disabled: disabledFeatureGates,
 						},
 					},
 				},
@@ -509,7 +520,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 						{
 							Version:  "",
 							Enabled:  enabledFeatureGates,
-							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+							Disabled: disabledFeatureGates,
 						},
 					},
 				},
@@ -543,7 +554,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 						{
 							Version:  "",
 							Enabled:  enabledFeatureGates,
-							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+							Disabled: disabledFeatureGates,
 						},
 					},
 				},
@@ -577,7 +588,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 						{
 							Version:  "",
 							Enabled:  enabledFeatureGates,
-							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+							Disabled: disabledFeatureGates,
 						},
 					},
 				},
@@ -611,7 +622,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 						{
 							Version:  "",
 							Enabled:  enabledFeatureGates,
-							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+							Disabled: disabledFeatureGates,
 						},
 					},
 				},
@@ -647,7 +658,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 						{
 							Version:  "",
 							Enabled:  enabledFeatureGates,
-							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+							Disabled: disabledFeatureGates,
 						},
 					},
 				},
@@ -681,7 +692,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 						{
 							Version:  "",
 							Enabled:  append(enabledFeatureGates, openshiftv1.FeatureGateAttributes{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}),
-							Disabled: []openshiftv1.FeatureGateAttributes{},
+							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateVSphereMultiVCenterDay2}},
 						},
 					},
 				},
@@ -715,7 +726,7 @@ func TestMAOConfigFromInfrastructure(t *testing.T) {
 						{
 							Version:  "",
 							Enabled:  enabledFeatureGates,
-							Disabled: []openshiftv1.FeatureGateAttributes{{Name: apifeatures.FeatureGateMachineAPIOperatorDisableMachineHealthCheckController}},
+							Disabled: disabledFeatureGates,
 						},
 					},
 				},
