@@ -584,12 +584,12 @@ func newRBACConfigVolumes() []corev1.Volume {
 }
 
 func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev1.PodTemplateSpec {
-	tlsArgs := getTLSArgs(resolveTLSProfile(config.TLSProfile, config.TLSAdherencePolicy))
+	tlsProfile := resolveTLSProfile(config.TLSProfile, config.TLSAdherencePolicy)
 
-	containers := newContainers(config, features, tlsArgs)
+	containers := newContainers(config, features, tlsProfile)
 	withMHCProxy := config.Controllers.MachineHealthCheck != ""
 	withPprofProxy := config.EnablePprof && config.PlatformType == configv1.AWSPlatformType
-	proxyContainers := newKubeProxyContainers(config.Controllers.KubeRBACProxy, withMHCProxy, withPprofProxy, tlsArgs)
+	proxyContainers := newKubeProxyContainers(config.Controllers.KubeRBACProxy, withMHCProxy, withPprofProxy, getTLSArgs(tlsProfile))
 	tolerations := []corev1.Toleration{
 		{
 			Key:    "node-role.kubernetes.io/master",
@@ -734,7 +734,7 @@ func buildFeatureGatesString(featureGates map[string]bool) string {
 	return "--feature-gates=" + strings.Join(parts, ",")
 }
 
-func newContainers(config *OperatorConfig, features map[string]bool, tlsArgs []string) []corev1.Container {
+func newContainers(config *OperatorConfig, features map[string]bool, tlsProfile configv1.TLSProfileSpec) []corev1.Container {
 	resources := corev1.ResourceRequirements{
 		Requests: map[corev1.ResourceName]resource.Quantity{
 			corev1.ResourceMemory: resource.MustParse("20Mi"),
@@ -768,11 +768,13 @@ func newContainers(config *OperatorConfig, features map[string]bool, tlsArgs []s
 	case configv1.AWSPlatformType, configv1.AzurePlatformType, configv1.GCPPlatformType:
 		machineControllerArgs = append(machineControllerArgs, "--max-concurrent-reconciles=10")
 	case configv1.BareMetalPlatformType:
-		machineControllerArgs = append(machineControllerArgs, tlsArgs...)
+		bareMetalProfile := tlsProfile
+		bareMetalProfile.Groups = nil
+		machineControllerArgs = append(machineControllerArgs, getTLSArgs(bareMetalProfile)...)
 	}
 
 	machineSetControllerArgs := append([]string{}, featureGateArgs...)
-	machineSetControllerArgs = append(machineSetControllerArgs, tlsArgs...)
+	machineSetControllerArgs = append(machineSetControllerArgs, getTLSArgs(tlsProfile)...)
 
 	proxyEnvArgs := getProxyArgs(config)
 
@@ -963,6 +965,14 @@ func getTLSArgs(tlsProfile configv1.TLSProfileSpec) []string {
 		tlsArgs = append(tlsArgs, fmt.Sprintf("--tls-cipher-suites=%s", strings.Join(ianaCiphers, ",")))
 	}
 	tlsArgs = append(tlsArgs, fmt.Sprintf("--tls-min-version=%s", tlsProfile.MinTLSVersion))
+
+	if len(tlsConf.CurvePreferences) > 0 {
+		curves := make([]string, len(tlsConf.CurvePreferences))
+		for i, curve := range tlsConf.CurvePreferences {
+			curves[i] = fmt.Sprintf("%d", curve)
+		}
+		tlsArgs = append(tlsArgs, "--tls-curve-preferences="+strings.Join(curves, ","))
+	}
 
 	return tlsArgs
 }

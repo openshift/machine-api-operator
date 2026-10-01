@@ -62,11 +62,12 @@ var (
 	}
 
 	startOpts struct {
-		kubeconfig      string
-		imagesFile      string
-		tlsMinVersion   string
-		tlsCipherSuites []string
-		enablePprof     bool
+		kubeconfig          string
+		imagesFile          string
+		tlsMinVersion       string
+		tlsCipherSuites     []string
+		tlsCurvePreferences []int32
+		enablePprof         bool
 	}
 )
 
@@ -77,6 +78,7 @@ func init() {
 	startCmd.PersistentFlags().BoolVar(&startOpts.enablePprof, "enable-pprof", false, "Enable the pprof profiling endpoint on the machine controller (AWS only).")
 	startCmd.PersistentFlags().StringVar(&startOpts.tlsMinVersion, "tls-min-version", "", "Minimum TLS version supported. When set with --tls-cipher-suites, overrides the cluster-wide TLS profile. Possible values: "+strings.Join(cliflag.TLSPossibleVersions(), ", "))
 	startCmd.PersistentFlags().StringSliceVar(&startOpts.tlsCipherSuites, "tls-cipher-suites", nil, "Comma-separated list of cipher suites for the server. When set with --tls-min-version, overrides the cluster-wide TLS profile. Possible values: "+strings.Join(cliflag.TLSCipherPossibleValues(), ", "))
+	startCmd.PersistentFlags().Int32SliceVar(&startOpts.tlsCurvePreferences, "tls-curve-preferences", nil, "Comma-separated list of numeric TLS curve IDs for the server. Any nonempty TLS flag overrides the cluster-wide TLS profile. If omitted, the selected TLS configuration retains its existing or default curves.")
 
 	klog.InitFlags(nil)
 	flag.Parse()
@@ -111,6 +113,10 @@ func runStartCmd(cmd *cobra.Command, args []string) error {
 		if _, err := cliflag.TLSCipherSuites(startOpts.tlsCipherSuites); err != nil {
 			return fmt.Errorf("invalid --tls-cipher-suites value: %w", err)
 		}
+	}
+
+	if _, err := cliflag.TLSCurvePreferences(startOpts.tlsCurvePreferences); err != nil {
+		return fmt.Errorf("invalid --tls-curve-preferences value: %w", err)
 	}
 
 	cb, err := NewClientBuilder(startOpts.kubeconfig)
@@ -149,13 +155,13 @@ func runStartCmd(cmd *cobra.Command, args []string) error {
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				ctrlCtx := CreateControllerContext(cb, stopCh, componentNamespace)
-				tlsResult, err := pkgtls.ResolveTLSConfig(context.Background(), ctrlCtx.ClientBuilder.config, startOpts.tlsMinVersion, startOpts.tlsCipherSuites)
+				tlsResult, err := pkgtls.ResolveTLSConfig(context.Background(), ctrlCtx.ClientBuilder.config, startOpts.tlsMinVersion, startOpts.tlsCipherSuites, startOpts.tlsCurvePreferences)
 				if err != nil {
 					reportError(fmt.Errorf("unable to resolve TLS configuration: %w", err))
 					shutdown()
 					return
 				}
-				if startOpts.tlsMinVersion == "" && len(startOpts.tlsCipherSuites) == 0 {
+				if startOpts.tlsMinVersion == "" && len(startOpts.tlsCipherSuites) == 0 && len(startOpts.tlsCurvePreferences) == 0 {
 					if err := setupTLSProfileWatcher(ctrlCtx, tlsResult, shutdown); err != nil {
 						reportError(fmt.Errorf("unable to set up TLS profile watcher: %w", err))
 						shutdown()
@@ -392,11 +398,13 @@ func handleTLSProfileEvent(
 	}
 
 	if profileChanged {
-		klog.Infof("TLS security profile has changed, initiating a shutdown to pick up the new configuration: initialMinTLSVersion=%s currentMinTLSVersion=%s initialCiphers=%v currentCiphers=%v",
+		klog.Infof("TLS security profile has changed, initiating a shutdown to pick up the new configuration: initialMinTLSVersion=%s currentMinTLSVersion=%s initialCiphers=%v currentCiphers=%v initialGroups=%v currentGroups=%v",
 			initialProfile.MinTLSVersion,
 			currentProfile.MinTLSVersion,
 			initialProfile.Ciphers,
 			currentProfile.Ciphers,
+			initialProfile.Groups,
+			currentProfile.Groups,
 		)
 		// Persist the new profile for future change detection.
 		*initialProfile = currentProfile

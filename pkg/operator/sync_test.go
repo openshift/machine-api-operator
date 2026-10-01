@@ -874,7 +874,7 @@ func TestNewContainersMaxConcurrentReconciles(t *testing.T) {
 			}
 
 			var machineControllerArgs []string
-			for _, container := range newContainers(config, map[string]bool{}, nil) {
+			for _, container := range newContainers(config, map[string]bool{}, configv1.TLSProfileSpec{}) {
 				if container.Name == "machine-controller" {
 					machineControllerArgs = container.Args
 					break
