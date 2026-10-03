@@ -100,6 +100,7 @@ func AddWithActuatorOpts(mgr manager.Manager, actuator Actuator, opts controller
 	}
 
 	if err := addWithOpts(mgr, controller.Options{
+		MaxConcurrentReconciles: opts.MaxConcurrentReconciles,
 		Reconciler:  newDrainController(mgr),
 		RateLimiter: newDrainRateLimiter(),
 	}, "machine-drain-controller"); err != nil {

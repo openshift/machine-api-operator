@@ -2,6 +2,7 @@ package machine
 
 import (
 	"context"
+	"sync"
 	"testing"
 	"time"
 
@@ -11,8 +12,11 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
+	kubefake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/kubernetes/scheme"
+	clienttesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/record"
+	"k8s.io/kubectl/pkg/drain"
 	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
@@ -344,4 +348,92 @@ func controlPlaneLabel(n *corev1.Node) {
 
 func masterLabel(n *corev1.Node) {
 	n.GetLabels()[nodeMasterLabel] = ""
+}
+
+func TestCordonNodeSerializesCPDrains(t *testing.T) {
+	g := NewGomegaWithT(t)
+
+	cpNode1 := newNode("cp-node-1", controlPlaneLabel)
+	cpNode2 := newNode("cp-node-2", controlPlaneLabel)
+	workerNode := newNode("worker-1")
+
+	// controller-runtime fake client for isDrainAllowed (List)
+	crClient := fake.NewClientBuilder().
+		WithScheme(scheme.Scheme).
+		WithRuntimeObjects(cpNode1, cpNode2, workerNode).
+		Build()
+
+	// kube fake clientset for drain.RunCordonOrUncordon (node update)
+	kubeClient := kubefake.NewSimpleClientset(cpNode1.DeepCopy(), cpNode2.DeepCopy(), workerNode.DeepCopy())
+
+	// Bridge: when the kube client cordons a node via patch (sets Unschedulable=true),
+	// also update the controller-runtime fake client so isDrainAllowed sees it.
+	// This simulates the informer cache catching up after a direct API write.
+	// RunCordonOrUncordon uses a strategic merge patch, so we intercept "patch" actions.
+	kubeClient.PrependReactor("patch", "nodes", func(action clienttesting.Action) (bool, runtime.Object, error) {
+		patchAction, ok := action.(clienttesting.PatchAction)
+		if !ok {
+			return false, nil, nil
+		}
+		nodeName := patchAction.GetName()
+
+		// Propagate the cordon to the controller-runtime fake client
+		existing := &corev1.Node{}
+		if err := crClient.Get(context.Background(), types.NamespacedName{Name: nodeName}, existing); err == nil {
+			existing.Spec.Unschedulable = true
+			if err := crClient.Update(context.Background(), existing); err != nil {
+				t.Logf("bridge: failed to update CR client for node %s: %v", nodeName, err)
+			}
+		}
+		return false, nil, nil // fall through to the default handler
+	})
+
+	d := &machineDrainController{
+		Client: crClient,
+	}
+
+	makeDrainer := func() *drain.Helper {
+		return &drain.Helper{
+			Ctx:                 context.Background(),
+			Client:              kubeClient,
+			Force:               true,
+			IgnoreAllDaemonSets: true,
+			DeleteEmptyDirData:  true,
+			GracePeriodSeconds:  -1,
+			Timeout:             20 * time.Second,
+			Out:                 writer{t.Log},
+			ErrOut:              writer{t.Log},
+		}
+	}
+
+	var wg sync.WaitGroup
+	errs := make([]error, 2)
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		errs[0] = d.cordonNode(context.Background(), makeDrainer(), cpNode1)
+	}()
+	go func() {
+		defer wg.Done()
+		errs[1] = d.cordonNode(context.Background(), makeDrainer(), cpNode2)
+	}()
+	wg.Wait()
+
+	// Exactly one should succeed and one should get a RequeueAfterError,
+	// because the mutex serializes the check+cordon and the second goroutine
+	// sees the first node as already cordoned.
+	succeeded := 0
+	requeued := 0
+	for _, err := range errs {
+		if err == nil {
+			succeeded++
+		} else {
+			g.Expect(err).To(MatchError(ContainSubstring("drain not permitted")))
+			requeued++
+		}
+	}
+
+	g.Expect(succeeded).To(Equal(1), "exactly one CP drain should succeed")
+	g.Expect(requeued).To(Equal(1), "exactly one CP drain should be requeued")
 }
