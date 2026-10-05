@@ -3,7 +3,7 @@ DBG         ?= 0
 VERSION     ?= $(shell git describe --always --abbrev=7)
 MUTABLE_TAG ?= latest
 IMAGE        = $(REGISTRY)machine-api-operator
-BUILD_IMAGE ?= registry.ci.openshift.org/openshift/release:golang-1.24
+BUILD_IMAGE ?= registry.ci.openshift.org/openshift/release:golang-1.26
 GOLANGCI_LINT = go run ./vendor/github.com/golangci/golangci-lint/cmd/golangci-lint
 ENVTEST_K8S_VERSION = 1.34.1
 
