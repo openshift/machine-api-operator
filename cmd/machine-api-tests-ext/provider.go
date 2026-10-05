@@ -25,7 +25,6 @@ import (
 
 	// these are loading important global flags that we need to get and set
 	_ "k8s.io/kubernetes/test/e2e"
-	_ "k8s.io/kubernetes/test/e2e/lifecycle"
 )
 
 // copied directly from github.com/openshift/kubernetes/openshift-hack/cmd/k8s-tests-ext/provider.go
