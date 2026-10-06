@@ -897,7 +897,7 @@ func TestNewPodTemplateSpecTLSArgs(t *testing.T) {
 		config                                *OperatorConfig
 		tlsProfile                            configv1.TLSProfileSpec
 		tlsAdherencePolicy                    configv1.TLSAdherencePolicy
-		expectedTLSProfile                    configv1.TLSProfileSpec
+		expectedTLSArgs                       []string
 		expectMachineControllerTLSOnBareMetal bool
 		expectTLSArgsOnProfileConsumers       bool
 	}{
@@ -921,7 +921,7 @@ func TestNewPodTemplateSpecTLSArgs(t *testing.T) {
 				},
 				MinTLSVersion: configv1.VersionTLS12,
 			},
-			expectedTLSProfile:                    configv1.TLSProfileSpec{Ciphers: []string{"ECDHE-ECDSA-AES128-GCM-SHA256", "ECDHE-RSA-AES128-GCM-SHA256"}, MinTLSVersion: configv1.VersionTLS12},
+			expectedTLSArgs:                       []string{"--tls-cipher-suites=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", "--tls-min-version=VersionTLS12"},
 			expectMachineControllerTLSOnBareMetal: false,
 			tlsAdherencePolicy:                    configv1.TLSAdherencePolicyStrictAllComponents,
 			expectTLSArgsOnProfileConsumers:       true,
@@ -943,7 +943,7 @@ func TestNewPodTemplateSpecTLSArgs(t *testing.T) {
 				Ciphers:       []string{},
 				MinTLSVersion: configv1.VersionTLS13,
 			},
-			expectedTLSProfile:                    *configv1.TLSProfiles[configv1.TLSProfileIntermediateType],
+			expectedTLSArgs:                       []string{"--tls-cipher-suites=TLS_AES_128_GCM_SHA256,TLS_AES_256_GCM_SHA384,TLS_CHACHA20_POLY1305_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256", "--tls-min-version=VersionTLS12", "--tls-curve-preferences=4588,29,23,24"},
 			expectMachineControllerTLSOnBareMetal: false,
 			tlsAdherencePolicy:                    configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly,
 			expectTLSArgsOnProfileConsumers:       true,
@@ -968,7 +968,7 @@ func TestNewPodTemplateSpecTLSArgs(t *testing.T) {
 				},
 				MinTLSVersion: configv1.VersionTLS12,
 			},
-			expectedTLSProfile:                    configv1.TLSProfileSpec{Ciphers: []string{"ECDHE-ECDSA-AES128-GCM-SHA256", "ECDHE-RSA-AES128-GCM-SHA256"}, MinTLSVersion: configv1.VersionTLS12},
+			expectedTLSArgs:                       []string{"--tls-cipher-suites=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", "--tls-min-version=VersionTLS12"},
 			expectMachineControllerTLSOnBareMetal: true,
 			tlsAdherencePolicy:                    configv1.TLSAdherencePolicyStrictAllComponents,
 			expectTLSArgsOnProfileConsumers:       true,
@@ -994,7 +994,7 @@ func TestNewPodTemplateSpecTLSArgs(t *testing.T) {
 				},
 				MinTLSVersion: configv1.VersionTLS12,
 			},
-			expectedTLSProfile:                    configv1.TLSProfileSpec{Ciphers: []string{"ECDHE-ECDSA-AES128-GCM-SHA256", "ECDHE-RSA-AES128-GCM-SHA256"}, MinTLSVersion: configv1.VersionTLS12},
+			expectedTLSArgs:                       []string{"--tls-cipher-suites=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", "--tls-min-version=VersionTLS12"},
 			expectMachineControllerTLSOnBareMetal: false,
 			tlsAdherencePolicy:                    configv1.TLSAdherencePolicyStrictAllComponents,
 			expectTLSArgsOnProfileConsumers:       true,
@@ -1019,7 +1019,7 @@ func TestNewPodTemplateSpecTLSArgs(t *testing.T) {
 				},
 				MinTLSVersion: configv1.VersionTLS12,
 			},
-			expectedTLSProfile:                    *configv1.TLSProfiles[configv1.TLSProfileIntermediateType],
+			expectedTLSArgs:                       []string{"--tls-cipher-suites=TLS_AES_128_GCM_SHA256,TLS_AES_256_GCM_SHA384,TLS_CHACHA20_POLY1305_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256", "--tls-min-version=VersionTLS12", "--tls-curve-preferences=4588,29,23,24"},
 			expectMachineControllerTLSOnBareMetal: false,
 			tlsAdherencePolicy:                    configv1.TLSAdherencePolicyNoOpinion,
 			expectTLSArgsOnProfileConsumers:       true,
@@ -1059,7 +1059,7 @@ func TestNewPodTemplateSpecTLSArgs(t *testing.T) {
 				g.Expect(strings.Join(containerArgs["machine-controller"], " ")).ToNot(ContainSubstring("--enable-pprof"))
 			}
 
-			expectedTLSArgs := getTLSArgs(tc.expectedTLSProfile)
+			expectedTLSArgs := tc.expectedTLSArgs
 			assertTLSArgs := func(args []string, shouldContain bool) {
 				joined := strings.Join(args, " ")
 				for _, expectedTLSArg := range expectedTLSArgs {

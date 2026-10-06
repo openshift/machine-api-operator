@@ -12,6 +12,7 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -76,8 +77,8 @@ func init() {
 	startCmd.PersistentFlags().StringVar(&startOpts.kubeconfig, "kubeconfig", "", "Kubeconfig file to access a remote cluster (testing only)")
 	startCmd.PersistentFlags().StringVar(&startOpts.imagesFile, "images-json", "", "images.json file for MAO.")
 	startCmd.PersistentFlags().BoolVar(&startOpts.enablePprof, "enable-pprof", false, "Enable the pprof profiling endpoint on the machine controller (AWS only).")
-	startCmd.PersistentFlags().StringVar(&startOpts.tlsMinVersion, "tls-min-version", "", "Minimum TLS version supported. When set with --tls-cipher-suites, overrides the cluster-wide TLS profile. Possible values: "+strings.Join(cliflag.TLSPossibleVersions(), ", "))
-	startCmd.PersistentFlags().StringSliceVar(&startOpts.tlsCipherSuites, "tls-cipher-suites", nil, "Comma-separated list of cipher suites for the server. When set with --tls-min-version, overrides the cluster-wide TLS profile. Possible values: "+strings.Join(cliflag.TLSCipherPossibleValues(), ", "))
+	startCmd.PersistentFlags().StringVar(&startOpts.tlsMinVersion, "tls-min-version", "", "Minimum TLS version supported. When set, overrides the cluster-wide TLS profile. Possible values: "+strings.Join(cliflag.TLSPossibleVersions(), ", "))
+	startCmd.PersistentFlags().StringSliceVar(&startOpts.tlsCipherSuites, "tls-cipher-suites", nil, "Comma-separated list of cipher suites for the server. When set, overrides the cluster-wide TLS profile. Possible values: "+strings.Join(cliflag.TLSCipherPossibleValues(), ", "))
 	startCmd.PersistentFlags().Int32SliceVar(&startOpts.tlsCurvePreferences, "tls-curve-preferences", nil, "Comma-separated list of numeric TLS curve IDs for the server. Any nonempty TLS flag overrides the cluster-wide TLS profile. If omitted, the selected TLS configuration retains its existing or default curves.")
 
 	klog.InitFlags(nil)
@@ -155,7 +156,9 @@ func runStartCmd(cmd *cobra.Command, args []string) error {
 		Callbacks: leaderelection.LeaderCallbacks{
 			OnStartedLeading: func(ctx context.Context) {
 				ctrlCtx := CreateControllerContext(cb, stopCh, componentNamespace)
-				tlsResult, err := pkgtls.ResolveTLSConfig(context.Background(), ctrlCtx.ClientBuilder.config, startOpts.tlsMinVersion, startOpts.tlsCipherSuites, startOpts.tlsCurvePreferences)
+				startupCtx, startupCancel := context.WithTimeout(ctx, 30*time.Second)
+				tlsResult, err := pkgtls.ResolveTLSConfig(startupCtx, ctrlCtx.ClientBuilder.config, startOpts.tlsMinVersion, startOpts.tlsCipherSuites, startOpts.tlsCurvePreferences)
+				startupCancel()
 				if err != nil {
 					reportError(fmt.Errorf("unable to resolve TLS configuration: %w", err))
 					shutdown()
