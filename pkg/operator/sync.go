@@ -964,6 +964,14 @@ func getTLSArgs(tlsProfile configv1.TLSProfileSpec) []string {
 	}
 	tlsArgs = append(tlsArgs, fmt.Sprintf("--tls-min-version=%s", tlsProfile.MinTLSVersion))
 
+	if len(tlsConf.CurvePreferences) > 0 {
+		curves := make([]string, len(tlsConf.CurvePreferences))
+		for i, curve := range tlsConf.CurvePreferences {
+			curves[i] = fmt.Sprintf("%d", curve)
+		}
+		tlsArgs = append(tlsArgs, "--tls-curve-preferences="+strings.Join(curves, ","))
+	}
+
 	return tlsArgs
 }
 

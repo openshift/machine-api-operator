@@ -1022,7 +1022,7 @@ github.com/openshift-eng/openshift-tests-extension/pkg/ginkgo
 github.com/openshift-eng/openshift-tests-extension/pkg/junit
 github.com/openshift-eng/openshift-tests-extension/pkg/util/sets
 github.com/openshift-eng/openshift-tests-extension/pkg/version
-# github.com/openshift/api v0.0.0-20260715165912-72066cc9718b
+# github.com/openshift/api v0.0.0-20260805215214-cfb63858e9d7
 ## explicit; go 1.26.0
 github.com/openshift/api
 github.com/openshift/api/annotations
@@ -1123,7 +1123,7 @@ github.com/openshift/apiserver-library-go/pkg/securitycontextconstraints/sysctl
 github.com/openshift/apiserver-library-go/pkg/securitycontextconstraints/user
 github.com/openshift/apiserver-library-go/pkg/securitycontextconstraints/util
 github.com/openshift/apiserver-library-go/pkg/securitycontextconstraints/util/sort
-# github.com/openshift/client-go v0.0.0-20260715172546-dac61734e0ec
+# github.com/openshift/client-go v0.0.0-20260806041845-b74fb348f1e7
 ## explicit; go 1.26.0
 github.com/openshift/client-go/apiserver/applyconfigurations/apiserver/v1
 github.com/openshift/client-go/apiserver/applyconfigurations/internal
@@ -1223,10 +1223,10 @@ github.com/openshift/cluster-api-actuator-pkg/testutils/resourcebuilder/machine/
 github.com/openshift/cluster-control-plane-machine-set-operator/pkg/machineproviders/providers/openshift/machine/v1beta1/failuredomain
 github.com/openshift/cluster-control-plane-machine-set-operator/pkg/machineproviders/providers/openshift/machine/v1beta1/providerconfig
 github.com/openshift/cluster-control-plane-machine-set-operator/test/e2e/framework
-# github.com/openshift/controller-runtime-common v0.0.0-20260428152732-64ee174f5e2e
-## explicit; go 1.25.0
+# github.com/openshift/controller-runtime-common v0.0.0-20260813135806-e1187ec555fc
+## explicit; go 1.26.0
 github.com/openshift/controller-runtime-common/pkg/tls
-# github.com/openshift/library-go v0.0.0-20260716104731-fdf18b82797f
+# github.com/openshift/library-go v0.0.0-20260807194649-ee0a87843dda
 ## explicit; go 1.26.0
 github.com/openshift/library-go/pkg/apiserver/admission/admissionrestconfig
 github.com/openshift/library-go/pkg/apiserver/admission/admissiontimeout
