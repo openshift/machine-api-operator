@@ -436,6 +436,7 @@ var map_GCPDisk = map[string]string{
 	"image":         "image is the source image to create this disk.",
 	"labels":        "labels list of labels to apply to the disk.",
 	"encryptionKey": "encryptionKey is the customer-supplied encryption key of the disk.",
+	"licenses":      "licenses is a list of URLs of license resources attached to this disk. License URLs must match exactly either the full HTTPS URI format (https://www.googleapis.com/compute/v1/projects/{project}/global/licenses/{license}) or the short self-link format (projects/{project}/global/licenses/{license}). Project IDs must use lowercase letters, digits, and hyphens, begin with a letter, end with a lowercase letter or digit, and be 6 to 30 characters long. License names must be RFC1035-style lowercase names that begin with a letter, end with a lowercase letter or digit, contain only lowercase letters, digits, and hyphens, and are at most 63 characters long. Each license URL must be at least 1 character and must not exceed 256 characters. When specified, at least 1 and a maximum of 8 licenses may be provided. When omitted, no additional licenses are applied.",
 }
 
 func (GCPDisk) SwaggerDoc() map[string]string {

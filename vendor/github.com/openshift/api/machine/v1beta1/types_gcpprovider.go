@@ -244,6 +244,26 @@ type GCPDisk struct {
 	// encryptionKey is the customer-supplied encryption key of the disk.
 	// +optional
 	EncryptionKey *GCPEncryptionKeyReference `json:"encryptionKey,omitempty"`
+	// licenses is a list of URLs of license resources attached to this disk.
+	// License URLs must match exactly either the full HTTPS URI format
+	// (https://www.googleapis.com/compute/v1/projects/{project}/global/licenses/{license})
+	// or the short self-link format (projects/{project}/global/licenses/{license}).
+	// Project IDs must use lowercase letters, digits, and hyphens, begin with a letter,
+	// end with a lowercase letter or digit, and be 6 to 30 characters long. License
+	// names must be RFC1035-style lowercase names that begin with a letter, end with a
+	// lowercase letter or digit, contain only lowercase letters, digits, and hyphens,
+	// and are at most 63 characters long.
+	// Each license URL must be at least 1 character and must not exceed 256 characters.
+	// When specified, at least 1 and a maximum of 8 licenses may be provided.
+	// When omitted, no additional licenses are applied.
+	// +optional
+	// +listType=atomic
+	// +kubebuilder:validation:MinItems=1
+	// +kubebuilder:validation:MaxItems=8
+	// +kubebuilder:validation:items:MinLength=1
+	// +kubebuilder:validation:items:MaxLength=256
+	// +kubebuilder:validation:items:Pattern=`^(https://www\.googleapis\.com/compute/v1/)?projects/[a-z][a-z0-9-]{4,28}[a-z0-9]/global/licenses/[a-z]([-a-z0-9]{0,61}[a-z0-9])?$`
+	Licenses []string `json:"licenses,omitempty"`
 }
 
 // GCPMetadata describes metadata for GCP.
