@@ -768,9 +768,7 @@ func newContainers(config *OperatorConfig, features map[string]bool, tlsProfile 
 	case configv1.AWSPlatformType, configv1.AzurePlatformType, configv1.GCPPlatformType:
 		machineControllerArgs = append(machineControllerArgs, "--max-concurrent-reconciles=10")
 	case configv1.BareMetalPlatformType:
-		bareMetalProfile := tlsProfile
-		bareMetalProfile.Groups = nil
-		machineControllerArgs = append(machineControllerArgs, getTLSArgs(bareMetalProfile)...)
+		machineControllerArgs = append(machineControllerArgs, getTLSArgs(tlsProfile)...)
 	}
 
 	machineSetControllerArgs := append([]string{}, featureGateArgs...)

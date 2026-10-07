@@ -967,8 +967,9 @@ func TestNewPodTemplateSpecTLSArgs(t *testing.T) {
 					"ECDHE-RSA-AES128-GCM-SHA256",
 				},
 				MinTLSVersion: configv1.VersionTLS12,
+				Groups:        []configv1.TLSGroup{configv1.TLSGroupX25519, configv1.TLSGroupSecP384r1},
 			},
-			expectedTLSArgs:                       []string{"--tls-cipher-suites=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", "--tls-min-version=VersionTLS12"},
+			expectedTLSArgs:                       []string{"--tls-cipher-suites=TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256", "--tls-min-version=VersionTLS12", "--tls-curve-preferences=29,24"},
 			expectMachineControllerTLSOnBareMetal: true,
 			tlsAdherencePolicy:                    configv1.TLSAdherencePolicyStrictAllComponents,
 			expectTLSArgsOnProfileConsumers:       true,
@@ -1022,6 +1023,56 @@ func TestNewPodTemplateSpecTLSArgs(t *testing.T) {
 			expectedTLSArgs:                       []string{"--tls-cipher-suites=TLS_AES_128_GCM_SHA256,TLS_AES_256_GCM_SHA384,TLS_CHACHA20_POLY1305_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256", "--tls-min-version=VersionTLS12", "--tls-curve-preferences=4588,29,23,24"},
 			expectMachineControllerTLSOnBareMetal: false,
 			tlsAdherencePolicy:                    configv1.TLSAdherencePolicyNoOpinion,
+			expectTLSArgsOnProfileConsumers:       true,
+		},
+		{
+			name: "BareMetal: no opinion applies default curve preferences to remediation webhooks",
+			config: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				PlatformType:    configv1.BareMetalPlatformType,
+				Controllers: Controllers{
+					Provider:           "provider-image:latest",
+					MachineSet:         "machineset-image:latest",
+					NodeLink:           "nodelink-image:latest",
+					MachineHealthCheck: "mhc-image:latest",
+					KubeRBACProxy:      "kube-rbac-proxy-image:latest",
+				},
+			},
+			tlsProfile: configv1.TLSProfileSpec{
+				Ciphers: []string{
+					"ECDHE-ECDSA-AES128-GCM-SHA256",
+					"ECDHE-RSA-AES128-GCM-SHA256",
+				},
+				MinTLSVersion: configv1.VersionTLS12,
+			},
+			expectedTLSArgs:                       []string{"--tls-cipher-suites=TLS_AES_128_GCM_SHA256,TLS_AES_256_GCM_SHA384,TLS_CHACHA20_POLY1305_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256", "--tls-min-version=VersionTLS12", "--tls-curve-preferences=4588,29,23,24"},
+			expectMachineControllerTLSOnBareMetal: true,
+			tlsAdherencePolicy:                    configv1.TLSAdherencePolicyNoOpinion,
+			expectTLSArgsOnProfileConsumers:       true,
+		},
+		{
+			name: "BareMetal: legacy adherence applies default curve preferences to remediation webhooks",
+			config: &OperatorConfig{
+				TargetNamespace: targetNamespace,
+				PlatformType:    configv1.BareMetalPlatformType,
+				Controllers: Controllers{
+					Provider:           "provider-image:latest",
+					MachineSet:         "machineset-image:latest",
+					NodeLink:           "nodelink-image:latest",
+					MachineHealthCheck: "mhc-image:latest",
+					KubeRBACProxy:      "kube-rbac-proxy-image:latest",
+				},
+			},
+			tlsProfile: configv1.TLSProfileSpec{
+				Ciphers: []string{
+					"ECDHE-ECDSA-AES128-GCM-SHA256",
+					"ECDHE-RSA-AES128-GCM-SHA256",
+				},
+				MinTLSVersion: configv1.VersionTLS12,
+			},
+			expectedTLSArgs:                       []string{"--tls-cipher-suites=TLS_AES_128_GCM_SHA256,TLS_AES_256_GCM_SHA384,TLS_CHACHA20_POLY1305_SHA256,TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256", "--tls-min-version=VersionTLS12", "--tls-curve-preferences=4588,29,23,24"},
+			expectMachineControllerTLSOnBareMetal: true,
+			tlsAdherencePolicy:                    configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly,
 			expectTLSArgsOnProfileConsumers:       true,
 		},
 	}
