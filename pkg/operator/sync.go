@@ -584,12 +584,12 @@ func newRBACConfigVolumes() []corev1.Volume {
 }
 
 func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev1.PodTemplateSpec {
-	tlsProfile := resolveTLSProfile(config.TLSProfile, config.TLSAdherencePolicy)
+	tlsArgs := getTLSArgs(resolveTLSProfile(config.TLSProfile, config.TLSAdherencePolicy))
 
-	containers := newContainers(config, features, tlsProfile)
+	containers := newContainers(config, features, tlsArgs)
 	withMHCProxy := config.Controllers.MachineHealthCheck != ""
 	withPprofProxy := config.EnablePprof && config.PlatformType == configv1.AWSPlatformType
-	proxyContainers := newKubeProxyContainers(config.Controllers.KubeRBACProxy, withMHCProxy, withPprofProxy, getTLSArgs(tlsProfile))
+	proxyContainers := newKubeProxyContainers(config.Controllers.KubeRBACProxy, withMHCProxy, withPprofProxy, tlsArgs)
 	tolerations := []corev1.Toleration{
 		{
 			Key:    "node-role.kubernetes.io/master",
@@ -734,7 +734,7 @@ func buildFeatureGatesString(featureGates map[string]bool) string {
 	return "--feature-gates=" + strings.Join(parts, ",")
 }
 
-func newContainers(config *OperatorConfig, features map[string]bool, tlsProfile configv1.TLSProfileSpec) []corev1.Container {
+func newContainers(config *OperatorConfig, features map[string]bool, tlsArgs []string) []corev1.Container {
 	resources := corev1.ResourceRequirements{
 		Requests: map[corev1.ResourceName]resource.Quantity{
 			corev1.ResourceMemory: resource.MustParse("20Mi"),
@@ -768,11 +768,11 @@ func newContainers(config *OperatorConfig, features map[string]bool, tlsProfile 
 	case configv1.AWSPlatformType, configv1.AzurePlatformType, configv1.GCPPlatformType:
 		machineControllerArgs = append(machineControllerArgs, "--max-concurrent-reconciles=10")
 	case configv1.BareMetalPlatformType:
-		machineControllerArgs = append(machineControllerArgs, getTLSArgs(tlsProfile)...)
+		machineControllerArgs = append(machineControllerArgs, tlsArgs...)
 	}
 
 	machineSetControllerArgs := append([]string{}, featureGateArgs...)
-	machineSetControllerArgs = append(machineSetControllerArgs, getTLSArgs(tlsProfile)...)
+	machineSetControllerArgs = append(machineSetControllerArgs, tlsArgs...)
 
 	proxyEnvArgs := getProxyArgs(config)
 
