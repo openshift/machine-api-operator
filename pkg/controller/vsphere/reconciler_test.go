@@ -17,22 +17,31 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
 	"os"
 	"path"
 	"reflect"
+	"sort"
 	"strings"
+	"sync"
 	"testing"
 
 	. "github.com/onsi/gomega"
 
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/simulator"
+	"github.com/vmware/govmomi/vapi/rest"
 	"github.com/vmware/govmomi/vapi/tags"
 	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/mo"
+	"github.com/vmware/govmomi/vim25/soap"
 	"github.com/vmware/govmomi/vim25/types"
 
 	corev1 "k8s.io/api/core/v1"
@@ -1466,7 +1475,41 @@ func createDataDiskDefinitions(numOfDataDisks int) []machinev1.VSphereDisk {
 	return disks
 }
 
-func TestGetNetworkStatusList(t *testing.T) {
+func TestSetProviderStatusPreservesExistingInstanceID(t *testing.T) {
+	model, sess, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	managedObj := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
+	vmRef := managedObj.Reference()
+	vm := &virtualMachine{
+		Context: context.Background(),
+		Obj:     object.NewVirtualMachine(sess.Client.Client, vmRef),
+		Ref:     vmRef,
+	}
+
+	const existingInstanceID = "existing-instance-id"
+	scope := &machineScope{
+		Context: context.Background(),
+		machine: &machinev1.Machine{ObjectMeta: metav1.ObjectMeta{Name: "test-machine"}},
+		providerStatus: &machinev1.VSphereMachineProviderStatus{
+			InstanceID: func() *string { v := existingInstanceID; return &v }(),
+		},
+	}
+
+	if err := setProviderStatus("", conditionSuccess(), scope, vm); err != nil {
+		t.Fatal(err)
+	}
+	got := ""
+	if scope.providerStatus.InstanceID != nil {
+		got = *scope.providerStatus.InstanceID
+	}
+	if got != existingInstanceID {
+		t.Errorf("InstanceID changed from %q to %q", existingInstanceID, got)
+	}
+}
+
+func TestGetNetworkAndPowerStatus(t *testing.T) {
 	model, session, server := initSimulator(t)
 	defer model.Remove()
 	defer server.Close()
@@ -1492,7 +1535,7 @@ func TestGetNetworkStatusList(t *testing.T) {
 	}
 
 	// validations
-	networkStatusList, err := vm.getNetworkStatusList(session.Client.Client)
+	networkStatusList, _, err := vm.getNetworkAndPowerStatus(session.Client.Client)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1510,6 +1553,46 @@ func TestGetNetworkStatusList(t *testing.T) {
 		t.Errorf("Expected: %v, got: %v", networkStatusList, expectedNetworkStatusList)
 	}
 	// TODO: add more cases by adding network devices to the NewVirtualMachine() object
+}
+
+func TestGetNetworkAndPowerStatusCachesPowerState(t *testing.T) {
+	model, session, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	// The simulator powers VMs on by default.
+	simVMObject := object.NewVirtualMachine(session.Client.Client, model.Map().Any("VirtualMachine").Reference())
+
+	// Fresh virtualMachine: nothing cached yet.
+	freshVM := &virtualMachine{
+		Context: context.TODO(),
+		Obj:     simVMObject,
+		Ref:     simVMObject.Reference(),
+	}
+	_, _, err := freshVM.getNetworkAndPowerStatus(session.Client.Client)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !freshVM.psKnown {
+		t.Fatal("expected getNetworkAndPowerStatus to seed the power-state cache (psKnown)")
+	}
+
+	// A second power-state read must come from the cache: flipping the
+	// simulated VM's power must not be observed by getPowerState.
+	task, err := simVMObject.PowerOff(context.TODO())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := task.Wait(context.TODO()); err != nil {
+		t.Fatal(err)
+	}
+	state, err := freshVM.getPowerState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if state != types.VirtualMachinePowerStatePoweredOn {
+		t.Errorf("expected cached power state %v, got %v", types.VirtualMachinePowerStatePoweredOn, state)
+	}
 }
 
 func TestReconcileNetwork(t *testing.T) {
@@ -1584,6 +1667,18 @@ func TestReconcileTags(t *testing.T) {
 		Ref:     managedObjRef,
 	}
 
+	// attachedTagIDs returns the tag URNs currently attached to the sim VM.
+	attachedTagIDs := func() ([]string, error) {
+		attached, err := sessionObj.GetCachingTagsManager().ListAttachedTagsOnObjects(context.TODO(), []mo.Reference{managedObjRef})
+		if err != nil {
+			return nil, err
+		}
+		ids := make([]string, 0, len(attached[0].TagIDs))
+		ids = append(ids, attached[0].TagIDs...)
+		sort.Strings(ids)
+		return ids, nil
+	}
+
 	testCases := []struct {
 		name          string
 		expectedError bool
@@ -1595,6 +1690,19 @@ func TestReconcileTags(t *testing.T) {
 			name:          "Don't fail when tag doesn't exist",
 			expectedError: false,
 			tagName:       "FOOOOOOOOO",
+		},
+		{
+			// steady-state machine: tag exists in vCenter and is already
+			// attached, reconcileTags must attach nothing and succeed.
+			name:          "Skip attach when the tag is already attached",
+			expectedError: false,
+			tagName:       "ALREADYATTACHED",
+			testCondition: func(tagName string) (string, error) {
+				if _, err := createTagAndCategory(sessionObj, tagToCategoryName(tagName), tagName); err != nil {
+					return "", err
+				}
+				return "", sessionObj.GetCachingTagsManager().AttachTag(context.TODO(), tagName, managedObjRef)
+			},
 		},
 		{
 			name:          "Successfully attach a tag",
@@ -1648,7 +1756,12 @@ func TestReconcileTags(t *testing.T) {
 				}
 			}
 
-			err := vm.reconcileTags(context.TODO(), sessionObj, &machinev1.Machine{
+			before, err := attachedTagIDs()
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			err = vm.reconcileTags(context.TODO(), sessionObj.GetCachingTagsManager(), &machinev1.Machine{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:   "machine",
 					Labels: map[string]string{machinev1.MachineClusterIDLabel: tc.tagName},
@@ -1664,42 +1777,36 @@ func TestReconcileTags(t *testing.T) {
 					t.Fatalf("Not expected error %v", err)
 				}
 
+				after, err := attachedTagIDs()
+				if err != nil {
+					t.Fatal(err)
+				}
+
 				if tc.attachTag {
-					tagMgr := sessionObj.GetCachingTagsManager()
-
-					tags, err := tagMgr.GetAttachedTags(context.TODO(), managedObjRef)
-					if err != nil {
-						t.Fatal(err)
-					}
-
-					if len(tags) == 0 {
-						t.Fatalf("Expected tags to be found")
-					}
-
 					expectedTags := []string{tc.tagName}
 					if len(providerSpec.TagIDs) > 0 {
 						expectedTags = append(expectedTags, providerSpec.TagIDs...)
 					}
 
+					tagMgr := sessionObj.GetCachingTagsManager()
 					for _, expectedTag := range expectedTags {
+						resolved, err := tagMgr.GetTag(context.TODO(), expectedTag)
+						if err != nil {
+							t.Fatalf("Expected tag %s to exist: %v", expectedTag, err)
+						}
 						gotTag := false
-						for _, attachedTag := range tags {
-							if session.IsName(expectedTag) {
-								if attachedTag.Name == expectedTag {
-									gotTag = true
-									break
-								}
-							} else {
-								if attachedTag.ID == expectedTag {
-									gotTag = true
-									break
-								}
+						for _, attachedID := range after {
+							if attachedID == resolved.ID {
+								gotTag = true
+								break
 							}
 						}
 						if !gotTag {
 							t.Fatalf("Expected tag %s to be found", expectedTag)
 						}
 					}
+				} else if !reflect.DeepEqual(before, after) {
+					t.Fatalf("Expected attached tags to be unchanged: before %v, after %v", before, after)
 				}
 			}
 
@@ -1707,10 +1814,12 @@ func TestReconcileTags(t *testing.T) {
 	}
 }
 
-func TestCheckAttachedTag(t *testing.T) {
+// TestReconcileTagsListFailure verifies that a failure of the batched
+// list-attached-tags-on-objects call surfaces as an error from reconcileTags.
+func TestReconcileTagsListFailure(t *testing.T) {
 	model, sessionObj, server := initSimulator(t)
 	defer model.Remove()
-	defer server.Close()
+	server.Close()
 
 	managedObj := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
 	managedObjRef := object.NewVirtualMachine(sessionObj.Client.Client, managedObj.Reference()).Reference()
@@ -1721,83 +1830,101 @@ func TestCheckAttachedTag(t *testing.T) {
 		Ref:     managedObjRef,
 	}
 
-	tagName := "CLUSTERID"
-	nonAttachedTagName := "nonAttachedTag"
-
-	tagsMgr := sessionObj.TagManager
-
-	id, err := tagsMgr.CreateCategory(context.TODO(), &tags.Category{
-		AssociableTypes: []string{"VirtualMachine"},
-		Cardinality:     "SINGLE",
-		Name:            tagToCategoryName(tagName),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_, err = tagsMgr.CreateTag(context.TODO(), &tags.Tag{
-		CategoryID: id,
-		Name:       tagName,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := tagsMgr.AttachTag(context.TODO(), tagName, vm.Ref); err != nil {
-		t.Fatal(err)
-	}
-
-	nonAttachedCategoryId, err := tagsMgr.CreateCategory(context.TODO(), &tags.Category{
-		AssociableTypes: []string{"VirtualMachine"},
-		Cardinality:     "SINGLE",
-		Name:            tagToCategoryName(nonAttachedTagName),
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	_, err = tagsMgr.CreateTag(context.TODO(), &tags.Tag{
-		CategoryID: nonAttachedCategoryId,
-		Name:       nonAttachedTagName,
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	testCases := []struct {
-		name    string
-		findTag bool
-		tagName string
-	}{
-		{
-			name:    "Successfully find a tag",
-			findTag: true,
-			tagName: tagName,
+	err := vm.reconcileTags(context.TODO(), sessionObj.GetCachingTagsManager(), &machinev1.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "machine",
+			Labels: map[string]string{machinev1.MachineClusterIDLabel: "CLUSTERID"},
 		},
-		{
-			name:    "Return true if a tag doesn't exist",
-			tagName: "non existent tag",
-			findTag: true,
-		},
-		{
-			name:    "Fail to find a tag",
-			tagName: nonAttachedTagName,
-		},
+	}, &machinev1.VSphereMachineProviderSpec{})
+
+	if err == nil {
+		t.Fatal("Expected error when listing attached tags fails")
+	}
+}
+
+// noopCookieJar satisfies http.CookieJar without x/net/cookiejar (not
+// vendored); NewServiceClient dereferences the jar unconditionally.
+type noopCookieJar struct{}
+
+func (noopCookieJar) SetCookies(*url.URL, []*http.Cookie) {}
+func (noopCookieJar) Cookies(*url.URL) []*http.Cookie     { return nil }
+
+// TestReconcileTagsEmptyAttachedList verifies that an empty
+// list-attached-tags-on-objects response is treated as "nothing attached"
+// (no panic, missing tags are still attached), and that duplicate tag IDs
+// (cluster-ID plus repeated providerSpec.TagIDs) are attached only once.
+func TestReconcileTagsEmptyAttachedList(t *testing.T) {
+	var mu sync.Mutex
+	var attachBodies []string
+
+	// Responses are wrapped in {"value": ...} because the client requests the
+	// /rest endpoint (raw bodies are only expected under /api).
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.Contains(r.URL.RawQuery, "action=list-attached-tags-on-objects"):
+			// Empty response: no attached-tags entries at all.
+			_, _ = w.Write([]byte(`{"value":[]}`))
+		case strings.Contains(r.URL.RawQuery, "action=attach-multiple-tags-to-object"):
+			body, _ := io.ReadAll(r.Body)
+			mu.Lock()
+			attachBodies = append(attachBodies, string(body))
+			mu.Unlock()
+			_, _ = w.Write([]byte(`{"value":{"success":true}}`))
+		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/tag/"):
+			_, _ = w.Write([]byte(`{"value":{"id":"urn:vmomi:InventoryTag:42","name":"CLUSTERID"}}`))
+		case strings.HasSuffix(r.URL.Path, "/tagging/tag"):
+			// ListTags: array of tag IDs.
+			_, _ = w.Write([]byte(`{"value":["urn:vmomi:InventoryTag:42"]}`))
+		default:
+			http.Error(w, "Not Found", http.StatusNotFound)
+		}
+	}))
+	defer server.Close()
+
+	u, err := url.Parse(server.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sc := soap.NewClient(u, false)
+	sc.Client = *server.Client()
+	sc.Client.Jar = noopCookieJar{}
+	tagMgr := &session.CachingTagsManager{
+		Manager: tags.NewManager(rest.NewClient(&vim25.Client{Client: sc, RoundTripper: sc})),
 	}
 
-	for _, tc := range testCases {
-		t.Run(tc.name, func(t *testing.T) {
-			c := sessionObj.GetCachingTagsManager()
+	vm := &virtualMachine{
+		Context: context.TODO(),
+		Ref:     types.ManagedObjectReference{Type: "VirtualMachine", Value: "vm-100"},
+	}
 
-			attached, err := vm.checkAttachedTag(context.TODO(), tc.tagName, c)
-			if err != nil {
-				t.Fatalf("Not expected error %v", err)
-			}
+	machine := &machinev1.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:   "machine",
+			Labels: map[string]string{machinev1.MachineClusterIDLabel: "CLUSTERID"},
+		},
+	}
+	// Same URN as the cluster-ID tag, repeated twice.
+	spec := &machinev1.VSphereMachineProviderSpec{
+		TagIDs: []string{"urn:vmomi:InventoryTag:42", "urn:vmomi:InventoryTag:42"},
+	}
 
-			if attached != tc.findTag {
-				t.Fatalf("Failed to find attached tag: got %v, expected %v", attached, tc.findTag)
-			}
-		})
+	if err := vm.reconcileTags(context.TODO(), tagMgr, machine, spec); err != nil {
+		t.Fatalf("Not expected error %v", err)
+	}
+
+	mu.Lock()
+	defer mu.Unlock()
+	if len(attachBodies) != 1 {
+		t.Fatalf("Expected 1 attach call, got %d", len(attachBodies))
+	}
+	var req struct {
+		TagIDs []string `json:"tag_ids"`
+	}
+	if err := json.Unmarshal([]byte(attachBodies[0]), &req); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(req.TagIDs, []string{"urn:vmomi:InventoryTag:42"}) {
+		t.Fatalf("Expected a single deduped tag ID, got %v", req.TagIDs)
 	}
 }
 
@@ -2443,6 +2570,12 @@ func TestDelete(t *testing.T) {
 			// and always return error to let it reconcile and monitor power off tasks until completion
 			g.Expect(reconciler.delete()).To(MatchError(ContainSubstring("powering off vm is in progress, requeuing")))
 
+			// powerOffVM invalidates the memoized power state, so the provider
+			// status must reflect the simulator's post-power-off state rather
+			// than the powered-on snapshot taken earlier in this reconcile pass.
+			g.Expect(mScope.providerStatus.InstanceState).ToNot(BeNil())
+			g.Expect(*mScope.providerStatus.InstanceState).To(Equal(string(types.VirtualMachinePowerStatePoweredOff)))
+
 			// second reconciliation should block vm destruction with an err
 			g.Expect(reconciler.delete()).To(MatchError(ContainSubstring(tc.errMessage)))
 		})
@@ -2945,6 +3078,184 @@ func waitForTaskToComplete(session *session.Session, reconciler *Reconciler) err
 	return nil
 }
 
+// TestCreateRecoversLostTaskRef verifies that create() recovers a VM that was
+// cloned but whose TaskRef was never persisted (for example, because the status
+// patch was denied by an admission webhook during install). Instead of cloning
+// a second VM, create() must find the existing VM and power it on. This is the
+// provider-side defense for OCPBUGS-100316.
+func TestCreateRecoversLostTaskRef(t *testing.T) {
+	g := NewWithT(t)
+
+	// Autostart=false leaves the simulator VMs powered off, mimicking a VM that
+	// was cloned but never powered on.
+	poweredOff := func(m *simulator.Model) { m.Autostart = false }
+	model, server := initSimulatorCustom(t, poweredOff)
+	session := getSimulatorSession(t, server)
+	defer model.Remove()
+	defer server.Close()
+
+	host, _, err := net.SplitHostPort(server.URL.Host)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	vms := model.Map().All("VirtualMachine")
+	g.Expect(vms).ToNot(BeEmpty())
+	existingVM := vms[0].(*simulator.VirtualMachine)
+	vmCountBefore := len(vms)
+
+	provisioning := string(machinev1.PhaseProvisioning)
+	machineObj := &machinev1.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      existingVM.Name,
+			Namespace: "test",
+			Labels:    map[string]string{machinev1.MachineClusterIDLabel: "CLUSTERID"},
+			// The machine UID matches the VM instance UUID so findVM adopts the
+			// already-cloned VM instead of cloning a new one.
+			UID: apimachinerytypes.UID(existingVM.Config.InstanceUuid),
+		},
+		Status: machinev1.MachineStatus{Phase: &provisioning},
+	}
+
+	machineScope := &machineScope{
+		Context:            context.TODO(),
+		machine:            machineObj,
+		machineToBePatched: runtimeclient.MergeFrom(machineObj.DeepCopy()),
+		providerSpec: &machinev1.VSphereMachineProviderSpec{
+			Template:  existingVM.Name,
+			Workspace: &machinev1.Workspace{Server: host},
+		},
+		session: session,
+		// No TaskRef and no InstanceState: the reference to the clone task was lost.
+		providerStatus: &machinev1.VSphereMachineProviderStatus{},
+		client:         fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(machineObj).WithStatusSubresource(machineObj).Build(),
+	}
+
+	reconciler := newReconciler(machineScope)
+
+	g.Expect(reconciler.create()).To(Succeed())
+
+	// A recovery task must have been recorded rather than requeueing forever.
+	g.Expect(reconciler.providerStatus.TaskRef).ToNot(BeEmpty(), "expected a recovery power-on task to be recorded")
+
+	// No new VM must have been cloned.
+	g.Expect(model.Map().All("VirtualMachine")).To(HaveLen(vmCountBefore), "create() must not clone a duplicate VM when one already exists")
+
+	// The recovery task must be a power-on (not a clone) and must succeed.
+	g.Expect(waitForTaskToComplete(session, reconciler)).To(Succeed())
+	moTask, err := session.GetTask(context.TODO(), reconciler.providerStatus.TaskRef)
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(moTask).ToNot(BeNil())
+	g.Expect(moTask.Info.DescriptionId).ToNot(ContainSubstring(cloneVmTaskDescriptionId))
+
+	// The existing VM must now be powered on.
+	vmObj := &virtualMachine{
+		Context: context.TODO(),
+		Obj:     object.NewVirtualMachine(session.Client.Client, existingVM.Reference()),
+		Ref:     existingVM.Reference(),
+	}
+	powerState, err := vmObj.getPowerState()
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(powerState).To(Equal(types.VirtualMachinePowerStatePoweredOn))
+}
+
+// TestCreateRecoveryRestoresVMGroup verifies that when create() recovers a VM
+// whose TaskRef was lost, it restores the configured VM-group membership before
+// powering the VM on, matching the normal completed-clone path. Otherwise a
+// recovered VM would be left outside its DRS host-affinity group
+// (OCPBUGS-100316).
+func TestCreateRecoveryRestoresVMGroup(t *testing.T) {
+	g := NewWithT(t)
+
+	poweredOff := func(m *simulator.Model) { m.Autostart = false }
+	model, server := initSimulatorCustom(t, poweredOff)
+	session := getSimulatorSession(t, server)
+	defer model.Remove()
+	defer server.Close()
+
+	host, _, err := net.SplitHostPort(server.URL.Host)
+	g.Expect(err).ToNot(HaveOccurred())
+
+	ctx := context.Background()
+	ccr, err := session.Finder.ClusterComputeResourceOrDefault(ctx, "/...")
+	g.Expect(err).ToNot(HaveOccurred())
+	resourcePool := path.Join(ccr.InventoryPath, "Resources")
+
+	vmGroup := "recovery-vm-group"
+	g.Expect(createVMGroup(ctx, session, ccr.Name(), vmGroup)).To(Succeed())
+
+	// Pick a powered-off VM that belongs to the cluster, standing in for a VM we
+	// cloned but whose TaskRef we lost.
+	var existingVM *simulator.VirtualMachine
+	for _, obj := range model.Map().All("VirtualMachine") {
+		candidate := obj.(*simulator.VirtualMachine)
+		if candidate.Runtime.PowerState == types.VirtualMachinePowerStatePoweredOff && candidate.ResourcePool != nil {
+			existingVM = candidate
+			break
+		}
+	}
+	g.Expect(existingVM).ToNot(BeNil())
+	vmCountBefore := len(model.Map().All("VirtualMachine"))
+
+	gates, err := testutils.NewDefaultMutableFeatureGate()
+	g.Expect(err).ToNot(HaveOccurred())
+	g.Expect(gates.SetFromMap(map[string]bool{string(features.FeatureGateVSphereHostVMGroupZonal): true})).To(Succeed())
+
+	provisioning := string(machinev1.PhaseProvisioning)
+	machineObj := &machinev1.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      existingVM.Name,
+			Namespace: "test",
+			Labels:    map[string]string{machinev1.MachineClusterIDLabel: "CLUSTERID"},
+			UID:       apimachinerytypes.UID(existingVM.Config.InstanceUuid),
+		},
+		Status: machinev1.MachineStatus{Phase: &provisioning},
+	}
+
+	machineScope := &machineScope{
+		Context:            ctx,
+		machine:            machineObj,
+		machineToBePatched: runtimeclient.MergeFrom(machineObj.DeepCopy()),
+		providerSpec: &machinev1.VSphereMachineProviderSpec{
+			Template: existingVM.Name,
+			Workspace: &machinev1.Workspace{
+				Server:       host,
+				VMGroup:      vmGroup,
+				ResourcePool: resourcePool,
+			},
+		},
+		session:        session,
+		providerStatus: &machinev1.VSphereMachineProviderStatus{},
+		featureGates:   gates,
+		client:         fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(machineObj).WithStatusSubresource(machineObj).Build(),
+	}
+
+	reconciler := newReconciler(machineScope)
+
+	g.Expect(reconciler.create()).To(Succeed())
+
+	// No duplicate VM was cloned.
+	g.Expect(model.Map().All("VirtualMachine")).To(HaveLen(vmCountBefore))
+
+	// The recovered VM must have been added to the configured VM group before
+	// power-on.
+	clusterConfig, err := ccr.Configuration(ctx)
+	g.Expect(err).ToNot(HaveOccurred())
+	memberFound := false
+	for _, grp := range clusterConfig.Group {
+		if vmg, ok := grp.(*types.ClusterVmGroup); ok && vmg.Name == vmGroup {
+			for _, ref := range vmg.Vm {
+				if ref.Value == existingVM.Reference().Value {
+					memberFound = true
+				}
+			}
+		}
+	}
+	g.Expect(memberFound).To(BeTrue(), "recovered VM must be a member of its configured VM group")
+
+	// A power-on task must have been recorded for the recovered VM.
+	g.Expect(reconciler.providerStatus.TaskRef).ToNot(BeEmpty())
+	g.Expect(waitForTaskToComplete(session, reconciler)).To(Succeed())
+}
+
 func TestUpdate(t *testing.T) {
 	model, session, server := initSimulator(t)
 	defer model.Remove()
@@ -3345,6 +3656,15 @@ func TestReconcileMachineWithCloudState(t *testing.T) {
 	}
 }
 
+// tagToCategoryName converts the tag name to the category name based upon the format set up by the installer.
+// Note this is only valid in IPI clusters as typically a UPI cluster won't have the cluster ID tag, in which case the
+// controller skips tag creation.
+// Ref: https://github.com/openshift/installer/blob/f912534f12491721e3874e2bf64f7fa8d44aa7f5/data/data/vsphere/pre-bootstrap/main.tf#L57
+// Ref: https://github.com/openshift/installer/blob/f912534f12491721e3874e2bf64f7fa8d44aa7f5/pkg/destroy/vsphere/vsphere.go#L231
+func tagToCategoryName(tagName string) string {
+	return fmt.Sprintf("openshift-%s", tagName)
+}
+
 func createTagAndCategory(session *session.Session, categoryName, tagName string) (string, error) {
 	tagsMgr := session.TagManager
 
@@ -3585,3 +3905,254 @@ func TestReconcilePowerStateAnnontation(t *testing.T) {
 }
 
 // See https://github.com/vmware/govmomi/blob/master/simulator/example_extend_test.go#L33:6 for extending behaviour example
+
+func TestUpdateClearsFinishedTaskRef(t *testing.T) {
+	model, sess, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	host, port, err := net.SplitHostPort(server.URL.Host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	password, _ := server.URL.User.Password()
+	namespace := "test"
+	credentialsSecretName := "test"
+	credentialsSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      credentialsSecretName,
+			Namespace: namespace,
+		},
+		Data: map[string][]byte{
+			fmt.Sprintf("%s.username", host): []byte(server.URL.User.Username()),
+			fmt.Sprintf("%s.password", host): []byte(password),
+		},
+	}
+	configMap := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      OpenshiftConfigManagedConfigMap,
+			Namespace: openshiftConfigNamespaceForTest,
+		},
+		Data: map[string]string{
+			OpenshiftConfigManagedCloudConfigKey: fmt.Sprintf(testConfigFmt, port, credentialsSecretName, namespace),
+		},
+	}
+	if _, err := createTagAndCategory(sess, tagToCategoryName("CLUSTERID"), "CLUSTERID"); err != nil {
+		t.Fatalf("cannot create tag and category: %v", err)
+	}
+
+	vm := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
+	vm.Config.InstanceUuid = "a5764857-ae35-34dc-8f25-a9c9e73aa898"
+	vmObj := object.NewVirtualMachine(sess.Client.Client, vm.Reference())
+	powerOffTask, err := vmObj.PowerOff(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := object.NewTask(sess.Client.Client, powerOffTask.Reference()).Wait(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	task, err := vmObj.PowerOn(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := object.NewTask(sess.Client.Client, task.Reference()).Wait(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	failedTask := simulator.CreateTask(vm, "failedTask", func(*simulator.Task) (types.AnyType, types.BaseMethodFault) {
+		return nil, &types.InvalidArgument{}
+	})
+	failedTaskRef := failedTask.Run(model.Service.Context)
+	failedTask.Wait()
+
+	rawProviderSpec, err := RawExtensionFromProviderSpec(&machinev1.VSphereMachineProviderSpec{
+		Workspace: &machinev1.Workspace{Server: host},
+		CredentialsSecret: &corev1.LocalObjectReference{
+			Name: credentialsSecretName,
+		},
+		Template: vm.Name,
+		Network: machinev1.NetworkSpec{
+			Devices: []machinev1.NetworkDeviceSpec{{NetworkName: "test"}},
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, tc := range []struct {
+		name        string
+		taskRef     string
+		expectError bool
+	}{
+		{name: "finished task", taskRef: task.Reference().Value},
+		{name: "stale missing task", taskRef: "task-99999"},
+		{name: "failed task", taskRef: failedTaskRef.Value, expectError: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			machineObj := &machinev1.Machine{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "test-" + strings.ReplaceAll(tc.name, " ", "-"),
+					Namespace: namespace,
+					Labels: map[string]string{
+						machinev1.MachineClusterIDLabel: "CLUSTERID",
+					},
+					UID: apimachinerytypes.UID(vm.Config.InstanceUuid),
+				},
+				Spec: machinev1.MachineSpec{
+					ProviderSpec: machinev1.ProviderSpec{Value: rawProviderSpec},
+				},
+			}
+			client := fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(
+				credentialsSecret, configMap).Build()
+			scope, err := newMachineScope(machineScopeParams{
+				client:                   client,
+				Context:                  context.Background(),
+				machine:                  machineObj,
+				apiReader:                client,
+				openshiftConfigNameSpace: openshiftConfigNamespaceForTest,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			scope.providerStatus.TaskRef = tc.taskRef
+
+			err = newReconciler(scope).update()
+			if tc.expectError {
+				if err == nil {
+					t.Fatal("update() succeeded for failed task")
+				}
+			} else if err != nil {
+				t.Fatalf("update() error: %v", err)
+			}
+			if scope.providerStatus.TaskRef != "" {
+				t.Errorf("TaskRef not cleared after finished/stale task, got %q", scope.providerStatus.TaskRef)
+			}
+		})
+	}
+}
+
+func TestReconcileRegionAndZoneLabelsSkipsWhenSet(t *testing.T) {
+	machine := &machinev1.Machine{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test",
+			Labels: map[string]string{
+				machinecontroller.MachineRegionLabelName: "east",
+				machinecontroller.MachineAZLabelName:     "a",
+			},
+		},
+	}
+	r := &Reconciler{
+		machineScope: &machineScope{
+			machine:        machine,
+			providerStatus: &machinev1.VSphereMachineProviderStatus{},
+			vSphereConfig: &vsphere.Config{
+				Labels: vsphere.Labels{Region: "region", Zone: "zone"},
+			},
+		},
+	}
+	// No session: if the function touches the session it panics; the
+	// guard must return before any vCenter call.
+	if err := r.reconcileRegionAndZoneLabels(nil); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+	if machine.Labels[machinecontroller.MachineRegionLabelName] != "east" ||
+		machine.Labels[machinecontroller.MachineAZLabelName] != "a" {
+		t.Errorf("labels were modified: %v", machine.Labels)
+	}
+}
+
+func TestReconcileProviderIDSkipsWhenSet(t *testing.T) {
+	pid := "vsphere://564d...c7f6"
+	machine := &machinev1.Machine{}
+	machine.Spec.ProviderID = &pid
+	r := &Reconciler{
+		machineScope: &machineScope{machine: machine, providerStatus: &machinev1.VSphereMachineProviderStatus{}},
+	}
+	// vm == nil: if the function calls into the VM client it panics;
+	// the guard must return first.
+	if err := r.reconcileProviderID(nil); err != nil {
+		t.Fatalf("expected nil, got %v", err)
+	}
+}
+
+func TestGetPowerStateCachedWithinPass(t *testing.T) {
+	model, sess, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+	ctx := context.Background()
+
+	simVM := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
+	vmObj := object.NewVirtualMachine(sess.Client.Client, simVM.Reference())
+	vm := &virtualMachine{Context: ctx, Obj: vmObj, Ref: simVM.Reference()}
+
+	first, err := vm.getPowerState()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Mutate the simulator's power state in-process so a non-caching
+	// implementation would observe a different value on the next call.
+	simVM.Runtime.PowerState = types.VirtualMachinePowerStateSuspended
+
+	// The second call must still return the cached value, proving the
+	// cache is used instead of re-querying vCenter within the pass.
+	second, err := vm.getPowerState()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second != first {
+		t.Errorf("cached power state = %s, want %s (simulator state changed to suspended)", second, first)
+	}
+}
+
+func TestIsRetrieveMONotFound(t *testing.T) {
+	taskRef := "task-12345"
+	expectedErr := fmt.Sprintf("ServerFaultCode: The object 'vim.Task:%v' has already been deleted or has not been completely created", taskRef)
+
+	tests := []struct {
+		name    string
+		taskRef string
+		err     error
+		want    bool
+	}{
+		{
+			name:    "nil error returns false",
+			taskRef: taskRef,
+			err:     nil,
+			want:    false,
+		},
+		{
+			name:    "RetrieveMO NotFound with full message returns true",
+			taskRef: taskRef,
+			err:     errors.New(expectedErr),
+			want:    true,
+		},
+		{
+			name:    "RetrieveMO NotFound with generic message returns true",
+			taskRef: taskRef,
+			err:     errors.New("ServerFaultCode: The object has already been deleted or has not been completely created"),
+			want:    true,
+		},
+		{
+			name:    "other error returns false",
+			taskRef: taskRef,
+			err:     errors.New("some other error"),
+			want:    false,
+		},
+		{
+			name:    "different task ref in message returns false",
+			taskRef: taskRef,
+			err:     errors.New("ServerFaultCode: The object 'vim.Task:task-99999' has already been deleted or has not been completely created"),
+			want:    false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := isRetrieveMONotFound(tc.taskRef, tc.err)
+			if got != tc.want {
+				t.Errorf("isRetrieveMONotFound(%q, %v) = %v, want %v", tc.taskRef, tc.err, got, tc.want)
+			}
+		})
+	}
+}
