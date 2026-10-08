@@ -192,6 +192,16 @@ func RegisterConversions(s *runtime.Scheme) error {
 	}); err != nil {
 		return err
 	}
+	if err := s.AddGeneratedConversionFunc((*SelectableField)(nil), (*apiextensions.SelectableField)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_v1_SelectableField_To_apiextensions_SelectableField(a.(*SelectableField), b.(*apiextensions.SelectableField), scope)
+	}); err != nil {
+		return err
+	}
+	if err := s.AddGeneratedConversionFunc((*apiextensions.SelectableField)(nil), (*SelectableField)(nil), func(a, b interface{}, scope conversion.Scope) error {
+		return Convert_apiextensions_SelectableField_To_v1_SelectableField(a.(*apiextensions.SelectableField), b.(*SelectableField), scope)
+	}); err != nil {
+		return err
+	}
 	if err := s.AddGeneratedConversionFunc((*ServiceReference)(nil), (*apiextensions.ServiceReference)(nil), func(a, b interface{}, scope conversion.Scope) error {
 		return Convert_v1_ServiceReference_To_apiextensions_ServiceReference(a.(*ServiceReference), b.(*apiextensions.ServiceReference), scope)
 	}); err != nil {
@@ -266,12 +276,7 @@ func RegisterConversions(s *runtime.Scheme) error {
 }
 
 func autoConvert_v1_CustomResourceColumnDefinition_To_apiextensions_CustomResourceColumnDefinition(in *CustomResourceColumnDefinition, out *apiextensions.CustomResourceColumnDefinition, s conversion.Scope) error {
-	out.Name = in.Name
-	out.Type = in.Type
-	out.Format = in.Format
-	out.Description = in.Description
-	out.Priority = in.Priority
-	out.JSONPath = in.JSONPath
+	*out = *(*apiextensions.CustomResourceColumnDefinition)(unsafe.Pointer(in))
 	return nil
 }
 
@@ -281,12 +286,7 @@ func Convert_v1_CustomResourceColumnDefinition_To_apiextensions_CustomResourceCo
 }
 
 func autoConvert_apiextensions_CustomResourceColumnDefinition_To_v1_CustomResourceColumnDefinition(in *apiextensions.CustomResourceColumnDefinition, out *CustomResourceColumnDefinition, s conversion.Scope) error {
-	out.Name = in.Name
-	out.Type = in.Type
-	out.Format = in.Format
-	out.Description = in.Description
-	out.Priority = in.Priority
-	out.JSONPath = in.JSONPath
+	*out = *(*CustomResourceColumnDefinition)(unsafe.Pointer(in))
 	return nil
 }
 
@@ -341,11 +341,7 @@ func Convert_apiextensions_CustomResourceDefinition_To_v1_CustomResourceDefiniti
 }
 
 func autoConvert_v1_CustomResourceDefinitionCondition_To_apiextensions_CustomResourceDefinitionCondition(in *CustomResourceDefinitionCondition, out *apiextensions.CustomResourceDefinitionCondition, s conversion.Scope) error {
-	out.Type = apiextensions.CustomResourceDefinitionConditionType(in.Type)
-	out.Status = apiextensions.ConditionStatus(in.Status)
-	out.LastTransitionTime = in.LastTransitionTime
-	out.Reason = in.Reason
-	out.Message = in.Message
+	*out = *(*apiextensions.CustomResourceDefinitionCondition)(unsafe.Pointer(in))
 	return nil
 }
 
@@ -355,11 +351,7 @@ func Convert_v1_CustomResourceDefinitionCondition_To_apiextensions_CustomResourc
 }
 
 func autoConvert_apiextensions_CustomResourceDefinitionCondition_To_v1_CustomResourceDefinitionCondition(in *apiextensions.CustomResourceDefinitionCondition, out *CustomResourceDefinitionCondition, s conversion.Scope) error {
-	out.Type = CustomResourceDefinitionConditionType(in.Type)
-	out.Status = ConditionStatus(in.Status)
-	out.LastTransitionTime = in.LastTransitionTime
-	out.Reason = in.Reason
-	out.Message = in.Message
+	*out = *(*CustomResourceDefinitionCondition)(unsafe.Pointer(in))
 	return nil
 }
 
@@ -411,12 +403,7 @@ func Convert_apiextensions_CustomResourceDefinitionList_To_v1_CustomResourceDefi
 }
 
 func autoConvert_v1_CustomResourceDefinitionNames_To_apiextensions_CustomResourceDefinitionNames(in *CustomResourceDefinitionNames, out *apiextensions.CustomResourceDefinitionNames, s conversion.Scope) error {
-	out.Plural = in.Plural
-	out.Singular = in.Singular
-	out.ShortNames = *(*[]string)(unsafe.Pointer(&in.ShortNames))
-	out.Kind = in.Kind
-	out.ListKind = in.ListKind
-	out.Categories = *(*[]string)(unsafe.Pointer(&in.Categories))
+	*out = *(*apiextensions.CustomResourceDefinitionNames)(unsafe.Pointer(in))
 	return nil
 }
 
@@ -426,12 +413,7 @@ func Convert_v1_CustomResourceDefinitionNames_To_apiextensions_CustomResourceDef
 }
 
 func autoConvert_apiextensions_CustomResourceDefinitionNames_To_v1_CustomResourceDefinitionNames(in *apiextensions.CustomResourceDefinitionNames, out *CustomResourceDefinitionNames, s conversion.Scope) error {
-	out.Plural = in.Plural
-	out.Singular = in.Singular
-	out.ShortNames = *(*[]string)(unsafe.Pointer(&in.ShortNames))
-	out.Kind = in.Kind
-	out.ListKind = in.ListKind
-	out.Categories = *(*[]string)(unsafe.Pointer(&in.Categories))
+	*out = *(*CustomResourceDefinitionNames)(unsafe.Pointer(in))
 	return nil
 }
 
@@ -493,6 +475,7 @@ func autoConvert_apiextensions_CustomResourceDefinitionSpec_To_v1_CustomResource
 		out.Versions = nil
 	}
 	// WARNING: in.AdditionalPrinterColumns requires manual conversion: does not exist in peer-type
+	// WARNING: in.SelectableFields requires manual conversion: does not exist in peer-type
 	if in.Conversion != nil {
 		in, out := &in.Conversion, &out.Conversion
 		*out = new(CustomResourceConversion)
@@ -509,11 +492,7 @@ func autoConvert_apiextensions_CustomResourceDefinitionSpec_To_v1_CustomResource
 }
 
 func autoConvert_v1_CustomResourceDefinitionStatus_To_apiextensions_CustomResourceDefinitionStatus(in *CustomResourceDefinitionStatus, out *apiextensions.CustomResourceDefinitionStatus, s conversion.Scope) error {
-	out.Conditions = *(*[]apiextensions.CustomResourceDefinitionCondition)(unsafe.Pointer(&in.Conditions))
-	if err := Convert_v1_CustomResourceDefinitionNames_To_apiextensions_CustomResourceDefinitionNames(&in.AcceptedNames, &out.AcceptedNames, s); err != nil {
-		return err
-	}
-	out.StoredVersions = *(*[]string)(unsafe.Pointer(&in.StoredVersions))
+	*out = *(*apiextensions.CustomResourceDefinitionStatus)(unsafe.Pointer(in))
 	return nil
 }
 
@@ -523,11 +502,7 @@ func Convert_v1_CustomResourceDefinitionStatus_To_apiextensions_CustomResourceDe
 }
 
 func autoConvert_apiextensions_CustomResourceDefinitionStatus_To_v1_CustomResourceDefinitionStatus(in *apiextensions.CustomResourceDefinitionStatus, out *CustomResourceDefinitionStatus, s conversion.Scope) error {
-	out.Conditions = *(*[]CustomResourceDefinitionCondition)(unsafe.Pointer(&in.Conditions))
-	if err := Convert_apiextensions_CustomResourceDefinitionNames_To_v1_CustomResourceDefinitionNames(&in.AcceptedNames, &out.AcceptedNames, s); err != nil {
-		return err
-	}
-	out.StoredVersions = *(*[]string)(unsafe.Pointer(&in.StoredVersions))
+	*out = *(*CustomResourceDefinitionStatus)(unsafe.Pointer(in))
 	return nil
 }
 
@@ -553,6 +528,7 @@ func autoConvert_v1_CustomResourceDefinitionVersion_To_apiextensions_CustomResou
 	}
 	out.Subresources = (*apiextensions.CustomResourceSubresources)(unsafe.Pointer(in.Subresources))
 	out.AdditionalPrinterColumns = *(*[]apiextensions.CustomResourceColumnDefinition)(unsafe.Pointer(&in.AdditionalPrinterColumns))
+	out.SelectableFields = *(*[]apiextensions.SelectableField)(unsafe.Pointer(&in.SelectableFields))
 	return nil
 }
 
@@ -578,6 +554,7 @@ func autoConvert_apiextensions_CustomResourceDefinitionVersion_To_v1_CustomResou
 	}
 	out.Subresources = (*CustomResourceSubresources)(unsafe.Pointer(in.Subresources))
 	out.AdditionalPrinterColumns = *(*[]CustomResourceColumnDefinition)(unsafe.Pointer(&in.AdditionalPrinterColumns))
+	out.SelectableFields = *(*[]SelectableField)(unsafe.Pointer(&in.SelectableFields))
 	return nil
 }
 
@@ -587,9 +564,7 @@ func Convert_apiextensions_CustomResourceDefinitionVersion_To_v1_CustomResourceD
 }
 
 func autoConvert_v1_CustomResourceSubresourceScale_To_apiextensions_CustomResourceSubresourceScale(in *CustomResourceSubresourceScale, out *apiextensions.CustomResourceSubresourceScale, s conversion.Scope) error {
-	out.SpecReplicasPath = in.SpecReplicasPath
-	out.StatusReplicasPath = in.StatusReplicasPath
-	out.LabelSelectorPath = (*string)(unsafe.Pointer(in.LabelSelectorPath))
+	*out = *(*apiextensions.CustomResourceSubresourceScale)(unsafe.Pointer(in))
 	return nil
 }
 
@@ -599,9 +574,7 @@ func Convert_v1_CustomResourceSubresourceScale_To_apiextensions_CustomResourceSu
 }
 
 func autoConvert_apiextensions_CustomResourceSubresourceScale_To_v1_CustomResourceSubresourceScale(in *apiextensions.CustomResourceSubresourceScale, out *CustomResourceSubresourceScale, s conversion.Scope) error {
-	out.SpecReplicasPath = in.SpecReplicasPath
-	out.StatusReplicasPath = in.StatusReplicasPath
-	out.LabelSelectorPath = (*string)(unsafe.Pointer(in.LabelSelectorPath))
+	*out = *(*CustomResourceSubresourceScale)(unsafe.Pointer(in))
 	return nil
 }
 
@@ -611,6 +584,7 @@ func Convert_apiextensions_CustomResourceSubresourceScale_To_v1_CustomResourceSu
 }
 
 func autoConvert_v1_CustomResourceSubresourceStatus_To_apiextensions_CustomResourceSubresourceStatus(in *CustomResourceSubresourceStatus, out *apiextensions.CustomResourceSubresourceStatus, s conversion.Scope) error {
+	*out = *(*apiextensions.CustomResourceSubresourceStatus)(unsafe.Pointer(in))
 	return nil
 }
 
@@ -620,6 +594,7 @@ func Convert_v1_CustomResourceSubresourceStatus_To_apiextensions_CustomResourceS
 }
 
 func autoConvert_apiextensions_CustomResourceSubresourceStatus_To_v1_CustomResourceSubresourceStatus(in *apiextensions.CustomResourceSubresourceStatus, out *CustomResourceSubresourceStatus, s conversion.Scope) error {
+	*out = *(*CustomResourceSubresourceStatus)(unsafe.Pointer(in))
 	return nil
 }
 
@@ -629,8 +604,7 @@ func Convert_apiextensions_CustomResourceSubresourceStatus_To_v1_CustomResourceS
 }
 
 func autoConvert_v1_CustomResourceSubresources_To_apiextensions_CustomResourceSubresources(in *CustomResourceSubresources, out *apiextensions.CustomResourceSubresources, s conversion.Scope) error {
-	out.Status = (*apiextensions.CustomResourceSubresourceStatus)(unsafe.Pointer(in.Status))
-	out.Scale = (*apiextensions.CustomResourceSubresourceScale)(unsafe.Pointer(in.Scale))
+	*out = *(*apiextensions.CustomResourceSubresources)(unsafe.Pointer(in))
 	return nil
 }
 
@@ -640,8 +614,7 @@ func Convert_v1_CustomResourceSubresources_To_apiextensions_CustomResourceSubres
 }
 
 func autoConvert_apiextensions_CustomResourceSubresources_To_v1_CustomResourceSubresources(in *apiextensions.CustomResourceSubresources, out *CustomResourceSubresources, s conversion.Scope) error {
-	out.Status = (*CustomResourceSubresourceStatus)(unsafe.Pointer(in.Status))
-	out.Scale = (*CustomResourceSubresourceScale)(unsafe.Pointer(in.Scale))
+	*out = *(*CustomResourceSubresources)(unsafe.Pointer(in))
 	return nil
 }
 
@@ -687,8 +660,7 @@ func Convert_apiextensions_CustomResourceValidation_To_v1_CustomResourceValidati
 }
 
 func autoConvert_v1_ExternalDocumentation_To_apiextensions_ExternalDocumentation(in *ExternalDocumentation, out *apiextensions.ExternalDocumentation, s conversion.Scope) error {
-	out.Description = in.Description
-	out.URL = in.URL
+	*out = *(*apiextensions.ExternalDocumentation)(unsafe.Pointer(in))
 	return nil
 }
 
@@ -698,8 +670,7 @@ func Convert_v1_ExternalDocumentation_To_apiextensions_ExternalDocumentation(in 
 }
 
 func autoConvert_apiextensions_ExternalDocumentation_To_v1_ExternalDocumentation(in *apiextensions.ExternalDocumentation, out *ExternalDocumentation, s conversion.Scope) error {
-	out.Description = in.Description
-	out.URL = in.URL
+	*out = *(*ExternalDocumentation)(unsafe.Pointer(in))
 	return nil
 }
 
@@ -1225,6 +1196,26 @@ func Convert_apiextensions_JSONSchemaPropsOrStringArray_To_v1_JSONSchemaPropsOrS
 	return autoConvert_apiextensions_JSONSchemaPropsOrStringArray_To_v1_JSONSchemaPropsOrStringArray(in, out, s)
 }
 
+func autoConvert_v1_SelectableField_To_apiextensions_SelectableField(in *SelectableField, out *apiextensions.SelectableField, s conversion.Scope) error {
+	*out = *(*apiextensions.SelectableField)(unsafe.Pointer(in))
+	return nil
+}
+
+// Convert_v1_SelectableField_To_apiextensions_SelectableField is an autogenerated conversion function.
+func Convert_v1_SelectableField_To_apiextensions_SelectableField(in *SelectableField, out *apiextensions.SelectableField, s conversion.Scope) error {
+	return autoConvert_v1_SelectableField_To_apiextensions_SelectableField(in, out, s)
+}
+
+func autoConvert_apiextensions_SelectableField_To_v1_SelectableField(in *apiextensions.SelectableField, out *SelectableField, s conversion.Scope) error {
+	*out = *(*SelectableField)(unsafe.Pointer(in))
+	return nil
+}
+
+// Convert_apiextensions_SelectableField_To_v1_SelectableField is an autogenerated conversion function.
+func Convert_apiextensions_SelectableField_To_v1_SelectableField(in *apiextensions.SelectableField, out *SelectableField, s conversion.Scope) error {
+	return autoConvert_apiextensions_SelectableField_To_v1_SelectableField(in, out, s)
+}
+
 func autoConvert_v1_ServiceReference_To_apiextensions_ServiceReference(in *ServiceReference, out *apiextensions.ServiceReference, s conversion.Scope) error {
 	out.Namespace = in.Namespace
 	out.Name = in.Name
@@ -1256,11 +1247,7 @@ func Convert_apiextensions_ServiceReference_To_v1_ServiceReference(in *apiextens
 }
 
 func autoConvert_v1_ValidationRule_To_apiextensions_ValidationRule(in *ValidationRule, out *apiextensions.ValidationRule, s conversion.Scope) error {
-	out.Rule = in.Rule
-	out.Message = in.Message
-	out.MessageExpression = in.MessageExpression
-	out.Reason = (*apiextensions.FieldValueErrorReason)(unsafe.Pointer(in.Reason))
-	out.FieldPath = in.FieldPath
+	*out = *(*apiextensions.ValidationRule)(unsafe.Pointer(in))
 	return nil
 }
 
@@ -1270,11 +1257,7 @@ func Convert_v1_ValidationRule_To_apiextensions_ValidationRule(in *ValidationRul
 }
 
 func autoConvert_apiextensions_ValidationRule_To_v1_ValidationRule(in *apiextensions.ValidationRule, out *ValidationRule, s conversion.Scope) error {
-	out.Rule = in.Rule
-	out.Message = in.Message
-	out.MessageExpression = in.MessageExpression
-	out.Reason = (*FieldValueErrorReason)(unsafe.Pointer(in.Reason))
-	out.FieldPath = in.FieldPath
+	*out = *(*ValidationRule)(unsafe.Pointer(in))
 	return nil
 }
 
