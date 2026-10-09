@@ -1,12 +1,27 @@
+/*
+Copyright The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
 package pretty
 
 import (
 	"fmt"
 	"io"
 
-	"sigs.k8s.io/controller-tools/pkg/genall/help"
-
 	"github.com/fatih/color"
+	"sigs.k8s.io/controller-tools/pkg/genall/help"
 )
 
 var (
@@ -77,7 +92,8 @@ func MarkersDetails(fullDetail bool, groupName string, markers []help.MarkerDoc)
 			}
 		}
 
-		if marker.AnonymousField() {
+		switch {
+		case marker.AnonymousField():
 			out.Print(Indented(1, Line(fieldDetailStyle.Containing(FieldSyntaxHelp(marker.Fields[0])))))
 			out.Print(Text("  "))
 			out.Print(summary)
@@ -85,7 +101,7 @@ func MarkersDetails(fullDetail bool, groupName string, markers []help.MarkerDoc)
 				out.Print(Indented(2, Line(Text(marker.Details))))
 			}
 			out.Print(Newlines(1))
-		} else if !marker.Empty() {
+		case !marker.Empty():
 			out.Print(Newlines(1))
 			if fullDetail {
 				for _, arg := range marker.Fields {
@@ -108,7 +124,7 @@ func MarkersDetails(fullDetail bool, groupName string, markers []help.MarkerDoc)
 
 				out.Print(Indented(1, table))
 			}
-		} else {
+		default:
 			out.Print(Newlines(1))
 		}
 	}
