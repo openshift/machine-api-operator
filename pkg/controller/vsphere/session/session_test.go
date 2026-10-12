@@ -63,6 +63,50 @@ func initSimulator(t *testing.T) (*simulator.Model, *Session, *simulator.Server)
 	return model, authSession, server
 }
 
+func TestGetOrCreateSkipsValidationWithinTTL(t *testing.T) {
+	model, session, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	oldTTL := sessionValidationTTL
+	sessionValidationTTL = time.Hour
+	defer func() { sessionValidationTTL = oldTTL }()
+
+	pass, _ := server.URL.User.Password()
+	key := server.URL.Host + server.URL.User.Username()
+
+	// Simulate an old validation so the first call must validate (and pass).
+	sessionMU.Lock()
+	entry := sessionCache[key]
+	entry.lastValidated = time.Now().Add(-time.Hour - time.Second)
+	sessionCache[key] = entry
+	sessionMU.Unlock()
+
+	s2, err := GetOrCreate(context.TODO(), server.URL.Host, "",
+		server.URL.User.Username(), pass, true)
+	if err != nil {
+		t.Fatalf("expected cached session reuse, got error: %v", err)
+	}
+	if s2.Client.Client != session.Client.Client {
+		t.Fatal("expected the same underlying SOAP client to be reused")
+	}
+
+	// Second call inside the TTL: no validation path taken at all.
+	sessionMU.Lock()
+	validated := sessionCache[key].lastValidated
+	sessionMU.Unlock()
+	_, err = GetOrCreate(context.TODO(), server.URL.Host, "",
+		server.URL.User.Username(), pass, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	sessionMU.Lock()
+	if sessionCache[key].lastValidated != validated {
+		t.Fatal("lastValidated changed: validation ran inside the TTL")
+	}
+	sessionMU.Unlock()
+}
+
 func TestFindVMByName(t *testing.T) {
 	model, session, server := initSimulator(t)
 	defer model.Remove()
