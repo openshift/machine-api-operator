@@ -326,6 +326,7 @@ infrastructures.config.openshift.io:
   - VSphereHostVMGroupZonal
   - VSphereMultiNetworks
   - VSphereMultiVCenters
+  - VSphereMultiVCenterDay2
   FilenameOperatorName: config-operator
   FilenameOperatorOrdering: "01"
   FilenameRunLevel: "0000_10"
