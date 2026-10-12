@@ -460,8 +460,8 @@ github.com/openshift-eng/openshift-tests-extension v0.0.0-20250711173707-dc2a20e
 github.com/openshift-eng/openshift-tests-extension v0.0.0-20250711173707-dc2a20e5a5f8/go.mod h1:6gkP5f2HL0meusT0Aim8icAspcD1cG055xxBZ9yC68M=
 github.com/openshift-sustaining/net v0.50.0-sec.4 h1:jmkVQIRNrS0DAs24K0yLYJHqH5e+svnbXb/ihoTPKRs=
 github.com/openshift-sustaining/net v0.50.0-sec.4/go.mod h1:UgoSli3F/pBgdJBHCTc+tp3gmrU4XswgGRgtnwWTfyM=
-github.com/openshift/api v0.0.0-20260605122244-2c1c5b39566d h1:Djz4aG2W0ypAHQEtubqbXpxeWGwdCds05w6dfz1GVWk=
-github.com/openshift/api v0.0.0-20260605122244-2c1c5b39566d/go.mod h1:SPLf21TYPipzCO67BURkCfK6dcIIxx0oNRVWaOyRcXM=
+github.com/openshift/api v0.0.0-20260923123119-b32f49f8a709 h1:4+OKNqHoQ9e4v6LdPFpjpiJXs1UJklvNiPo4O80jO8I=
+github.com/openshift/api v0.0.0-20260923123119-b32f49f8a709/go.mod h1:SPLf21TYPipzCO67BURkCfK6dcIIxx0oNRVWaOyRcXM=
 github.com/openshift/client-go v0.0.0-20250710075018-396b36f983ee h1:tOtrrxfDEW8hK3eEsHqxsXurq/D6LcINGfprkQC3hqY=
 github.com/openshift/client-go v0.0.0-20250710075018-396b36f983ee/go.mod h1:zhRiYyNMk89llof2qEuGPWPD+joQPhCRUc2IK0SB510=
 github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20250718085303-e712b1ebf374 h1:ldUi0e64kdYJC2+ucB24GRXIXfMnI3NpSkcnalPqBGo=
