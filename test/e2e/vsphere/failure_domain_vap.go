@@ -480,6 +480,13 @@ var _ = Describe(
 				if delErr := mc.MachineSets(e2eutil.MachineAPINamespace).Delete(ctx, testMS.Name, metav1.DeleteOptions{}); delErr != nil && !apierrors.IsNotFound(delErr) {
 					e2e.Logf("warning: could not delete test MachineSet %q: %v", testMS.Name, delErr)
 				}
+				// createVAPTestMachineSet always uses the same deterministic name, so a subsequent
+				// test's Create can collide if this one is still terminating — wait for confirmed
+				// absence before cleanup completes.
+				Eventually(func() bool {
+					_, getErr := mc.MachineSets(e2eutil.MachineAPINamespace).Get(ctx, testMS.Name, metav1.GetOptions{})
+					return apierrors.IsNotFound(getErr)
+				}, vapTestWaitTimeout, 5*time.Second).Should(BeTrue(), "MachineSet %q should be deleted within %s", testMS.Name, vapTestWaitTimeout)
 			})
 
 			By(fmt.Sprintf("attempting to remove failure domain %q while it is referenced by a MachineSet", fd.Name))
