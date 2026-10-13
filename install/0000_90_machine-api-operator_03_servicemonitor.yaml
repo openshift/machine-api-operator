@@ -1,0 +1,71 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  labels:
+    k8s-app: machine-api-operator
+  name: machine-api-operator
+  namespace: openshift-machine-api
+  annotations:
+    capability.openshift.io/name: MachineAPI
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
+    include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
+spec:
+  endpoints:
+    - bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+      interval: 30s
+      port: https
+      scheme: https
+      tlsConfig:
+        caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
+        serverName: machine-api-operator.openshift-machine-api.svc
+  namespaceSelector:
+    matchNames:
+      - openshift-machine-api
+  selector:
+    matchLabels:
+      k8s-app: machine-api-operator
+  serviceDiscoveryRole: EndpointSlice
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  namespace: openshift-machine-api
+  name: machine-api-controllers
+  labels:
+    k8s-app: controller
+  annotations:
+    capability.openshift.io/name: MachineAPI
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
+    include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
+spec:
+  namespaceSelector:
+    matchNames:
+      - openshift-machine-api
+  selector:
+    matchLabels:
+      k8s-app: controller
+  serviceDiscoveryRole: EndpointSlice
+  endpoints:
+  - port: machine-mtrc
+    bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    interval: 30s
+    scheme: https
+    tlsConfig:
+      caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
+      serverName: machine-api-controllers.openshift-machine-api.svc
+  - port: machineset-mtrc
+    bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    interval: 30s
+    scheme: https
+    tlsConfig:
+      caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
+      serverName: machine-api-controllers.openshift-machine-api.svc
+  - port: mhc-mtrc
+    bearerTokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    interval: 30s
+    scheme: https
+    tlsConfig:
+      caFile: /etc/prometheus/configmaps/serving-certs-ca-bundle/service-ca.crt
+      serverName: machine-api-controllers.openshift-machine-api.svc

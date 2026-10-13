@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: machine-api-operator-images
+  namespace: openshift-machine-api
+  annotations:
+    capability.openshift.io/name: MachineAPI
+    include.release.openshift.io/hypershift: "true"
+    include.release.openshift.io/ibm-cloud-managed: "true"
+    include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
+data:
+  images.json: >
+    {
+      "machineAPIOperator": "quay.io/openshift/origin-machine-api-operator",
+      "kubeRBACProxy": "quay.io/openshift/origin-kube-rbac-proxy",
+      "clusterAPIControllerAWS": "quay.io/openshift/origin-aws-machine-controllers",
+      "clusterAPIControllerOpenStack": "quay.io/openshift/origin-openstack-machine-api-provider",
+      "clusterAPIControllerBareMetal": "quay.io/openshift/origin-baremetal-machine-controllers",
+      "clusterAPIControllerAzure": "quay.io/openshift/origin-azure-machine-controllers",
+      "clusterAPIControllerGCP": "quay.io/openshift/origin-gcp-machine-controllers",
+      "clusterAPIControllerIBMCloud": "quay.io/openshift/origin-ibmcloud-machine-controllers",
+      "clusterAPIControllerNutanix": "quay.io/openshift/origin-nutanix-machine-controllers",
+      "clusterAPIControllerPowerVS": "quay.io/openshift/origin-powervs-machine-controllers",
+      "clusterAPIControllerVSphere": "quay.io/openshift/origin-machine-api-operator"
+    }

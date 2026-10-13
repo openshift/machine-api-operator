@@ -1,0 +1,364 @@
+/*
+Copyright 2019 The Kubernetes Authors.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package session
+
+import (
+	. "github.com/onsi/gomega"
+
+	"context"
+	"crypto/tls"
+	"testing"
+	"time"
+
+	"github.com/vmware/govmomi/object"
+	"github.com/vmware/govmomi/simulator"
+
+	_ "github.com/vmware/govmomi/vapi/simulator"
+)
+
+func initSimulator(t *testing.T) (*simulator.Model, *Session, *simulator.Server) {
+	model := simulator.VPX()
+	model.Host = 0
+	err := model.Create()
+	if err != nil {
+		t.Fatal(err)
+	}
+	model.Service.TLS = new(tls.Config)
+	model.Service.RegisterEndpoints = true
+
+	server := model.Service.NewServer()
+	pass, _ := server.URL.User.Password()
+
+	authSession, err := GetOrCreate(
+		context.TODO(),
+		server.URL.Host, "",
+		server.URL.User.Username(), pass, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// create folder
+	folders, err := authSession.Datacenter.Folders(context.TODO())
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = folders.VmFolder.CreateFolder(context.TODO(), "custom-folder")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return model, authSession, server
+}
+
+func TestGetOrCreateSkipsValidationWithinTTL(t *testing.T) {
+	model, session, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	oldTTL := sessionValidationTTL
+	sessionValidationTTL = time.Hour
+	defer func() { sessionValidationTTL = oldTTL }()
+
+	pass, _ := server.URL.User.Password()
+	key := server.URL.Host + server.URL.User.Username()
+
+	// Simulate an old validation so the first call must validate (and pass).
+	sessionMU.Lock()
+	entry := sessionCache[key]
+	entry.lastValidated = time.Now().Add(-time.Hour - time.Second)
+	sessionCache[key] = entry
+	sessionMU.Unlock()
+
+	s2, err := GetOrCreate(context.TODO(), server.URL.Host, "",
+		server.URL.User.Username(), pass, true)
+	if err != nil {
+		t.Fatalf("expected cached session reuse, got error: %v", err)
+	}
+	if s2.Client.Client != session.Client.Client {
+		t.Fatal("expected the same underlying SOAP client to be reused")
+	}
+
+	// Second call inside the TTL: no validation path taken at all.
+	sessionMU.Lock()
+	validated := sessionCache[key].lastValidated
+	sessionMU.Unlock()
+	_, err = GetOrCreate(context.TODO(), server.URL.Host, "",
+		server.URL.User.Username(), pass, true)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	sessionMU.Lock()
+	if sessionCache[key].lastValidated != validated {
+		t.Fatal("lastValidated changed: validation ran inside the TTL")
+	}
+	sessionMU.Unlock()
+}
+
+func TestFindVMByName(t *testing.T) {
+	model, session, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+	simulatorVM := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
+
+	testCases := []struct {
+		testCase    string
+		ID          string
+		expectError bool
+		found       bool
+	}{
+		{
+			testCase:    "found",
+			ID:          simulatorVM.Name,
+			expectError: false,
+			found:       true,
+		},
+		{
+			testCase:    "not found",
+			ID:          "notFound",
+			expectError: true,
+			found:       false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.testCase, func(t *testing.T) {
+			vm, err := session.findVMByName(context.TODO(), tc.ID)
+			if (err != nil) != tc.expectError {
+				t.Errorf("Expected error: %v, got: %v", tc.expectError, err)
+			}
+			if (vm != nil) != tc.found {
+				t.Errorf("Expected found: %v, got: %v", tc.found, vm)
+			}
+		})
+	}
+}
+
+func TestFindRefByInstanceUUID(t *testing.T) {
+	model, session, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+	simulatorVM := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
+	instanceUUID := "instanceUUID"
+	simulatorVM.Config.InstanceUuid = instanceUUID
+
+	testCases := []struct {
+		testCase string
+		ID       string
+		found    bool
+	}{
+		{
+			testCase: "found",
+			ID:       instanceUUID,
+			found:    true,
+		},
+		{
+			testCase: "not found",
+			ID:       "notFound",
+			found:    false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.testCase, func(t *testing.T) {
+			ref, err := session.FindRefByInstanceUUID(context.TODO(), tc.ID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if (ref != nil) != tc.found {
+				t.Errorf("Expected found: %v, got: %v", tc.found, ref)
+			}
+		})
+	}
+}
+
+func TestFindVM(t *testing.T) {
+	model, session, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+	simulatorVM := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
+	instanceUUID := "a5764857-ae35-34dc-8f25-a9c9e73aa898"
+	invalidInstanceUUID := "a5764857-ae35-34dc-8f25-a9c9e73aa899"
+	simulatorVM.Config.InstanceUuid = instanceUUID
+
+	testCases := []struct {
+		testCase    string
+		ID          string
+		name        string
+		expectError bool
+		found       bool
+	}{
+		{
+			testCase: "found by instanceUUID",
+			ID:       instanceUUID,
+			name:     "invalid",
+			found:    true,
+		},
+		{
+			testCase: "invalid UUID, fallback on looking by name",
+			ID:       "invalid",
+			name:     simulatorVM.Name,
+			found:    true,
+		},
+		{
+			testCase: "fail to find by UUID, find by name",
+			ID:       invalidInstanceUUID,
+			name:     simulatorVM.Name,
+			found:    true,
+		},
+		{
+			testCase:    "not found",
+			ID:          "invalid",
+			name:        "invalid",
+			expectError: true,
+			found:       false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.testCase, func(t *testing.T) {
+			ref, err := session.FindVM(context.TODO(), tc.ID, tc.name)
+			if (err != nil) != tc.expectError {
+				t.Errorf("Expected error: %v, got: %v", tc.expectError, err)
+			}
+			if (ref != nil) != tc.found {
+				t.Errorf("Expected found: %v, got: %v", tc.found, ref)
+			}
+		})
+	}
+}
+
+func TestGetTask(t *testing.T) {
+	model, session, server := initSimulator(t)
+	defer model.Remove()
+	defer server.Close()
+
+	obj := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
+	// Validate VM is powered on
+	if obj.Runtime.PowerState != "poweredOn" {
+		t.Fatal(obj.Runtime.PowerState)
+	}
+	vm := object.NewVirtualMachine(session.Client.Client, obj.Reference())
+	task, err := vm.PowerOff(context.TODO())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	testCases := []struct {
+		testCase    string
+		taskRef     string
+		expectError bool
+		found       bool
+	}{
+		{
+			testCase:    "existing taskRef",
+			taskRef:     task.Reference().Value,
+			expectError: false,
+			found:       true,
+		},
+		{
+			testCase:    "fail on empty string",
+			taskRef:     "",
+			expectError: true,
+			found:       false,
+		},
+		{
+			testCase:    "non existing taskRef",
+			taskRef:     "foo",
+			expectError: true,
+			found:       false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.testCase, func(t *testing.T) {
+			ref, err := session.GetTask(context.TODO(), tc.taskRef)
+			if (err != nil) != tc.expectError {
+				t.Errorf("Expected error: %v, got: %v", tc.expectError, err)
+			}
+			if (ref != nil) != tc.found {
+				t.Errorf("Expected found: %v, got: %v", tc.found, ref)
+			}
+		})
+	}
+}
+
+func TestClientTimeout(t *testing.T) {
+
+	t.Run("Global delay which not exceeds the timeout", func(t *testing.T) {
+		g := NewGomegaWithT(t)
+		model, session, server := initSimulator(t)
+		defer model.Remove()
+		defer server.Close()
+
+		model.DelayConfig = simulator.DelayConfig{
+			Delay: int(time.Second.Milliseconds()),
+		}
+
+		simulatorVM := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
+
+		_, err := session.FindVM(context.TODO(), simulatorVM.Config.Uuid, simulatorVM.Config.Name)
+		g.Expect(err).ShouldNot(HaveOccurred())
+	})
+
+	t.Run("laggy method", func(t *testing.T) {
+		g := NewGomegaWithT(t)
+		model, session, server := initSimulator(t)
+		defer model.Remove()
+		defer server.Close()
+
+		model.DelayConfig = simulator.DelayConfig{
+			MethodDelay: map[string]int{
+				// This is converted to milliseconds by the model simulator
+				"RetrievePropertiesEx": int(300),
+			},
+		}
+		simulatorVM := model.Map().Any("VirtualMachine").(*simulator.VirtualMachine)
+
+		ctx, cancel := context.WithTimeout(context.TODO(), time.Duration(time.Millisecond*100))
+		defer cancel()
+		_, err := session.findVMByName(ctx, simulatorVM.Config.Name)
+		g.Expect(err).To(MatchError(ContainSubstring("unable to find template by name")))
+		g.Expect(err).To(MatchError(ContainSubstring("context deadline exceeded")))
+	})
+
+	t.Run("Globally laggy vcenter", func(t *testing.T) {
+		g := NewGomegaWithT(t)
+
+		model := simulator.VPX()
+		model.Host = 0
+		err := model.Create()
+		g.Expect(err).NotTo(HaveOccurred())
+		model.Service.TLS = new(tls.Config)
+		model.DelayConfig = simulator.DelayConfig{
+			// This is converted to milliseconds by the model simulator
+			Delay: int(300),
+		}
+
+		server := model.Service.NewServer()
+		pass, _ := server.URL.User.Password()
+
+		ctx, cancel := context.WithTimeout(context.TODO(), time.Duration(time.Millisecond*100))
+		defer cancel()
+
+		_, err = GetOrCreate(
+			ctx,
+			server.URL.Host, "",
+			server.URL.User.Username(), pass, true)
+		g.Expect(err).To(HaveOccurred())
+		g.Expect(err).To(MatchError(ContainSubstring("error setting up new vSphere SOAP client")))
+		g.Expect(err).To(MatchError(ContainSubstring("context deadline exceeded")))
+	})
+}

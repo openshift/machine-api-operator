@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: machine-api-operator
+  namespace: openshift-machine-api
+  labels:
+    k8s-app: machine-api-operator
+  annotations:
+    capability.openshift.io/name: MachineAPI
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
+    include.release.openshift.io/self-managed-high-availability: "true"
+    include.release.openshift.io/single-node-developer: "true"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: machine-api-operator
+  template:
+    metadata:
+      annotations:
+        capability.openshift.io/name: MachineAPI
+        target.workload.openshift.io/management: '{"effect": "PreferredDuringScheduling"}'
+        kubectl.kubernetes.io/default-container: machine-api-operator
+        openshift.io/required-scc: restricted-v2
+      labels:
+        k8s-app: machine-api-operator
+    spec:
+      priorityClassName: system-node-critical
+      serviceAccountName: machine-api-operator
+      containers:
+      - name: machine-api-operator
+        image: quay.io/openshift/origin-machine-api-operator
+        command:
+        - "/machine-api-operator"
+        args:
+        - "start"
+        - "--images-json=/etc/machine-api-operator-config/images/images.json"
+        - "--alsologtostderr"
+        - "--v=3"
+        env:
+        - name: RELEASE_VERSION
+          value: "0.0.1-snapshot"
+        - name: COMPONENT_NAMESPACE
+          valueFrom:
+            fieldRef:
+              apiVersion: v1
+              fieldPath: metadata.namespace
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: METRICS_PORT
+          value: "8443"
+        ports:
+        - containerPort: 8443
+          name: https
+          protocol: TCP
+        resources:
+          requests:
+            cpu: 10m
+            memory: 50Mi
+        terminationMessagePolicy: FallbackToLogsOnError
+        volumeMounts:
+        - name: images
+          mountPath: /etc/machine-api-operator-config/images
+        - mountPath: /etc/tls/private
+          name: machine-api-operator-tls
+      nodeSelector:
+        node-role.kubernetes.io/master: ""
+      restartPolicy: Always
+      tolerations:
+      - key: "node-role.kubernetes.io/master"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "node.kubernetes.io/unreachable"
+        operator: "Exists"
+        effect: "NoExecute"
+        tolerationSeconds: 120
+      - key: "node.kubernetes.io/not-ready"
+        operator: "Exists"
+        effect: "NoExecute"
+        tolerationSeconds: 120
+      volumes:
+      - name: images
+        configMap:
+          defaultMode: 420
+          name: machine-api-operator-images
+      - name: machine-api-operator-tls
+        secret:
+          defaultMode: 420
+          secretName: machine-api-operator-tls

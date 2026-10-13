@@ -1,0 +1,48 @@
+kind: ImageStream
+apiVersion: image.openshift.io/v1
+spec:
+  tags:
+  - name: machine-api-operator
+    from:
+      kind: DockerImage
+      name: quay.io/openshift/origin-machine-api-operator
+  - name: aws-machine-controllers
+    from:
+      kind: DockerImage
+      name: quay.io/openshift/origin-aws-machine-controllers
+  - name: openstack-machine-api-provider
+    from:
+      kind: DockerImage
+      name: quay.io/openshift/origin-openstack-machine-api-provider
+  - name: baremetal-machine-controllers
+    from:
+      kind: DockerImage
+      name: quay.io/openshift/origin-baremetal-machine-controllers
+  - name: azure-machine-controllers
+    from:
+      kind: DockerImage
+      name: quay.io/openshift/origin-azure-machine-controllers
+  - name: gcp-machine-controllers
+    from:
+      kind: DockerImage
+      name: quay.io/openshift/origin-gcp-machine-controllers
+  - name: ibmcloud-machine-controllers
+    from:
+      kind: DockerImage
+      name: quay.io/openshift/origin-ibmcloud-machine-controllers
+  - name: powervs-machine-controllers
+    from:
+      kind: DockerImage
+      name: quay.io/openshift/origin-powervs-machine-controllers
+  - name: baremetal-operator
+    from:
+      kind: DockerImage
+      name: quay.io/openshift/origin-baremetal-operator
+  - name: kube-rbac-proxy
+    from:
+      kind: DockerImage
+      name: quay.io/openshift/origin-kube-rbac-proxy
+  - name: nutanix-machine-controllers
+    from:
+      kind: DockerImage
+      name: quay.io/openshift/origin-nutanix-machine-controllers

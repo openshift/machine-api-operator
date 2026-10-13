@@ -1,0 +1,25 @@
+---
+apiVersion: machine.openshift.io/v1beta1
+kind: MachineHealthCheck
+metadata:
+  name: machine-api-termination-handler
+  namespace: openshift-machine-api
+  labels:
+    api: clusterapi
+    k8s-app: termination-handler
+  annotations:
+    capability.openshift.io/name: MachineAPI
+    include.release.openshift.io/self-managed-high-availability: "true"
+    exclude.release.openshift.io/internal-openshift-hosted: "true"
+spec:
+  selector:
+    matchLabels:
+      machine.openshift.io/interruptible-instance: ""
+  maxUnhealthy: 100%
+  # This MHC should only ever remove nodes that have the terminating condition.
+  # Disable node startup timeout check.
+  nodeStartupTimeout: "0"
+  unhealthyConditions:
+  - type: Terminating
+    status: "True"
+    timeout: 0s

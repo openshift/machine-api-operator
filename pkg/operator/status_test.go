@@ -1,0 +1,688 @@
+package operator
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	. "github.com/onsi/gomega"
+	"github.com/stretchr/testify/assert"
+
+	"k8s.io/apimachinery/pkg/api/equality"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/tools/record"
+
+	configv1 "github.com/openshift/api/config/v1"
+	osconfigv1 "github.com/openshift/api/config/v1"
+	fakeconfigclientset "github.com/openshift/client-go/config/clientset/versioned/fake"
+	"github.com/openshift/library-go/pkg/config/clusteroperator/v1helpers"
+)
+
+func TestPrintOperandVersions(t *testing.T) {
+	optr := Operator{
+		operandVersions: []osconfigv1.OperandVersion{
+			{
+				Name:    "operator",
+				Version: "1.0",
+			},
+			{
+				Name:    "controller-manager",
+				Version: "2.0",
+			},
+		},
+	}
+	expectedOutput := "operator: 1.0, controller-manager: 2.0"
+	got := optr.printOperandVersions()
+	if got != expectedOutput {
+		t.Errorf("Expected: %s, got: %s", expectedOutput, got)
+	}
+}
+
+func TestOperatorStatusProgressing(t *testing.T) {
+	type tCase struct {
+		currentVersion     []osconfigv1.OperandVersion
+		desiredVersion     []osconfigv1.OperandVersion
+		expectedConditions []osconfigv1.ClusterOperatorStatusCondition
+	}
+	tCases := []tCase{
+		{
+			currentVersion: []osconfigv1.OperandVersion{
+				{
+					Name:    "operator",
+					Version: "1.0",
+				},
+			},
+			desiredVersion: []osconfigv1.OperandVersion{
+				{
+					Name:    "operator",
+					Version: "1.0",
+				},
+			},
+			expectedConditions: []osconfigv1.ClusterOperatorStatusCondition{
+				newClusterOperatorStatusCondition(osconfigv1.OperatorProgressing, osconfigv1.ConditionFalse, string(ReasonSyncing), ""),
+				newClusterOperatorStatusCondition(osconfigv1.OperatorAvailable, osconfigv1.ConditionFalse, "", ""),
+				newClusterOperatorStatusCondition(osconfigv1.OperatorDegraded, osconfigv1.ConditionFalse, "", ""),
+				operatorUpgradeable,
+			},
+		},
+		{
+			currentVersion: []osconfigv1.OperandVersion{
+				{
+					Name:    "operator",
+					Version: "1.0",
+				},
+			},
+			desiredVersion: []osconfigv1.OperandVersion{
+				{
+					Name:    "operator",
+					Version: "2.0",
+				},
+			},
+			expectedConditions: []osconfigv1.ClusterOperatorStatusCondition{
+				newClusterOperatorStatusCondition(osconfigv1.OperatorProgressing, osconfigv1.ConditionTrue, string(ReasonSyncing), ""),
+				newClusterOperatorStatusCondition(osconfigv1.OperatorAvailable, osconfigv1.ConditionFalse, "", ""),
+				newClusterOperatorStatusCondition(osconfigv1.OperatorDegraded, osconfigv1.ConditionFalse, "", ""),
+				operatorUpgradeable,
+			},
+		},
+	}
+
+	optr := Operator{eventRecorder: record.NewFakeRecorder(5)}
+	for i, tc := range tCases {
+		startTime := metav1.Now()
+
+		optr.operandVersions = tc.currentVersion
+		co := optr.defaultClusterOperator()
+		co.Status.Versions = tc.desiredVersion
+		optr.osClient = fakeconfigclientset.NewClientset(co)
+
+		err := optr.statusProgressing()
+		assert.NoError(t, err)
+
+		gotCO, err := optr.getClusterOperator()
+		if err != nil {
+			t.Fatalf("Failed to fetch ClusterOperator: %v", err)
+		}
+
+		var condition osconfigv1.ClusterOperatorStatusCondition
+		for _, coCondition := range gotCO.Status.Conditions {
+			assert.True(t, startTime.Before(&coCondition.LastTransitionTime), "test-case %v expected LastTransitionTime for the status condition to be updated", i)
+			if coCondition.Type == osconfigv1.OperatorProgressing {
+				condition = coCondition
+				break
+			}
+		}
+
+		for _, expectedCondition := range tc.expectedConditions {
+			ok := v1helpers.IsStatusConditionPresentAndEqual(
+				gotCO.Status.Conditions, expectedCondition.Type, expectedCondition.Status,
+			)
+			if !ok {
+				t.Errorf("wrong status for condition. Expected: %v, got: %v",
+					expectedCondition,
+					v1helpers.FindStatusCondition(gotCO.Status.Conditions, expectedCondition.Type))
+			}
+		}
+
+		err = optr.statusProgressing()
+		assert.NoError(t, err)
+
+		gotCO, err = optr.osClient.ConfigV1().ClusterOperators().Get(context.Background(), clusterOperatorName, metav1.GetOptions{})
+		assert.NoError(t, err)
+
+		var conditionAfterAnotherSync osconfigv1.ClusterOperatorStatusCondition
+		for _, coCondition := range gotCO.Status.Conditions {
+			if coCondition.Type == osconfigv1.OperatorProgressing {
+				conditionAfterAnotherSync = coCondition
+				break
+			}
+		}
+		assert.True(t, condition.LastTransitionTime.Equal(&conditionAfterAnotherSync.LastTransitionTime), "test-case %v expected LastTransitionTime not to be updated if condition state is same", i)
+
+		for _, expectedCondition := range tc.expectedConditions {
+			ok := v1helpers.IsStatusConditionPresentAndEqual(
+				gotCO.Status.Conditions, expectedCondition.Type, expectedCondition.Status,
+			)
+			if !ok {
+				t.Errorf("wrong status for condition. Expected: %v, got: %v",
+					expectedCondition,
+					v1helpers.FindStatusCondition(gotCO.Status.Conditions, expectedCondition.Type))
+			}
+		}
+	}
+}
+
+func TestGetOrCreateClusterOperator(t *testing.T) {
+	var namespace = "some-namespace"
+
+	var defaultConditions = []osconfigv1.ClusterOperatorStatusCondition{
+		newClusterOperatorStatusCondition(
+			osconfigv1.OperatorProgressing,
+			osconfigv1.ConditionTrue,
+			string(ReasonInitializing),
+			"Operator is initializing",
+		),
+		newClusterOperatorStatusCondition(
+			osconfigv1.OperatorDegraded,
+			osconfigv1.ConditionFalse,
+			string(ReasonAsExpected), "",
+		),
+		newClusterOperatorStatusCondition(
+			osconfigv1.OperatorAvailable,
+			osconfigv1.ConditionFalse,
+			string(ReasonInitializing),
+			"Operator is initializing",
+		),
+	}
+
+	var conditions = []osconfigv1.ClusterOperatorStatusCondition{
+		newClusterOperatorStatusCondition(
+			osconfigv1.OperatorProgressing,
+			osconfigv1.ConditionFalse,
+			"", "",
+		),
+		newClusterOperatorStatusCondition(
+			osconfigv1.OperatorDegraded,
+			osconfigv1.ConditionFalse,
+			"", "",
+		),
+		{
+			Type:               "Available",
+			Status:             "true",
+			Reason:             "",
+			Message:            "",
+			LastTransitionTime: metav1.NewTime(time.Now()),
+		},
+	}
+
+	testCases := []struct {
+		existingCO *osconfigv1.ClusterOperator
+		expectedCO *osconfigv1.ClusterOperator
+	}{
+		{
+			existingCO: nil,
+			expectedCO: &osconfigv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: clusterOperatorName,
+					Annotations: map[string]string{
+						"openshift.io/required-scc": "restricted-v2",
+					},
+				},
+				Status: osconfigv1.ClusterOperatorStatus{
+					Conditions: defaultConditions,
+					RelatedObjects: []osconfigv1.ObjectReference{
+						{
+							Group:    "",
+							Resource: "namespaces",
+							Name:     namespace,
+						},
+						{
+							Group:     "machine.openshift.io",
+							Resource:  "machines",
+							Name:      "",
+							Namespace: namespace,
+						},
+						{
+							Group:     "machine.openshift.io",
+							Resource:  "machinesets",
+							Name:      "",
+							Namespace: namespace,
+						},
+						{
+							Group:     "machine.openshift.io",
+							Resource:  "machinehealthchecks",
+							Name:      "",
+							Namespace: namespace,
+						},
+						{
+							Group:     "rbac.authorization.k8s.io",
+							Resource:  "roles",
+							Name:      "",
+							Namespace: namespace,
+						},
+						{
+							Group:    "rbac.authorization.k8s.io",
+							Resource: "clusterroles",
+							Name:     "machine-api-operator",
+						},
+						{
+							Group:    "rbac.authorization.k8s.io",
+							Resource: "clusterroles",
+							Name:     "machine-api-controllers",
+						},
+						{
+							Group:     "metal3.io",
+							Resource:  "baremetalhosts",
+							Name:      "",
+							Namespace: namespace,
+						},
+					},
+				},
+			},
+		},
+		{
+			existingCO: &osconfigv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: clusterOperatorName,
+				},
+				Status: osconfigv1.ClusterOperatorStatus{
+					Conditions: conditions,
+				},
+			},
+			expectedCO: &osconfigv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: clusterOperatorName,
+				},
+				Status: osconfigv1.ClusterOperatorStatus{
+					RelatedObjects: []osconfigv1.ObjectReference{
+						{
+							Group:    "",
+							Resource: "namespaces",
+							Name:     namespace,
+						},
+						{
+							Group:     "machine.openshift.io",
+							Resource:  "machines",
+							Name:      "",
+							Namespace: namespace,
+						},
+						{
+							Group:     "machine.openshift.io",
+							Resource:  "machinesets",
+							Name:      "",
+							Namespace: namespace,
+						},
+						{
+							Group:     "machine.openshift.io",
+							Resource:  "machinehealthchecks",
+							Name:      "",
+							Namespace: namespace,
+						},
+						{
+							Group:     "rbac.authorization.k8s.io",
+							Resource:  "roles",
+							Name:      "",
+							Namespace: namespace,
+						},
+						{
+							Group:    "rbac.authorization.k8s.io",
+							Resource: "clusterroles",
+							Name:     "machine-api-operator",
+						},
+						{
+							Group:    "rbac.authorization.k8s.io",
+							Resource: "clusterroles",
+							Name:     "machine-api-controllers",
+						},
+						{
+							Group:     "metal3.io",
+							Resource:  "baremetalhosts",
+							Name:      "",
+							Namespace: namespace,
+						},
+					},
+					Conditions: conditions,
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		var osClient *fakeconfigclientset.Clientset
+		if tc.existingCO != nil {
+			osClient = fakeconfigclientset.NewClientset(tc.existingCO)
+		} else {
+			osClient = fakeconfigclientset.NewClientset()
+		}
+		optr := Operator{
+			osClient:  osClient,
+			namespace: namespace,
+		}
+
+		co, err := optr.getOrCreateClusterOperator()
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+
+		normalizeSharedFields(co, tc.expectedCO)
+
+		if !equality.Semantic.DeepEqual(co, tc.expectedCO) {
+			t.Errorf("got: %+v, expected: %+v", co, tc.expectedCO)
+		}
+	}
+}
+
+func normalizeSharedFields(got, expected *configv1.ClusterOperator) {
+	now := metav1.NewTime(time.Now())
+
+	for i := range got.Status.Conditions {
+		got.Status.Conditions[i].LastTransitionTime = now
+	}
+
+	for i := range expected.Status.Conditions {
+		expected.Status.Conditions[i].LastTransitionTime = now
+	}
+
+	// The NewClientset will populate these fields on the "got" side, but we don't care about those fields
+	// So we make them equal
+	got.Kind = "ClusterOperator"
+	expected.Kind = "ClusterOperator"
+
+	got.APIVersion = "config.openshift.io/v1"
+	expected.APIVersion = "config.openshift.io/v1"
+
+	got.ManagedFields = make([]metav1.ManagedFieldsEntry, 0)
+	expected.ManagedFields = make([]metav1.ManagedFieldsEntry, 0)
+
+}
+
+func TestIsInitializing(t *testing.T) {
+	testCases := []struct {
+		name                 string
+		existingCO           *osconfigv1.ClusterOperator
+		expectedError        error
+		expectedInitializing bool
+	}{
+		{
+			name:                 "with no existing cluster operator",
+			existingCO:           nil,
+			expectedError:        apierrors.NewNotFound(osconfigv1.GroupVersion.WithResource("clusteroperators").GroupResource(), clusterOperatorName),
+			expectedInitializing: false,
+		},
+		{
+			name: "with an initialized Available condition",
+			existingCO: &osconfigv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: clusterOperatorName,
+				},
+				Status: osconfigv1.ClusterOperatorStatus{
+					Conditions: []osconfigv1.ClusterOperatorStatusCondition{
+						newClusterOperatorStatusCondition(
+							osconfigv1.OperatorAvailable,
+							osconfigv1.ConditionFalse,
+							string(ReasonAsExpected),
+							"Operator is initialized",
+						),
+					},
+				},
+			},
+			expectedError:        nil,
+			expectedInitializing: false,
+		},
+		{
+			name: "with an initializing Available condition",
+			existingCO: &osconfigv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: clusterOperatorName,
+				},
+				Status: osconfigv1.ClusterOperatorStatus{
+					Conditions: []osconfigv1.ClusterOperatorStatusCondition{
+						newClusterOperatorStatusCondition(
+							osconfigv1.OperatorAvailable,
+							osconfigv1.ConditionTrue,
+							string(ReasonInitializing),
+							"Operator is initializing",
+						),
+					},
+				},
+			},
+			expectedError:        nil,
+			expectedInitializing: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			var osClient *fakeconfigclientset.Clientset
+			if tc.existingCO != nil {
+				osClient = fakeconfigclientset.NewClientset(tc.existingCO)
+			} else {
+				osClient = fakeconfigclientset.NewClientset()
+			}
+			optr := Operator{
+				osClient: osClient,
+			}
+
+			initializing, err := optr.isInitializing()
+			if tc.expectedError != nil {
+				g.Expect(err).To(MatchError(err))
+			} else {
+				g.Expect(err).ToNot(HaveOccurred())
+			}
+
+			g.Expect(initializing).To(Equal(tc.expectedInitializing))
+		})
+	}
+}
+
+func TestIsUpgrading(t *testing.T) {
+	testCases := []struct {
+		name            string
+		desiredVersions []osconfigv1.OperandVersion
+		currentVersions []osconfigv1.OperandVersion
+		expectedResult  bool
+	}{
+		{
+			name: "versions match - not upgrading",
+			desiredVersions: []osconfigv1.OperandVersion{
+				{Name: "operator", Version: "1.0"},
+			},
+			currentVersions: []osconfigv1.OperandVersion{
+				{Name: "operator", Version: "1.0"},
+			},
+			expectedResult: false,
+		},
+		{
+			name: "versions differ - upgrading",
+			desiredVersions: []osconfigv1.OperandVersion{
+				{Name: "operator", Version: "2.0"},
+			},
+			currentVersions: []osconfigv1.OperandVersion{
+				{Name: "operator", Version: "1.0"},
+			},
+			expectedResult: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			co := &osconfigv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: clusterOperatorName,
+				},
+				Status: osconfigv1.ClusterOperatorStatus{
+					Versions: tc.currentVersions,
+				},
+			}
+			optr := Operator{
+				osClient:        fakeconfigclientset.NewClientset(co),
+				operandVersions: tc.desiredVersions,
+				namespace:       "test",
+			}
+
+			upgrading, err := optr.isUpgrading()
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(upgrading).To(Equal(tc.expectedResult))
+		})
+	}
+}
+
+func TestUpgradeHasTimedOut(t *testing.T) {
+	testCases := []struct {
+		name           string
+		existingCO     *osconfigv1.ClusterOperator
+		expectedResult bool
+	}{
+		{
+			name: "Progressing=True for less than upgradeTimeout - not timed out",
+			existingCO: &osconfigv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: clusterOperatorName,
+				},
+				Status: osconfigv1.ClusterOperatorStatus{
+					Conditions: []osconfigv1.ClusterOperatorStatusCondition{
+						{
+							Type:               osconfigv1.OperatorProgressing,
+							Status:             osconfigv1.ConditionTrue,
+							LastTransitionTime: metav1.NewTime(time.Now().Add(-5 * time.Minute)),
+						},
+					},
+				},
+			},
+			expectedResult: false,
+		},
+		{
+			name: "Progressing=True for more than upgradeTimeout - timed out",
+			existingCO: &osconfigv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: clusterOperatorName,
+				},
+				Status: osconfigv1.ClusterOperatorStatus{
+					Conditions: []osconfigv1.ClusterOperatorStatusCondition{
+						{
+							Type:               osconfigv1.OperatorProgressing,
+							Status:             osconfigv1.ConditionTrue,
+							LastTransitionTime: metav1.NewTime(time.Now().Add(-25 * time.Minute)),
+						},
+					},
+				},
+			},
+			expectedResult: true,
+		},
+		{
+			name: "Progressing=False - not timed out",
+			existingCO: &osconfigv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: clusterOperatorName,
+				},
+				Status: osconfigv1.ClusterOperatorStatus{
+					Conditions: []osconfigv1.ClusterOperatorStatusCondition{
+						{
+							Type:               osconfigv1.OperatorProgressing,
+							Status:             osconfigv1.ConditionFalse,
+							LastTransitionTime: metav1.NewTime(time.Now().Add(-25 * time.Minute)),
+						},
+					},
+				},
+			},
+			expectedResult: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			optr := Operator{
+				osClient: fakeconfigclientset.NewClientset(tc.existingCO),
+			}
+
+			timedOut, err := optr.upgradeHasTimedOut()
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(timedOut).To(Equal(tc.expectedResult))
+		})
+	}
+}
+
+func TestShouldReportDegraded(t *testing.T) {
+	testCases := []struct {
+		name            string
+		desiredVersions []osconfigv1.OperandVersion
+		existingCO      *osconfigv1.ClusterOperator
+		expectedResult  bool
+	}{
+		{
+			name: "not upgrading - should report degraded",
+			desiredVersions: []osconfigv1.OperandVersion{
+				{Name: "operator", Version: "1.0"},
+			},
+			existingCO: &osconfigv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: clusterOperatorName,
+				},
+				Status: osconfigv1.ClusterOperatorStatus{
+					Versions: []osconfigv1.OperandVersion{
+						{Name: "operator", Version: "1.0"},
+					},
+					Conditions: []osconfigv1.ClusterOperatorStatusCondition{
+						{
+							Type:               osconfigv1.OperatorProgressing,
+							Status:             osconfigv1.ConditionFalse,
+							LastTransitionTime: metav1.NewTime(time.Now()),
+						},
+					},
+				},
+			},
+			expectedResult: true,
+		},
+		{
+			name: "upgrading within timeout - should suppress degraded",
+			desiredVersions: []osconfigv1.OperandVersion{
+				{Name: "operator", Version: "2.0"},
+			},
+			existingCO: &osconfigv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: clusterOperatorName,
+				},
+				Status: osconfigv1.ClusterOperatorStatus{
+					Versions: []osconfigv1.OperandVersion{
+						{Name: "operator", Version: "1.0"},
+					},
+					Conditions: []osconfigv1.ClusterOperatorStatusCondition{
+						{
+							Type:               osconfigv1.OperatorProgressing,
+							Status:             osconfigv1.ConditionTrue,
+							LastTransitionTime: metav1.NewTime(time.Now().Add(-5 * time.Minute)),
+						},
+					},
+				},
+			},
+			expectedResult: false,
+		},
+		{
+			name: "upgrading past timeout - should report degraded",
+			desiredVersions: []osconfigv1.OperandVersion{
+				{Name: "operator", Version: "2.0"},
+			},
+			existingCO: &osconfigv1.ClusterOperator{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: clusterOperatorName,
+				},
+				Status: osconfigv1.ClusterOperatorStatus{
+					Versions: []osconfigv1.OperandVersion{
+						{Name: "operator", Version: "1.0"},
+					},
+					Conditions: []osconfigv1.ClusterOperatorStatusCondition{
+						{
+							Type:               osconfigv1.OperatorProgressing,
+							Status:             osconfigv1.ConditionTrue,
+							LastTransitionTime: metav1.NewTime(time.Now().Add(-25 * time.Minute)),
+						},
+					},
+				},
+			},
+			expectedResult: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			g := NewWithT(t)
+
+			optr := Operator{
+				osClient:        fakeconfigclientset.NewClientset(tc.existingCO),
+				operandVersions: tc.desiredVersions,
+				namespace:       "test",
+			}
+
+			result, err := optr.shouldReportDegraded()
+			g.Expect(err).ToNot(HaveOccurred())
+			g.Expect(result).To(Equal(tc.expectedResult))
+		})
+	}
+}

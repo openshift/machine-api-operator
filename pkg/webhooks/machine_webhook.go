@@ -1,0 +1,2651 @@
+package webhooks
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"reflect"
+	"regexp"
+	goruntime "runtime"
+	"strconv"
+	"strings"
+
+	"k8s.io/component-base/featuregate"
+
+	"slices"
+
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	kruntime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/intstr"
+	"k8s.io/apimachinery/pkg/util/sets"
+	"k8s.io/apimachinery/pkg/util/validation/field"
+	"k8s.io/klog/v2"
+	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/webhook/admission"
+	"sigs.k8s.io/kube-storage-version-migrator/pkg/clients/clientset/scheme"
+	"sigs.k8s.io/yaml"
+
+	osconfigv1 "github.com/openshift/api/config/v1"
+	apifeatures "github.com/openshift/api/features"
+	machinev1 "github.com/openshift/api/machine/v1"
+	machinev1beta1 "github.com/openshift/api/machine/v1beta1"
+	osclientset "github.com/openshift/client-go/config/clientset/versioned"
+	"github.com/openshift/machine-api-operator/pkg/util/lifecyclehooks"
+)
+
+type systemSpecifications struct {
+	minMemoryGiB             int32
+	maxMemoryGiB             int32
+	minProcessorSharedCapped float64
+	minProcessorDedicated    float64
+	maxProcessor             float64
+}
+
+type machineArch string
+
+var (
+	// AWS Variables / Defaults
+
+	// awsDedicatedHostNamePattern is used to validate the id of a dedicated host
+	awsDedicatedHostNamePattern = regexp.MustCompile(`^h-([0-9a-f]{8}|[0-9a-f]{17})$`)
+
+	// Azure Defaults
+	defaultAzureVnet = func(clusterID string) string {
+		return fmt.Sprintf("%s-vnet", clusterID)
+	}
+	defaultAzureSubnet = func(clusterID string) string {
+		return fmt.Sprintf("%s-worker-subnet", clusterID)
+	}
+	defaultAzureNetworkResourceGroup = func(clusterID string) string {
+		return fmt.Sprintf("%s-rg", clusterID)
+	}
+	defaultAzureImage = func() machinev1beta1.Image {
+		if arch == ARM64 {
+			return urnToImage(defaultAzureARMImageURN)
+		}
+		return urnToImage(defaultAzureX86ImageURN)
+	}
+	defaultAzureManagedIdentiy = func(clusterID string) string {
+		return fmt.Sprintf("%s-identity", clusterID)
+	}
+	defaultAzureResourceGroup = func(clusterID string) string {
+		return fmt.Sprintf("%s-rg", clusterID)
+	}
+	urnToImage = func(urn string) machinev1beta1.Image {
+		attributes := strings.Split(urn, ":")
+		return machinev1beta1.Image{
+			Publisher: attributes[0],
+			Offer:     attributes[1],
+			SKU:       attributes[2],
+			Version:   attributes[3],
+		}
+	}
+
+	// GCP Defaults
+	defaultGCPNetwork = func(clusterID string) string {
+		return fmt.Sprintf("%s-network", clusterID)
+	}
+	defaultGCPSubnetwork = func(clusterID string) string {
+		return fmt.Sprintf("%s-worker-subnet", clusterID)
+	}
+	defaultGCPTags = func(clusterID string) []string {
+		return []string{fmt.Sprintf("%s-worker", clusterID)}
+	}
+
+	defaultGCPDiskImage = func() string {
+		if arch == ARM64 {
+			return defaultGCPARMDiskImage
+		}
+		return defaultGCPX86DiskImage
+	}
+
+	// Power VS variables
+
+	//powerVSMachineConfigurations contains the known Power VS system types and their allowed configuration limits
+	powerVSMachineConfigurations = map[string]systemSpecifications{
+		"s922": {
+			minMemoryGiB:             32,
+			maxMemoryGiB:             942,
+			minProcessorSharedCapped: 0.5,
+			minProcessorDedicated:    1,
+			maxProcessor:             15,
+		},
+		"e880": {
+			minMemoryGiB:             32,
+			maxMemoryGiB:             7463,
+			minProcessorSharedCapped: 0.5,
+			minProcessorDedicated:    1,
+			maxProcessor:             143,
+		},
+		"e980": {
+			minMemoryGiB:             32,
+			maxMemoryGiB:             15307,
+			minProcessorSharedCapped: 0.5,
+			minProcessorDedicated:    1,
+			maxProcessor:             143,
+		},
+	}
+
+	// VSphere variables
+
+	// tagUrnPattern is helps validate the format of a given tag URN
+	tagUrnPattern = regexp.MustCompile(`^(urn):(vmomi):(InventoryServiceTag):([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}):([^:]+)$`)
+
+	// vSphereDataDiskNamePattern is used to validate the name of a data disk
+	vSphereDataDiskNamePattern = regexp.MustCompile(`^[a-zA-Z0-9]([-_a-zA-Z0-9]*[a-zA-Z0-9])?$`)
+
+	// validProvisioningModes lists all valid data disk provisioning modes
+	validProvisioningModes = []machinev1beta1.ProvisioningMode{
+		machinev1beta1.ProvisioningModeThin,
+		machinev1beta1.ProvisioningModeThick,
+		machinev1beta1.ProvisioningModeEagerlyZeroed,
+	}
+)
+
+const (
+	arch              = machineArch(goruntime.GOARCH)
+	ARM64 machineArch = "arm64"
+	AMD64 machineArch = "amd64"
+
+	defaultUserDataSecret  = "worker-user-data"
+	defaultSecretNamespace = "openshift-machine-api"
+
+	// AWS Defaults
+	defaultAWSCredentialsSecret = "aws-cloud-credentials"
+	defaultAWSX86InstanceType   = "m5.large"
+	defaultAWSARMInstanceType   = "m6g.large"
+
+	// Azure Defaults
+	defaultAzureX86VMSize         = "Standard_D4s_V3"
+	defaultAzureARMVMSize         = "Standard_D4ps_V5"
+	defaultAzureCredentialsSecret = "azure-cloud-credentials"
+	defaultAzureOSDiskOSType      = "Linux"
+	defaultAzureOSDiskStorageType = "Premium_LRS"
+	defaultAzureX86ImageURN       = "azureopenshift:aro4:aro_420:9.6.20251015" // hyperV Gen1
+	defaultAzureARMImageURN       = "azureopenshift:aro4:420-arm:9.6.20251015"
+
+	// Azure OSDisk constants
+	azureMaxDiskSizeGB                 = 32768
+	azureEphemeralStorageLocationLocal = "Local"
+	azureCachingTypeNone               = "None"
+	azureCachingTypeReadOnly           = "ReadOnly"
+	azureCachingTypeReadWrite          = "ReadWrite"
+	azureRHCOSVersion                  = "latest" // The installer only sets up one version but its name may vary, using latest will pull it no matter the name.
+
+	// GCP Defaults
+	defaultGCPX86MachineType    = "n1-standard-4"
+	defaultGCPARMMachineType    = "t2a-standard-4"
+	defaultGCPCredentialsSecret = "gcp-cloud-credentials"
+	defaultGCPDiskSizeGb        = 128
+	defaultGCPDiskType          = "pd-standard"
+	// https://releases-rhcos-art.apps.ocp-virt.prod.psi.redhat.com/?stream=prod/streams/4.14-9.2&release=414.92.202307070025-0&arch=x86_64#414.92.202307070025-0
+	// https://github.com/openshift/installer/commit/0cec4e1403d78387729f21f04d0f764f63fc552e
+	defaultGCPX86DiskImage = "projects/rhcos-cloud/global/images/rhcos-414-92-202307070025-0-gcp-x86-64"
+	defaultGCPARMDiskImage = "projects/rhcos-cloud/global/images/rhcos-414-92-202307070025-0-gcp-aarch64"
+	defaultGCPGPUCount     = 1
+
+	// vSphere Defaults
+	defaultVSphereCredentialsSecret = "vsphere-cloud-credentials"
+	// Minimum vSphere values taken from vSphere reconciler
+	minVSphereCPU       = 2
+	minVSphereMemoryMiB = 2048
+	// https://docs.openshift.com/container-platform/4.1/installing/installing_vsphere/installing-vsphere.html#minimum-resource-requirements_installing-vsphere
+	minVSphereDiskGiB = 120
+	// Maximum number of data disks allowed to be added to a VM
+	maxVSphereDataDisks = 29
+	// Max length of a DataDisk name
+	maxVSphereDataDiskNameLength = 80
+	// Max size of any data disk in vSphere is 62 TiB.  We are currently limiting to 16TiB (16384 GiB) as a starting point.
+	maxVSphereDataDiskSize = 16384
+	// Max number of networks allowed per machine
+	maxVSphereNetworkCount = 10
+
+	// Nutanix Defaults
+	// Minimum Nutanix values taken from Nutanix reconciler
+	defaultNutanixCredentialsSecret = "nutanix-credentials"
+	minNutanixCPUSockets            = 1
+	minNutanixCPUPerSocket          = 1
+	minNutanixMemoryMiB             = 2048
+	minNutanixDiskGiB               = 20
+
+	// PowerVS Defaults
+	defaultPowerVSCredentialsSecret = "powervs-credentials"
+	defaultPowerVSSysType           = "s922"
+	defaultPowerVSProcType          = "Shared"
+	defaultPowerVSProcessor         = "0.5"
+	defaultPowerVSMemory            = 32
+	powerVSServiceInstance          = "serviceInstance"
+	powerVSNetwork                  = "network"
+	powerVSImage                    = "image"
+	powerVSSystemTypeE880           = "e880"
+	powerVSSystemTypeE980           = "e980"
+	azureProviderIDPrefix           = "azure://"
+	azureProvidersKey               = "providers"
+	azureSubscriptionsKey           = "subscriptions"
+	azureResourceGroupsLowerKey     = "resourcegroups"
+	azureLocationsKey               = "locations"
+	azureBuiltInResourceNamespace   = "Microsoft.Resources"
+)
+
+// GCP Confidential VM supports Compute Engine machine types in the following series:
+// reference: https://cloud.google.com/compute/confidential-vm/docs/os-and-machine-type#machine-type
+var gcpConfidentialTypeMachineSeriesSupportingSEV = []string{"n2d", "c2d", "c3d"}
+var gcpConfidentialTypeMachineSeriesSupportingSEVSNP = []string{"n2d"}
+var gcpConfidentialTypeMachineSeriesSupportingTDX = []string{"c3"}
+
+// defaultInstanceTypeForCloudProvider returns the default instance type for the given cloud provider and architecture.
+// If the cloud provider is not supported, an empty string is returned.
+// If the architecture is not supported, the default instance type for AMD64 is returned as a fallback.
+// The function also takes a pointer to a slice of strings to append warnings to.
+func defaultInstanceTypeForCloudProvider(cloudProvider osconfigv1.PlatformType, arch machineArch, warnings *[]string) string {
+	cloudProviderArchMachineTypes := map[osconfigv1.PlatformType]map[machineArch]string{
+		osconfigv1.AWSPlatformType: {
+			AMD64: defaultAWSX86InstanceType,
+			ARM64: defaultAWSARMInstanceType,
+		},
+		osconfigv1.AzurePlatformType: {
+			AMD64: defaultAzureX86VMSize,
+			ARM64: defaultAzureARMVMSize,
+		},
+		osconfigv1.GCPPlatformType: {
+			AMD64: defaultGCPX86MachineType,
+			ARM64: defaultGCPARMMachineType,
+		},
+	}
+	if cloudProviderMap, ok := cloudProviderArchMachineTypes[cloudProvider]; ok {
+		if instanceType, ok := cloudProviderArchMachineTypes[cloudProvider][arch]; ok {
+			*warnings = append(*warnings, fmt.Sprintf("setting the default instance type %q "+
+				"for cloud provider %q, based on the control plane architecture (%q)", instanceType, cloudProvider, arch))
+			return instanceType
+		}
+		// If the arch is not supported, return the default for AMD64.
+		warning := fmt.Sprintf("no default instance type found for provider %q, arch %q. "+
+			"Defaulting to the amd64 one: %q", cloudProvider, arch, cloudProviderMap[AMD64])
+		*warnings = append(*warnings, warning)
+		klog.Warningln(warning)
+		return cloudProviderMap[AMD64]
+	}
+	// If the cloud provider is not supported, return an empty string.
+	klog.Errorf("no default instance types found for cloud provider %q", cloudProvider)
+	return ""
+}
+
+func secretExists(c client.Client, name, namespace string) (bool, error) {
+	key := client.ObjectKey{
+		Name:      name,
+		Namespace: namespace,
+	}
+	obj := &corev1.Secret{}
+
+	if err := c.Get(context.Background(), key, obj); err != nil {
+		if apierrors.IsNotFound(err) {
+			return false, nil
+		}
+		return false, err
+	}
+	return true, nil
+}
+
+func credentialsSecretExists(c client.Client, name, namespace string) []string {
+	secretExists, err := secretExists(c, name, namespace)
+	if err != nil {
+		return []string{
+			field.Invalid(
+				field.NewPath("providerSpec", "credentialsSecret"),
+				name,
+				fmt.Sprintf("failed to get credentialsSecret: %v", err),
+			).Error(),
+		}
+	}
+
+	if !secretExists {
+		return []string{
+			field.Invalid(
+				field.NewPath("providerSpec", "credentialsSecret"),
+				name,
+				"not found. Expected CredentialsSecret to exist",
+			).Error(),
+		}
+	}
+
+	return []string{}
+}
+
+func getInfra() (*osconfigv1.Infrastructure, error) {
+	cfg, err := ctrl.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+	client, err := osclientset.NewForConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+	infra, err := client.ConfigV1().Infrastructures().Get(context.Background(), "cluster", metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+	return infra, nil
+}
+
+func getDNS() (*osconfigv1.DNS, error) {
+	cfg, err := ctrl.GetConfig()
+	if err != nil {
+		return nil, err
+	}
+	client, err := osclientset.NewForConfig(cfg)
+	if err != nil {
+		return nil, err
+	}
+	dns, err := client.ConfigV1().DNSes().Get(context.Background(), "cluster", metav1.GetOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	return dns, nil
+}
+
+type machineAdmissionFn func(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList)
+
+type admissionConfig struct {
+	clusterID       string
+	platformStatus  *osconfigv1.PlatformStatus
+	dnsDisconnected bool
+	client          client.Client
+	featureGates    featuregate.MutableFeatureGate
+}
+
+type admissionHandler struct {
+	*admissionConfig
+	webhookOperations machineAdmissionFn
+	decoder           *admission.Decoder
+}
+
+// InjectDecoder injects the decoder.
+func (a *admissionHandler) InjectDecoder(d *admission.Decoder) error {
+	a.decoder = d
+	return nil
+}
+
+// machineValidatorHandler validates Machine API resources.
+// implements type Handler interface.
+// https://godoc.org/github.com/kubernetes-sigs/controller-runtime/pkg/webhook/admission#Handler
+type machineValidatorHandler struct {
+	*admissionHandler
+}
+
+// machineDefaulterHandler defaults Machine API resources.
+// implements type Handler interface.
+// https://godoc.org/github.com/kubernetes-sigs/controller-runtime/pkg/webhook/admission#Handler
+type machineDefaulterHandler struct {
+	*admissionHandler
+}
+
+// NewValidator returns a new machineValidatorHandler.
+func NewMachineValidator(client client.Client, featureGate featuregate.MutableFeatureGate) (*admission.Webhook, error) {
+	infra, err := getInfra()
+	if err != nil {
+		return nil, err
+	}
+
+	dns, err := getDNS()
+	if err != nil {
+		return nil, err
+	}
+
+	return admission.WithValidator[*machinev1beta1.Machine](scheme.Scheme, createMachineValidator(infra, client, dns, featureGate)), nil
+}
+
+func createMachineValidator(infra *osconfigv1.Infrastructure, client client.Client, dns *osconfigv1.DNS, featureGate featuregate.MutableFeatureGate) *machineValidatorHandler {
+	admissionConfig := &admissionConfig{
+		dnsDisconnected: dns.Spec.PublicZone == nil,
+		clusterID:       infra.Status.InfrastructureName,
+		platformStatus:  infra.Status.PlatformStatus,
+		client:          client,
+		featureGates:    featureGate,
+	}
+	return &machineValidatorHandler{
+		admissionHandler: &admissionHandler{
+			admissionConfig:   admissionConfig,
+			webhookOperations: getMachineValidatorOperation(infra.Status.PlatformStatus.Type),
+		},
+	}
+}
+
+func getMachineValidatorOperation(platform osconfigv1.PlatformType) machineAdmissionFn {
+	switch platform {
+	case osconfigv1.AWSPlatformType:
+		return validateAWS
+	case osconfigv1.AzurePlatformType:
+		return validateAzure
+	case osconfigv1.GCPPlatformType:
+		return validateGCP
+	case osconfigv1.VSpherePlatformType:
+		return validateVSphere
+	case osconfigv1.PowerVSPlatformType:
+		return validatePowerVS
+	case osconfigv1.NutanixPlatformType:
+		return validateNutanix
+	default:
+		// just no-op
+		return func(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+			return true, []string{}, nil
+		}
+	}
+}
+
+// NewDefaulter returns a new machineDefaulterHandler.
+func NewMachineDefaulter() (*admission.Webhook, error) {
+	infra, err := getInfra()
+	if err != nil {
+		return nil, err
+	}
+
+	return admission.WithCustomDefaulter(scheme.Scheme, &machinev1beta1.Machine{}, createMachineDefaulter(infra.Status.PlatformStatus, infra.Status.InfrastructureName)), nil
+}
+
+func createMachineDefaulter(platformStatus *osconfigv1.PlatformStatus, clusterID string) *machineDefaulterHandler {
+	return &machineDefaulterHandler{
+		admissionHandler: &admissionHandler{
+			admissionConfig:   &admissionConfig{clusterID: clusterID},
+			webhookOperations: getMachineDefaulterOperation(platformStatus),
+		},
+	}
+}
+
+func getMachineDefaulterOperation(platformStatus *osconfigv1.PlatformStatus) machineAdmissionFn {
+	switch platformStatus.Type {
+	case osconfigv1.AWSPlatformType:
+		region := ""
+		if platformStatus.AWS != nil {
+			region = platformStatus.AWS.Region
+		}
+		return awsDefaulter{region: region}.defaultAWS
+	case osconfigv1.AzurePlatformType:
+		return defaultAzure
+	case osconfigv1.GCPPlatformType:
+		return defaultGCP
+	case osconfigv1.VSpherePlatformType:
+		return defaultVSphere
+	case osconfigv1.PowerVSPlatformType:
+		return defaultPowerVS
+	case osconfigv1.NutanixPlatformType:
+		return defaultNutanix
+	default:
+		// just no-op
+		return func(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+			return true, []string{}, nil
+		}
+	}
+}
+
+func (h *machineValidatorHandler) validateMachine(m, oldM *machinev1beta1.Machine) (bool, []string, field.ErrorList) {
+	// Skip validation if we just remove the finalizer.
+	// For more information: https://issues.redhat.com/browse/OCPCLOUD-1426
+	if !m.DeletionTimestamp.IsZero() {
+		isFinalizerOnly, err := isFinalizerOnlyRemoval(m, oldM)
+		if err != nil {
+			return false, nil, field.ErrorList{field.InternalError(field.NewPath(""), err)}
+		}
+		if isFinalizerOnly {
+			return true, nil, nil
+		}
+	}
+
+	errs := validateMachineLifecycleHooks(m, oldM)
+
+	ok, warnings, opErrs := h.webhookOperations(m, h.admissionConfig)
+	if !ok {
+		errs = append(errs, opErrs...)
+	}
+
+	if len(errs) > 0 {
+		return false, warnings, errs
+	}
+	return true, warnings, nil
+}
+
+// Handle handles HTTP requests for admission webhook servers.
+func (h *machineValidatorHandler) ValidateCreate(ctx context.Context, m *machinev1beta1.Machine) (admission.Warnings, error) {
+	klog.V(3).Infof("Validate webhook called for Machine: %s", m.GetName())
+
+	ok, warnings, errs := h.validateMachine(m, nil)
+	if !ok {
+		return warnings, errs.ToAggregate()
+	}
+
+	return warnings, nil
+}
+
+// Handle handles HTTP requests for admission webhook servers.
+func (h *machineValidatorHandler) ValidateUpdate(ctx context.Context, mOld, m *machinev1beta1.Machine) (admission.Warnings, error) {
+	klog.V(3).Infof("Validate webhook called for Machine: %s", m.GetName())
+
+	ok, warnings, errs := h.validateMachine(m, mOld)
+	if !ok {
+		return warnings, errs.ToAggregate()
+	}
+
+	return warnings, nil
+}
+
+// Handle handles HTTP requests for admission webhook servers.
+func (h *machineValidatorHandler) ValidateDelete(ctx context.Context, m *machinev1beta1.Machine) (admission.Warnings, error) {
+	klog.V(3).Infof("Validate webhook called for Machine: %s", m.GetName())
+
+	ok, warnings, errs := h.validateMachine(m, nil)
+	if !ok {
+		return warnings, errs.ToAggregate()
+	}
+
+	return warnings, nil
+}
+
+// Handle handles HTTP requests for admission webhook servers.
+func (h *machineDefaulterHandler) Default(ctx context.Context, obj runtime.Object) error {
+	m, ok := obj.(*machinev1beta1.Machine)
+	if !ok {
+		return apierrors.NewBadRequest(fmt.Sprintf("expected a MachineSet but got a %T", obj))
+	}
+
+	klog.V(3).Infof("Mutate webhook called for Machine: %s", m.GetName())
+
+	// Only enforce the clusterID if it's not set.
+	// Otherwise a discrepancy on the value would leave the machine orphan
+	// and would trigger a new machine creation by the machineSet.
+	// https://bugzilla.redhat.com/show_bug.cgi?id=1857175
+	if m.Labels == nil {
+		m.Labels = make(map[string]string)
+	}
+	if _, ok := m.Labels[machinev1beta1.MachineClusterIDLabel]; !ok {
+		m.Labels[machinev1beta1.MachineClusterIDLabel] = h.clusterID
+	}
+
+	ok, _, errs := h.webhookOperations(m, h.admissionConfig)
+	if !ok {
+		return errs.ToAggregate()
+	}
+
+	return nil
+}
+
+type awsDefaulter struct {
+	region string
+}
+
+func (a awsDefaulter) defaultAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+	klog.V(3).Infof("Defaulting AWS providerSpec")
+
+	var errs field.ErrorList
+	var warnings []string
+	providerSpec := new(machinev1beta1.AWSMachineProviderConfig)
+	if err := unmarshalInto(m, providerSpec); err != nil {
+		errs = append(errs, err)
+		return false, warnings, errs
+	}
+
+	if providerSpec.InstanceType == "" {
+		providerSpec.InstanceType = defaultInstanceTypeForCloudProvider(osconfigv1.AWSPlatformType, arch, &warnings)
+	}
+
+	if providerSpec.InstanceType == "" {
+		// this should never happen
+		errs = append(errs, field.Required(field.NewPath("instanceType"), "instanceType is required and no "+
+			"default value was found"))
+	}
+
+	if providerSpec.Placement.Region == "" {
+		providerSpec.Placement.Region = a.region
+	}
+
+	if providerSpec.UserDataSecret == nil {
+		providerSpec.UserDataSecret = &corev1.LocalObjectReference{Name: defaultUserDataSecret}
+	} else if providerSpec.UserDataSecret.Name == "" {
+		providerSpec.UserDataSecret.Name = defaultUserDataSecret
+	}
+
+	if providerSpec.CredentialsSecret == nil {
+		providerSpec.CredentialsSecret = &corev1.LocalObjectReference{Name: defaultAWSCredentialsSecret}
+	}
+
+	rawBytes, err := json.Marshal(providerSpec)
+	if err != nil {
+		errs = append(errs, field.InternalError(field.NewPath("providerSpec", "value"), err))
+	}
+
+	if len(errs) > 0 {
+		return false, warnings, errs
+	}
+
+	m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
+	return true, warnings, nil
+}
+
+func unmarshalInto(m *machinev1beta1.Machine, providerSpec interface{}) *field.Error {
+	if m.Spec.ProviderSpec.Value == nil {
+		return field.Required(field.NewPath("providerSpec", "value"), "a value must be provided")
+	}
+
+	if err := yaml.Unmarshal(m.Spec.ProviderSpec.Value.Raw, &providerSpec); err != nil {
+		return field.Invalid(field.NewPath("providerSpec", "value"), providerSpec, err.Error())
+	}
+	return nil
+}
+
+func validateUnknownFields(m *machinev1beta1.Machine, providerSpec interface{}) error {
+	if err := yaml.Unmarshal(m.Spec.ProviderSpec.Value.Raw, &providerSpec, yaml.DisallowUnknownFields); err != nil {
+		if strings.Contains(err.Error(), "unknown field") {
+			unknownField := strings.Replace(strings.Split(err.Error(), "unknown field ")[1], "\"", "", -1)
+			return &field.Error{
+				Type:     field.ErrorTypeNotSupported,
+				Field:    field.NewPath("providerSpec", "value").String(),
+				BadValue: unknownField,
+				Detail:   fmt.Sprintf("Unknown field (%s) will be ignored", unknownField),
+			}
+		}
+	}
+	return nil
+}
+
+func validateAWS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+	klog.V(3).Infof("Validating AWS providerSpec")
+
+	var errs field.ErrorList
+	var warnings []string
+	providerSpec := new(machinev1beta1.AWSMachineProviderConfig)
+	if err := unmarshalInto(m, providerSpec); err != nil {
+		errs = append(errs, err)
+		return false, warnings, errs
+	}
+
+	if err := validateUnknownFields(m, providerSpec); err != nil {
+		warnings = append(warnings, err.Error())
+	}
+
+	if !validateGVK(providerSpec.GroupVersionKind(), osconfigv1.AWSPlatformType) {
+		warnings = append(warnings, fmt.Sprintf("incorrect GroupVersionKind for AWSMachineProviderConfig object: %s", providerSpec.GroupVersionKind()))
+	}
+
+	if providerSpec.AMI.ID == nil {
+		errs = append(
+			errs,
+			field.Required(
+				field.NewPath("providerSpec", "ami"),
+				"expected providerSpec.ami.id to be populated",
+			),
+		)
+	}
+
+	if providerSpec.AMI.ARN != nil {
+		warnings = append(
+			warnings,
+			"can't use providerSpec.ami.arn, only providerSpec.ami.id can be used to reference AMI",
+		)
+	}
+
+	if providerSpec.AMI.Filters != nil {
+		warnings = append(
+			warnings,
+			"can't use providerSpec.ami.filters, only providerSpec.ami.id can be used to reference AMI",
+		)
+	}
+
+	if providerSpec.Placement.Region == "" {
+		errs = append(
+			errs,
+			field.Required(
+				field.NewPath("providerSpec", "placement", "region"),
+				"expected providerSpec.placement.region to be populated",
+			),
+		)
+	}
+
+	if providerSpec.InstanceType == "" {
+		errs = append(
+			errs,
+			field.Required(
+				field.NewPath("providerSpec", "instanceType"),
+				"expected providerSpec.instanceType to be populated",
+			),
+		)
+	}
+
+	if providerSpec.UserDataSecret == nil {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret"), "expected providerSpec.userDataSecret to be populated"))
+	} else if providerSpec.UserDataSecret.Name == "" {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret", "name"), "expected providerSpec.userDataSecret.name to be provided"))
+	}
+
+	if providerSpec.CredentialsSecret == nil {
+		errs = append(
+			errs,
+			field.Required(
+				field.NewPath("providerSpec", "credentialsSecret"),
+				"expected providerSpec.credentialsSecret to be populated",
+			),
+		)
+	} else {
+		warnings = append(warnings, credentialsSecretExists(config.client, providerSpec.CredentialsSecret.Name, m.GetNamespace())...)
+	}
+
+	if providerSpec.Subnet.ARN == nil && providerSpec.Subnet.ID == nil && providerSpec.Subnet.Filters == nil {
+		warnings = append(
+			warnings,
+			"providerSpec.subnet: No subnet has been provided. Instances may be created in an unexpected subnet and may not join the cluster.",
+		)
+	}
+
+	if providerSpec.Subnet.ARN != nil {
+		warnings = append(
+			warnings,
+			"can't use providerSpec.subnet.arn, only providerSpec.subnet.id or providerSpec.subnet.filters can be used to reference Subnet",
+		)
+	}
+
+	if providerSpec.IAMInstanceProfile == nil {
+		warnings = append(warnings, "providerSpec.iamInstanceProfile: no IAM instance profile provided: nodes may be unable to join the cluster")
+	} else {
+
+		if providerSpec.IAMInstanceProfile.ARN != nil {
+			warnings = append(
+				warnings,
+				"can't use providerSpec.iamInstanceProfile.arn, only providerSpec.iamInstanceProfile.id can be used to reference IAMInstanceProfile",
+			)
+		}
+
+		if providerSpec.IAMInstanceProfile.Filters != nil {
+			warnings = append(
+				warnings,
+				"can't use providerSpec.iamInstanceProfile.filters, only providerSpec.iamInstanceProfile.id can be used to reference IAMInstanceProfile",
+			)
+		}
+	}
+
+	if providerSpec.CapacityReservationID != "" {
+		if err := validateAwsCapacityReservationId(providerSpec.CapacityReservationID); err != nil {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "capacityReservationId"), providerSpec.CapacityReservationID, err.Error()))
+		}
+	}
+
+	if providerSpec.MarketType != "" {
+		if err := validateAWSInstanceMarketType(providerSpec); err != nil {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "marketType"), providerSpec.MarketType, err.Error()))
+		}
+	}
+
+	if providerSpec.MarketType == "" && providerSpec.SpotMarketOptions != nil && providerSpec.CapacityReservationID != "" {
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "capacityReservationId"), providerSpec.CapacityReservationID, "spotMarketOptions and capacityReservationID may not be used together"))
+	}
+
+	// TODO(alberto): Validate providerSpec.BlockDevices.
+	// https://github.com/openshift/cluster-api-provider-aws/pull/299#discussion_r433920532
+	for i, blockDevice := range providerSpec.BlockDevices {
+		ebs := blockDevice.EBS
+		if ebs == nil || ebs.VolumeType == nil || ebs.ThroughputMib == nil {
+			continue
+		}
+
+		throughputPath := field.NewPath("providerSpec", "blockDevices").Index(i).Child("ebs", "throughputMib")
+		throughputValue := *ebs.ThroughputMib
+
+		if *ebs.VolumeType != "gp3" {
+			errs = append(errs, field.Invalid(
+				throughputPath,
+				throughputValue,
+				"only valid for gp3 volumes",
+			))
+			continue
+		}
+
+		if throughputValue < 125 || throughputValue > 2000 {
+			errs = append(errs, field.Invalid(
+				throughputPath,
+				throughputValue,
+				"must be a value between 125 and 2000",
+			))
+		}
+	}
+
+	errs = append(errs, processAWSPlacementTenancy(m, providerSpec.Placement)...)
+
+	if providerSpec.PlacementGroupPartition != nil {
+		partition := *providerSpec.PlacementGroupPartition
+		// placementGroupPartition must be between 1 and 7
+		if partition < 1 || partition > 7 {
+			errs = append(
+				errs,
+				field.Invalid(
+					field.NewPath("providerSpec", "placementGroupPartition"),
+					partition,
+					"providerSpec.placementGroupPartition must be between 1 and 7",
+				),
+			)
+		}
+		// placementGroupName must be set
+		if providerSpec.PlacementGroupName == "" {
+			errs = append(
+				errs,
+				field.Invalid(
+					field.NewPath("providerSpec", "placementGroupPartition"),
+					partition,
+					"providerSpec.placementGroupPartition is set but providerSpec.placementGroupName is empty",
+				),
+			)
+		}
+	}
+
+	duplicatedTags := getDuplicatedTags(providerSpec.Tags)
+	if len(duplicatedTags) > 0 {
+		warnings = append(warnings, fmt.Sprintf("providerSpec.tags: duplicated tag names (%s): only the first value will be used.", strings.Join(duplicatedTags, ",")))
+	}
+
+	switch providerSpec.NetworkInterfaceType {
+	case "", machinev1beta1.AWSENANetworkInterfaceType, machinev1beta1.AWSEFANetworkInterfaceType:
+		// Do nothing, valid values
+	default:
+		errs = append(
+			errs,
+			field.Invalid(
+				field.NewPath("providerSpec", "networkInterfaceType"),
+				providerSpec.NetworkInterfaceType,
+				fmt.Sprintf("Valid values are: %s, %s and omitted", machinev1beta1.AWSENANetworkInterfaceType, machinev1beta1.AWSEFANetworkInterfaceType),
+			),
+		)
+	}
+
+	switch providerSpec.MetadataServiceOptions.Authentication {
+	case "", machinev1beta1.MetadataServiceAuthenticationOptional, machinev1beta1.MetadataServiceAuthenticationRequired:
+		// Valid values
+	default:
+		errs = append(
+			errs,
+			field.Invalid(
+				field.NewPath("providerSpec", "metadataServiceOptions", "authentication"),
+				providerSpec.MetadataServiceOptions.Authentication,
+				fmt.Sprintf("Allowed values are either '%s' or '%s'", machinev1beta1.MetadataServiceAuthenticationOptional, machinev1beta1.MetadataServiceAuthenticationRequired),
+			),
+		)
+	}
+
+	if providerSpec.CPUOptions != nil {
+		if *providerSpec.CPUOptions == (machinev1beta1.CPUOptions{}) {
+			errs = append(
+				errs,
+				field.Invalid(
+					field.NewPath("providerSpec", "CPUOptions"),
+					"{}",
+					"At least one field must be set if cpuOptions is provided",
+				),
+			)
+		}
+
+		if providerSpec.CPUOptions.ConfidentialCompute != nil {
+			switch *providerSpec.CPUOptions.ConfidentialCompute {
+			case machinev1beta1.AWSConfidentialComputePolicyDisabled, machinev1beta1.AWSConfidentialComputePolicySEVSNP:
+				// Valid values
+			default:
+				errs = append(
+					errs,
+					field.Invalid(
+						field.NewPath("providerSpec", "CPUOptions", "ConfidentialCompute"),
+						providerSpec.CPUOptions.ConfidentialCompute,
+						fmt.Sprintf("Allowed values are %s, %s and omitted", machinev1beta1.AWSConfidentialComputePolicyDisabled, machinev1beta1.AWSConfidentialComputePolicySEVSNP),
+					),
+				)
+			}
+		}
+	}
+
+	if len(errs) > 0 {
+		return false, warnings, errs
+	}
+
+	return true, warnings, nil
+}
+
+const (
+	machineRoleLabel  = "machine.openshift.io/cluster-api-machine-role"
+	machineTypeLabel  = "machine.openshift.io/cluster-api-machine-type"
+	machineMasterRole = "master"
+)
+
+// isControlPlaneMachine checks if a machine is a control plane/master machine by examining its labels.
+func isControlPlaneMachine(m *machinev1beta1.Machine) bool {
+	if m.Labels == nil {
+		return false
+	}
+	role, hasRole := m.Labels[machineRoleLabel]
+	machineType, hasType := m.Labels[machineTypeLabel]
+
+	return (hasRole && role == machineMasterRole) || (hasType && machineType == machineMasterRole)
+}
+
+// processAWSPlacement analyzes the Placement field in relation to Tenancy and host placement.  These are analyzed
+// together based based on their relations to one another.
+func processAWSPlacementTenancy(m *machinev1beta1.Machine, placement machinev1beta1.Placement) field.ErrorList {
+	var errs field.ErrorList
+
+	switch placement.Tenancy {
+	case "", machinev1beta1.DefaultTenancy, machinev1beta1.DedicatedTenancy:
+		// Host is not supported for these cases
+		if placement.Host != nil {
+			errs = append(errs, field.Forbidden(field.NewPath("spec.placement.host"), "host may only be specified when tenancy is 'host'"))
+		}
+	case machinev1beta1.HostTenancy:
+		// Dedicated hosts are not supported for control plane machines
+		if isControlPlaneMachine(m) {
+			errs = append(errs, field.Forbidden(field.NewPath("spec.placement.tenancy"), "dedicated host tenancy is not supported for control plane machines"))
+			return errs
+		}
+
+		if placement.Host != nil {
+			klog.V(4).Infof("Validating AWS Host Placement")
+
+			if placement.Host.Affinity == nil {
+				errs = append(errs, field.Required(field.NewPath("spec.placement.host.affinity"), "affinity is required and must be set to either AnyAvailable or DedicatedHost"))
+			} else {
+				switch *placement.Host.Affinity {
+				case machinev1beta1.HostAffinityAnyAvailable:
+					// DedicatedHost is optional.  If it is set, make sure it follows conventions
+					if placement.Host.DedicatedHost != nil {
+						// Dynamic Host Allocation (DHA) requires DedicatedHost affinity
+						strategy := machinev1beta1.AllocationStrategyUserProvided
+						if placement.Host.DedicatedHost.AllocationStrategy != nil {
+							strategy = *placement.Host.DedicatedHost.AllocationStrategy
+						}
+						if strategy == machinev1beta1.AllocationStrategyDynamic {
+							errs = append(errs, field.Forbidden(field.NewPath("spec.placement.host.affinity"), "hostAffinity must be DedicatedHost when using dynamic host allocation"))
+						}
+						errs = append(errs, validateDedicatedHost(placement.Host.DedicatedHost)...)
+					}
+				case machinev1beta1.HostAffinityDedicatedHost:
+					// We need to make sure DedicatedHost is set with an ID
+					if placement.Host.DedicatedHost == nil {
+						errs = append(errs, field.Required(field.NewPath("spec.placement.host.dedicatedHost"), "dedicatedHost is required when hostAffinity is DedicatedHost, and optional otherwise"))
+					} else {
+						errs = append(errs, validateDedicatedHost(placement.Host.DedicatedHost)...)
+					}
+				default:
+					errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.affinity"), placement.Host.Affinity, "hostAffinity must be either AnyAvailable or DedicatedHost"))
+				}
+			}
+		}
+	default:
+		errs = append(
+			errs,
+			field.Invalid(
+				field.NewPath("providerSpec", "tenancy"),
+				placement.Tenancy,
+				fmt.Sprintf("Invalid providerSpec.tenancy, the only allowed options are: %s, %s, %s, or omitted", machinev1beta1.DefaultTenancy, machinev1beta1.DedicatedTenancy, machinev1beta1.HostTenancy),
+			),
+		)
+	}
+
+	return errs
+}
+
+// validateDedicatedHost validates that all fields in the DedicatedHost are configured correctly.
+func validateDedicatedHost(host *machinev1beta1.DedicatedHost) field.ErrorList {
+	var errs field.ErrorList
+
+	// If host is nil, then nothing to validate
+	if host == nil {
+		return errs
+	}
+
+	strategy := machinev1beta1.AllocationStrategyUserProvided
+	if host.AllocationStrategy != nil {
+		strategy = *host.AllocationStrategy
+	}
+
+	switch strategy {
+	// Empty string is for backward compatability in case an existing config exists with the allocation strategy not set.
+	// Default is User Provided.
+	case machinev1beta1.AllocationStrategyUserProvided, "":
+		// User Provided requires the ID being set of the host to use
+		if host.ID == "" {
+			errs = append(errs, field.Required(field.NewPath("spec.placement.host.dedicatedHost.id"), "id is required when allocationStrategy is UserProvided and must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)"))
+		} else if !awsDedicatedHostNamePattern.MatchString(host.ID) {
+			errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.dedicatedHost.id"), host.ID, "id must start with 'h-' followed by 8 or 17 lowercase hexadecimal characters (0-9 and a-f)"))
+		}
+
+		// DynamicHostAllocation is not allowed if user provided
+		if host.DynamicHostAllocation != nil {
+			errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.dedicatedHost.dynamicHostAllocation"), host.ID, "dynamicHostAllocation is only allowed when allocationStrategy is Dynamic"))
+		}
+	case machinev1beta1.AllocationStrategyDynamic:
+		// ID must not be set
+		if host.ID != "" {
+			errs = append(errs, field.Forbidden(field.NewPath("spec.placement.host.dedicatedHost.id"), "id is only allowed when allocationStrategy is Provided"))
+		}
+
+		// Validate DynamicHostAllocation if present
+		if host.DynamicHostAllocation != nil {
+			// MinProperties=1: At least one property must be set
+			// Currently only Tags exists, so if Tags is nil, the struct is empty
+			if host.DynamicHostAllocation.Tags == nil {
+				errs = append(errs, field.Required(field.NewPath("spec.placement.host.dedicatedHost.dynamicHostAllocation.tags"), "at least one property must be specified in dynamicHostAllocation"))
+			} else {
+				tags := *host.DynamicHostAllocation.Tags
+
+				// MinItems=1: At least 1 tag must be specified
+				if len(tags) < 1 {
+					errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.dedicatedHost.dynamicHostAllocation.tags"), len(tags), "at least 1 tag must be specified"))
+				}
+
+				// MaxItems=50: Maximum 50 tags can be specified
+				if len(tags) > 50 {
+					errs = append(errs, field.Invalid(field.NewPath("spec.placement.host.dedicatedHost.dynamicHostAllocation.tags"), len(tags), "maximum 50 tags can be specified"))
+				}
+			}
+		}
+	default:
+		errs = append(
+			errs,
+			field.Invalid(
+				field.NewPath("spec.placement.host.dedicatedHost.allocationStrategy"),
+				host.AllocationStrategy,
+				fmt.Sprintf("Invalid allocationStrategy, the only allowed options are: %s, %s", machinev1beta1.AllocationStrategyUserProvided, machinev1beta1.AllocationStrategyDynamic),
+			),
+		)
+	}
+
+	return errs
+}
+
+// getDuplicatedTags iterates through the AWS TagSpecifications
+// to determine if any tag Name is duplicated within the list.
+// A list of duplicated names will be returned.
+func getDuplicatedTags(tagSpecs []machinev1beta1.TagSpecification) []string {
+	tagNames := map[string]int{}
+	duplicatedTags := []string{}
+	for _, spec := range tagSpecs {
+		tagNames[spec.Name] += 1
+		// Only append the duplicated tag on the second occurrence to prevent it
+		// being listed multiple times when there are more than 2 occurrences.
+		if tagNames[spec.Name] == 2 {
+			duplicatedTags = append(duplicatedTags, spec.Name)
+		}
+	}
+	return duplicatedTags
+}
+
+func defaultAzure(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+	klog.V(3).Infof("Defaulting Azure providerSpec")
+
+	var errs field.ErrorList
+	var warnings []string
+	providerSpec := new(machinev1beta1.AzureMachineProviderSpec)
+	if err := unmarshalInto(m, providerSpec); err != nil {
+		errs = append(errs, err)
+		return false, warnings, errs
+	}
+
+	if providerSpec.VMSize == "" {
+		providerSpec.VMSize = defaultInstanceTypeForCloudProvider(osconfigv1.AzurePlatformType, arch, &warnings)
+	}
+
+	if providerSpec.VMSize == "" {
+		// this should never happen
+		errs = append(errs, field.Required(field.NewPath("vmSize"), "vmSize is required and no "+
+			"default value was found"))
+	}
+
+	// Vnet and Subnet need to be provided together by the user
+	if providerSpec.Vnet == "" && providerSpec.Subnet == "" {
+		providerSpec.Vnet = defaultAzureVnet(config.clusterID)
+		providerSpec.Subnet = defaultAzureSubnet(config.clusterID)
+	}
+
+	if providerSpec.Image == (machinev1beta1.Image{}) {
+		providerSpec.Image = defaultAzureImage()
+	}
+
+	if providerSpec.UserDataSecret == nil {
+		providerSpec.UserDataSecret = &corev1.SecretReference{Name: defaultUserDataSecret}
+	} else if providerSpec.UserDataSecret.Name == "" {
+		providerSpec.UserDataSecret.Name = defaultUserDataSecret
+	}
+
+	if providerSpec.CredentialsSecret == nil {
+		providerSpec.CredentialsSecret = &corev1.SecretReference{Name: defaultAzureCredentialsSecret, Namespace: defaultSecretNamespace}
+	} else {
+		if providerSpec.CredentialsSecret.Namespace == "" {
+			providerSpec.CredentialsSecret.Namespace = defaultSecretNamespace
+		}
+		if providerSpec.CredentialsSecret.Name == "" {
+			providerSpec.CredentialsSecret.Name = defaultAzureCredentialsSecret
+		}
+	}
+
+	rawBytes, err := json.Marshal(providerSpec)
+	if err != nil {
+		errs = append(errs, field.InternalError(field.NewPath("providerSpec", "value"), err))
+	}
+
+	if len(errs) > 0 {
+		return false, warnings, errs
+	}
+
+	m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
+	return true, warnings, nil
+}
+
+func validateAzure(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+	klog.V(3).Infof("Validating Azure providerSpec")
+
+	var errs field.ErrorList
+	var warnings []string
+	providerSpec := new(machinev1beta1.AzureMachineProviderSpec)
+	if err := unmarshalInto(m, providerSpec); err != nil {
+		errs = append(errs, err)
+		return false, warnings, errs
+	}
+
+	if err := validateUnknownFields(m, providerSpec); err != nil {
+		warnings = append(warnings, err.Error())
+	}
+
+	if !validateGVK(providerSpec.GroupVersionKind(), osconfigv1.AzurePlatformType) {
+		warnings = append(warnings, fmt.Sprintf("incorrect GroupVersionKind for AzureMachineProviderSpec object: %s", providerSpec.GroupVersionKind()))
+	}
+
+	if providerSpec.VMSize == "" {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "vmSize"), "vmSize should be set to one of the supported Azure VM sizes"))
+	}
+
+	if providerSpec.PublicIP && config.dnsDisconnected {
+		errs = append(errs, field.Forbidden(field.NewPath("providerSpec", "publicIP"), "publicIP is not allowed in Azure disconnected installation with publish strategy as internal"))
+	}
+	// Vnet requires Subnet
+	if providerSpec.Vnet != "" && providerSpec.Subnet == "" {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "subnet"), "must provide a subnet when a virtual network is specified"))
+	}
+
+	// Subnet requires Vnet
+	if providerSpec.Subnet != "" && providerSpec.Vnet == "" {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "vnet"), "must provide a virtual network when supplying subnets"))
+	}
+
+	errs = append(errs, validateAzureImage(providerSpec.Image)...)
+
+	if providerSpec.UserDataSecret == nil {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret"), "userDataSecret must be provided"))
+	} else if providerSpec.UserDataSecret.Name == "" {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret", "name"), "name must be provided"))
+	}
+
+	if providerSpec.CredentialsSecret == nil {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret"), "credentialsSecret must be provided"))
+	} else {
+		if providerSpec.CredentialsSecret.Namespace == "" {
+			errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret", "namespace"), "namespace must be provided"))
+		}
+		if providerSpec.CredentialsSecret.Name == "" {
+			errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret", "name"), "name must be provided"))
+		}
+		if providerSpec.CredentialsSecret.Name != "" && providerSpec.CredentialsSecret.Namespace != "" {
+			warnings = append(warnings, credentialsSecretExists(config.client, providerSpec.CredentialsSecret.Name, providerSpec.CredentialsSecret.Namespace)...)
+		}
+	}
+
+	if providerSpec.OSDisk.DiskSizeGB <= 0 || providerSpec.OSDisk.DiskSizeGB >= azureMaxDiskSizeGB {
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "osDisk", "diskSizeGB"), providerSpec.OSDisk.DiskSizeGB, "diskSizeGB must be greater than zero and less than 32768"))
+	}
+
+	if providerSpec.OSDisk.DiskSettings.EphemeralStorageLocation != azureEphemeralStorageLocationLocal && providerSpec.OSDisk.DiskSettings.EphemeralStorageLocation != "" {
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "osDisk", "diskSettings", "ephemeralStorageLocation"), providerSpec.OSDisk.DiskSettings.EphemeralStorageLocation,
+			fmt.Sprintf("osDisk.diskSettings.ephemeralStorageLocation can either be omitted or set to %s", azureEphemeralStorageLocationLocal)))
+	}
+
+	if providerSpec.CapacityReservationGroupID != "" {
+		err := validateAzureCapacityReservationGroupID(providerSpec.CapacityReservationGroupID)
+		if err != nil {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "capacityReservationGroupID"), providerSpec.CapacityReservationGroupID, err.Error()))
+		}
+	}
+
+	switch providerSpec.OSDisk.CachingType {
+	case azureCachingTypeNone, azureCachingTypeReadOnly, azureCachingTypeReadWrite, "":
+		// Valid scenarios, do nothing
+	default:
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "osDisk", "cachingType"), providerSpec.OSDisk.CachingType,
+			fmt.Sprintf("osDisk.cachingType can be only %s, %s, %s or omitted", azureCachingTypeNone, azureCachingTypeReadOnly, azureCachingTypeReadWrite)))
+	}
+
+	if providerSpec.OSDisk.DiskSettings.EphemeralStorageLocation == azureEphemeralStorageLocationLocal && providerSpec.OSDisk.CachingType != azureCachingTypeReadOnly {
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "osDisk", "cachingType"), providerSpec.OSDisk.CachingType, "Instances using an ephemeral OS disk support only Readonly caching"))
+	}
+
+	switch providerSpec.UltraSSDCapability {
+	case machinev1beta1.AzureUltraSSDCapabilityEnabled, machinev1beta1.AzureUltraSSDCapabilityDisabled, "":
+		// Valid scenarios, do nothing
+	default:
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "ultraSSDCapability"), providerSpec.UltraSSDCapability,
+			fmt.Sprintf("ultraSSDCapability can be only %s, %s or omitted", machinev1beta1.AzureUltraSSDCapabilityEnabled, machinev1beta1.AzureUltraSSDCapabilityDisabled)))
+	}
+
+	errs = append(errs, validateAzureSecurityProfile(m.Name, providerSpec, field.NewPath("providerSpec", "securityProfile"))...)
+
+	errs = append(errs, validateAzureDataDisks(m.Name, providerSpec, field.NewPath("providerSpec", "dataDisks"))...)
+
+	errs = append(errs, validateAzureDiagnostics(providerSpec.Diagnostics, field.NewPath("providerSpec", "diagnostics"))...)
+
+	if isAzureGovCloud(config.platformStatus) && providerSpec.SpotVMOptions != nil {
+		warnings = append(warnings, "spot VMs may not be supported when using GovCloud region")
+	}
+
+	if len(errs) > 0 {
+		return false, warnings, errs
+	}
+	return true, warnings, nil
+}
+
+func validateAzureImage(image machinev1beta1.Image) field.ErrorList {
+	var errs field.ErrorList
+	if image == (machinev1beta1.Image{}) {
+		return append(errs, field.Required(field.NewPath("providerSpec", "image"), "an image reference must be provided"))
+	}
+
+	if image.ResourceID != "" {
+		if image != (machinev1beta1.Image{ResourceID: image.ResourceID}) {
+			return append(errs, field.Required(field.NewPath("providerSpec", "image", "resourceID"), "resourceID is already specified, other fields such as [Offer, Publisher, SKU, Version] should not be set"))
+		}
+		return errs
+	}
+
+	// Resource ID not provided, so Offer, Publisher, SKU and Version are required
+	if image.Offer == "" {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "image", "Offer"), "Offer must be provided"))
+	}
+	if image.Publisher == "" {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "image", "Publisher"), "Publisher must be provided"))
+	}
+	if image.SKU == "" {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "image", "SKU"), "SKU must be provided"))
+	}
+	if image.Version == "" {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "image", "Version"), "Version must be provided"))
+	}
+
+	return errs
+}
+
+func validateAzureDiagnostics(diagnosticsSpec machinev1beta1.AzureDiagnostics, parentPath *field.Path) field.ErrorList {
+	var errs field.ErrorList
+
+	if diagnosticsSpec.Boot != nil {
+		cmPath := parentPath.Child("boot", "customerManaged")
+
+		switch diagnosticsSpec.Boot.StorageAccountType {
+		case machinev1beta1.CustomerManagedAzureDiagnosticsStorage:
+			if diagnosticsSpec.Boot.CustomerManaged == nil {
+				errs = append(errs, field.Required(cmPath, "customerManaged configuration must be provided"))
+			} else if diagnosticsSpec.Boot.CustomerManaged.StorageAccountURI == "" {
+				errs = append(errs, field.Required(cmPath.Child("storageAccountURI"), "storageAccountURI must be provided"))
+			}
+
+		case machinev1beta1.AzureManagedAzureDiagnosticsStorage:
+			if diagnosticsSpec.Boot.CustomerManaged != nil {
+				errs = append(errs, field.Invalid(cmPath, diagnosticsSpec.Boot.CustomerManaged, "customerManaged may not be set when type is AzureManaged"))
+			}
+
+		default:
+			errs = append(errs, field.Invalid(parentPath.Child("boot", "storageAccountType"), diagnosticsSpec.Boot.StorageAccountType, fmt.Sprintf("storageAccountType must be one of: %s, %s", machinev1beta1.AzureManagedAzureDiagnosticsStorage, machinev1beta1.CustomerManagedAzureDiagnosticsStorage)))
+		}
+	}
+
+	return errs
+}
+
+func defaultGCP(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+	klog.V(3).Infof("Defaulting GCP providerSpec")
+
+	var errs field.ErrorList
+	var warnings []string
+	providerSpec := new(machinev1beta1.GCPMachineProviderSpec)
+	if err := unmarshalInto(m, providerSpec); err != nil {
+		errs = append(errs, err)
+		return false, warnings, errs
+	}
+
+	if providerSpec.MachineType == "" {
+		providerSpec.MachineType = defaultInstanceTypeForCloudProvider(osconfigv1.GCPPlatformType, arch, &warnings)
+	}
+
+	if providerSpec.MachineType == "" {
+		// this should never happen
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "machineType"), "machineType "+
+			"is required and no default value was found"))
+	}
+
+	if len(providerSpec.NetworkInterfaces) == 0 {
+		providerSpec.NetworkInterfaces = append(providerSpec.NetworkInterfaces, &machinev1beta1.GCPNetworkInterface{
+			Network:    defaultGCPNetwork(config.clusterID),
+			Subnetwork: defaultGCPSubnetwork(config.clusterID),
+		})
+	}
+
+	providerSpec.Disks = defaultGCPDisks(providerSpec.Disks, config.clusterID)
+
+	if len(providerSpec.GPUs) != 0 {
+		// In case Count was not set it should default to 1, since there is no valid reason for it to be purposely set to 0.
+		if providerSpec.GPUs[0].Count == 0 {
+			providerSpec.GPUs[0].Count = defaultGCPGPUCount
+		}
+	}
+
+	if len(providerSpec.Tags) == 0 {
+		providerSpec.Tags = defaultGCPTags(config.clusterID)
+	}
+
+	if providerSpec.UserDataSecret == nil {
+		providerSpec.UserDataSecret = &corev1.LocalObjectReference{Name: defaultUserDataSecret}
+	}
+
+	if providerSpec.CredentialsSecret == nil {
+		providerSpec.CredentialsSecret = &corev1.LocalObjectReference{Name: defaultGCPCredentialsSecret}
+	}
+
+	rawBytes, err := json.Marshal(providerSpec)
+	if err != nil {
+		errs = append(errs, field.InternalError(field.NewPath("providerSpec", "value"), err))
+	}
+
+	if len(errs) > 0 {
+		return false, warnings, errs
+	}
+
+	m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
+	return true, warnings, nil
+}
+
+func defaultGCPDisks(disks []*machinev1beta1.GCPDisk, clusterID string) []*machinev1beta1.GCPDisk {
+	if len(disks) == 0 {
+		return []*machinev1beta1.GCPDisk{
+			{
+				AutoDelete: true,
+				Boot:       true,
+				SizeGB:     defaultGCPDiskSizeGb,
+				Type:       defaultGCPDiskType,
+				Image:      defaultGCPDiskImage(),
+			},
+		}
+	}
+
+	for _, disk := range disks {
+		if disk.Type == "" {
+			disk.Type = defaultGCPDiskType
+		}
+
+		if disk.Boot && disk.Image == "" {
+			disk.Image = defaultGCPDiskImage()
+		}
+	}
+
+	return disks
+}
+
+func validateGCP(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+	klog.V(3).Infof("Validating GCP providerSpec")
+
+	var errs field.ErrorList
+	var warnings []string
+	providerSpec := new(machinev1beta1.GCPMachineProviderSpec)
+	if err := unmarshalInto(m, providerSpec); err != nil {
+		errs = append(errs, err)
+		return false, warnings, errs
+	}
+
+	if err := validateUnknownFields(m, providerSpec); err != nil {
+		warnings = append(warnings, err.Error())
+	}
+
+	if !validateGVK(providerSpec.GroupVersionKind(), osconfigv1.GCPPlatformType) {
+		warnings = append(warnings, fmt.Sprintf("incorrect GroupVersionKind for GCPMachineProviderSpec object: %s", providerSpec.GroupVersionKind()))
+	}
+
+	if providerSpec.Region == "" {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "region"), "region is required"))
+	}
+
+	if !strings.HasPrefix(providerSpec.Zone, providerSpec.Region) {
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "zone"), providerSpec.Zone, fmt.Sprintf("zone not in configured region (%s)", providerSpec.Region)))
+	}
+
+	if providerSpec.MachineType == "" {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "machineType"), "machineType should be set to one of the supported GCP machine types"))
+	}
+
+	if providerSpec.OnHostMaintenance != "" && providerSpec.OnHostMaintenance != machinev1beta1.MigrateHostMaintenanceType && providerSpec.OnHostMaintenance != machinev1beta1.TerminateHostMaintenanceType {
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "onHostMaintenance"), providerSpec.OnHostMaintenance, fmt.Sprintf("onHostMaintenance must be either %s or %s.", machinev1beta1.MigrateHostMaintenanceType, machinev1beta1.TerminateHostMaintenanceType)))
+	}
+
+	errs = append(errs, validateShieldedInstanceConfig(providerSpec)...)
+
+	errs = append(errs, validateGCPConfidentialComputing(providerSpec)...)
+
+	if providerSpec.RestartPolicy != "" && providerSpec.RestartPolicy != machinev1beta1.RestartPolicyAlways && providerSpec.RestartPolicy != machinev1beta1.RestartPolicyNever {
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "restartPolicy"), providerSpec.RestartPolicy, fmt.Sprintf("restartPolicy must be either %s or %s.", machinev1beta1.RestartPolicyNever, machinev1beta1.RestartPolicyAlways)))
+	}
+
+	if providerSpec.ProvisioningModel != nil && *providerSpec.ProvisioningModel != machinev1beta1.GCPSpotInstance {
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "provisioningModel"), *providerSpec.ProvisioningModel, fmt.Sprintf("provisioningModel must be %q or omit for standard provisioning", machinev1beta1.GCPSpotInstance)))
+	}
+
+	if providerSpec.Preemptible && providerSpec.ProvisioningModel != nil && *providerSpec.ProvisioningModel == machinev1beta1.GCPSpotInstance {
+		errs = append(errs, field.Forbidden(field.NewPath("providerSpec", "provisioningModel"), fmt.Sprintf("preemptible cannot be used together with %q provisioning model", machinev1beta1.GCPSpotInstance)))
+	}
+
+	if len(providerSpec.GPUs) != 0 || strings.HasPrefix(providerSpec.MachineType, "a2-") {
+		if providerSpec.OnHostMaintenance == machinev1beta1.MigrateHostMaintenanceType {
+			errs = append(errs, field.Forbidden(field.NewPath("providerSpec", "onHostMaintenance"), fmt.Sprintf("When GPUs are specified or using machineType with pre-attached GPUs(A2 machine family), onHostMaintenance must be set to %s.", machinev1beta1.TerminateHostMaintenanceType)))
+		}
+	}
+
+	errs = append(errs, validateGCPNetworkInterfaces(providerSpec.NetworkInterfaces, field.NewPath("providerSpec", "networkInterfaces"))...)
+	errs = append(errs, validateGCPDisks(providerSpec.Disks, field.NewPath("providerSpec", "disks"))...)
+	errs = append(errs, validateGCPGPUs(providerSpec.GPUs, field.NewPath("providerSpec", "gpus"), providerSpec.MachineType)...)
+
+	if len(providerSpec.ServiceAccounts) == 0 {
+		warnings = append(warnings, "providerSpec.serviceAccounts: no service account provided: nodes may be unable to join the cluster")
+	} else {
+		errs = append(errs, validateGCPServiceAccounts(providerSpec.ServiceAccounts, field.NewPath("providerSpec", "serviceAccounts"))...)
+	}
+
+	if providerSpec.UserDataSecret == nil {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret"), "userDataSecret must be provided"))
+	} else {
+		if providerSpec.UserDataSecret.Name == "" {
+			errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret", "name"), "name must be provided"))
+		}
+	}
+
+	if providerSpec.CredentialsSecret == nil {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret"), "credentialsSecret must be provided"))
+	} else {
+		if providerSpec.CredentialsSecret.Name == "" {
+			errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret", "name"), "name must be provided"))
+		} else {
+			warnings = append(warnings, credentialsSecretExists(config.client, providerSpec.CredentialsSecret.Name, m.GetNamespace())...)
+		}
+	}
+
+	if len(errs) > 0 {
+		return false, warnings, errs
+	}
+	return true, warnings, nil
+}
+
+func validateShieldedInstanceConfig(providerSpec *machinev1beta1.GCPMachineProviderSpec) field.ErrorList {
+	var errs field.ErrorList
+
+	if providerSpec.ShieldedInstanceConfig != (machinev1beta1.GCPShieldedInstanceConfig{}) {
+
+		if providerSpec.ShieldedInstanceConfig.SecureBoot != "" && providerSpec.ShieldedInstanceConfig.SecureBoot != machinev1beta1.SecureBootPolicyEnabled && providerSpec.ShieldedInstanceConfig.SecureBoot != machinev1beta1.SecureBootPolicyDisabled {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "shieldedInstanceConfig", "secureBoot"),
+				providerSpec.ShieldedInstanceConfig.SecureBoot,
+				fmt.Sprintf("secureBoot must be either %s or %s.", machinev1beta1.SecureBootPolicyEnabled, machinev1beta1.SecureBootPolicyDisabled)))
+		}
+
+		if providerSpec.ShieldedInstanceConfig.IntegrityMonitoring != "" && providerSpec.ShieldedInstanceConfig.IntegrityMonitoring != machinev1beta1.IntegrityMonitoringPolicyEnabled && providerSpec.ShieldedInstanceConfig.IntegrityMonitoring != machinev1beta1.IntegrityMonitoringPolicyDisabled {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "shieldedInstanceConfig", "integrityMonitoring"),
+				providerSpec.ShieldedInstanceConfig.IntegrityMonitoring,
+				fmt.Sprintf("integrityMonitoring must be either %s or %s.", machinev1beta1.IntegrityMonitoringPolicyEnabled, machinev1beta1.IntegrityMonitoringPolicyDisabled)))
+		}
+
+		if providerSpec.ShieldedInstanceConfig.VirtualizedTrustedPlatformModule != "" && providerSpec.ShieldedInstanceConfig.VirtualizedTrustedPlatformModule != machinev1beta1.VirtualizedTrustedPlatformModulePolicyEnabled && providerSpec.ShieldedInstanceConfig.VirtualizedTrustedPlatformModule != machinev1beta1.VirtualizedTrustedPlatformModulePolicyDisabled {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "shieldedInstanceConfig", "virtualizedTrustedPlatformModule"),
+				providerSpec.ShieldedInstanceConfig.VirtualizedTrustedPlatformModule,
+				fmt.Sprintf("virtualizedTrustedPlatformModule must be either %s or %s.", machinev1beta1.VirtualizedTrustedPlatformModulePolicyEnabled, machinev1beta1.VirtualizedTrustedPlatformModulePolicyDisabled)))
+		}
+		if providerSpec.ShieldedInstanceConfig.VirtualizedTrustedPlatformModule == machinev1beta1.VirtualizedTrustedPlatformModulePolicyDisabled && providerSpec.ShieldedInstanceConfig.IntegrityMonitoring != machinev1beta1.IntegrityMonitoringPolicyDisabled {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "shieldedInstanceConfig", "virtualizedTrustedPlatformModule"),
+				providerSpec.ShieldedInstanceConfig.VirtualizedTrustedPlatformModule,
+				fmt.Sprintf("integrityMonitoring requires virtualizedTrustedPlatformModule %s.", machinev1beta1.VirtualizedTrustedPlatformModulePolicyEnabled)))
+		}
+	}
+	return errs
+}
+
+func validateGCPConfidentialComputing(providerSpec *machinev1beta1.GCPMachineProviderSpec) field.ErrorList {
+	var errs field.ErrorList
+	if providerSpec.ConfidentialCompute != "" && providerSpec.ConfidentialCompute != machinev1beta1.ConfidentialComputePolicyDisabled {
+		// Check on host maintenance
+		if providerSpec.OnHostMaintenance != machinev1beta1.TerminateHostMaintenanceType {
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "onHostMaintenance"),
+				providerSpec.OnHostMaintenance,
+				fmt.Sprintf("ConfidentialCompute %s requires OnHostMaintenance to be set to %s, the current value is: %s", providerSpec.ConfidentialCompute, machinev1beta1.TerminateHostMaintenanceType, providerSpec.OnHostMaintenance)))
+		}
+		// Check machine series supports confidential computing
+		machineSeries := strings.Split(providerSpec.MachineType, "-")[0]
+		switch providerSpec.ConfidentialCompute {
+		case machinev1beta1.ConfidentialComputePolicyEnabled, machinev1beta1.ConfidentialComputePolicySEV:
+			if !slices.Contains(gcpConfidentialTypeMachineSeriesSupportingSEV, machineSeries) {
+				errs = append(errs, field.Invalid(field.NewPath("providerSpec", "machineType"),
+					providerSpec.MachineType,
+					fmt.Sprintf("ConfidentialCompute %s requires a machine type in the following series: %s", providerSpec.ConfidentialCompute, strings.Join(gcpConfidentialTypeMachineSeriesSupportingSEV, `,`))),
+				)
+			}
+		case machinev1beta1.ConfidentialComputePolicySEVSNP:
+			if !slices.Contains(gcpConfidentialTypeMachineSeriesSupportingSEVSNP, machineSeries) {
+				errs = append(errs, field.Invalid(field.NewPath("providerSpec", "machineType"),
+					providerSpec.MachineType,
+					fmt.Sprintf("ConfidentialCompute %s requires a machine type in the following series: %s", providerSpec.ConfidentialCompute, strings.Join(gcpConfidentialTypeMachineSeriesSupportingSEVSNP, `,`))),
+				)
+			}
+		case machinev1beta1.ConfidentialComputePolicyTDX:
+			if !slices.Contains(gcpConfidentialTypeMachineSeriesSupportingTDX, machineSeries) {
+				errs = append(errs, field.Invalid(field.NewPath("providerSpec", "machineType"),
+					providerSpec.MachineType,
+					fmt.Sprintf("ConfidentialCompute %s requires a machine type in the following series: %s", providerSpec.ConfidentialCompute, strings.Join(gcpConfidentialTypeMachineSeriesSupportingTDX, `,`))),
+				)
+			}
+		default:
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "confidentialCompute"),
+				providerSpec.ConfidentialCompute,
+				fmt.Sprintf("ConfidentialCompute must be %s, %s, %s, %s, or %s", machinev1beta1.ConfidentialComputePolicyEnabled, machinev1beta1.ConfidentialComputePolicyDisabled, machinev1beta1.ConfidentialComputePolicySEV, machinev1beta1.ConfidentialComputePolicySEVSNP, machinev1beta1.ConfidentialComputePolicyTDX)),
+			)
+		}
+	}
+	return errs
+}
+
+func validateGCPNetworkInterfaces(networkInterfaces []*machinev1beta1.GCPNetworkInterface, parentPath *field.Path) field.ErrorList {
+	if len(networkInterfaces) == 0 {
+		return field.ErrorList{field.Required(parentPath, "at least 1 network interface is required")}
+	}
+
+	var errs field.ErrorList
+	for i, ni := range networkInterfaces {
+		fldPath := parentPath.Index(i)
+
+		if ni.Network == "" {
+			errs = append(errs, field.Required(fldPath.Child("network"), "network is required"))
+		}
+
+		if ni.Subnetwork == "" {
+			errs = append(errs, field.Required(fldPath.Child("subnetwork"), "subnetwork is required"))
+		}
+	}
+
+	return errs
+}
+
+func validateGCPDisks(disks []*machinev1beta1.GCPDisk, parentPath *field.Path) field.ErrorList {
+	if len(disks) == 0 {
+		return field.ErrorList{field.Required(parentPath, "at least 1 disk is required")}
+	}
+
+	var errs field.ErrorList
+	for i, disk := range disks {
+		fldPath := parentPath.Index(i)
+
+		if disk.SizeGB != 0 {
+			if disk.SizeGB < 16 {
+				errs = append(errs, field.Invalid(fldPath.Child("sizeGb"), disk.SizeGB, "must be at least 16GB in size"))
+			} else if disk.SizeGB > 65536 {
+				errs = append(errs, field.Invalid(fldPath.Child("sizeGb"), disk.SizeGB, "exceeding maximum GCP disk size limit, must be below 65536"))
+			}
+		}
+
+		if disk.Type != "" {
+			diskTypes := sets.NewString("pd-standard", "pd-ssd", "pd-balanced", "hyperdisk-balanced")
+			if !diskTypes.Has(disk.Type) {
+				errs = append(errs, field.NotSupported(fldPath.Child("type"), disk.Type, diskTypes.List()))
+			}
+		}
+	}
+
+	return errs
+}
+
+func validateGCPGPUs(guestAccelerators []machinev1beta1.GCPGPUConfig, parentPath *field.Path, machineType string) field.ErrorList {
+	var errs field.ErrorList
+
+	if len(guestAccelerators) > 1 {
+		errs = append(errs, field.TooMany(parentPath, len(guestAccelerators), 1))
+	} else if len(guestAccelerators) == 1 {
+		accelerator := guestAccelerators[0]
+		if accelerator.Type == "" {
+			errs = append(errs, field.Required(parentPath.Child("Type"), "Type is required"))
+		}
+
+		if accelerator.Type == "nvidia-tesla-a100" {
+			errs = append(errs, field.Invalid(parentPath.Child("Type"), accelerator.Type, " nvidia-tesla-a100 gpus, are only attached to the A2 machine types"))
+		}
+
+		if strings.HasPrefix(machineType, "a2-") {
+			errs = append(errs, field.Invalid(parentPath, accelerator.Type, "A2 machine types have already attached gpus, additional gpus cannot be specified"))
+		}
+	}
+
+	return errs
+}
+
+func validateGCPServiceAccounts(serviceAccounts []machinev1beta1.GCPServiceAccount, parentPath *field.Path) field.ErrorList {
+	if len(serviceAccounts) != 1 {
+		return field.ErrorList{field.Invalid(parentPath, fmt.Sprintf("%d service accounts supplied", len(serviceAccounts)), "exactly 1 service account must be supplied")}
+	}
+
+	var errs field.ErrorList
+	for i, serviceAccount := range serviceAccounts {
+		fldPath := parentPath.Index(i)
+
+		if serviceAccount.Email == "" {
+			errs = append(errs, field.Required(fldPath.Child("email"), "email is required"))
+		}
+
+		if len(serviceAccount.Scopes) == 0 {
+			errs = append(errs, field.Required(fldPath.Child("scopes"), "at least 1 scope is required"))
+		}
+	}
+	return errs
+}
+
+func defaultVSphere(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+	klog.V(3).Infof("Defaulting vSphere providerSpec")
+
+	var errs field.ErrorList
+	var warnings []string
+	providerSpec := new(machinev1beta1.VSphereMachineProviderSpec)
+	if err := unmarshalInto(m, providerSpec); err != nil {
+		errs = append(errs, err)
+		return false, warnings, errs
+	}
+
+	if providerSpec.UserDataSecret == nil {
+		providerSpec.UserDataSecret = &corev1.LocalObjectReference{Name: defaultUserDataSecret}
+	}
+
+	if providerSpec.CredentialsSecret == nil {
+		providerSpec.CredentialsSecret = &corev1.LocalObjectReference{Name: defaultVSphereCredentialsSecret}
+	}
+
+	rawBytes, err := json.Marshal(providerSpec)
+	if err != nil {
+		errs = append(errs, field.InternalError(field.NewPath("providerSpec", "value"), err))
+	}
+
+	if len(errs) > 0 {
+		return false, warnings, errs
+	}
+
+	m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
+	return true, warnings, nil
+}
+
+func validateVSphere(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+	klog.V(3).Infof("Validating vSphere providerSpec")
+
+	var errs field.ErrorList
+	var warnings []string
+	providerSpec := new(machinev1beta1.VSphereMachineProviderSpec)
+	if err := unmarshalInto(m, providerSpec); err != nil {
+		errs = append(errs, err)
+		return false, warnings, errs
+	}
+
+	if err := validateUnknownFields(m, providerSpec); err != nil {
+		warnings = append(warnings, err.Error())
+	}
+
+	if !validateGVK(providerSpec.GroupVersionKind(), osconfigv1.VSpherePlatformType) {
+		warnings = append(warnings, fmt.Sprintf("incorrect GroupVersionKind for VSphereMachineProviderSpec object: %s", providerSpec.GroupVersionKind()))
+	}
+
+	if providerSpec.Template == "" {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "template"), "template must be provided"))
+	}
+
+	workspaceWarnings, workspaceErrors := validateVSphereWorkspace(providerSpec.Workspace, config, field.NewPath("providerSpec", "workspace"))
+	warnings = append(warnings, workspaceWarnings...)
+	errs = append(errs, workspaceErrors...)
+
+	errs = append(errs, validateVSphereNetwork(providerSpec.Network, field.NewPath("providerSpec", "network"))...)
+
+	if providerSpec.NumCPUs < minVSphereCPU {
+		warnings = append(warnings, fmt.Sprintf("providerSpec.numCPUs: %d is missing or less than the minimum value (%d): nodes may not boot correctly", providerSpec.NumCPUs, minVSphereCPU))
+	}
+	if providerSpec.MemoryMiB < minVSphereMemoryMiB {
+		warnings = append(warnings, fmt.Sprintf("providerSpec.memoryMiB: %d is missing or less than the recommended minimum value (%d): nodes may not boot correctly", providerSpec.MemoryMiB, minVSphereMemoryMiB))
+	}
+	if providerSpec.DiskGiB < minVSphereDiskGiB {
+		warnings = append(warnings, fmt.Sprintf("providerSpec.diskGiB: %d is missing or less than the recommended minimum (%d): nodes may fail to start if disk size is too low", providerSpec.DiskGiB, minVSphereDiskGiB))
+	}
+	if providerSpec.CloneMode == machinev1beta1.LinkedClone && providerSpec.DiskGiB > 0 {
+		warnings = append(warnings, fmt.Sprintf("%s clone mode is set. DiskGiB parameter will be ignored, disk size from template will be used.", machinev1beta1.LinkedClone))
+	}
+
+	if providerSpec.UserDataSecret == nil {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret"), "userDataSecret must be provided"))
+	} else {
+		if providerSpec.UserDataSecret.Name == "" {
+			errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret", "name"), "name must be provided"))
+		}
+	}
+
+	if len(providerSpec.TagIDs) > 10 {
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "tagIDs"), providerSpec.TagIDs, "a maximum of 10 tags are allowed"))
+	}
+
+	for _, tagID := range providerSpec.TagIDs {
+		if tagUrnPattern.FindStringSubmatch(tagID) == nil {
+			errs = append(errs, field.Required(field.NewPath("providerSpec", "tagIDs"), "tag ID must be in the format of urn:vmomi:InventoryServiceTag:<UUID>:GLOBAL"))
+		}
+	}
+
+	if providerSpec.CredentialsSecret == nil {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret"), "credentialsSecret must be provided"))
+	} else {
+		if providerSpec.CredentialsSecret.Name == "" {
+			errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret", "name"), "name must be provided"))
+		} else {
+			warnings = append(warnings, credentialsSecretExists(config.client, providerSpec.CredentialsSecret.Name, m.GetNamespace())...)
+		}
+	}
+
+	if len(providerSpec.DataDisks) > 0 {
+		if !config.featureGates.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereMultiDisk)) {
+			errs = append(errs, field.Forbidden(field.NewPath("providerSpec", "disks"), "this field is protected by the VSphereMultiDisk feature gate which must be enabled through either the TechPreviewNoUpgrade or CustomNoUpgrade feature set"))
+		} else {
+			errs = append(errs, validateVSphereDataDisks(providerSpec.DataDisks)...)
+		}
+	}
+
+	if len(errs) > 0 {
+		return false, warnings, errs
+	}
+	return true, warnings, nil
+}
+
+func validateVSphereDataDisks(dataDisks []machinev1beta1.VSphereDisk) field.ErrorList {
+	var errs field.ErrorList
+
+	disksPath := field.NewPath("providerSpec", "disks")
+	if len(dataDisks) > maxVSphereDataDisks {
+		errs = append(errs, field.Invalid(disksPath, len(dataDisks), fmt.Sprintf("data disk count must not exceed %d", maxVSphereDataDisks)))
+	}
+
+	for i, disk := range dataDisks {
+		diskPath := disksPath.Index(i)
+
+		if len(disk.Name) == 0 {
+			errs = append(errs, field.Required(diskPath.Child("name"), "data disk name must be set"))
+		} else {
+			if len(disk.Name) > maxVSphereDataDiskNameLength {
+				errs = append(errs, field.Invalid(diskPath.Child("name"), len(disk.Name), fmt.Sprintf("data disk name must not exceed %d", maxVSphereDataDiskNameLength)))
+			}
+			if vSphereDataDiskNamePattern.FindStringSubmatch(disk.Name) == nil {
+				errs = append(errs, field.Invalid(diskPath.Child("name"), disk.Name, "data disk name must consist only of alphanumeric characters, hyphens and underscores, and must start and end with an alphanumeric character."))
+			}
+		}
+
+		if disk.SizeGiB == 0 {
+			errs = append(errs, field.Required(diskPath.Child("sizeGiB"), "data disk size must be set"))
+		}
+
+		if disk.SizeGiB > maxVSphereDataDiskSize {
+			errs = append(errs, field.Invalid(diskPath.Child("sizeGiB"), disk.SizeGiB, fmt.Sprintf("data disk size (GiB) must not exceed %d", maxVSphereDataDiskSize)))
+		}
+
+		// Validate provisioning modes
+		if len(disk.ProvisioningMode) > 0 {
+			validModesSet := sets.NewString()
+			for _, m := range validProvisioningModes {
+				validModesSet.Insert(string(m))
+			}
+			if !validModesSet.Has(string(disk.ProvisioningMode)) {
+				errs = append(errs, field.NotSupported(diskPath, disk.ProvisioningMode, validModesSet.List()))
+			}
+		}
+	}
+
+	return errs
+}
+
+func validateVSphereWorkspace(workspace *machinev1beta1.Workspace, config *admissionConfig, parentPath *field.Path) ([]string, field.ErrorList) {
+	if workspace == nil {
+		return []string{}, field.ErrorList{field.Required(parentPath, "workspace must be provided")}
+	}
+
+	var errs field.ErrorList
+	var warnings []string
+	if workspace.Server == "" {
+		errs = append(errs, field.Required(parentPath.Child("server"), "server must be provided"))
+	}
+	if workspace.Datacenter == "" {
+		warnings = append(warnings, fmt.Sprintf("%s: datacenter is unset: if more than one datacenter is present, VMs cannot be created", parentPath.Child("datacenter")))
+	}
+	if workspace.Folder != "" {
+		expectedPrefix := fmt.Sprintf("/%s/vm/", workspace.Datacenter)
+		if !strings.HasPrefix(workspace.Folder, expectedPrefix) {
+			errMsg := fmt.Sprintf("folder must be absolute path: expected prefix %q", expectedPrefix)
+			errs = append(errs, field.Invalid(parentPath.Child("folder"), workspace.Folder, errMsg))
+		}
+	}
+
+	if config.featureGates.Enabled(featuregate.Feature(apifeatures.FeatureGateVSphereHostVMGroupZonal)) {
+		if len(workspace.VMGroup) > 80 {
+			errs = append(errs, field.Invalid(parentPath.Child("vmGroup"), workspace.VMGroup, "vmGroup must be less than 80 characters in length"))
+		}
+	} else if workspace.VMGroup != "" {
+		errs = append(errs, field.Invalid(parentPath.Child("vmGroup"), workspace.VMGroup, "feature gate VSphereHostVMGroupZonal must be enabled to use vmGroup"))
+	}
+
+	return warnings, errs
+}
+
+func validateVSphereNetwork(network machinev1beta1.NetworkSpec, parentPath *field.Path) field.ErrorList {
+	if len(network.Devices) == 0 {
+		return field.ErrorList{field.Required(parentPath.Child("devices"), "at least 1 network device must be provided")}
+	}
+
+	// We currently only support a max of 10 adapters in vSphere based on vSphere limitations
+	if len(network.Devices) > maxVSphereNetworkCount {
+		return field.ErrorList{field.TooMany(parentPath.Child("devices"), len(network.Devices), maxVSphereNetworkCount)}
+	}
+
+	var errs field.ErrorList
+	for i, spec := range network.Devices {
+		fldPath := parentPath.Child("devices").Index(i)
+		if spec.NetworkName == "" {
+			errs = append(errs, field.Required(fldPath.Child("networkName"), "networkName must be provided"))
+		}
+	}
+
+	return errs
+}
+
+func defaultNutanix(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+	klog.V(3).Infof("Defaulting nutanix providerSpec")
+
+	var errs field.ErrorList
+	var warnings []string
+	providerSpec := new(machinev1.NutanixMachineProviderConfig)
+	if err := unmarshalInto(m, providerSpec); err != nil {
+		errs = append(errs, err)
+		return false, warnings, errs
+	}
+
+	if providerSpec.UserDataSecret == nil {
+		providerSpec.UserDataSecret = &corev1.LocalObjectReference{Name: defaultUserDataSecret}
+	}
+
+	if providerSpec.CredentialsSecret == nil {
+		providerSpec.CredentialsSecret = &corev1.LocalObjectReference{Name: defaultNutanixCredentialsSecret}
+	}
+
+	rawBytes, err := json.Marshal(providerSpec)
+	if err != nil {
+		errs = append(errs, field.InternalError(field.NewPath("providerSpec", "value"), err))
+	}
+
+	if len(errs) > 0 {
+		return false, warnings, errs
+	}
+
+	m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
+	return true, warnings, nil
+}
+
+func validateNutanix(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+	klog.V(3).Infof("Validating nutanix providerSpec")
+
+	var errs field.ErrorList
+	var warnings []string
+	providerSpec := new(machinev1.NutanixMachineProviderConfig)
+	if err := unmarshalInto(m, providerSpec); err != nil {
+		errs = append(errs, err)
+		return false, warnings, errs
+	}
+
+	if err := validateUnknownFields(m, providerSpec); err != nil {
+		warnings = append(warnings, err.Error())
+	}
+
+	if err := validateNutanixResourceIdentifier("cluster", providerSpec.Cluster); err != nil {
+		errs = append(errs, err)
+	}
+	if err := validateNutanixResourceIdentifier("image", providerSpec.Image); err != nil {
+		errs = append(errs, err)
+	}
+
+	numSubnets := len(providerSpec.Subnets)
+	switch {
+	case numSubnets == 0:
+		subnets, _ := json.Marshal(providerSpec.Subnets)
+		errs = append(errs, field.Invalid(field.NewPath("providerSpec", "subnets"), string(subnets), "missing subnets: nodes may fail to start if no subnets are configured"))
+	case numSubnets > 32:
+		errs = append(errs, field.TooMany(field.NewPath("providerSpec", "subnets"), numSubnets, 32))
+	default:
+		subnets := []machinev1.NutanixResourceIdentifier{}
+		for _, subnet := range providerSpec.Subnets {
+			if err := validateNutanixResourceIdentifier("subnet", subnet); err != nil {
+				errs = append(errs, err)
+			} else {
+				// check duplication
+				for _, other := range subnets {
+					if reflect.DeepEqual(subnet, other) {
+						subnetData, _ := json.Marshal(subnet)
+						errs = append(errs, field.Invalid(field.NewPath("providerSpec", "subnets"), string(subnetData), "should not configure duplicate subnet value"))
+					}
+				}
+			}
+
+			subnets = append(subnets, subnet)
+		}
+	}
+
+	if providerSpec.VCPUSockets < minNutanixCPUSockets {
+		warnings = append(warnings, fmt.Sprintf("providerSpec.vcpuSockets: %d is missing or less than the minimum value (%d): nodes may not boot correctly", providerSpec.VCPUSockets, minNutanixCPUSockets))
+	}
+
+	if providerSpec.VCPUsPerSocket < minNutanixCPUPerSocket {
+		warnings = append(warnings, fmt.Sprintf("providerSpec.vcpusPerSocket: %d is missing or less than the minimum value (%d): nodes may not boot correctly", providerSpec.VCPUsPerSocket, minNutanixCPUPerSocket))
+	}
+
+	minNutanixMemory, err := resource.ParseQuantity(fmt.Sprintf("%dMi", minNutanixMemoryMiB))
+	if err != nil {
+		errs = append(errs, field.InternalError(field.NewPath("providerSpec", "memorySize"), fmt.Errorf("failed to parse minNutanixMemory: %v", err)))
+		return false, warnings, errs
+	}
+	if providerSpec.MemorySize.Cmp(minNutanixMemory) < 0 {
+		warnings = append(warnings, fmt.Sprintf("providerSpec.memorySize: %d is missing or less than the recommended minimum value (%d): nodes may not boot correctly", providerSpec.MemorySize.Value()/(1024*1024), minNutanixMemoryMiB))
+	}
+
+	minNutanixDiskSize, err := resource.ParseQuantity(fmt.Sprintf("%dGi", minNutanixDiskGiB))
+	if err != nil {
+		errs = append(errs, field.InternalError(field.NewPath("providerSpec", "systemDiskSize"), fmt.Errorf("failed to parse minNutanixDiskSize: %v", err)))
+		return false, warnings, errs
+	}
+	if providerSpec.SystemDiskSize.Cmp(minNutanixDiskSize) < 0 {
+		warnings = append(warnings, fmt.Sprintf("providerSpec.systemDiskSize: %d is missing or less than the recommended minimum (%d): nodes may fail to start if disk size is too low", providerSpec.SystemDiskSize.Value()/(1024*1024*1024), minNutanixDiskGiB))
+	}
+
+	if providerSpec.UserDataSecret == nil {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret"), "userDataSecret must be provided"))
+	} else {
+		if providerSpec.UserDataSecret.Name == "" {
+			errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret", "name"), "name must be provided"))
+		}
+	}
+
+	if providerSpec.CredentialsSecret == nil {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret"), "credentialsSecret must be provided"))
+	} else {
+		if providerSpec.CredentialsSecret.Name == "" {
+			errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret", "name"), "name must be provided"))
+		} else {
+			warnings = append(warnings, credentialsSecretExists(config.client, providerSpec.CredentialsSecret.Name, m.GetNamespace())...)
+		}
+	}
+
+	// validate bootType
+	if err := validateNutanixBootType(providerSpec.BootType); err != nil {
+		errs = append(errs, err)
+	}
+
+	// validate project if configured
+	if len(providerSpec.Project.Type) != 0 {
+		if err := validateNutanixResourceIdentifier("project", providerSpec.Project); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	// validate categories if configured
+	if len(providerSpec.Categories) > 0 {
+		for _, category := range providerSpec.Categories {
+			if len(category.Key) < 1 || len(category.Key) > 64 {
+				errs = append(errs, field.Invalid(field.NewPath("providerSpec", "categories", "key"), category.Key, "key must be a string with length between 1 and 64."))
+			}
+			if len(category.Value) < 1 || len(category.Value) > 64 {
+				errs = append(errs, field.Invalid(field.NewPath("providerSpec", "categories", "value"), category.Value, "value must be a string with length between 1 and 64."))
+			}
+		}
+	}
+
+	// validate gpus if configured
+	if len(providerSpec.GPUs) > 0 {
+		fldPath := field.NewPath("providerSpec", "gpus")
+		for _, gpu := range providerSpec.GPUs {
+			switch gpu.Type {
+			case machinev1.NutanixGPUIdentifierDeviceID:
+				if gpu.DeviceID == nil {
+					errs = append(errs, field.Required(fldPath.Child("deviceID"), "missing gpu deviceID"))
+				}
+			case machinev1.NutanixGPUIdentifierName:
+				if gpu.Name == nil || *gpu.Name == "" {
+					errs = append(errs, field.Required(fldPath.Child("name"), "missing gpu name"))
+				}
+			default:
+				errMsg := fmt.Sprintf("invalid gpu identifier type, the valid types: %q, %q.", machinev1.NutanixGPUIdentifierDeviceID, machinev1.NutanixGPUIdentifierName)
+				errs = append(errs, field.Invalid(fldPath.Child("type"), gpu.Type, errMsg))
+			}
+		}
+	}
+
+	// validate dataDisks if configured
+	if len(providerSpec.DataDisks) > 0 {
+		for _, fldErr := range validateNutanixDataDisks(providerSpec.DataDisks) {
+			errs = append(errs, fldErr)
+		}
+	}
+
+	if len(errs) > 0 {
+		return false, warnings, errs
+	}
+	return true, warnings, nil
+}
+
+func validateNutanixDataDisks(disks []machinev1.NutanixVMDisk) (fldErrs []*field.Error) {
+	fldPath := field.NewPath("providerSpec", "dataDisks")
+	var errMsg string
+
+	for _, disk := range disks {
+		// validate the minimum diskSize of 1Gi
+		diskSizeBytes := disk.DiskSize.Value()
+		if diskSizeBytes < 1024*1024*1024 {
+			fldErrs = append(fldErrs, field.Invalid(fldPath.Child("diskSize"), fmt.Sprintf("%v bytes", diskSizeBytes), "The minimum diskSize is 1Gi bytes."))
+		}
+
+		if disk.DeviceProperties != nil {
+			switch disk.DeviceProperties.DeviceType {
+			case machinev1.NutanixDiskDeviceTypeDisk:
+				switch disk.DeviceProperties.AdapterType {
+				case machinev1.NutanixDiskAdapterTypeSCSI, machinev1.NutanixDiskAdapterTypeIDE, machinev1.NutanixDiskAdapterTypePCI, machinev1.NutanixDiskAdapterTypeSATA, machinev1.NutanixDiskAdapterTypeSPAPR:
+					// valid configuration
+				default:
+					// invalid configuration
+					fldErrs = append(fldErrs, field.Invalid(fldPath.Child("deviceProperties", "adapterType"), disk.DeviceProperties.AdapterType,
+						fmt.Sprintf("invalid adapter type for the %q device type, the valid values: %q, %q, %q, %q, %q.",
+							machinev1.NutanixDiskDeviceTypeDisk, machinev1.NutanixDiskAdapterTypeSCSI, machinev1.NutanixDiskAdapterTypeIDE,
+							machinev1.NutanixDiskAdapterTypePCI, machinev1.NutanixDiskAdapterTypeSATA, machinev1.NutanixDiskAdapterTypeSPAPR)))
+				}
+			case machinev1.NutanixDiskDeviceTypeCDROM:
+				switch disk.DeviceProperties.AdapterType {
+				case machinev1.NutanixDiskAdapterTypeIDE, machinev1.NutanixDiskAdapterTypeSATA:
+					// valid configuration
+				default:
+					// invalid configuration
+					fldErrs = append(fldErrs, field.Invalid(fldPath.Child("deviceProperties", "adapterType"), disk.DeviceProperties.AdapterType,
+						fmt.Sprintf("invalid adapter type for the %q device type, the valid values: %q, %q.",
+							machinev1.NutanixDiskDeviceTypeCDROM, machinev1.NutanixDiskAdapterTypeIDE, machinev1.NutanixDiskAdapterTypeSATA)))
+				}
+			default:
+				fldErrs = append(fldErrs, field.Invalid(fldPath.Child("deviceProperties", "deviceType"), disk.DeviceProperties.DeviceType,
+					fmt.Sprintf("invalid device type, the valid types: %q, %q.", machinev1.NutanixDiskDeviceTypeDisk, machinev1.NutanixDiskDeviceTypeCDROM)))
+			}
+
+			if disk.DeviceProperties.DeviceIndex < 0 {
+				fldErrs = append(fldErrs, field.Invalid(fldPath.Child("deviceProperties", "deviceIndex"),
+					disk.DeviceProperties.DeviceIndex, "invalid device index, the valid values are non-negative integers."))
+			}
+		}
+
+		if disk.StorageConfig != nil {
+			if disk.StorageConfig.DiskMode != machinev1.NutanixDiskModeStandard && disk.StorageConfig.DiskMode != machinev1.NutanixDiskModeFlash {
+				fldErrs = append(fldErrs, field.Invalid(fldPath.Child("storageConfig", "diskMode"), disk.StorageConfig.DiskMode,
+					fmt.Sprintf("invalid disk mode, the valid values: %q, %q.", machinev1.NutanixDiskModeStandard, machinev1.NutanixDiskModeFlash)))
+			}
+
+			storageContainerRef := disk.StorageConfig.StorageContainer
+			if storageContainerRef != nil {
+				switch storageContainerRef.Type {
+				case machinev1.NutanixIdentifierUUID:
+					if storageContainerRef.UUID == nil || *storageContainerRef.UUID == "" {
+						fldErrs = append(fldErrs, field.Required(fldPath.Child("storageConfig", "storageContainer", "uuid"), "missing storageContainer uuid."))
+					}
+				default:
+					errMsg = fmt.Sprintf("invalid storageContainer reference type, the valid values: %q.", machinev1.NutanixIdentifierUUID)
+					fldErrs = append(fldErrs, field.Invalid(fldPath.Child("storageConfig", "storageContainer", "type"), storageContainerRef.Type, errMsg))
+				}
+			}
+		}
+
+		if disk.DataSource != nil {
+			switch disk.DataSource.Type {
+			case machinev1.NutanixIdentifierUUID:
+				if disk.DataSource.UUID == nil || *disk.DataSource.UUID == "" {
+					fldErrs = append(fldErrs, field.Required(fldPath.Child("dataSource", "uuid"), "missing disk dataSource uuid."))
+				}
+			case machinev1.NutanixIdentifierName:
+				if disk.DataSource.Name == nil || *disk.DataSource.Name == "" {
+					fldErrs = append(fldErrs, field.Required(fldPath.Child("dataSource", "name"), "missing disk dataSource name."))
+				}
+			default:
+				errMsg := fmt.Sprintf("invalid disk dataSource reference type, the valid values: %q, %q.", machinev1.NutanixIdentifierUUID, machinev1.NutanixIdentifierName)
+				fldErrs = append(fldErrs, field.Invalid(fldPath.Child("dataSource", "type"), disk.DataSource.Type, errMsg))
+			}
+		}
+	}
+
+	return fldErrs
+}
+
+func validateNutanixResourceIdentifier(resource string, identifier machinev1.NutanixResourceIdentifier) *field.Error {
+	parentPath := field.NewPath("providerSpec")
+	if identifier.Type == machinev1.NutanixIdentifierName {
+		if identifier.Name == nil || *identifier.Name == "" {
+			return field.Required(parentPath.Child(resource).Child("name"), fmt.Sprintf("%s name must be provided", resource))
+		}
+	} else if identifier.Type == machinev1.NutanixIdentifierUUID {
+		if identifier.UUID == nil || *identifier.UUID == "" {
+			return field.Required(parentPath.Child(resource).Child("uuid"), fmt.Sprintf("%s UUID must be provided", resource))
+		}
+	} else {
+		return field.Invalid(parentPath.Child(resource).Child("type"), identifier.Type, fmt.Sprintf("%s type must be one of %s or %s", resource, machinev1.NutanixIdentifierName, machinev1.NutanixIdentifierUUID))
+	}
+
+	return nil
+}
+
+func validateNutanixBootType(bootType machinev1.NutanixBootType) *field.Error {
+	parentPath := field.NewPath("providerSpec")
+	// verify the bootType configurations
+	// Type bootType field is optional, and valid values include: "", Legacy, UEFI, SecureBoot
+	switch bootType {
+	case "", machinev1.NutanixLegacyBoot, machinev1.NutanixUEFIBoot, machinev1.NutanixSecureBoot:
+		// valid bootType
+	default:
+		errMsg := fmt.Sprintf("valid bootType values are: \"\", %q, %q, %q.",
+			machinev1.NutanixLegacyBoot, machinev1.NutanixUEFIBoot, machinev1.NutanixSecureBoot)
+		return field.Invalid(parentPath.Child("bootType"), bootType, errMsg)
+	}
+
+	return nil
+}
+
+func isAzureGovCloud(platformStatus *osconfigv1.PlatformStatus) bool {
+	return platformStatus != nil && platformStatus.Azure != nil &&
+		platformStatus.Azure.CloudName != osconfigv1.AzurePublicCloud
+}
+
+func validateMachineLifecycleHooks(m, oldM *machinev1beta1.Machine) field.ErrorList {
+	var errs field.ErrorList
+
+	if isDeleting(m) && oldM != nil {
+		changedPreDrain := lifecyclehooks.GetChangedLifecycleHooks(oldM.Spec.LifecycleHooks.PreDrain, m.Spec.LifecycleHooks.PreDrain)
+		if len(changedPreDrain) > 0 {
+			errs = append(errs, field.Forbidden(field.NewPath("spec", "lifecycleHooks", "preDrain"), fmt.Sprintf("pre-drain hooks are immutable when machine is marked for deletion: the following hooks are new or changed: %+v", changedPreDrain)))
+		}
+
+		changedPreTerminate := lifecyclehooks.GetChangedLifecycleHooks(oldM.Spec.LifecycleHooks.PreTerminate, m.Spec.LifecycleHooks.PreTerminate)
+		if len(changedPreTerminate) > 0 {
+			errs = append(errs, field.Forbidden(field.NewPath("spec", "lifecycleHooks", "preTerminate"), fmt.Sprintf("pre-terminate hooks are immutable when machine is marked for deletion: the following hooks are new or changed: %+v", changedPreTerminate)))
+		}
+	}
+
+	return errs
+}
+
+func validateAzureSecurityProfile(machineName string, spec *machinev1beta1.AzureMachineProviderSpec, parentPath *field.Path) field.ErrorList {
+	var errs field.ErrorList
+
+	if spec.SecurityProfile == nil && spec.OSDisk.ManagedDisk.SecurityProfile.SecurityEncryptionType == "" {
+		return errs
+	}
+	if spec.SecurityProfile == nil && spec.OSDisk.ManagedDisk.SecurityProfile.SecurityEncryptionType != "" {
+		return append(errs, field.Required(parentPath, "securityProfile should be set when osDisk.managedDisk.securityProfile.securityEncryptionType is defined."))
+	}
+
+	switch spec.SecurityProfile.Settings.SecurityType {
+	case machinev1beta1.SecurityTypesConfidentialVM:
+		if spec.OSDisk.ManagedDisk.SecurityProfile.SecurityEncryptionType == "" {
+			fieldPath := parentPath.Root().Child("osDisk").Child("managedDisk").Child("securityProfile")
+			return append(errs, field.Required(fieldPath.Child("securityEncryptionType"),
+				fmt.Sprintf("securityEncryptionType should be set when securityType is set to %s.",
+					machinev1beta1.SecurityTypesConfidentialVM)))
+		}
+
+		if spec.SecurityProfile.Settings.ConfidentialVM == nil {
+			return append(errs, field.Required(parentPath.Child("settings").Child("confidentialVM"),
+				fmt.Sprintf("confidentialVM should be set when securityType is set to %s.",
+					machinev1beta1.SecurityTypesConfidentialVM)))
+		}
+
+		if spec.SecurityProfile.Settings.ConfidentialVM.UEFISettings.VirtualizedTrustedPlatformModule != machinev1beta1.VirtualizedTrustedPlatformModulePolicyEnabled {
+			fieldPath := parentPath.Child("settings").Child("confidentialVM").Child("uefiSettings")
+			return append(errs, field.Invalid(fieldPath.Child("virtualizedTrustedPlatformModule"),
+				spec.SecurityProfile.Settings.ConfidentialVM.UEFISettings.VirtualizedTrustedPlatformModule,
+				fmt.Sprintf("virtualizedTrustedPlatformModule should be enabled when securityType is set to %s.",
+					machinev1beta1.SecurityTypesConfidentialVM)))
+		}
+
+		if spec.OSDisk.ManagedDisk.SecurityProfile.SecurityEncryptionType == machinev1beta1.SecurityEncryptionTypesDiskWithVMGuestState {
+			if spec.SecurityProfile.EncryptionAtHost != nil && *spec.SecurityProfile.EncryptionAtHost {
+				return append(errs, field.Invalid(parentPath.Child("encryptionAtHost"), spec.SecurityProfile.EncryptionAtHost,
+					fmt.Sprintf("encryptionAtHost cannot be set to true when securityEncryptionType is set to %s.",
+						machinev1beta1.SecurityEncryptionTypesDiskWithVMGuestState)))
+			}
+
+			if spec.SecurityProfile.Settings.ConfidentialVM.UEFISettings.SecureBoot != machinev1beta1.SecureBootPolicyEnabled {
+				fieldPath := parentPath.Child("settings").Child("confidentialVM").Child("uefiSettings")
+				return append(errs, field.Invalid(fieldPath.Child("secureBoot"), spec.SecurityProfile.Settings.ConfidentialVM.UEFISettings.SecureBoot,
+					fmt.Sprintf("secureBoot should be enabled when securityEncryptionType is set to %s.",
+						machinev1beta1.SecurityEncryptionTypesDiskWithVMGuestState)))
+			}
+		}
+	case machinev1beta1.SecurityTypesTrustedLaunch:
+		if spec.SecurityProfile.Settings.TrustedLaunch == nil {
+			return append(errs, field.Required(parentPath.Child("settings").Child("trustedLaunch"),
+				fmt.Sprintf("trustedLaunch should be set when securityType is set to %s.",
+					machinev1beta1.SecurityTypesTrustedLaunch)))
+		}
+	default:
+		if spec.SecurityProfile.Settings.SecurityType != machinev1beta1.SecurityTypesConfidentialVM &&
+			spec.OSDisk.ManagedDisk.SecurityProfile.SecurityEncryptionType != "" {
+			return append(errs, field.Invalid(parentPath.Child("settings").Child("securityType"),
+				spec.SecurityProfile.Settings.SecurityType,
+				fmt.Sprintf("securityType should be set to %s when securityEncryptionType is defined.",
+					machinev1beta1.SecurityTypesConfidentialVM)))
+		}
+
+		if spec.SecurityProfile.Settings.TrustedLaunch != nil &&
+			spec.SecurityProfile.Settings.SecurityType != machinev1beta1.SecurityTypesTrustedLaunch &&
+			(spec.SecurityProfile.Settings.TrustedLaunch.UEFISettings.SecureBoot == machinev1beta1.SecureBootPolicyEnabled ||
+				spec.SecurityProfile.Settings.TrustedLaunch.UEFISettings.VirtualizedTrustedPlatformModule == machinev1beta1.VirtualizedTrustedPlatformModulePolicyEnabled) {
+			return append(errs, field.Invalid(parentPath.Child("settings").Child("securityType"),
+				spec.SecurityProfile.Settings.SecurityType,
+				fmt.Sprintf("securityType should be set to %s when uefiSettings are enabled.",
+					machinev1beta1.SecurityTypesTrustedLaunch)))
+		}
+	}
+
+	return errs
+}
+
+func validateAzureDataDisks(machineName string, spec *machinev1beta1.AzureMachineProviderSpec, parentPath *field.Path) field.ErrorList {
+
+	var errs field.ErrorList
+	dataDiskLuns := make(map[int32]struct{})
+	dataDiskNames := make(map[string]struct{})
+	// defines rules for matching. strings must start and finish with an alphanumeric character
+	// and can only contain letters, numbers, underscores, periods or hyphens.
+	reg := regexp.MustCompile(`^[a-zA-Z0-9](?:[\w\.-]*[a-zA-Z0-9])?$`)
+
+	for i, disk := range spec.DataDisks {
+		fldPath := parentPath.Index(i)
+
+		dataDiskName := machineName + "_" + disk.NameSuffix
+
+		if len(dataDiskName) > 80 {
+			errs = append(errs, field.Invalid(fldPath.Child("nameSuffix"), disk.NameSuffix, "too long, the overall disk name must not exceed 80 chars"))
+		}
+
+		if matched := reg.MatchString(disk.NameSuffix); !matched {
+			errs = append(errs, field.Invalid(fldPath.Child("nameSuffix"), disk.NameSuffix, "nameSuffix must be provided, must start and finish with an alphanumeric character and can only contain letters, numbers, underscores, periods or hyphens"))
+		}
+
+		if _, exists := dataDiskNames[disk.NameSuffix]; exists {
+			errs = append(errs, field.Invalid(fldPath.Child("nameSuffix"), disk.NameSuffix, "each Data Disk must have a unique nameSuffix"))
+		}
+
+		if disk.DiskSizeGB < 4 {
+			errs = append(errs, field.Invalid(fldPath.Child("diskSizeGB"), disk.DiskSizeGB, "diskSizeGB must be provided and at least 4GB in size"))
+		}
+
+		if disk.Lun < 0 || disk.Lun > 63 {
+			errs = append(errs, field.Invalid(fldPath.Child("lun"), disk.Lun, "must be greater than or equal to 0 and less than 64"))
+		}
+
+		if _, exists := dataDiskLuns[disk.Lun]; exists {
+			errs = append(errs, field.Invalid(fldPath.Child("lun"), disk.Lun, "each Data Disk must have a unique lun"))
+		}
+
+		switch disk.DeletionPolicy {
+		case machinev1beta1.DiskDeletionPolicyTypeDelete, machinev1beta1.DiskDeletionPolicyTypeDetach:
+			// Valid scenarios, do nothing
+		case "":
+			errs = append(errs, field.Required(fldPath.Child("deletionPolicy"),
+				fmt.Sprintf("deletionPolicy must be provided and must be either %s or %s",
+					machinev1beta1.DiskDeletionPolicyTypeDelete, machinev1beta1.DiskDeletionPolicyTypeDetach)))
+		default:
+			errs = append(errs, field.Invalid(fldPath.Child("deletionPolicy"), disk.DeletionPolicy,
+				fmt.Sprintf("must be either %s or %s", machinev1beta1.DiskDeletionPolicyTypeDelete, machinev1beta1.DiskDeletionPolicyTypeDetach)))
+		}
+
+		if (disk.ManagedDisk.StorageAccountType == machinev1beta1.StorageAccountUltraSSDLRS) &&
+			(disk.CachingType != machinev1beta1.CachingTypeNone && disk.CachingType != "") {
+			errs = append(errs,
+				field.Invalid(fldPath.Child("cachingType"),
+					disk.CachingType,
+					fmt.Sprintf("must be \"None\" or omitted when storageAccountType is \"%s\"", machinev1beta1.StorageAccountUltraSSDLRS)),
+			)
+		}
+
+		dataDiskLuns[disk.Lun] = struct{}{}
+		dataDiskNames[disk.NameSuffix] = struct{}{}
+	}
+
+	return errs
+}
+
+func defaultPowerVS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+	klog.V(3).Infof("Defaulting PowerVS providerSpec")
+
+	var errs field.ErrorList
+	var warnings []string
+	providerSpec := new(machinev1.PowerVSMachineProviderConfig)
+	if err := unmarshalInto(m, providerSpec); err != nil {
+		errs = append(errs, err)
+		return false, warnings, errs
+	}
+	if providerSpec.UserDataSecret == nil {
+		providerSpec.UserDataSecret = &machinev1.PowerVSSecretReference{Name: defaultUserDataSecret}
+	}
+	if providerSpec.CredentialsSecret == nil {
+		providerSpec.CredentialsSecret = &machinev1.PowerVSSecretReference{Name: defaultPowerVSCredentialsSecret}
+	}
+	if providerSpec.SystemType == "" {
+		providerSpec.SystemType = defaultPowerVSSysType
+	}
+	if providerSpec.ProcessorType == "" {
+		providerSpec.ProcessorType = defaultPowerVSProcType
+	}
+	if providerSpec.Processors.IntVal == 0 && providerSpec.Processors.StrVal == "" {
+		switch providerSpec.ProcessorType {
+		case machinev1.PowerVSProcessorTypeDedicated:
+			providerSpec.Processors = intstr.IntOrString{Type: intstr.Int, IntVal: 1}
+		default:
+			providerSpec.Processors = intstr.IntOrString{Type: intstr.String, StrVal: "0.5"}
+		}
+	}
+	if providerSpec.MemoryGiB == 0 {
+		providerSpec.MemoryGiB = defaultPowerVSMemory
+	}
+
+	rawBytes, err := json.Marshal(providerSpec)
+	if err != nil {
+		errs = append(errs, field.InternalError(field.NewPath("providerSpec", "value"), err))
+	}
+
+	if len(errs) > 0 {
+		return false, warnings, errs
+	}
+
+	m.Spec.ProviderSpec.Value = &kruntime.RawExtension{Raw: rawBytes}
+	return true, warnings, nil
+}
+
+func validatePowerVS(m *machinev1beta1.Machine, config *admissionConfig) (bool, []string, field.ErrorList) {
+	klog.V(3).Infof("Validating PowerVS providerSpec")
+
+	var errs field.ErrorList
+	var warnings []string
+	providerSpec := new(machinev1.PowerVSMachineProviderConfig)
+	if err := unmarshalInto(m, providerSpec); err != nil {
+		errs = append(errs, err)
+		return false, warnings, errs
+	}
+
+	if err := validateUnknownFields(m, providerSpec); err != nil {
+		warnings = append(warnings, err.Error())
+	}
+
+	if providerSpec.KeyPairName == "" {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "keyPairName"), "providerSpec.keyPairName must be provided"))
+	}
+
+	serviceInstanceErrors := validatePowerVSResourceIdentifiers(providerSpec.ServiceInstance, powerVSServiceInstance, field.NewPath("providerSpec", "serviceInstance"))
+	errs = append(errs, serviceInstanceErrors...)
+
+	imageErrors := validatePowerVSResourceIdentifiers(providerSpec.Image, powerVSImage, field.NewPath("providerSpec", "image"))
+	errs = append(errs, imageErrors...)
+
+	networkErrors := validatePowerVSResourceIdentifiers(providerSpec.Network, powerVSNetwork, field.NewPath("providerSpec", "network"))
+	errs = append(errs, networkErrors...)
+
+	if providerSpec.UserDataSecret == nil {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret"), "providerSpec.userDataSecret must be provided"))
+	} else {
+		if providerSpec.UserDataSecret.Name == "" {
+			errs = append(errs, field.Required(field.NewPath("providerSpec", "userDataSecret", "name"), "providerSpec.userDataSecret.name must be provided"))
+		}
+	}
+
+	if providerSpec.CredentialsSecret == nil {
+		errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret"), "providerSpec.credentialsSecret must be provided"))
+	} else {
+		if providerSpec.CredentialsSecret.Name == "" {
+			errs = append(errs, field.Required(field.NewPath("providerSpec", "credentialsSecret", "name"), "providerSpec.credentialsSecret.name must be provided"))
+		} else {
+			warnings = append(warnings, credentialsSecretExists(config.client, providerSpec.CredentialsSecret.Name, m.GetNamespace())...)
+		}
+	}
+
+	machineConfigWarnings, machineConfigErrors := validateMachineConfigurations(providerSpec, field.NewPath("providerSpec"))
+	warnings = append(warnings, machineConfigWarnings...)
+	errs = append(errs, machineConfigErrors...)
+
+	if len(errs) > 0 {
+		return false, warnings, errs
+	}
+	return true, warnings, nil
+}
+
+func validatePowerVSResourceIdentifiers(serviceInstance machinev1.PowerVSResource, resourceType string, parentPath *field.Path) field.ErrorList {
+	var errs field.ErrorList
+
+	switch serviceInstance.Type {
+	case machinev1.PowerVSResourceTypeID:
+		if serviceInstance.ID == nil {
+			errs = append(errs, field.Required(parentPath.Child("id"),
+				fmt.Sprintf("%s identifier is specified as ID but the value is nil", resourceType)))
+		}
+	case machinev1.PowerVSResourceTypeName:
+		if serviceInstance.Name == nil {
+			errs = append(errs, field.Required(parentPath.Child("name"),
+				fmt.Sprintf("%s identifier is specified as Name but the value is nil", resourceType)))
+		}
+	case machinev1.PowerVSResourceTypeRegEx:
+		if resourceType == powerVSServiceInstance || resourceType == powerVSImage {
+			errs = append(errs, field.Invalid(parentPath, serviceInstance.Type,
+				fmt.Sprintf("%s identifier is specified as %s but only %s and %s are valid resource identifiers",
+					resourceType, serviceInstance.Type, machinev1.PowerVSResourceTypeID, machinev1.PowerVSResourceTypeName)))
+		}
+		if serviceInstance.RegEx == nil {
+			errs = append(errs, field.Required(parentPath.Child("regex"),
+				fmt.Sprintf("%s identifier is specified as Regex but the value is nil", resourceType)))
+		}
+	case "":
+		errs = append(errs, field.Required(parentPath,
+			fmt.Sprintf("%s identifier must be provided", resourceType)))
+	default:
+		errs = append(errs, field.Invalid(parentPath, serviceInstance.Type,
+			fmt.Sprintf("%s identifier is specified as %s but only %s, %s and %s are valid resource identifiers",
+				resourceType, serviceInstance.Type, machinev1.PowerVSResourceTypeID, machinev1.PowerVSResourceTypeName, machinev1.PowerVSResourceTypeRegEx)))
+	}
+	return errs
+}
+
+func validateMachineConfigurations(providerSpec *machinev1.PowerVSMachineProviderConfig, parentPath *field.Path) ([]string, field.ErrorList) {
+	var errs field.ErrorList
+	var warnings []string
+
+	if providerSpec == nil {
+		errs = append(errs, field.Required(parentPath, "providerSpec must be provided"))
+		return warnings, errs
+	}
+	if val, found := powerVSMachineConfigurations[providerSpec.SystemType]; !found {
+		warnings = append(warnings, fmt.Sprintf("providerSpec.SystemType: %s is not known, Currently known system types are %s, %s and %s", providerSpec.SystemType, defaultPowerVSSysType, powerVSSystemTypeE980, powerVSSystemTypeE880))
+	} else {
+		if providerSpec.MemoryGiB > val.maxMemoryGiB {
+			errs = append(errs, field.Invalid(parentPath.Child("memoryGiB"), providerSpec.MemoryGiB, fmt.Sprintf("for %s systemtype the maximum supported memory value is %d", providerSpec.SystemType, val.maxMemoryGiB)))
+		}
+
+		if providerSpec.MemoryGiB < 0 {
+			errs = append(errs, field.Invalid(parentPath.Child("memoryGiB"), providerSpec.MemoryGiB, "memory value cannot be negative"))
+		} else if providerSpec.MemoryGiB < val.minMemoryGiB {
+			warnings = append(warnings, fmt.Sprintf("providerspec.MemoryGiB %d is less than the minimum value %d", providerSpec.MemoryGiB, val.minMemoryGiB))
+		}
+
+		processor, err := getPowerVSProcessorValue(providerSpec.Processors)
+		if err != nil {
+			errs = append(errs, field.InternalError(parentPath.Child("processor"), fmt.Errorf("error while getting processor vlaue %w", err)))
+			return warnings, errs
+		} else {
+			if processor > val.maxProcessor {
+				errs = append(errs, field.Invalid(parentPath.Child("processor"), processor, fmt.Sprintf("for %s systemtype the maximum supported processor value is %f", providerSpec.SystemType, val.maxProcessor)))
+			}
+		}
+		if processor < 0 {
+			errs = append(errs, field.Invalid(parentPath.Child("processor"), processor, "processor value cannot be negative"))
+		} else if providerSpec.ProcessorType == machinev1.PowerVSProcessorTypeDedicated && processor < val.minProcessorDedicated {
+			warnings = append(warnings, fmt.Sprintf("providerspec.Processor %f is less than the minimum value %f for providerSpec.ProcessorType: %s", processor, val.minProcessorDedicated, providerSpec.ProcessorType))
+		} else if processor < val.minProcessorSharedCapped {
+			warnings = append(warnings, fmt.Sprintf("providerspec.Processor %f is less than the minimum value %f for providerSpec.ProcessorType: %s", processor, val.minProcessorSharedCapped, providerSpec.ProcessorType))
+		}
+	}
+	return warnings, errs
+}
+
+func getPowerVSProcessorValue(processor intstr.IntOrString) (processors float64, err error) {
+	switch processor.Type {
+	case intstr.Int:
+		processors = float64(processor.IntVal)
+	case intstr.String:
+		processors, err = strconv.ParseFloat(processor.StrVal, 64)
+		if err != nil {
+			err = fmt.Errorf("failed to convert Processors %s to float64", processor.StrVal)
+		}
+	}
+	return
+}
+
+func isDeleting(obj metav1.Object) bool {
+	return obj.GetDeletionTimestamp() != nil
+}
+
+// isFinalizerOnlyRemoval checks if the machine update only removes finalizers.
+func isFinalizerOnlyRemoval(m, oldM *machinev1beta1.Machine) (bool, error) {
+	// ignore updated managed fields as they don't affect the result
+	machineCopy := m.DeepCopy()
+	machineCopy.ManagedFields = oldM.ManagedFields
+
+	patchBase := client.MergeFrom(oldM)
+	data, err := patchBase.Data(machineCopy)
+	if err != nil {
+		return false, fmt.Errorf("cannot calculate patch data from machine object: %w", err)
+	}
+
+	return string(data) == `{"metadata":{"finalizers":null}}`, nil
+}
+
+func validateGVK(gvk schema.GroupVersionKind, platform osconfigv1.PlatformType) bool {
+	switch platform {
+	case osconfigv1.AWSPlatformType:
+		return gvk.Kind == "AWSMachineProviderConfig" && (gvk.Group == "awsproviderconfig.openshift.io" || gvk.Group == "machine.openshift.io") && (gvk.Version == "v1beta1" || gvk.Version == "v1")
+	case osconfigv1.AzurePlatformType:
+		return gvk.Kind == "AzureMachineProviderSpec" && (gvk.Group == "azureproviderconfig.openshift.io" || gvk.Group == "machine.openshift.io") && (gvk.Version == "v1beta1" || gvk.Version == "v1")
+	case osconfigv1.GCPPlatformType:
+		return gvk.Kind == "GCPMachineProviderSpec" && (gvk.Group == "gcpprovider.openshift.io" || gvk.Group == "machine.openshift.io") && (gvk.Version == "v1beta1" || gvk.Version == "v1")
+	case osconfigv1.VSpherePlatformType:
+		return gvk.Kind == "VSphereMachineProviderSpec" && (gvk.Group == "vsphereprovider.openshift.io" || gvk.Group == "machine.openshift.io") && (gvk.Version == "v1beta1" || gvk.Version == "v1")
+	default:
+		return true
+	}
+}
+
+// validateAzureCapacityReservationGroupID validate capacity reservation group ID.
+func validateAzureCapacityReservationGroupID(capacityReservationGroupID string) error {
+	id := strings.TrimPrefix(capacityReservationGroupID, azureProviderIDPrefix)
+	err := parseAzureResourceID(id)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// parseAzureResourceID parses a string to an instance of ResourceID
+func parseAzureResourceID(id string) error {
+	if len(id) == 0 {
+		return fmt.Errorf("invalid resource ID: id cannot be empty")
+	}
+	if !strings.HasPrefix(id, "/") {
+		return fmt.Errorf("invalid resource ID: resource id '%s' must start with '/'", id)
+	}
+	parts := splitStringAndOmitEmpty(id, "/")
+
+	if len(parts) < 2 {
+		return fmt.Errorf("invalid resource ID: %s", id)
+	}
+	if !strings.EqualFold(parts[0], azureSubscriptionsKey) && !strings.EqualFold(parts[0], azureProvidersKey) {
+		return fmt.Errorf("invalid resource ID: %s", id)
+	}
+	return appendNextAzureResourceIDValidation(parts, id)
+}
+
+func splitStringAndOmitEmpty(v, sep string) []string {
+	r := make([]string, 0)
+	for _, s := range strings.Split(v, sep) {
+		if len(s) == 0 {
+			continue
+		}
+		r = append(r, s)
+	}
+	return r
+}
+
+func appendNextAzureResourceIDValidation(parts []string, id string) error {
+	if len(parts) == 0 {
+		return nil
+	}
+	if len(parts) == 1 {
+		// subscriptions and resourceGroups are not valid ids without their names
+		if strings.EqualFold(parts[0], azureSubscriptionsKey) || strings.EqualFold(parts[0], azureResourceGroupsLowerKey) {
+			return fmt.Errorf("invalid resource ID: %s", id)
+		}
+		return nil
+	}
+	if strings.EqualFold(parts[0], azureProvidersKey) && (len(parts) == 2 || strings.EqualFold(parts[2], azureProvidersKey)) {
+		return appendNextAzureResourceIDValidation(parts[2:], id)
+	}
+	if len(parts) > 3 && strings.EqualFold(parts[0], azureProvidersKey) {
+		return appendNextAzureResourceIDValidation(parts[4:], id)
+	}
+	if len(parts) > 1 && !strings.EqualFold(parts[0], azureProvidersKey) {
+		return appendNextAzureResourceIDValidation(parts[2:], id)
+	}
+	return fmt.Errorf("invalid resource ID: %s", id)
+}
+
+// validateAWScapacityReservationId validate capacity reservation group ID.
+func validateAwsCapacityReservationId(capacityReservationId string) error {
+	if len(capacityReservationId) == 0 {
+		return errors.New("invalid capacityReservationId: capacityReservationId cannot be empty")
+	}
+	// It must starts with cr-xxxxxxxxxxxxxxxxx with length of 17 characters excluding cr-
+	re := regexp.MustCompile(`^cr-[0-9a-f]{17}$`)
+	if !re.MatchString(capacityReservationId) {
+		return fmt.Errorf("invalid value for capacityReservationId: %q, it must start with 'cr-' and be exactly 20 characters long with 17 hexadecimal characters", capacityReservationId)
+	}
+	return nil
+}
+
+func validateAWSInstanceMarketType(providerSpec *machinev1beta1.AWSMachineProviderConfig) error {
+	if providerSpec.MarketType == machinev1beta1.MarketTypeCapacityBlock && providerSpec.SpotMarketOptions != nil {
+		return errors.New("invalid marketType: marketType set to CapacityBlock and spotMarketOptions cannot be used together")
+	}
+	if providerSpec.MarketType == machinev1beta1.MarketTypeOnDemand && providerSpec.SpotMarketOptions != nil {
+		return errors.New("invalid marketType: setting marketType to OnDemand and spotMarketOptions cannot be used together")
+	}
+	if providerSpec.MarketType == machinev1beta1.MarketTypeCapacityBlock && len(providerSpec.CapacityReservationID) == 0 {
+		return errors.New("capacityReservationID is required when CapacityBlock is provided")
+	}
+	if providerSpec.MarketType == machinev1beta1.MarketTypeSpot && providerSpec.CapacityReservationID != "" {
+		return errors.New("invalid marketType: marketType set to Spot and capacityReservationID may not be used together")
+	}
+	switch providerSpec.MarketType {
+	case "", machinev1beta1.MarketTypeOnDemand, machinev1beta1.MarketTypeSpot, machinev1beta1.MarketTypeCapacityBlock:
+	default:
+		return fmt.Errorf("invalid marketType: %s valid values are: %s, %s, %s and omitted", providerSpec.MarketType, machinev1beta1.MarketTypeOnDemand, machinev1beta1.MarketTypeSpot, machinev1beta1.MarketTypeCapacityBlock)
+	}
+	return nil
+}
