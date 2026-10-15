@@ -1564,8 +1564,7 @@ type VSpherePlatformSpec struct {
 	// + If VCenters is not defined use the existing cloud-config configmap defined
 	// + in openshift-config.
 	// +kubebuilder:validation:MinItems=1
-	// +openshift:validation:FeatureGateAwareMaxItems:featureGate="",maxItems=1
-	// +openshift:validation:FeatureGateAwareMaxItems:featureGate=VSphereMultiVCenters,maxItems=3
+	// +kubebuilder:validation:MaxItems=3
 	// +openshift:validation:FeatureGateAwareXValidation:featureGate="",rule="size(self) != size(oldSelf) ? size(oldSelf) == 0 && size(self) < 2 : true",message="vcenters cannot be added or removed once set"
 	// +openshift:validation:FeatureGateAwareXValidation:featureGate=VSphereMultiVCenterDay2,rule="size(self) >= size(oldSelf) ? oldSelf.all(x, self.exists(y, y.server == x.server)) : true",message="Cannot add and remove vCenters at the same time"
 	// +openshift:validation:FeatureGateAwareXValidation:featureGate=VSphereMultiVCenterDay2,rule="size(self) < size(oldSelf) ? self.all(x, oldSelf.exists(y, y.server == x.server)) : true",message="Cannot add and remove vCenters at the same time"
