@@ -808,6 +808,22 @@ var (
 		enableIn(configv1.DevPreviewNoUpgrade).
 		mustRegister()
 
+	FeatureStreamingCollectionEncodingToJSON = newFeatureGate("StreamingCollectionEncodingToJSON").
+		reportProblemsToJiraComponent("kube-apiserver").
+		contactPerson("rofeldma").
+		productScope(kubernetes).
+		enhancementPR("https://github.com/kubernetes/enhancements/issues/5116").
+		enableIn(configv1.Default, configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
+		mustRegister()
+
+	FeatureStreamingCollectionEncodingToProtobuf = newFeatureGate("StreamingCollectionEncodingToProtobuf").
+		reportProblemsToJiraComponent("kube-apiserver").
+		contactPerson("rofeldma").
+		productScope(kubernetes).
+		enhancementPR("https://github.com/kubernetes/enhancements/issues/5116").
+		enableIn(configv1.Default, configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
+		mustRegister()
+
 	FeatureGateGatewayAPIController = newFeatureGate("GatewayAPIController").
 					reportProblemsToJiraComponent("Routing").
 					contactPerson("miciah").
@@ -837,18 +853,10 @@ var (
 									mustRegister()
 
 	FeatureGateVSphereMultiVCenterDay2 = newFeatureGate("VSphereMultiVCenterDay2").
-					reportProblemsToJiraComponent("splat").
-					contactPerson("vr4manta").
-					productScope(ocpSpecific).
-					enhancementPR("https://github.com/openshift/enhancements/pull/1961").
-					enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
-					mustRegister()
-
-	FeatureGateGatewayAPIWithoutOLM = newFeatureGate("GatewayAPIWithoutOLM").
-					reportProblemsToJiraComponent("Routing").
-					contactPerson("miciah").
-					productScope(ocpSpecific).
-					enhancementPR("https://github.com/openshift/enhancements/pull/1933").
-					enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade, configv1.Default).
-					mustRegister()
+						reportProblemsToJiraComponent("splat").
+						contactPerson("vr4manta").
+						productScope(ocpSpecific).
+						enhancementPR("https://github.com/openshift/enhancements/pull/1961").
+						enableIn(configv1.DevPreviewNoUpgrade, configv1.TechPreviewNoUpgrade).
+						mustRegister()
 )
