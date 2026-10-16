@@ -101,8 +101,10 @@ func main() {
 
 	var tlsMinVersionFlag string
 	var tlsCipherSuitesFlag []string
+	var tlsCurvePreferencesFlag []int32
 	pflag.StringVar(&tlsMinVersionFlag, "tls-min-version", "", "Minimum TLS version supported. When set, overrides the cluster-wide TLS profile. Possible values: "+strings.Join(cliflag.TLSPossibleVersions(), ", "))
-	pflag.StringSliceVar(&tlsCipherSuitesFlag, "tls-cipher-suites", nil, "Comma-separated list of cipher suites for the server. If omitted, the default Go cipher suites will be used. Possible values: "+strings.Join(cliflag.TLSCipherPossibleValues(), ", "))
+	pflag.StringSliceVar(&tlsCipherSuitesFlag, "tls-cipher-suites", nil, "Comma-separated list of cipher suites for the server. When set, overrides the cluster-wide TLS profile. Possible values: "+strings.Join(cliflag.TLSCipherPossibleValues(), ", "))
+	pflag.Int32SliceVar(&tlsCurvePreferencesFlag, "tls-curve-preferences", nil, "Comma-separated list of numeric TLS curve IDs for the server. Any nonempty TLS flag overrides the cluster-wide TLS profile. If omitted, the selected TLS configuration retains its existing or default curves.")
 
 	healthAddr := flag.String(
 		"health-addr",
@@ -151,6 +153,8 @@ func main() {
 		log.Printf("Watching cluster-api objects only in namespace %q for reconciliation.", *watchNamespace)
 	}
 
+	ctx := signals.SetupSignalHandler()
+
 	log.Printf("Registering Components.")
 	// Get a config to talk to the apiserver
 	cfg, err := config.GetConfig()
@@ -160,7 +164,9 @@ func main() {
 
 	var tlsResult pkgtls.TLSConfigResult
 	if *webhookEnabled {
-		tlsResult, err = pkgtls.ResolveTLSConfig(context.Background(), cfg, tlsMinVersionFlag, tlsCipherSuitesFlag)
+		startupCtx, startupCancel := context.WithTimeout(ctx, 30*time.Second)
+		tlsResult, err = pkgtls.ResolveTLSConfig(startupCtx, cfg, tlsMinVersionFlag, tlsCipherSuitesFlag, tlsCurvePreferencesFlag)
+		startupCancel()
 		if err != nil {
 			log.Fatalf("Unable to configure TLS: %v", err)
 		}
@@ -268,5 +274,5 @@ func main() {
 	log.Printf("Starting the Cmd.")
 
 	// Start the Cmd
-	log.Fatal(mgr.Start(signals.SetupSignalHandler()))
+	log.Fatal(mgr.Start(ctx))
 }
