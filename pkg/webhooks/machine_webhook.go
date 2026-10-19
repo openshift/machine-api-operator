@@ -236,7 +236,6 @@ const (
 
 // GCP Confidential VM supports Compute Engine machine types in the following series:
 // reference: https://cloud.google.com/compute/confidential-vm/docs/os-and-machine-type#machine-type
-var gcpConfidentialTypeMachineSeriesSupportingSEV = []string{"n2d", "c2d", "c3d"}
 var gcpConfidentialTypeMachineSeriesSupportingSEVSNP = []string{"n2d"}
 var gcpConfidentialTypeMachineSeriesSupportingTDX = []string{"c3"}
 
@@ -1522,12 +1521,13 @@ func validateGCPConfidentialComputing(providerSpec *machinev1beta1.GCPMachinePro
 		machineSeries := strings.Split(providerSpec.MachineType, "-")[0]
 		switch providerSpec.ConfidentialCompute {
 		case machinev1beta1.ConfidentialComputePolicyEnabled, machinev1beta1.ConfidentialComputePolicySEV:
-			if !slices.Contains(gcpConfidentialTypeMachineSeriesSupportingSEV, machineSeries) {
-				errs = append(errs, field.Invalid(field.NewPath("providerSpec", "machineType"),
-					providerSpec.MachineType,
-					fmt.Sprintf("ConfidentialCompute %s requires a machine type in the following series: %s", providerSpec.ConfidentialCompute, strings.Join(gcpConfidentialTypeMachineSeriesSupportingSEV, `,`))),
-				)
-			}
+			errs = append(errs, field.Invalid(field.NewPath("providerSpec", "confidentialCompute"),
+				providerSpec.ConfidentialCompute,
+				fmt.Sprintf("ConfidentialCompute %s is not longer supported. Use %s or %s instead",
+					providerSpec.ConfidentialCompute,
+					machinev1beta1.ConfidentialComputePolicySEVSNP,
+					machinev1beta1.ConfidentialComputePolicyTDX,
+				)))
 		case machinev1beta1.ConfidentialComputePolicySEVSNP:
 			if !slices.Contains(gcpConfidentialTypeMachineSeriesSupportingSEVSNP, machineSeries) {
 				errs = append(errs, field.Invalid(field.NewPath("providerSpec", "machineType"),
