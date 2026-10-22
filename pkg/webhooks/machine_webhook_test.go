@@ -4618,11 +4618,17 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 			expectedOk: true,
 		},
 		{
-			testCase: "with empty disk licenses",
+			testCase: "with empty disk licenses omitted by JSON",
 			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
 				p.Disks[0].Licenses = []string{}
 			},
 			expectedOk: true,
+		},
+		{
+			testCase:         "with explicitly empty disk licenses in JSON",
+			overrideRawBytes: []byte(`{"kind":"GCPMachineProviderSpec","apiVersion":"gcpprovider.openshift.io/v1beta1","userDataSecret":{"name":"name"},"credentialsSecret":{"name":"name"},"disks":[{"sizeGb":16,"licenses":[]}],"networkInterfaces":[{"network":"network","subnetwork":"subnetwork"}],"serviceAccounts":[{"email":"email","scopes":["scope"]}],"machineType":"machineType","region":"region","zone":"region-zone","projectID":"projectID","onHostMaintenance":"Terminate"}`),
+			expectedOk:       false,
+			expectedError:    "providerSpec.disks[0].licenses: Invalid value: []: must contain at least 1 license when specified",
 		},
 		{
 			testCase: "with a valid short disk license self-link",
@@ -4632,11 +4638,12 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 			expectedOk: true,
 		},
 		{
-			testCase: "with a valid full disk license URI",
+			testCase: "with a rejected full disk license URI",
 			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
 				p.Disks[0].Licenses = []string{"https://www.googleapis.com/compute/v1/projects/valid-project/global/licenses/valid-license"}
 			},
-			expectedOk: true,
+			expectedOk:    false,
+			expectedError: "providerSpec.disks[0].licenses[0]: Invalid value: \"https://www.googleapis.com/compute/v1/projects/valid-project/global/licenses/valid-license\": must be a valid GCP license URL",
 		},
 		{
 			testCase: "with a disk license invalid host",
@@ -4671,12 +4678,11 @@ func TestValidateGCPProviderSpec(t *testing.T) {
 			expectedError: "providerSpec.disks[0].licenses[0]: Invalid value: \"projects/valid-project/licenses/valid-license\": must be a valid GCP license URL",
 		},
 		{
-			testCase: "with a disk license too-short project ID",
+			testCase: "with a disk license short project ID",
 			modifySpec: func(p *machinev1beta1.GCPMachineProviderSpec) {
 				p.Disks[0].Licenses = []string{"projects/abc12/global/licenses/valid-license"}
 			},
-			expectedOk:    false,
-			expectedError: "providerSpec.disks[0].licenses[0]: Invalid value: \"projects/abc12/global/licenses/valid-license\": must be a valid GCP license URL",
+			expectedOk: true,
 		},
 		{
 			testCase: "with a disk license uppercase project ID",
