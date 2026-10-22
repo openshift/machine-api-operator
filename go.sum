@@ -478,8 +478,6 @@ github.com/opencontainers/selinux v1.15.1 h1:ERxeh5caJvCzNAKdI8WQbJmB1LDTn4BuaAg
 github.com/opencontainers/selinux v1.15.1/go.mod h1:LenyElirjUHszfxrjuFqC85HIeXZKumHcKMQtnaDlQQ=
 github.com/openshift-eng/openshift-tests-extension v0.0.0-20260812190735-a8b44e9f9fed h1:EYvTzjeF3kGW0YS67V/dUHs3H8B/yJZ8Rdx6ftHr890=
 github.com/openshift-eng/openshift-tests-extension v0.0.0-20260812190735-a8b44e9f9fed/go.mod h1:pHOS9c6BjZv91OkkHyIHAOWnYhxwcxWQkyYGEvPyUCE=
-github.com/openshift/api v0.0.0-20261002115817-f8795cdde518 h1:m0CfIxttdj/Wu0N/uHNgj3ZCB6zQpkWhbdr6rTK1q60=
-github.com/openshift/api v0.0.0-20261002115817-f8795cdde518/go.mod h1:2oI3aXQFDjjl7l4xA9ZPSkB+l+lyfWLg7P2sWg9yEvM=
 github.com/openshift/apiserver-library-go v0.0.0-20261001145254-218f2c488d90 h1:8fVYvLUYoZCvPAdQJ03ZggQFyDu1cvfjbpJgAAr9LXY=
 github.com/openshift/apiserver-library-go v0.0.0-20261001145254-218f2c488d90/go.mod h1:yTOZ7WWI3p2F3QIy6ZbCckONGF1KiEWRSkyGI6L9U74=
 github.com/openshift/client-go v0.0.0-20261001003915-dcaad1dc7fe8 h1:yHA+77VmVlO0aBdZLmocC3EBYNza0B+Hwu+8hmkjj2k=
@@ -556,6 +554,8 @@ github.com/quasilyte/stdinfo v0.0.0-20220114132959-f7386bf02567 h1:M8mH9eK4OUR4l
 github.com/quasilyte/stdinfo v0.0.0-20220114132959-f7386bf02567/go.mod h1:DWNGW8A4Y+GyBgPuaQJuWiy0XYftx4Xm/y5Jqk9I6VQ=
 github.com/raeperd/recvcheck v0.2.0 h1:GnU+NsbiCqdC2XX5+vMZzP+jAJC5fht7rcVTAhX74UI=
 github.com/raeperd/recvcheck v0.2.0/go.mod h1:n04eYkwIR0JbgD73wT8wL4JjPC3wm0nFtzBnWNocnYU=
+github.com/redhat-chai-bot/api v0.0.0-20261022085424-a1b8709295ab h1:a1RxXSowuTglQrMmxfIQN7SllKIZ6mEVlFCy8johjsU=
+github.com/redhat-chai-bot/api v0.0.0-20261022085424-a1b8709295ab/go.mod h1:2oI3aXQFDjjl7l4xA9ZPSkB+l+lyfWLg7P2sWg9yEvM=
 github.com/rivo/uniseg v0.2.0/go.mod h1:J6wj4VEh+S6ZtnVlnTBMWIodfgj8LQOQFoIToxlJtxc=
 github.com/rivo/uniseg v0.4.7 h1:WUdvkW8uEhrYfLC4ZzdpI2ztxP1I582+49Oc5Mq64VQ=
 github.com/rivo/uniseg v0.4.7/go.mod h1:FN3SvrM+Zdj16jyLfmOkMNblXMcoc8DfTHruCPUcx88=

@@ -109,6 +109,7 @@ var (
 	defaultGCPTags = func(clusterID string) []string {
 		return []string{fmt.Sprintf("%s-worker", clusterID)}
 	}
+	gcpDiskLicensePattern = regexp.MustCompile(`^projects/(?:(?:[-a-z0-9]{1,63}\.)*(?:[a-z](?:[-a-z0-9]{0,61}[a-z0-9])?):)?(?:[0-9]{1,19}|(?:[a-z0-9](?:[-a-z0-9]{0,61}[a-z0-9])?))/global/licenses/[a-z](?:[-a-z0-9]{0,61}[a-z0-9])?$`)
 
 	// Power VS variables
 
@@ -1594,6 +1595,22 @@ func validateGCPDisks(disks []*machinev1beta1.GCPDisk, parentPath *field.Path) f
 			diskTypes := sets.NewString("pd-standard", "pd-ssd", "pd-balanced", "hyperdisk-balanced")
 			if !diskTypes.Has(disk.Type) {
 				errs = append(errs, field.NotSupported(fldPath.Child("type"), disk.Type, diskTypes.List()))
+			}
+		}
+
+		if disk.Licenses != nil && len(disk.Licenses) == 0 {
+			errs = append(errs, field.Invalid(fldPath.Child("licenses"), disk.Licenses, "must contain at least 1 license when specified"))
+		}
+		if len(disk.Licenses) > 8 {
+			errs = append(errs, field.TooMany(fldPath.Child("licenses"), len(disk.Licenses), 8))
+		}
+
+		for j, license := range disk.Licenses {
+			if len(license) > 256 {
+				errs = append(errs, field.TooLong(fldPath.Child("licenses").Index(j), license, 256))
+			}
+			if !gcpDiskLicensePattern.MatchString(license) {
+				errs = append(errs, field.Invalid(fldPath.Child("licenses").Index(j), license, "must be a valid GCP license URL"))
 			}
 		}
 	}
