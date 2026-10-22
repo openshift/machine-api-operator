@@ -13,6 +13,7 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
 	"k8s.io/klog/v2"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/client/fake"
@@ -118,7 +119,8 @@ type fakeReconciler struct {
 func newFakeReconciler(client client.Client, machine *machinev1.Machine, node *corev1.Node) fakeReconciler {
 	r := fakeReconciler{
 		ReconcileNodeLink: ReconcileNodeLink{
-			client: client,
+			client:        client,
+			eventRecorder: record.NewEventRecorderAdapter(record.NewFakeRecorder(32)),
 		},
 		fakeNodeIndexer:    make(map[string]corev1.Node),
 		fakeMachineIndexer: make(map[string]machinev1.Machine),
@@ -566,6 +568,77 @@ func TestReconcile(t *testing.T) {
 				t.Errorf("expected: %v, got: %v", expected, got)
 			}
 		}
+	}
+}
+
+func TestReconcileWithInvalidLabels(t *testing.T) {
+	testCases := []struct {
+		name        string
+		specLabels  map[string]string
+		expectError bool
+		errContains string
+	}{
+		{
+			name:        "valid labels succeed",
+			specLabels:  map[string]string{"valid-key": "valid-value"},
+			expectError: false,
+		},
+		{
+			name:        "invalid label value is rejected",
+			specLabels:  map[string]string{"foo": "bar/baz"},
+			expectError: true,
+			errContains: "invalid labels",
+		},
+		{
+			name:        "invalid label key is rejected",
+			specLabels:  map[string]string{"invalid key with spaces": "value"},
+			expectError: true,
+			errContains: "invalid labels",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			testMachine := machine("testMachine", "test-provider-id", nil, nil, nil)
+			testMachine.Spec.Labels = tc.specLabels
+			testNode := node("testNode", "test-provider-id", nil, nil)
+
+			rec := record.NewFakeRecorder(32)
+			r := newFakeReconciler(
+				fake.NewClientBuilder().WithScheme(scheme.Scheme).WithRuntimeObjects(testNode, testMachine).WithStatusSubresource(&machinev1.Machine{}).Build(),
+				testMachine, testNode,
+			)
+			r.eventRecorder = record.NewEventRecorderAdapter(rec)
+
+			request := reconcile.Request{
+				NamespacedName: client.ObjectKey{
+					Namespace: metav1.NamespaceNone,
+					Name:      testNode.Name,
+				},
+			}
+
+			_, err := r.Reconcile(ctx, request)
+			if tc.expectError {
+				if err == nil {
+					t.Fatalf("expected error but got nil")
+				}
+				if !strings.Contains(err.Error(), tc.errContains) {
+					t.Errorf("expected error containing %q, got: %v", tc.errContains, err)
+				}
+				select {
+				case event := <-rec.Events:
+					if !strings.Contains(event, "InvalidNodeLabels") {
+						t.Errorf("expected InvalidNodeLabels event, got: %s", event)
+					}
+				default:
+					t.Error("expected a warning event to be emitted")
+				}
+			} else {
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+			}
+		})
 	}
 }
 
