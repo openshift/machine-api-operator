@@ -6242,12 +6242,19 @@ func TestValidatePowerVSProviderSpec(t *testing.T) {
 				p.SystemType = "testSystemType"
 			},
 			expectedOk:       true,
-			expectedWarnings: []string{"providerSpec.SystemType: testSystemType is not known, Currently known system types are s922, e980 and e880"},
+			expectedWarnings: []string{"providerSpec.SystemType: testSystemType is not known, currently known system types are: e1050, e1080, e980, s1022, s1122, s922"},
 		},
 		{
 			testCase: "with a known system type",
 			modifySpec: func(p *machinev1.PowerVSMachineProviderConfig) {
 				p.SystemType = defaultPowerVSSysType
+			},
+			expectedOk: true,
+		},
+		{
+			testCase: "with s1022 system type which is now a known type",
+			modifySpec: func(p *machinev1.PowerVSMachineProviderConfig) {
+				p.SystemType = "s1022"
 			},
 			expectedOk: true,
 		},
@@ -6292,9 +6299,9 @@ func TestValidatePowerVSProviderSpec(t *testing.T) {
 			expectedError: "providerSpec.processor: Invalid value: 20: for s922 systemtype the maximum supported processor value is 15.000000",
 		},
 		{
-			testCase: "with supported value processor for e880 systemtype",
+			testCase: "with supported value processor for e980 systemtype",
 			modifySpec: func(p *machinev1.PowerVSMachineProviderConfig) {
-				p.SystemType = powerVSSystemTypeE880
+				p.SystemType = "e980"
 				p.Processors = intstr.FromInt(20)
 			},
 			expectedOk: true,

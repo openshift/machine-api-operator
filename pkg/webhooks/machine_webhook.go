@@ -112,7 +112,8 @@ var (
 
 	// Power VS variables
 
-	//powerVSMachineConfigurations contains the known Power VS system types and their allowed configuration limits
+	// powerVSMachineConfigurations contains the memory and processor limits for each known PowerVS system type.
+	// Source: https://www.ibm.com/docs/en/power-virtual-server?topic=pricing-power-virtual-server-in-data-centers
 	powerVSMachineConfigurations = map[string]systemSpecifications{
 		"s922": {
 			minMemoryGiB:             32,
@@ -121,19 +122,40 @@ var (
 			minProcessorDedicated:    1,
 			maxProcessor:             15,
 		},
-		"e880": {
-			minMemoryGiB:             32,
-			maxMemoryGiB:             7463,
-			minProcessorSharedCapped: 0.5,
-			minProcessorDedicated:    1,
-			maxProcessor:             143,
-		},
 		"e980": {
 			minMemoryGiB:             32,
 			maxMemoryGiB:             15307,
 			minProcessorSharedCapped: 0.5,
 			minProcessorDedicated:    1,
 			maxProcessor:             143,
+		},
+		"s1022": {
+			minMemoryGiB:             32,
+			maxMemoryGiB:             1984,
+			minProcessorSharedCapped: 0.5,
+			minProcessorDedicated:    1,
+			maxProcessor:             33,
+		},
+		"e1050": {
+			minMemoryGiB:             32,
+			maxMemoryGiB:             8192,
+			minProcessorSharedCapped: 0.5,
+			minProcessorDedicated:    1,
+			maxProcessor:             87,
+		},
+		"e1080": {
+			minMemoryGiB:             32,
+			maxMemoryGiB:             32768,
+			minProcessorSharedCapped: 0.5,
+			minProcessorDedicated:    1,
+			maxProcessor:             165,
+		},
+		"s1122": {
+			minMemoryGiB:             32,
+			maxMemoryGiB:             31840,
+			minProcessorSharedCapped: 0.5,
+			minProcessorDedicated:    1,
+			maxProcessor:             229,
 		},
 	}
 
@@ -224,8 +246,6 @@ const (
 	powerVSServiceInstance          = "serviceInstance"
 	powerVSNetwork                  = "network"
 	powerVSImage                    = "image"
-	powerVSSystemTypeE880           = "e880"
-	powerVSSystemTypeE980           = "e980"
 	azureProviderIDPrefix           = "azure://"
 	azureProvidersKey               = "providers"
 	azureSubscriptionsKey           = "subscriptions"
@@ -2465,7 +2485,9 @@ func validateMachineConfigurations(providerSpec *machinev1.PowerVSMachineProvide
 		return warnings, errs
 	}
 	if val, found := powerVSMachineConfigurations[providerSpec.SystemType]; !found {
-		warnings = append(warnings, fmt.Sprintf("providerSpec.SystemType: %s is not known, Currently known system types are %s, %s and %s", providerSpec.SystemType, defaultPowerVSSysType, powerVSSystemTypeE980, powerVSSystemTypeE880))
+		knownTypes := sets.List(sets.KeySet(powerVSMachineConfigurations))
+		warnings = append(warnings, fmt.Sprintf("providerSpec.SystemType: %s is not known, currently known system types are: %s",
+			providerSpec.SystemType, strings.Join(knownTypes, ", ")))
 	} else {
 		if providerSpec.MemoryGiB > val.maxMemoryGiB {
 			errs = append(errs, field.Invalid(parentPath.Child("memoryGiB"), providerSpec.MemoryGiB, fmt.Sprintf("for %s systemtype the maximum supported memory value is %d", providerSpec.SystemType, val.maxMemoryGiB)))
