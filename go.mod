@@ -6,13 +6,13 @@ toolchain go1.23.5
 
 require (
 	github.com/blang/semver v3.5.1+incompatible
-	github.com/go-logr/logr v1.4.2
+	github.com/go-logr/logr v1.4.3
 	github.com/golangci/golangci-lint v1.63.4
 	github.com/google/uuid v1.6.0
-	github.com/onsi/ginkgo/v2 v2.22.2
-	github.com/onsi/gomega v1.36.2
+	github.com/onsi/ginkgo/v2 v2.25.1
+	github.com/onsi/gomega v1.38.2
 	github.com/openshift-eng/openshift-tests-extension v0.0.0-20250401163437-6cbf1d70a450
-	github.com/openshift/api v0.0.0-20250909020331-93b8cc2cf247
+	github.com/openshift/api v0.0.0-20260923123119-b32f49f8a709
 	github.com/openshift/client-go v0.0.0-20250131180035-f7ec47e2d87a
 	github.com/openshift/cluster-api-actuator-pkg/testutils v0.0.0-20250122171707-86066d47a264
 	github.com/openshift/cluster-control-plane-machine-set-operator v0.0.0-20250128131205-c7b3d7b57a8e
@@ -22,7 +22,7 @@ require (
 	github.com/spf13/pflag v1.0.6-0.20210604193023-d5e0c0615ace
 	github.com/stretchr/testify v1.10.0
 	github.com/vmware/govmomi v0.46.2
-	golang.org/x/net v0.42.0
+	golang.org/x/net v0.43.0
 	golang.org/x/time v0.9.0
 	gopkg.in/gcfg.v1 v1.2.3 // indirect
 	k8s.io/api v0.32.2
@@ -60,7 +60,7 @@ require (
 	github.com/GaijinEntertainment/go-exhaustruct/v3 v3.3.0 // indirect
 	github.com/JeffAshton/win_pdh v0.0.0-20161109143554-76bb4ee9f0ab // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
-	github.com/Masterminds/semver/v3 v3.3.0 // indirect
+	github.com/Masterminds/semver/v3 v3.4.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/Microsoft/hnslib v0.0.8 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
@@ -156,9 +156,9 @@ require (
 	github.com/google/cadvisor v0.51.0 // indirect
 	github.com/google/cel-go v0.22.0 // indirect
 	github.com/google/gnostic-models v0.6.8 // indirect
-	github.com/google/go-cmp v0.6.0 // indirect
+	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/gofuzz v1.2.0 // indirect
-	github.com/google/pprof v0.0.0-20241210010833-40e02aabc2ad // indirect
+	github.com/google/pprof v0.0.0-20250403155104-27863c87afa6 // indirect
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 // indirect
 	github.com/gordonklaus/ineffassign v0.1.0 // indirect
 	github.com/gorilla/websocket v1.5.0 // indirect
@@ -312,23 +312,24 @@ require (
 	go.uber.org/automaxprocs v1.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
+	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto v0.41.0 // indirect
 	golang.org/x/exp v0.0.0-20240909161429-701f63a606c0 // indirect
 	golang.org/x/exp/typeparams v0.0.0-20241108190413-2d47ceb2692f // indirect
-	golang.org/x/mod v0.26.0 // indirect
+	golang.org/x/mod v0.27.0 // indirect
 	golang.org/x/oauth2 v0.24.0 // indirect
 	golang.org/x/sync v0.16.0 // indirect
 	golang.org/x/sys v0.35.0 // indirect
 	golang.org/x/term v0.34.0 // indirect
 	golang.org/x/text v0.28.0 // indirect
-	golang.org/x/tools v0.35.0 // indirect
+	golang.org/x/tools v0.36.0 // indirect
 	golang.org/x/tools/go/expect v0.1.1-deprecated // indirect
 	golang.org/x/tools/go/packages/packagestest v0.1.1-deprecated // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20240826202546-f6391c0de4c7 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240924160255-9d4c2d233b61 // indirect
 	google.golang.org/grpc v1.66.2 // indirect
-	google.golang.org/protobuf v1.36.1 // indirect
+	google.golang.org/protobuf v1.36.7 // indirect
 	gopkg.in/evanphx/json-patch.v4 v4.12.0 // indirect
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
@@ -406,3 +407,18 @@ replace (
 replace github.com/containerd/errdefs => github.com/containerd/errdefs v0.1.0
 
 replace golang.org/x/net => github.com/openshift-sustaining/net v0.43.0-sec.4
+
+// SPLAT-2868: point openshift/api at the fork branch carrying the release-4.19
+// backport of the VSphereMultiVCenterDay2 feature gate (go 1.23, unlike the
+// release-4.20 backport merged as openshift/api#3038 which requires go 1.24).
+// Remove once the backport merges into openshift/api release-4.19.
+// To pick up newer commits on the branch:
+//   go mod edit -replace github.com/openshift/api=github.com/vr4manta/api@SPLAT-2868 && go mod tidy && go mod vendor
+replace github.com/openshift/api => github.com/vr4manta/api v0.0.0-20261015163832-0b8b6d31c373
+
+// SPLAT-2868: point openshift/library-go at the fork branch with the matching
+// backport changes (CPIConfig yaml migration and related updates).
+// Remove once it merges into openshift/library-go release-4.19.
+// To pick up newer commits on the branch:
+//   go mod edit -replace github.com/openshift/library-go=github.com/vr4manta/library-go@SPLAT-2868 && go mod tidy && go mod vendor
+replace github.com/openshift/library-go => github.com/vr4manta/library-go v0.0.0-20261015182815-de49c4bfd603
