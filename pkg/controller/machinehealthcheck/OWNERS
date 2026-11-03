@@ -4,6 +4,8 @@
 approvers:
   - machine-api-approvers
   - machine-health-check-approvers
+advisory_approvers:
+  - machine-api-advisory-approvers
 reviewers:
   - machine-api-reviewers
   - machine-health-check-reviewers
