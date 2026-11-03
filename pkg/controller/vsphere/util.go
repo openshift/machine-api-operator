@@ -20,8 +20,10 @@ import (
 )
 
 const (
-	globalInfrastuctureName  = "cluster"
-	OpenshiftConfigNamespace = "openshift-config"
+	globalInfrastuctureName              = "cluster"
+	OpenshiftConfigManagedNamespace      = "openshift-config-managed"
+	OpenshiftConfigManagedConfigMap      = "kube-cloud-config"
+	OpenshiftConfigManagedCloudConfigKey = "cloud.conf"
 )
 
 // GetInfrastructure retrieves the Infrastructure object from the provided API reader.
@@ -46,22 +48,13 @@ func getVSphereConfig(c runtimeclient.Reader, configNamespace string) (*vsphere.
 		return nil, errors.New("no API reader -- will not fetch vSphere config")
 	}
 
-	infra, err := GetInfrastructure(c)
-	if err != nil {
-		return nil, err
-	}
-
-	if infra.Spec.CloudConfig.Name == "" {
-		return nil, fmt.Errorf("cluster infrastructure CloudConfig has empty name")
-	}
-
-	if infra.Spec.CloudConfig.Key == "" {
-		return nil, fmt.Errorf("cluster infrastructure CloudConfig has empty key")
+	if configNamespace == "" {
+		configNamespace = OpenshiftConfigManagedNamespace
 	}
 
 	cm := &corev1.ConfigMap{}
 	cmName := runtimeclient.ObjectKey{
-		Name:      infra.Spec.CloudConfig.Name,
+		Name:      OpenshiftConfigManagedConfigMap,
 		Namespace: configNamespace,
 	}
 
@@ -69,10 +62,10 @@ func getVSphereConfig(c runtimeclient.Reader, configNamespace string) (*vsphere.
 		return nil, err
 	}
 
-	cloudConfig, found := cm.Data[infra.Spec.CloudConfig.Key]
+	cloudConfig, found := cm.Data[OpenshiftConfigManagedCloudConfigKey]
 	if !found {
 		return nil, fmt.Errorf("cloud-config ConfigMap has no %q key",
-			infra.Spec.CloudConfig.Key,
+			OpenshiftConfigManagedCloudConfigKey,
 		)
 	}
 

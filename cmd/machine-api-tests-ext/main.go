@@ -26,9 +26,14 @@ func main() {
 	pflag.CommandLine.SetNormalizeFunc(utilflag.WordSepNormalizeFunc)
 
 	// These flags are used to pull in the default values to test context - required
-	// so tests run correctly, even if the underlying flags aren't used.
-	framework.RegisterCommonFlags(flag.CommandLine)
-	framework.RegisterClusterFlags(flag.CommandLine)
+	// so tests run correctly, even if the underlying flags aren't used. Registered on a
+	// throwaway FlagSet rather than flag.CommandLine: some transitively-imported packages
+	// (e.g. sigs.k8s.io/controller-runtime/pkg/client/config) register a "kubeconfig" flag
+	// on flag.CommandLine from an init() function, and framework.RegisterClusterFlags panics
+	// with "flag redefined" if that flag already exists on the FlagSet it's given.
+	testContextFlags := flag.NewFlagSet("test-context-defaults", flag.PanicOnError)
+	framework.RegisterCommonFlags(testContextFlags)
+	framework.RegisterClusterFlags(testContextFlags)
 
 	// Create our registry of openshift-tests extensions
 	extensionRegistry := e.NewRegistry()
