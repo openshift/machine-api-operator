@@ -2,13 +2,14 @@
 
 aliases:
   machine-api-approvers:
-  - JoelSpeed
   - RadekManak
   - damdo
   - mdbooth
   - nrb
   - racheljpg
   - theobarberbany
+  machine-api-advisory-approvers:
+  - JoelSpeed
   machine-api-reviewers:
   - RadekManak
   - damdo
