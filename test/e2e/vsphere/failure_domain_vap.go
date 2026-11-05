@@ -494,7 +494,9 @@ var _ = Describe(
 				// deterministic name means a later test's Create can still collide with this
 				// MachineSet if it's left behind, so cleanup must not silently bail out here.
 				Eventually(func() error {
-					delErr := mc.MachineSets(e2eutil.MachineAPINamespace).Delete(ctx, testMS.Name, metav1.DeleteOptions{})
+					attemptCtx, cancel := context.WithTimeout(ctx, vapPollAttemptTimeout)
+					defer cancel()
+					delErr := mc.MachineSets(e2eutil.MachineAPINamespace).Delete(attemptCtx, testMS.Name, metav1.DeleteOptions{})
 					if delErr != nil && !apierrors.IsNotFound(delErr) {
 						return delErr
 					}
@@ -505,7 +507,9 @@ var _ = Describe(
 				// test's Create can collide if this one is still terminating — wait for confirmed
 				// absence before cleanup completes.
 				Eventually(func() bool {
-					_, getErr := mc.MachineSets(e2eutil.MachineAPINamespace).Get(ctx, testMS.Name, metav1.GetOptions{})
+					attemptCtx, cancel := context.WithTimeout(ctx, vapPollAttemptTimeout)
+					defer cancel()
+					_, getErr := mc.MachineSets(e2eutil.MachineAPINamespace).Get(attemptCtx, testMS.Name, metav1.GetOptions{})
 					return apierrors.IsNotFound(getErr)
 				}, vapTestWaitTimeout, 5*time.Second).Should(BeTrue(), "MachineSet %q should be deleted within %s", testMS.Name, vapTestWaitTimeout)
 			})
