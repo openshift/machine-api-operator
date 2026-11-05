@@ -438,7 +438,9 @@ var _ = Describe(
 			// connection details into Infrastructure.Status), so retry on conflict rather than
 			// treating a stale-resourceVersion 409 as an unexpected failure.
 			err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
-				latest, getErr := cc.Infrastructures().Get(ctx, "cluster", metav1.GetOptions{})
+				attemptCtx, cancel := context.WithTimeout(ctx, vapPollAttemptTimeout)
+				defer cancel()
+				latest, getErr := cc.Infrastructures().Get(attemptCtx, "cluster", metav1.GetOptions{})
 				if getErr != nil {
 					return getErr
 				}
@@ -488,10 +490,17 @@ var _ = Describe(
 
 			DeferCleanup(func() {
 				By("cleaning up test MachineSet")
-				if delErr := mc.MachineSets(e2eutil.MachineAPINamespace).Delete(ctx, testMS.Name, metav1.DeleteOptions{}); delErr != nil && !apierrors.IsNotFound(delErr) {
-					e2e.Logf("warning: could not delete test MachineSet %q: %v", testMS.Name, delErr)
-					return
-				}
+				// Retry transient deletion errors rather than giving up after one attempt — the
+				// deterministic name means a later test's Create can still collide with this
+				// MachineSet if it's left behind, so cleanup must not silently bail out here.
+				Eventually(func() error {
+					delErr := mc.MachineSets(e2eutil.MachineAPINamespace).Delete(ctx, testMS.Name, metav1.DeleteOptions{})
+					if delErr != nil && !apierrors.IsNotFound(delErr) {
+						return delErr
+					}
+					return nil
+				}, vapTestWaitTimeout, 5*time.Second).Should(Succeed(), "expected to be able to delete MachineSet %q", testMS.Name)
+
 				// createVAPTestMachineSet always uses the same deterministic name, so a subsequent
 				// test's Create can collide if this one is still terminating — wait for confirmed
 				// absence before cleanup completes.
