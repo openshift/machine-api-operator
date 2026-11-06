@@ -737,7 +737,7 @@ func buildFeatureGatesString(featureGates map[string]bool) string {
 func newContainers(config *OperatorConfig, features map[string]bool, tlsArgs []string) []corev1.Container {
 	resources := corev1.ResourceRequirements{
 		Requests: map[corev1.ResourceName]resource.Quantity{
-			corev1.ResourceMemory: resource.MustParse("20Mi"),
+			corev1.ResourceMemory: resource.MustParse("75Mi"),
 			corev1.ResourceCPU:    resource.MustParse("10m"),
 		},
 	}
