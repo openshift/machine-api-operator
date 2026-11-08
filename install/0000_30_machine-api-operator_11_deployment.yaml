@@ -58,7 +58,7 @@ spec:
         resources:
           requests:
             cpu: 10m
-            memory: 50Mi
+            memory: 130Mi
         terminationMessagePolicy: FallbackToLogsOnError
         volumeMounts:
         - name: images
