@@ -55,7 +55,36 @@ const (
 	// Not all controllers support up to 30, but the maximum is 30.
 	// xref: https://docs.vmware.com/en/VMware-vSphere/8.0/vsphere-vm-administration/GUID-5872D173-A076-42FE-8D0B-9DB0EB0E7362.html#:~:text=If%20you%20add%20a%20hard,values%20from%200%20to%2014.
 	maxUnitNumber = 30
+	// VSphereCSIDriverName is the CSI driver name for vSphere volumes.
+	VSphereCSIDriverName = "csi.vsphere.vmware.com"
+	// VSphereInTreePluginName is the in-tree plugin name for vSphere volumes.
+	VSphereInTreePluginName = "kubernetes.io/vsphere-volume"
+	// csiPluginPrefix is the prefix for CSI volume names in node.Status.VolumesAttached.
+	// Format: kubernetes.io/csi/<driverName>^<volumeHandle>
+	csiPluginPrefix = "kubernetes.io/csi/"
+	// csiVolNameSep separates the driver name from the volume handle in CSI volume names.
+	csiVolNameSep = "^"
 )
+
+// inTreeNonVSpherePluginNames lists in-tree volume plugin names whose volumes are not
+// backed by a vSphere VMDK, so a vSphere Destroy_Task cannot affect them.
+//
+// This is deliberately an explicit allowlist rather than "anything under kubernetes.io/":
+// legacy out-of-tree drivers also publish names under that prefix, notably the vSphere
+// flexvolume driver (kubernetes.io/flexvolume/vsphere/...) whose volumes ARE VM disks.
+// A blanket prefix match would classify those as safe and destroy the VMDK underneath them.
+// Anything not listed here stays in the conservative "unknown" bucket and blocks deletion.
+var inTreeNonVSpherePluginNames = []string{
+	"kubernetes.io/aws-ebs",
+	"kubernetes.io/azure-disk",
+	"kubernetes.io/azure-file",
+	"kubernetes.io/cinder",
+	"kubernetes.io/fc",
+	"kubernetes.io/gce-pd",
+	"kubernetes.io/iscsi",
+	"kubernetes.io/local-volume",
+	"kubernetes.io/rbd",
+}
 
 // These are the guestinfo variables used by Ignition.
 // https://access.redhat.com/documentation/en-us/openshift_container_platform/4.1/html/installing/installing-on-vsphere
@@ -563,11 +592,11 @@ func (r *Reconciler) delete() error {
 	return fmt.Errorf("destroying vm in progress, requeuing")
 }
 
-// nodeHasVolumesAttached returns true if node status still have volumes attached
-// pod deletion and volume detach happen asynchronously, so pod could be deleted before volume detached from the node
-// this could cause issue for some storage provisioner, for example, vsphere-volume this is problematic
-// because if the node is deleted before detach success, then the underline VMDK will be deleted together with the Machine
-// so after node draining we need to check if all volumes are detached before deleting the node.
+// nodeHasVolumesAttached returns true if node status still has vSphere-backed volumes attached.
+// Pod deletion and volume detach happen asynchronously, so pod could be deleted before volume detached from the node.
+// This is problematic for vSphere volumes because if the node is deleted before detach succeeds,
+// the underlying VMDK will be deleted together with the Machine.
+// Non-vSphere volumes (NFS, iSCSI, etc.) do not have this risk since vSphere Destroy_Task does not affect them.
 func (r *Reconciler) nodeHasVolumesAttached(ctx context.Context, nodeName string, machineName string) (bool, error) {
 	node := &corev1.Node{}
 	if err := r.apiReader.Get(ctx, apimachinerytypes.NamespacedName{Name: nodeName}, node); err != nil {
@@ -578,7 +607,85 @@ func (r *Reconciler) nodeHasVolumesAttached(ctx context.Context, nodeName string
 		return true, err
 	}
 
-	return len(node.Status.VolumesAttached) != 0, nil
+	if len(node.Status.VolumesAttached) == 0 {
+		return false, nil
+	}
+
+	klog.V(3).Infof("Machine %s: checking %d attached volumes on node %s for vSphere-backed volumes", machineName, len(node.Status.VolumesAttached), nodeName)
+
+	var vsphereVolumes []string
+	var nonVSphereVolumes []string
+	var unknownVolumes []string
+
+	for _, vol := range node.Status.VolumesAttached {
+		volName := string(vol.Name)
+
+		switch classifyAttachedVolume(volName) {
+		case volumeClassVSphere:
+			vsphereVolumes = append(vsphereVolumes, volName)
+		case volumeClassNonVSphere:
+			nonVSphereVolumes = append(nonVSphereVolumes, volName)
+		case volumeClassUnknown:
+			unknownVolumes = append(unknownVolumes, volName)
+		}
+	}
+
+	if len(vsphereVolumes) > 0 {
+		klog.Warningf("Machine %s: vSphere-backed volumes still attached on node %s: %v", machineName, nodeName, vsphereVolumes)
+	}
+	if len(nonVSphereVolumes) > 0 {
+		klog.V(3).Infof("Machine %s: non-vSphere volumes attached (safe to ignore): %v", machineName, nonVSphereVolumes)
+	}
+	if len(unknownVolumes) > 0 {
+		klog.Warningf("Machine %s on node %s: volumes with unrecognized name format, conservatively blocking deletion: %v", machineName, nodeName, unknownVolumes)
+	}
+
+	return len(vsphereVolumes) > 0 || len(unknownVolumes) > 0, nil
+}
+
+// volumeClass is the result of classifying a node.Status.VolumesAttached entry by
+// whether destroying the VM would destroy the volume's backing storage.
+type volumeClass int
+
+const (
+	// volumeClassVSphere marks a volume backed by a vSphere VMDK that Destroy_Task deletes.
+	volumeClassVSphere volumeClass = iota
+	// volumeClassNonVSphere marks a known volume type that Destroy_Task cannot affect.
+	volumeClassNonVSphere
+	// volumeClassUnknown marks a volume whose storage cannot be determined from its name.
+	// Callers must treat it as blocking, since it might be a VMDK.
+	volumeClassUnknown
+)
+
+// classifyAttachedVolume determines whether an attached volume is vSphere-backed
+// by parsing the UniqueVolumeName format from node.Status.VolumesAttached.
+// CSI volumes use the format: kubernetes.io/csi/<driverName>^<volumeHandle>
+// In-tree volumes use the format: <pluginName>/<volumeName>
+// Anything that cannot be confidently classified is reported as unknown, which callers
+// must treat as "blocks deletion".
+func classifyAttachedVolume(volName string) volumeClass {
+	if strings.HasPrefix(volName, VSphereInTreePluginName+"/") {
+		return volumeClassVSphere
+	}
+
+	if strings.HasPrefix(volName, csiPluginPrefix) {
+		remainder := strings.TrimPrefix(volName, csiPluginPrefix)
+		if sepIdx := strings.Index(remainder, csiVolNameSep); sepIdx > 0 {
+			driver := remainder[:sepIdx]
+			if driver == VSphereCSIDriverName {
+				return volumeClassVSphere
+			}
+			return volumeClassNonVSphere
+		}
+	}
+
+	for _, pluginName := range inTreeNonVSpherePluginNames {
+		if strings.HasPrefix(volName, pluginName+"/") {
+			return volumeClassNonVSphere
+		}
+	}
+
+	return volumeClassUnknown
 }
 
 // reconcileMachineWithCloudState reconcile machineSpec and status with the latest cloud state
