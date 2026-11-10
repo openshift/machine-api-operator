@@ -22,6 +22,7 @@ import (
 	"github.com/vmware/govmomi/find"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/property"
+	"github.com/vmware/govmomi/vapi/tags"
 	"github.com/vmware/govmomi/vim25"
 	"github.com/vmware/govmomi/vim25/mo"
 	"github.com/vmware/govmomi/vim25/types"
@@ -1685,7 +1686,13 @@ func (vm *virtualMachine) reconcileTags(ctx context.Context, tagManager *session
 			// Resolve the name to an ID. A missing tag is not an error:
 			// clusters may run without the cluster-ID tag, and attaching
 			// would fail anyway.
-			tag, err := tagManager.GetTag(ctx, tagID)
+			var tag *tags.Tag
+			var err error
+			if tagID == clusterID {
+				tag, err = tagManager.GetTagForCategory(ctx, tagID, fmt.Sprintf("openshift-%s", clusterID))
+			} else {
+				tag, err = tagManager.GetTag(ctx, tagID)
+			}
 			if err != nil {
 				if isNotFoundErr(err) {
 					klog.V(3).Infof("%v: tag %q not found in vCenter, skipping attach", machine.GetName(), tagID)
