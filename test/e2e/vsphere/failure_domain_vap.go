@@ -20,6 +20,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+	"k8s.io/client-go/util/retry"
 	e2e "k8s.io/kubernetes/test/e2e/framework"
 )
 
@@ -432,8 +433,20 @@ var _ = Describe(
 			}
 
 			By(fmt.Sprintf("attempting to remove failure domain %q that is still in use by a Machine (exclusive=%v)", fdName, exclusive))
-			updatedInfra := infraWithFDRemoved(infra, fdName)
-			_, err = cc.Infrastructures().Update(ctx, updatedInfra, metav1.UpdateOptions{})
+			// The Infrastructure object's resourceVersion can be bumped concurrently by other
+			// controllers reconciling status (this feature itself syncs additional vCenter
+			// connection details into Infrastructure.Status), so retry on conflict rather than
+			// treating a stale-resourceVersion 409 as an unexpected failure.
+			err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+				attemptCtx, cancel := context.WithTimeout(ctx, vapPollAttemptTimeout)
+				defer cancel()
+				latest, getErr := cc.Infrastructures().Get(attemptCtx, "cluster", metav1.GetOptions{})
+				if getErr != nil {
+					return getErr
+				}
+				_, updateErr := cc.Infrastructures().Update(ctx, infraWithFDRemoved(latest, fdName), metav1.UpdateOptions{})
+				return updateErr
+			})
 			Expect(err).To(HaveOccurred(), "expected infra update removing in-use FD %q to be denied", fdName)
 			Expect(apierrors.IsInvalid(err) || apierrors.IsForbidden(err)).To(BeTrue(),
 				"expected a 422/Invalid or 403/Forbidden response, got: %v", err)
@@ -477,14 +490,26 @@ var _ = Describe(
 
 			DeferCleanup(func() {
 				By("cleaning up test MachineSet")
-				if delErr := mc.MachineSets(e2eutil.MachineAPINamespace).Delete(ctx, testMS.Name, metav1.DeleteOptions{}); delErr != nil && !apierrors.IsNotFound(delErr) {
-					e2e.Logf("warning: could not delete test MachineSet %q: %v", testMS.Name, delErr)
-				}
+				// Retry transient deletion errors rather than giving up after one attempt — the
+				// deterministic name means a later test's Create can still collide with this
+				// MachineSet if it's left behind, so cleanup must not silently bail out here.
+				Eventually(func() error {
+					attemptCtx, cancel := context.WithTimeout(ctx, vapPollAttemptTimeout)
+					defer cancel()
+					delErr := mc.MachineSets(e2eutil.MachineAPINamespace).Delete(attemptCtx, testMS.Name, metav1.DeleteOptions{})
+					if delErr != nil && !apierrors.IsNotFound(delErr) {
+						return delErr
+					}
+					return nil
+				}, vapTestWaitTimeout, 5*time.Second).Should(Succeed(), "expected to be able to delete MachineSet %q", testMS.Name)
+
 				// createVAPTestMachineSet always uses the same deterministic name, so a subsequent
 				// test's Create can collide if this one is still terminating — wait for confirmed
 				// absence before cleanup completes.
 				Eventually(func() bool {
-					_, getErr := mc.MachineSets(e2eutil.MachineAPINamespace).Get(ctx, testMS.Name, metav1.GetOptions{})
+					attemptCtx, cancel := context.WithTimeout(ctx, vapPollAttemptTimeout)
+					defer cancel()
+					_, getErr := mc.MachineSets(e2eutil.MachineAPINamespace).Get(attemptCtx, testMS.Name, metav1.GetOptions{})
 					return apierrors.IsNotFound(getErr)
 				}, vapTestWaitTimeout, 5*time.Second).Should(BeTrue(), "MachineSet %q should be deleted within %s", testMS.Name, vapTestWaitTimeout)
 			})
