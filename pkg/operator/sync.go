@@ -671,6 +671,12 @@ func newPodTemplateSpec(config *OperatorConfig, features map[string]bool) *corev
 			},
 		},
 	}
+	if config.PlatformType == configv1.AWSPlatformType {
+		volumes = append(volumes, corev1.Volume{
+			Name:         "machine-controller-tmp",
+			VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+		})
+	}
 	volumes = append(volumes, newRBACConfigVolumes()...)
 
 	podAnnotations := maps.Clone(commonPodTemplateAnnotations)
@@ -947,6 +953,14 @@ func newContainers(config *OperatorConfig, features map[string]bool, tlsArgs []s
 			TerminationMessagePolicy: corev1.TerminationMessageFallbackToLogsOnError,
 		})
 	}
+	for i := range containers {
+		containers[i].SecurityContext = &corev1.SecurityContext{ReadOnlyRootFilesystem: ptr.To(true)}
+		if containers[i].Name == "machine-controller" && config.PlatformType == configv1.AWSPlatformType {
+			containers[i].VolumeMounts = append(containers[i].VolumeMounts, corev1.VolumeMount{
+				Name: "machine-controller-tmp", MountPath: "/tmp",
+			})
+		}
+	}
 	return containers
 }
 
@@ -1030,6 +1044,7 @@ func newKubeProxyContainer(image, portName, upstreamPort string, exposePort int3
 	}}
 
 	return corev1.Container{
+		SecurityContext:          &corev1.SecurityContext{ReadOnlyRootFilesystem: ptr.To(true)},
 		Name:                     fmt.Sprintf("kube-rbac-proxy-%s", portName),
 		Image:                    image,
 		Args:                     args,
@@ -1151,6 +1166,7 @@ func newTerminationContainers(config *OperatorConfig) []corev1.Container {
 
 	return []corev1.Container{
 		{
+			SecurityContext:          &corev1.SecurityContext{ReadOnlyRootFilesystem: ptr.To(true)},
 			Name:                     "termination-handler",
 			Image:                    config.Controllers.TerminationHandler,
 			Command:                  []string{"/termination-handler"},
