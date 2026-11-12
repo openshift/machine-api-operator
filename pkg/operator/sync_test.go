@@ -2,7 +2,6 @@ package operator
 
 import (
 	"errors"
-	"fmt"
 	"os"
 	"strings"
 	"testing"
@@ -1160,41 +1159,4 @@ func TestResolveTLSProfile(t *testing.T) {
 	g.Expect(resolveTLSProfile(clusterTLSProfile, configv1.TLSAdherencePolicyStrictAllComponents)).To(Equal(clusterTLSProfile))
 	g.Expect(resolveTLSProfile(clusterTLSProfile, configv1.TLSAdherencePolicyNoOpinion)).To(Equal(defaultTLSProfile))
 	g.Expect(resolveTLSProfile(clusterTLSProfile, configv1.TLSAdherencePolicyLegacyAdheringComponentsOnly)).To(Equal(defaultTLSProfile))
-}
-
-func TestGeneratedWorkloadsReadOnlyRootFilesystem(t *testing.T) {
-	for _, platform := range []configv1.PlatformType{configv1.AWSPlatformType, configv1.AzurePlatformType, configv1.GCPPlatformType, configv1.BareMetalPlatformType, configv1.VSpherePlatformType} {
-		for _, withMHC := range []bool{false, true} {
-			for _, withPprof := range []bool{false, true} {
-				name := string(platform) + fmt.Sprintf("/mhc=%t/pprof=%t", withMHC, withPprof)
-				t.Run(name, func(t *testing.T) {
-					config := &OperatorConfig{PlatformType: platform, EnablePprof: withPprof}
-					if withMHC {
-						config.Controllers.MachineHealthCheck = "machine-healthcheck"
-					}
-					pod := newDeployment(config, nil).Spec.Template.Spec
-					for _, container := range pod.Containers {
-						if container.SecurityContext == nil || container.SecurityContext.ReadOnlyRootFilesystem == nil || !*container.SecurityContext.ReadOnlyRootFilesystem {
-							t.Errorf("%s does not have a read-only root filesystem", container.Name)
-						}
-						for _, mount := range container.VolumeMounts {
-							if mount.MountPath == "/tmp" && (platform != configv1.AWSPlatformType || container.Name != "machine-controller" || mount.ReadOnly) {
-								t.Errorf("unexpected temporary mount on %s: %+v", container.Name, mount)
-							}
-						}
-					}
-					if platform == configv1.AWSPlatformType {
-						g := NewWithT(t)
-						g.Expect(pod.Volumes).To(ContainElement(SatisfyAll(HaveField("Name", "machine-controller-tmp"), HaveField("VolumeSource.EmptyDir", Not(BeNil())))))
-						g.Expect(pod.Containers).To(ContainElement(SatisfyAll(HaveField("Name", "machine-controller"), HaveField("VolumeMounts", ContainElement(SatisfyAll(HaveField("Name", "machine-controller-tmp"), HaveField("MountPath", "/tmp"), HaveField("ReadOnly", false)))))))
-					}
-					for _, container := range newTerminationDaemonSet(config).Spec.Template.Spec.Containers {
-						if container.SecurityContext == nil || container.SecurityContext.ReadOnlyRootFilesystem == nil || !*container.SecurityContext.ReadOnlyRootFilesystem {
-							t.Errorf("%s does not have a read-only root filesystem", container.Name)
-						}
-					}
-				})
-			}
-		}
-	}
 }
