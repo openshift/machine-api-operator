@@ -85,7 +85,7 @@ var (
 )
 
 func init() {
-	prometheus.MustRegister(MachineCollectorUp)
+	metrics.Registry.MustRegister(MachineCollectorUp)
 	metrics.Registry.MustRegister(MachinePhaseTransitionSeconds, VsphereRequestDurationSeconds)
 	metrics.Registry.MustRegister(
 		failedInstanceCreateCount,
@@ -126,6 +126,11 @@ func (mc *MachineCollector) Collect(ch chan<- prometheus.Metric) {
 func (mc MachineCollector) Describe(ch chan<- *prometheus.Desc) {
 	ch <- MachineCountDesc
 	ch <- MachineSetCountDesc
+	ch <- MachineInfoDesc
+	ch <- MachineSetInfoDesc
+	ch <- MachineSetStatusAvailableReplicasDesc
+	ch <- MachineSetStatusReadyReplicasDesc
+	ch <- MachineSetStatusReplicasDesc
 }
 
 // Collect implements the prometheus.Collector interface.
