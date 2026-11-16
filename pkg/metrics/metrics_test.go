@@ -185,7 +185,7 @@ func TestMachineCollectorEmptyListsStillReportsCollectorUp(t *testing.T) {
 func newTestMachineCollector(t *testing.T, objects ...runtime.Object) *MachineCollector {
 	t.Helper()
 
-	client := fakemachine.NewSimpleClientset() //nolint:staticcheck
+	client := fakemachine.NewSimpleClientset()
 	factory := machineinformers.NewSharedInformerFactoryWithOptions(client, 0, machineinformers.WithNamespace(testNamespace))
 	machineInformer := factory.Machine().V1beta1().Machines()
 	machineSetInformer := factory.Machine().V1beta1().MachineSets()
