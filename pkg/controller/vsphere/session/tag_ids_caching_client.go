@@ -88,6 +88,7 @@ type CachingTagsManager struct {
 
 	tags            objectCacheMap // name -> ID
 	categories      objectCacheMap // name -> ID
+	categoryTags    objectCacheMap // category ID + name -> tag ID
 	tagObjects      objectCacheMap // ID -> *tags.Tag
 	categoryObjects objectCacheMap // ID -> *tags.Category
 }
@@ -214,6 +215,65 @@ func (t *CachingTagsManager) GetTag(ctx context.Context, id string) (*tags.Tag, 
 		func(tag *tags.Tag) string { return tag.Name },
 		func(tag *tags.Tag) string { return tag.ID },
 		id)
+}
+
+// GetTagForCategory fetches a tag by ID or name within a category. The
+// category-scoped name cache avoids repeating list-tags-for-category calls.
+func (t *CachingTagsManager) GetTagForCategory(ctx context.Context, id, category string) (*tags.Tag, error) {
+	categoryObj, err := t.GetCategory(ctx, category)
+	if err != nil {
+		return nil, err
+	}
+	if !IsName(id) {
+		tag, err := t.GetTag(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if tag.CategoryID != categoryObj.ID {
+			return nil, fmt.Errorf("tag %q not found in category %q", id, category)
+		}
+		return tag, nil
+	}
+
+	cacheKey := categoryObj.ID + "\x00" + id
+	if cachedID, found := t.categoryTags.Get(cacheKey); found {
+		tagID := cachedID.(string)
+		if tagID == notFoundValue {
+			return nil, fmt.Errorf("%s", notFoundErrMessage)
+		}
+		tag, err := t.GetTag(ctx, tagID)
+		if err == nil {
+			if tag.Name == id && tag.CategoryID == categoryObj.ID {
+				return tag, nil
+			}
+			t.categoryTags.Delete(cacheKey)
+		} else if isObjectNotFoundErr(err) {
+			t.categoryTags.Delete(cacheKey)
+		} else {
+			return nil, err
+		}
+	}
+
+	tagIDs, err := t.Manager.ListTagsForCategory(ctx, categoryObj.ID)
+	if err != nil {
+		if isObjectNotFoundErr(err) {
+			t.categoryTags.Set(cacheKey, notFoundValue)
+		}
+		return nil, err
+	}
+	for _, tagID := range tagIDs {
+		tag, err := t.GetTag(ctx, tagID)
+		if err != nil {
+			return nil, fmt.Errorf("get tag for category %s %s: %w", categoryObj.ID, tagID, err)
+		}
+		if tag.Name == id {
+			t.categoryTags.Set(cacheKey, tag.ID)
+			return tag, nil
+		}
+	}
+
+	t.categoryTags.Set(cacheKey, notFoundValue)
+	return nil, fmt.Errorf("%s", notFoundErrMessage)
 }
 
 // GetCategory fetches the category information for the given identifier.
