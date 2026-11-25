@@ -35,6 +35,7 @@ import (
 
 	. "github.com/onsi/gomega"
 
+	"github.com/google/uuid"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/simulator"
 	"github.com/vmware/govmomi/vapi/rest"
@@ -80,23 +81,17 @@ func init() {
 type simulatorModelOption func(m *simulator.Model)
 
 func initSimulator(t *testing.T) (*simulator.Model, *session.Session, *simulator.Server) {
-	model := simulator.VPX()
-	model.Host = 0
-
-	err := model.Create()
-	if err != nil {
-		t.Fatal(err)
-	}
-	model.Service.TLS = new(tls.Config)
-	model.Service.RegisterEndpoints = true
-
-	server := model.Service.NewServer()
+	model, server := initSimulatorCustom(t)
 	session := getSimulatorSession(t, server)
 
 	return model, session, server
 }
 
 func initSimulatorCustom(t *testing.T, opts ...simulatorModelOption) (*simulator.Model, *simulator.Server) {
+	return initSimulatorWithAddress(t, "", opts...)
+}
+
+func initSimulatorWithAddress(t *testing.T, address string, opts ...simulatorModelOption) (*simulator.Model, *simulator.Server) {
 	model := simulator.VPX()
 	model.Host = 0
 
@@ -109,10 +104,24 @@ func initSimulatorCustom(t *testing.T, opts ...simulatorModelOption) (*simulator
 	}
 	model.Service.TLS = new(tls.Config)
 	model.Service.RegisterEndpoints = true
+	model.Service.Listen = &url.URL{Host: address, User: url.UserPassword(uuid.NewString(), "pass")}
 
 	server := model.Service.NewServer()
 
 	return model, server
+}
+
+func TestSimulatorSessionAfterPortReuse(t *testing.T) {
+	model, _, server := initSimulator(t)
+	defer model.Remove()
+	address := server.URL.Host
+	server.Close()
+
+	replacementModel, replacementServer := initSimulatorWithAddress(t, address)
+	defer replacementModel.Remove()
+	defer replacementServer.Close()
+
+	getSimulatorSession(t, replacementServer)
 }
 
 func getSimulatorSession(t *testing.T, server *simulator.Server) *session.Session {

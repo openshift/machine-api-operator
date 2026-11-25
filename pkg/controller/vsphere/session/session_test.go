@@ -21,9 +21,11 @@ import (
 
 	"context"
 	"crypto/tls"
+	"net/url"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/vmware/govmomi/object"
 	"github.com/vmware/govmomi/simulator"
 
@@ -39,6 +41,7 @@ func initSimulator(t *testing.T) (*simulator.Model, *Session, *simulator.Server)
 	}
 	model.Service.TLS = new(tls.Config)
 	model.Service.RegisterEndpoints = true
+	model.Service.Listen = &url.URL{User: url.UserPassword(uuid.NewString(), "pass")}
 
 	server := model.Service.NewServer()
 	pass, _ := server.URL.User.Password()
