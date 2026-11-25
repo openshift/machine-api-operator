@@ -696,6 +696,11 @@ func (in *GCPDisk) DeepCopyInto(out *GCPDisk) {
 		*out = new(GCPEncryptionKeyReference)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.Licenses != nil {
+		in, out := &in.Licenses, &out.Licenses
+		*out = make([]string, len(*in))
+		copy(*out, *in)
+	}
 	return
 }
 
