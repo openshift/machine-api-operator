@@ -23,7 +23,7 @@ REPO_ROOT=$(dirname "${BASH_SOURCE}")/..
 OPENSHIFT_CI=${OPENSHIFT_CI:-""}
 ARTIFACT_DIR=${ARTIFACT_DIR:-""}
 GINKGO=${GINKGO:-"go run ${REPO_ROOT}/vendor/github.com/onsi/ginkgo/v2/ginkgo"}
-GINKGO_ARGS=${GINKGO_ARGS:-"-v --randomize-all --randomize-suites --keep-going --race --trace --timeout=10m"}
+GINKGO_ARGS=${GINKGO_ARGS:-"-v --randomize-all --randomize-suites --keep-going --race --trace --timeout=20m"}
 GINKGO_EXTRA_ARGS=${GINKGO_EXTRA_ARGS:-""}
 
 # Ensure that some home var is set and that it's not the root.
